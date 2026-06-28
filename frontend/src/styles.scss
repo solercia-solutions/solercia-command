@@ -159,7 +159,11 @@ body {
   background-clip: padding-box;
 }
 
-/* Entry animation — one tasteful staggered reveal on route content. */
+/* Entry animation — one tasteful reveal on route content.
+   IMPORTANT: no `both`/`forwards` fill-mode. A persisted transform (even
+   translateY(0)) turns this element into the containing block for
+   position:fixed descendants, which would push modals/overlays out of the
+   viewport. Default fill-mode reverts to no transform once the run ends. */
 @keyframes sp-fade-in {
   from {
     opacity: 0;
@@ -171,7 +175,7 @@ body {
   }
 }
 .sp-animate-in {
-  animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease) both;
+  animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
