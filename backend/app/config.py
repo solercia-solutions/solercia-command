@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Alert engine
+    ALERT_SCHEDULER_INTERVAL_HOURS: int = 1
+
 
 @lru_cache
 def get_settings() -> Settings:

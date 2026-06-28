@@ -31,6 +31,8 @@ from app.modules.roles.models import (  # noqa: F401
     RoleMenu,
     UserRole,
 )
+from app.modules.alert_rules.models import AlertRule  # noqa: F401
+from app.modules.notifications.models import Notification  # noqa: F401
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
@@ -224,6 +226,34 @@ async def _backfill_task_numbers(session: AsyncSession) -> None:
     )
 
 
+_DEFAULT_ALERT_RULES: list[tuple[str, bool, dict]] = [
+    ("task_overdue", True, {}),
+    ("task_at_risk", True, {"days_before": 3, "inactive_days": 3}),
+    ("sprint_at_risk", True, {}),
+    ("workload_imbalance", True, {"max_active_tasks": 8}),
+]
+
+
+async def _ensure_alert_rules(session: AsyncSession, organization: Organization) -> None:
+    """Create default alert rules for the organization when they do not exist."""
+    for rule_type, enabled, threshold_params in _DEFAULT_ALERT_RULES:
+        existing = await session.execute(
+            select(AlertRule).where(
+                AlertRule.organization_id == organization.id,
+                AlertRule.rule_type == rule_type,
+            )
+        )
+        if existing.scalar_one_or_none() is None:
+            session.add(
+                AlertRule(
+                    organization_id=organization.id,
+                    rule_type=rule_type,
+                    enabled=enabled,
+                    threshold_params=threshold_params,
+                )
+            )
+
+
 async def init_db() -> None:
     """Create all tables if they do not yet exist."""
 
@@ -254,6 +284,8 @@ async def seed_default() -> None:
         members = await _ensure_demo_members(
             session, organization, dependencies, roles
         )
+
+        await _ensure_alert_rules(session, organization)
 
         task_count = await session.execute(select(func.count()).select_from(Task))
         if (task_count.scalar_one() or 0) == 0:

@@ -8,10 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.alerts.router import router as alerts_admin_router
+from app.alerts.scheduler import start_scheduler, stop_scheduler
 from app.config import settings
 from app.database import engine
 from app.db_init import init_db, seed_default
+from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.auth.router import router as auth_router
 from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
@@ -61,7 +65,17 @@ async def lifespan(app: FastAPI):
     await _wait_for_db()
     await init_db()
     await seed_default()
+    # The alert scheduler must never block app startup: a failure here is logged
+    # and the API keeps serving (alerts can still be triggered on-demand).
+    try:
+        start_scheduler()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to start the alert scheduler; continuing without it.")
     yield
+    try:
+        stop_scheduler()
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to stop the alert scheduler cleanly.", exc_info=True)
     await engine.dispose()
 
 
@@ -95,6 +109,9 @@ app.include_router(dependencies_admin_router, prefix=API_PREFIX)
 app.include_router(roles_admin_router, prefix=API_PREFIX)
 app.include_router(menus_admin_router, prefix=API_PREFIX)
 app.include_router(users_admin_router, prefix=API_PREFIX)
+app.include_router(alerts_admin_router, prefix=API_PREFIX)
+app.include_router(alert_rules_router, prefix=API_PREFIX)
+app.include_router(notifications_router, prefix=API_PREFIX)
 
 
 @app.get("/", tags=["health"])

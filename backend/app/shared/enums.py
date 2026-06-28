@@ -66,3 +66,12 @@ class EstimationMode(str, Enum):
     points = "points"
     hours = "hours"
     both = "both"
+
+
+class NotificationStatus(str, Enum):
+    """Lifecycle status of an in-app notification."""
+
+    active = "active"
+    read = "read"
+    resolved = "resolved"
+    silenced = "silenced"
