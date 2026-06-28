@@ -137,7 +137,7 @@ import { MenuService } from './core/menu.service';
           <div class="flex items-center gap-2">
             <button
               type="button"
-              (click)="theme.toggle()"
+              (click)="theme.toggleMode()"
               [attr.aria-label]="
                 theme.isDark() ? 'Activa el modo claro' : 'Activa el modo oscuro'
               "
