@@ -5,6 +5,7 @@ import {
   input,
   output,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { EstimationMode } from '../project.model';
 import {
   PRIORITY_CHIP_CLASS,
@@ -24,6 +25,7 @@ import {
   selector: 'sp-task-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink],
   template: `
     <button
       type="button"
@@ -128,6 +130,15 @@ import {
           {{ task().assignee_name || 'Sin responsable' }}
         </span>
       </div>
+
+      @if (task().task_key) {
+        <a [routerLink]="['/task', task().task_key]"
+           (click)="$event.stopPropagation()"
+           class="mt-1 text-[11px] text-brand hover:underline self-end"
+           aria-label="Abrir detalle de la tarea">
+          Abrir detalle
+        </a>
+      }
     </button>
   `,
 })

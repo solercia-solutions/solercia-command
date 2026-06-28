@@ -27,6 +27,7 @@ export interface Task {
   risk_flag?: boolean;
   risk_reason?: string | null;
   created_at: string;
+  task_key?: string | null;
 }
 
 export interface Sprint {

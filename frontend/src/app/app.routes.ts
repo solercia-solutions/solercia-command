@@ -46,5 +46,13 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
+  {
+    path: 'task/:key',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/task-detail/task-detail-page.component').then(
+        (m) => m.TaskDetailPageComponent,
+      ),
+  },
   { path: '**', redirectTo: 'projects' },
 ];
