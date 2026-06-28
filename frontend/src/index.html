@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Solercia PM</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Solercia Project Manager — gestor de proyectos multiempresa."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Apply the persisted/system theme before Angular boots to avoid a flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem('sp-dark-mode');
+          var dark =
+            stored !== null
+              ? stored === 'true'
+              : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          /* no-op */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <sp-root></sp-root>
+  </body>
+</html>

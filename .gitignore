@@ -1,0 +1,41 @@
+# --- Environment ---
+.env
+.env.local
+*.env
+
+# --- Python / FastAPI backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# --- Node / Angular frontend ---
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+# --- Docker / database ---
+pgdata/
+
+# --- Editor / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Tooling / agent artifacts ---
+.atl/
+.playwright-mcp/

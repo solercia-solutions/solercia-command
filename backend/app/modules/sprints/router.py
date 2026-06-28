@@ -1,0 +1,83 @@
+"""Sprint routes.
+
+All endpoints require authentication and are scoped to the caller's current
+organization. Responses are wrapped in a ``{data, meta}`` envelope.
+"""
+
+import uuid
+
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.dependencies import get_current_membership
+from app.modules.organizations.models import OrganizationMember
+from app.modules.sprints.schemas import SprintCreate, SprintUpdate
+from app.modules.sprints.service import SprintService
+
+router = APIRouter(tags=["sprints"])
+
+
+@router.get("/projects/{project_id}/sprints")
+async def list_sprints(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the sprints of a project."""
+
+    service = SprintService(db)
+    sprints = await service.list_sprints(
+        membership.organization_id, project_id
+    )
+    return {"data": sprints, "meta": {"total": len(sprints)}}
+
+
+@router.post(
+    "/projects/{project_id}/sprints", status_code=status.HTTP_201_CREATED
+)
+async def create_sprint(
+    project_id: uuid.UUID,
+    payload: SprintCreate,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create a sprint within a project."""
+
+    service = SprintService(db)
+    sprint = await service.create_sprint(
+        membership.organization_id, project_id, payload
+    )
+    return {"data": sprint}
+
+
+@router.get("/projects/{project_id}/sprints/{sprint_id}/burndown")
+async def sprint_burndown(
+    project_id: uuid.UUID,
+    sprint_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the burndown series (ideal vs actual) for a sprint."""
+
+    service = SprintService(db)
+    data = await service.burndown(
+        membership.organization_id, project_id, sprint_id
+    )
+    return {"data": data}
+
+
+@router.patch("/sprints/{sprint_id}")
+async def update_sprint(
+    sprint_id: uuid.UUID,
+    payload: SprintUpdate,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Apply a partial update to a sprint (e.g. close it)."""
+
+    service = SprintService(db)
+    sprint = await service.update_sprint(
+        membership.organization_id, sprint_id, payload
+    )
+    return {"data": sprint}

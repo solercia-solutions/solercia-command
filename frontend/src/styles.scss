@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Solercia design tokens (--sp-*)
+   Values are RGB channels so Tailwind can apply alpha via
+   rgb(var(--sp-*) / <alpha-value>). Light is the default; the
+   .dark class on <html> swaps the whole palette.
+   Adapted (simplified) from boki-front's --bk-* token system.
+   ============================================================ */
+:root {
+  --sp-brand: 37 99 235; /* #2563EB */
+  --sp-brand-fg: 255 255 255; /* #FFFFFF */
+  --sp-bg-page: 248 250 252; /* #F8FAFC */
+  --sp-surface: 255 255 255; /* #FFFFFF */
+  --sp-text: 15 23 42; /* #0F172A */
+  --sp-muted: 100 116 139; /* #64748B */
+  --sp-border: 226 232 240; /* #E2E8F0 */
+  --sp-success: 16 185 129; /* #10B981 */
+  --sp-warning: 245 158 11; /* #F59E0B */
+  --sp-danger: 239 68 68; /* #EF4444 */
+}
+
+.dark {
+  --sp-brand: 59 130 246; /* #3B82F6 */
+  --sp-brand-fg: 255 255 255; /* #FFFFFF */
+  --sp-bg-page: 15 23 42; /* #0F172A */
+  --sp-surface: 30 41 59; /* #1E293B */
+  --sp-text: 241 245 249; /* #F1F5F9 */
+  --sp-muted: 148 163 184; /* #94A3B8 */
+  --sp-border: 51 65 85; /* #334155 */
+  --sp-success: 52 211 153; /* #34D399 */
+  --sp-warning: 251 191 36; /* #FBBF24 */
+  --sp-danger: 248 113 113; /* #F87171 */
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: rgb(var(--sp-bg-page));
+  color: rgb(var(--sp-text));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--sp-brand));
+  outline-offset: 2px;
+}
+
+/* Slim custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--sp-muted) / 0.5);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--sp-muted) / 0.8);
+}
