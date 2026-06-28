@@ -43,7 +43,7 @@ export interface TaskFormResult {
  * when sprints are enabled. Purely presentational — emits `save`/`close`.
  */
 @Component({
-  selector: 'sp-task-modal',
+  selector: 'bk-task-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, ButtonComponent],
@@ -232,23 +232,23 @@ export interface TaskFormResult {
 
           <div class="flex items-center justify-between gap-2 pt-1">
             @if (task()) {
-              <sp-button
+              <bk-button
                 type="button"
                 variant="danger"
                 (click)="remove.emit(task()!.id)"
               >
                 Eliminar
-              </sp-button>
+              </bk-button>
             } @else {
               <span></span>
             }
             <div class="flex items-center gap-2">
-              <sp-button type="button" variant="ghost" (click)="close.emit()">
+              <bk-button type="button" variant="ghost" (click)="close.emit()">
                 Cancelar
-              </sp-button>
-              <sp-button type="submit" variant="primary" [disabled]="saving()">
+              </bk-button>
+              <bk-button type="submit" variant="primary" [disabled]="saving()">
                 {{ saving() ? 'Guardando…' : 'Guardar' }}
-              </sp-button>
+              </bk-button>
             </div>
           </div>
         </form>

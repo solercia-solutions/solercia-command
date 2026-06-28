@@ -28,7 +28,7 @@ import {
 } from '../menus/menu-admin.model';
 
 @Component({
-  selector: 'sp-admin-roles',
+  selector: 'bk-admin-roles',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -43,19 +43,19 @@ import {
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <sp-page-header
+      <bk-page-header
         title="Roles"
         subtitle="Define los roles y las actividades que cada uno puede ver."
       >
-        <sp-button
+        <bk-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea un rol"
         >
           Crear rol
-        </sp-button>
-      </sp-page-header>
+        </bk-button>
+      </bk-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando roles…</p>
@@ -74,7 +74,7 @@ import {
           </p>
         </div>
       } @else {
-        <sp-table>
+        <bk-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Código</th>
@@ -87,45 +87,45 @@ import {
             @for (item of items(); track item.id) {
               <tr class="border-b border-border last:border-0">
                 <td class="px-4 py-3">
-                  <sp-badge tone="brand">{{ item.code }}</sp-badge>
+                  <bk-badge tone="brand">{{ item.code }}</bk-badge>
                 </td>
                 <td class="px-4 py-3 font-medium text-text">{{ item.name }}</td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sp-badge tone="success">Activo</sp-badge>
+                    <bk-badge tone="success">Activo</bk-badge>
                   } @else {
-                    <sp-badge tone="muted">Inactivo</sp-badge>
+                    <bk-badge tone="muted">Inactivo</bk-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <sp-icon-button
+                    <bk-icon-button
                       icon="link"
                       ariaLabel="Asocia actividades al rol"
                       (click)="openMenus(item)"
-                    ></sp-icon-button>
-                    <sp-icon-button
+                    ></bk-icon-button>
+                    <bk-icon-button
                       icon="edit"
                       ariaLabel="Edita el rol"
                       (click)="openEdit(item)"
-                    ></sp-icon-button>
-                    <sp-icon-button
+                    ></bk-icon-button>
+                    <bk-icon-button
                       icon="delete"
                       tone="danger"
                       ariaLabel="Elimina el rol"
                       (click)="askDelete(item)"
-                    ></sp-icon-button>
+                    ></bk-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </sp-table>
+        </bk-table>
       }
     </section>
 
     @if (showForm()) {
-      <sp-modal
+      <bk-modal
         [title]="editing() ? 'Editar rol' : 'Nuevo rol'"
         (close)="closeForm()"
       >
@@ -136,22 +136,22 @@ import {
           novalidate
         >
           <div>
-            <sp-text-input
+            <bk-text-input
               label="Código"
               placeholder="Ej. MANAGER"
               formControlName="code"
-            ></sp-text-input>
+            ></bk-text-input>
             @if (showError('code')) {
               <p class="mt-1 text-xs text-danger">El código es obligatorio.</p>
             }
           </div>
 
           <div>
-            <sp-text-input
+            <bk-text-input
               label="Nombre"
               placeholder="Ej. Líder"
               formControlName="name"
-            ></sp-text-input>
+            ></bk-text-input>
             @if (showError('name')) {
               <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
             }
@@ -176,19 +176,19 @@ import {
           }
 
           <div class="flex items-center justify-end gap-2">
-            <sp-button type="button" variant="ghost" (click)="closeForm()">
+            <bk-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </sp-button>
-            <sp-button type="submit" variant="primary" [disabled]="saving()">
+            </bk-button>
+            <bk-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </sp-button>
+            </bk-button>
           </div>
         </form>
-      </sp-modal>
+      </bk-modal>
     }
 
     @if (menusFor()) {
-      <sp-modal
+      <bk-modal
         size="lg"
         [title]="'Actividades de ' + (menusFor()?.name ?? '')"
         (close)="closeMenus()"
@@ -230,23 +230,23 @@ import {
         }
 
         <div class="mt-5 flex items-center justify-end gap-2">
-          <sp-button type="button" variant="ghost" (click)="closeMenus()">
+          <bk-button type="button" variant="ghost" (click)="closeMenus()">
             Cancelar
-          </sp-button>
-          <sp-button
+          </bk-button>
+          <bk-button
             type="button"
             variant="primary"
             [disabled]="saving() || menusLoading()"
             (click)="saveMenus()"
           >
             {{ saving() ? 'Guardando…' : 'Guardar actividades' }}
-          </sp-button>
+          </bk-button>
         </div>
-      </sp-modal>
+      </bk-modal>
     }
 
     @if (deleting()) {
-      <sp-modal size="sm" title="Eliminar rol" (close)="cancelDelete()">
+      <bk-modal size="sm" title="Eliminar rol" (close)="cancelDelete()">
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar
           <span class="font-medium text-text">{{ deleting()?.name }}</span>? Esta
@@ -261,19 +261,19 @@ import {
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <sp-button type="button" variant="ghost" (click)="cancelDelete()">
+          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </sp-button>
-          <sp-button
+          </bk-button>
+          <bk-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </sp-button>
+          </bk-button>
         </div>
-      </sp-modal>
+      </bk-modal>
     }
   `,
 })

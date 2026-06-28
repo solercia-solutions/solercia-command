@@ -4,7 +4,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 /** Reusable themed button. Light/dark handled by --sp-* driven colors. */
 @Component({
-  selector: 'sp-button',
+  selector: 'bk-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

@@ -59,7 +59,7 @@ function formatDayLabel(iso: string): string {
  * Purely presentational — it only needs the `days[]` series and the `unit`.
  */
 @Component({
-  selector: 'sp-burndown-chart',
+  selector: 'bk-burndown-chart',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

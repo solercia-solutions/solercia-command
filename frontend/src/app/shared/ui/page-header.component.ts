@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
  * actions slot on the right (e.g. a "Crear" button). Theme-aware.
  */
 @Component({
-  selector: 'sp-page-header',
+  selector: 'bk-page-header',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

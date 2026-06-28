@@ -23,7 +23,7 @@ import { ExecutiveDashboard } from './executive.model';
  * workload, what each person is doing, risks and per-project progress.
  */
 @Component({
-  selector: 'sp-executive',
+  selector: 'bk-executive',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CardComponent],
@@ -50,19 +50,19 @@ import { ExecutiveDashboard } from './executive.model';
       } @else if (data(); as dash) {
         <!-- Totals -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <sp-card>
+          <bk-card>
             <p class="text-sm text-muted">Proyectos</p>
             <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.projects }}
             </p>
-          </sp-card>
-          <sp-card>
+          </bk-card>
+          <bk-card>
             <p class="text-sm text-muted">Tareas</p>
             <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.tasks }}
             </p>
-          </sp-card>
-          <sp-card>
+          </bk-card>
+          <bk-card>
             <p class="text-sm text-muted">Vencidas</p>
             <p
               class="mt-1 text-3xl font-bold tracking-tight tnum"
@@ -71,8 +71,8 @@ import { ExecutiveDashboard } from './executive.model';
             >
               {{ dash.totals.overdue }}
             </p>
-          </sp-card>
-          <sp-card>
+          </bk-card>
+          <bk-card>
             <p class="text-sm text-muted">En riesgo</p>
             <p
               class="mt-1 text-3xl font-bold tracking-tight tnum"
@@ -81,7 +81,7 @@ import { ExecutiveDashboard } from './executive.model';
             >
               {{ dash.totals.at_risk }}
             </p>
-          </sp-card>
+          </bk-card>
         </div>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -89,14 +89,14 @@ import { ExecutiveDashboard } from './executive.model';
           <div class="flex flex-col gap-3">
             <h2 class="font-display text-lg font-bold tracking-tight text-text">En qué anda cada uno</h2>
             @if (dash.by_assignee.length === 0) {
-              <sp-card>
+              <bk-card>
                 <p class="py-4 text-center text-sm text-muted">
                   Nadie tiene tareas en progreso.
                 </p>
-              </sp-card>
+              </bk-card>
             } @else {
               @for (person of dash.by_assignee; track person.user.id) {
-                <sp-card>
+                <bk-card>
                   <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                       <span
@@ -136,7 +136,7 @@ import { ExecutiveDashboard } from './executive.model';
                   } @else {
                     <p class="mt-2 text-xs text-muted">Sin tareas en progreso.</p>
                   }
-                </sp-card>
+                </bk-card>
               }
             }
           </div>
@@ -145,13 +145,13 @@ import { ExecutiveDashboard } from './executive.model';
           <div class="flex flex-col gap-3">
             <h2 class="font-display text-lg font-bold tracking-tight text-text">Riesgos</h2>
             @if (dash.at_risk.length === 0) {
-              <sp-card>
+              <bk-card>
                 <p class="py-4 text-center text-sm text-muted">
                   No hay tareas en riesgo. ¡Buen trabajo!
                 </p>
-              </sp-card>
+              </bk-card>
             } @else {
-              <sp-card>
+              <bk-card>
                 <ul class="flex flex-col divide-y divide-border">
                   @for (task of dash.at_risk; track task.id) {
                     <li class="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
@@ -195,7 +195,7 @@ import { ExecutiveDashboard } from './executive.model';
                     </li>
                   }
                 </ul>
-              </sp-card>
+              </bk-card>
             }
           </div>
         </div>
@@ -203,7 +203,7 @@ import { ExecutiveDashboard } from './executive.model';
         <!-- Carga del equipo -->
         <div class="flex flex-col gap-3">
           <h2 class="font-display text-lg font-bold tracking-tight text-text">Carga del equipo</h2>
-          <sp-card>
+          <bk-card>
             @if (dash.workload.length === 0) {
               <p class="py-4 text-center text-sm text-muted">
                 No hay carga activa registrada.
@@ -239,25 +239,25 @@ import { ExecutiveDashboard } from './executive.model';
                 }
               </ul>
             }
-          </sp-card>
+          </bk-card>
         </div>
 
         <!-- Avance por proyecto -->
         <div class="flex flex-col gap-3">
           <h2 class="font-display text-lg font-bold tracking-tight text-text">Avance por proyecto</h2>
           @if (dash.projects_progress.length === 0) {
-            <sp-card>
+            <bk-card>
               <p class="py-4 text-center text-sm text-muted">
                 Aún no hay proyectos con tareas.
               </p>
-            </sp-card>
+            </bk-card>
           } @else {
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               @for (
                 progress of dash.projects_progress;
                 track progress.project.id
               ) {
-                <sp-card>
+                <bk-card>
                   <div class="flex items-center justify-between gap-2">
                     <h3 class="text-base font-semibold text-text">
                       {{ progress.project.name }}
@@ -288,7 +288,7 @@ import { ExecutiveDashboard } from './executive.model';
                       ></div>
                     </div>
                   </div>
-                </sp-card>
+                </bk-card>
               }
             </div>
           }

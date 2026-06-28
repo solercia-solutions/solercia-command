@@ -11,7 +11,7 @@ import {
  * close button emits `close`. The body is projected via <ng-content>.
  */
 @Component({
-  selector: 'sp-modal',
+  selector: 'bk-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

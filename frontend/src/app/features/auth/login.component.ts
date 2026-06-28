@@ -12,7 +12,7 @@ import { CardComponent } from '../../shared/ui/card.component';
 import { TextInputComponent } from '../../shared/ui/text-input.component';
 
 @Component({
-  selector: 'sp-login',
+  selector: 'bk-login',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -24,7 +24,7 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
   template: `
     <div class="flex min-h-[70vh] items-center justify-center">
       <div class="w-full max-w-sm">
-        <sp-card>
+        <bk-card>
           <div class="mb-6 text-center">
             <div
               class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-brand text-brand-fg text-lg font-bold"
@@ -45,13 +45,13 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
             novalidate
           >
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Correo electrónico"
                 type="email"
                 placeholder="admin@solercia.com"
                 autocomplete="email"
                 formControlName="email"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('email')) {
                 <p class="mt-1 text-xs text-danger">
                   {{ emailError() }}
@@ -60,13 +60,13 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
             </div>
 
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Contraseña"
                 type="password"
                 placeholder="••••••••"
                 autocomplete="current-password"
                 formControlName="password"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
                   La contraseña es obligatoria.
@@ -83,14 +83,14 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
               </div>
             }
 
-            <sp-button
+            <bk-button
               type="submit"
               variant="primary"
               [block]="true"
               [disabled]="loading()"
             >
               {{ loading() ? 'Ingresando…' : 'Iniciar sesión' }}
-            </sp-button>
+            </bk-button>
           </form>
 
           <p
@@ -101,7 +101,7 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
             /
             <span class="font-medium text-text">Admin123*</span>
           </p>
-        </sp-card>
+        </bk-card>
       </div>
     </div>
   `,

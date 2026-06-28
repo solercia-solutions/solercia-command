@@ -1,5 +1,5 @@
 /**
- * sp-rich-editor — Editor de texto enriquecido para Solercia PM
+ * bk-rich-editor — Editor de texto enriquecido para Solercia PM
  * =============================================================
  * Basado en contenteditable, sin dependencias externas. Angular 20 standalone.
  *
@@ -40,7 +40,7 @@
  *   implementarla a mano.
  *
  * Uso básico:
- *   <sp-rich-editor
+ *   <bk-rich-editor
  *     label="Descripción"
  *     placeholder="Describe la tarea..."
  *     [mentionableUsers]="teamMembers"
@@ -160,7 +160,7 @@ function extractTaskKeys(html: string): string[] {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 @Component({
-  selector: 'sp-rich-editor',
+  selector: 'bk-rich-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   // ViewEncapsulation.None para que los estilos de chips apliquen a nodos
@@ -175,7 +175,7 @@ function extractTaskKeys(html: string): string[] {
   ],
   styles: [`
     /* Estilos de chips: se aplican a nodos insertados dinámicamente */
-    .sp-mention-chip {
+    .bk-mention-chip {
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
@@ -188,7 +188,7 @@ function extractTaskKeys(html: string): string[] {
       user-select: none;
       line-height: 1.5;
     }
-    .sp-task-chip {
+    .bk-task-chip {
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
@@ -203,38 +203,38 @@ function extractTaskKeys(html: string): string[] {
       line-height: 1.5;
     }
     /* Estilos del contenido del editor */
-    .sp-rich-editor-content {
+    .bk-rich-editor-content {
       line-height: 1.6;
       outline: none;
     }
-    .sp-rich-editor-content:empty::before {
+    .bk-rich-editor-content:empty::before {
       content: attr(data-placeholder);
       color: rgb(var(--sp-muted));
       pointer-events: none;
     }
-    .sp-rich-editor-content a {
+    .bk-rich-editor-content a {
       color: rgb(var(--sp-brand));
       text-decoration: underline;
       cursor: pointer;
     }
-    .sp-rich-editor-content ul {
+    .bk-rich-editor-content ul {
       list-style: disc;
       padding-left: 1.5rem;
       margin: 0.25rem 0;
     }
-    .sp-rich-editor-content ol {
+    .bk-rich-editor-content ol {
       list-style: decimal;
       padding-left: 1.5rem;
       margin: 0.25rem 0;
     }
-    .sp-rich-editor-content li {
+    .bk-rich-editor-content li {
       margin: 0.1rem 0;
     }
-    .sp-rich-editor-content p {
+    .bk-rich-editor-content p {
       margin: 0.25rem 0;
     }
     /* Deshabilitar cuando está en modo readonly */
-    .sp-rich-editor-content[contenteditable="false"] {
+    .bk-rich-editor-content[contenteditable="false"] {
       opacity: 0.5;
       cursor: not-allowed;
     }
@@ -338,7 +338,7 @@ function extractTaskKeys(html: string): string[] {
           (blur)="onBlur()"
           (mouseup)="onSelectionChange()"
           (keyup)="onSelectionChange()"
-          class="sp-rich-editor-content px-3 py-2.5 text-sm text-text"
+          class="bk-rich-editor-content px-3 py-2.5 text-sm text-text"
           role="textbox"
           aria-multiline="true"
           [attr.aria-label]="label || placeholder"
@@ -864,7 +864,7 @@ export class RichEditorComponent implements ControlValueAccessor, AfterViewInit,
 
     // Crear el chip
     const chip = document.createElement('span');
-    chip.className       = trigger === '@' ? 'sp-mention-chip' : 'sp-task-chip';
+    chip.className       = trigger === '@' ? 'bk-mention-chip' : 'bk-task-chip';
     chip.contentEditable = 'false';
     chip.textContent     = label;
     for (const [k, v] of Object.entries(attrs)) {

@@ -22,7 +22,7 @@ import { DependenciesService } from './dependencies.service';
 import { Dependency } from './dependency.model';
 
 @Component({
-  selector: 'sp-admin-dependencies',
+  selector: 'bk-admin-dependencies',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -37,19 +37,19 @@ import { Dependency } from './dependency.model';
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <sp-page-header
+      <bk-page-header
         title="Dependencias"
         subtitle="Administra las áreas o dependencias de tu organización."
       >
-        <sp-button
+        <bk-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea una dependencia"
         >
           Crear dependencia
-        </sp-button>
-      </sp-page-header>
+        </bk-button>
+      </bk-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando dependencias…</p>
@@ -70,7 +70,7 @@ import { Dependency } from './dependency.model';
           </p>
         </div>
       } @else {
-        <sp-table>
+        <bk-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Nombre</th>
@@ -86,35 +86,35 @@ import { Dependency } from './dependency.model';
                 <td class="px-4 py-3 text-muted">{{ item.code || '—' }}</td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sp-badge tone="success">Activa</sp-badge>
+                    <bk-badge tone="success">Activa</bk-badge>
                   } @else {
-                    <sp-badge tone="muted">Inactiva</sp-badge>
+                    <bk-badge tone="muted">Inactiva</bk-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <sp-icon-button
+                    <bk-icon-button
                       icon="edit"
                       ariaLabel="Edita la dependencia"
                       (click)="openEdit(item)"
-                    ></sp-icon-button>
-                    <sp-icon-button
+                    ></bk-icon-button>
+                    <bk-icon-button
                       icon="delete"
                       tone="danger"
                       ariaLabel="Elimina la dependencia"
                       (click)="askDelete(item)"
-                    ></sp-icon-button>
+                    ></bk-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </sp-table>
+        </bk-table>
       }
     </section>
 
     @if (showForm()) {
-      <sp-modal
+      <bk-modal
         [title]="editing() ? 'Editar dependencia' : 'Nueva dependencia'"
         (close)="closeForm()"
       >
@@ -125,21 +125,21 @@ import { Dependency } from './dependency.model';
           novalidate
         >
           <div>
-            <sp-text-input
+            <bk-text-input
               label="Nombre"
               placeholder="Ej. Tecnología"
               formControlName="name"
-            ></sp-text-input>
+            ></bk-text-input>
             @if (showError('name')) {
               <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
             }
           </div>
 
-          <sp-text-input
+          <bk-text-input
             label="Código (opcional)"
             placeholder="Ej. TEC"
             formControlName="code"
-          ></sp-text-input>
+          ></bk-text-input>
 
           <label class="flex items-center gap-2 text-sm text-text">
             <input
@@ -160,19 +160,19 @@ import { Dependency } from './dependency.model';
           }
 
           <div class="flex items-center justify-end gap-2">
-            <sp-button type="button" variant="ghost" (click)="closeForm()">
+            <bk-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </sp-button>
-            <sp-button type="submit" variant="primary" [disabled]="saving()">
+            </bk-button>
+            <bk-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </sp-button>
+            </bk-button>
           </div>
         </form>
-      </sp-modal>
+      </bk-modal>
     }
 
     @if (deleting()) {
-      <sp-modal
+      <bk-modal
         size="sm"
         title="Eliminar dependencia"
         (close)="cancelDelete()"
@@ -191,19 +191,19 @@ import { Dependency } from './dependency.model';
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <sp-button type="button" variant="ghost" (click)="cancelDelete()">
+          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </sp-button>
-          <sp-button
+          </bk-button>
+          <bk-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </sp-button>
+          </bk-button>
         </div>
-      </sp-modal>
+      </bk-modal>
     }
   `,
 })

@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
  * <table>. Consumers project <thead>/<tbody>. Keeps admin lists consistent.
  */
 @Component({
-  selector: 'sp-table',
+  selector: 'bk-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

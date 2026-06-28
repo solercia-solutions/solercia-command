@@ -12,7 +12,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
  * ControlValueAccessor, so it can be used with formControlName.
  */
 @Component({
-  selector: 'sp-text-input',
+  selector: 'bk-text-input',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [

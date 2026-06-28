@@ -27,7 +27,7 @@ import { RolesService } from '../roles/roles.service';
 import { Role } from '../roles/role.model';
 
 @Component({
-  selector: 'sp-admin-users',
+  selector: 'bk-admin-users',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -42,19 +42,19 @@ import { Role } from '../roles/role.model';
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <sp-page-header
+      <bk-page-header
         title="Usuarios"
         subtitle="Administra las personas, sus dependencias y sus roles."
       >
-        <sp-button
+        <bk-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea un usuario"
         >
           Crear usuario
-        </sp-button>
-      </sp-page-header>
+        </bk-button>
+      </bk-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando usuarios…</p>
@@ -73,7 +73,7 @@ import { Role } from '../roles/role.model';
           </p>
         </div>
       } @else {
-        <sp-table>
+        <bk-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Nombre</th>
@@ -97,7 +97,7 @@ import { Role } from '../roles/role.model';
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap gap-1">
                     @for (role of item.roles ?? []; track role.id) {
-                      <sp-badge tone="brand">{{ role.name }}</sp-badge>
+                      <bk-badge tone="brand">{{ role.name }}</bk-badge>
                     } @empty {
                       <span class="text-xs text-muted">Sin roles</span>
                     }
@@ -105,35 +105,35 @@ import { Role } from '../roles/role.model';
                 </td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sp-badge tone="success">Activo</sp-badge>
+                    <bk-badge tone="success">Activo</bk-badge>
                   } @else {
-                    <sp-badge tone="muted">Inactivo</sp-badge>
+                    <bk-badge tone="muted">Inactivo</bk-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <sp-icon-button
+                    <bk-icon-button
                       icon="edit"
                       ariaLabel="Edita el usuario"
                       (click)="openEdit(item)"
-                    ></sp-icon-button>
-                    <sp-icon-button
+                    ></bk-icon-button>
+                    <bk-icon-button
                       icon="delete"
                       tone="danger"
                       ariaLabel="Elimina el usuario"
                       (click)="askDelete(item)"
-                    ></sp-icon-button>
+                    ></bk-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </sp-table>
+        </bk-table>
       }
     </section>
 
     @if (showForm()) {
-      <sp-modal
+      <bk-modal
         size="lg"
         [title]="editing() ? 'Editar usuario' : 'Nuevo usuario'"
         (close)="closeForm()"
@@ -146,49 +146,49 @@ import { Role } from '../roles/role.model';
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Primer nombre"
                 placeholder="Ej. Ana"
                 formControlName="primer_nombre"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('primer_nombre')) {
                 <p class="mt-1 text-xs text-danger">
                   El primer nombre es obligatorio.
                 </p>
               }
             </div>
-            <sp-text-input
+            <bk-text-input
               label="Segundo nombre (opcional)"
               placeholder="Ej. María"
               formControlName="segundo_nombre"
-            ></sp-text-input>
+            ></bk-text-input>
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Primer apellido"
                 placeholder="Ej. Torres"
                 formControlName="primer_apellido"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('primer_apellido')) {
                 <p class="mt-1 text-xs text-danger">
                   El primer apellido es obligatorio.
                 </p>
               }
             </div>
-            <sp-text-input
+            <bk-text-input
               label="Segundo apellido (opcional)"
               placeholder="Ej. Páez"
               formControlName="segundo_apellido"
-            ></sp-text-input>
+            ></bk-text-input>
           </div>
 
           <div>
-            <sp-text-input
+            <bk-text-input
               label="Correo electrónico"
               type="email"
               placeholder="persona@solercia.com"
               autocomplete="email"
               formControlName="email"
-            ></sp-text-input>
+            ></bk-text-input>
             @if (showError('email')) {
               <p class="mt-1 text-xs text-danger">{{ emailError() }}</p>
             }
@@ -196,13 +196,13 @@ import { Role } from '../roles/role.model';
 
           @if (!editing()) {
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Contraseña"
                 type="password"
                 placeholder="••••••••"
                 autocomplete="new-password"
                 formControlName="password"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
                   La contraseña debe tener al menos 8 caracteres.
@@ -272,19 +272,19 @@ import { Role } from '../roles/role.model';
           }
 
           <div class="flex items-center justify-end gap-2">
-            <sp-button type="button" variant="ghost" (click)="closeForm()">
+            <bk-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </sp-button>
-            <sp-button type="submit" variant="primary" [disabled]="saving()">
+            </bk-button>
+            <bk-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </sp-button>
+            </bk-button>
           </div>
         </form>
-      </sp-modal>
+      </bk-modal>
     }
 
     @if (deleting()) {
-      <sp-modal size="sm" title="Eliminar usuario" (close)="cancelDelete()">
+      <bk-modal size="sm" title="Eliminar usuario" (close)="cancelDelete()">
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar a
           <span class="font-medium text-text">{{ deleting()?.full_name }}</span
@@ -299,19 +299,19 @@ import { Role } from '../roles/role.model';
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <sp-button type="button" variant="ghost" (click)="cancelDelete()">
+          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </sp-button>
-          <sp-button
+          </bk-button>
+          <bk-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </sp-button>
+          </bk-button>
         </div>
-      </sp-modal>
+      </bk-modal>
     }
   `,
 })

@@ -18,7 +18,7 @@ import { PerfCollaborator, PerformanceData } from './performance.model';
  * the bearer token; no project context required.
  */
 @Component({
-  selector: 'sp-performance',
+  selector: 'bk-performance',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CardComponent],
@@ -42,15 +42,15 @@ import { PerfCollaborator, PerformanceData } from './performance.model';
           {{ loadError() }}
         </div>
       } @else if (collaborators().length === 0) {
-        <sp-card>
+        <bk-card>
           <p class="py-6 text-center text-sm text-muted">
             Todavía no hay datos de rendimiento para mostrar.
           </p>
-        </sp-card>
+        </bk-card>
       } @else {
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           @for (person of collaborators(); track person.user.id) {
-            <sp-card>
+            <bk-card>
               <!-- Header -->
               <div class="flex items-center gap-3">
                 <span
@@ -145,7 +145,7 @@ import { PerfCollaborator, PerformanceData } from './performance.model';
                   </div>
                 </div>
               </div>
-            </sp-card>
+            </bk-card>
           }
         </div>
 

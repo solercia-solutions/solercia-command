@@ -7,7 +7,7 @@ type IconName = 'edit' | 'delete' | 'link' | 'plus';
  * Used for row actions in admin tables (edit, delete, manage relations).
  */
 @Component({
-  selector: 'sp-icon-button',
+  selector: 'bk-icon-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

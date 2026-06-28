@@ -68,7 +68,7 @@ interface BoardColumn {
  * enables them. All behaviour derives from `methodology_info`.
  */
 @Component({
-  selector: 'sp-project-workspace',
+  selector: 'bk-project-workspace',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -131,14 +131,14 @@ interface BoardColumn {
                 {{ methodologyBadge() }}
               </span>
             </div>
-            <sp-button
+            <bk-button
               type="button"
               variant="primary"
               (click)="openCreate()"
               ariaLabel="Crea una nueva tarea"
             >
               + Nueva tarea
-            </sp-button>
+            </bk-button>
           </div>
         </div>
 
@@ -222,18 +222,18 @@ interface BoardColumn {
           @if (viewMode() === 'board') {
             <!-- Kanban board -->
             @if (boardColumns().length === 0) {
-              <sp-card>
+              <bk-card>
                 <p class="py-6 text-center text-sm text-muted">
                   Esta metodología no define columnas de tablero.
                 </p>
-              </sp-card>
+              </bk-card>
             } @else {
               <div
                 cdkDropListGroup
                 class="flex gap-4 overflow-x-auto pb-2"
               >
                 @for (column of boardColumns(); track column.status) {
-                  <sp-board-column
+                  <bk-board-column
                     class="shrink-0"
                     [status]="column.status"
                     [tasks]="column.tasks"
@@ -242,20 +242,20 @@ interface BoardColumn {
                     (addTask)="openCreate($event)"
                     (editTask)="openEdit($event)"
                     (dropped)="onDrop($event)"
-                  ></sp-board-column>
+                  ></bk-board-column>
                 }
               </div>
             }
           } @else {
             <!-- Grid view -->
             @if (allTasks().length === 0) {
-              <sp-card>
+              <bk-card>
                 <p class="py-6 text-center text-sm text-muted">
                   No hay tareas en este proyecto.
                 </p>
-              </sp-card>
+              </bk-card>
             } @else {
-              <sp-table>
+              <bk-table>
                 <thead>
                   <tr class="border-b border-border bg-surface/60">
                     <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Código</th>
@@ -327,7 +327,7 @@ interface BoardColumn {
                     </tr>
                   }
                 </tbody>
-              </sp-table>
+              </bk-table>
             }
           }
         }
@@ -337,32 +337,32 @@ interface BoardColumn {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-lg font-semibold text-text">Backlog</h2>
-              <sp-button
+              <bk-button
                 type="button"
                 variant="secondary"
                 (click)="openCreate()"
                 ariaLabel="Agrega una tarea al backlog"
               >
                 + Agregar al backlog
-              </sp-button>
+              </bk-button>
             </div>
             @if (backlogTasks().length === 0) {
-              <sp-card>
+              <bk-card>
                 <p class="py-6 text-center text-sm text-muted">
                   No hay tareas en el backlog.
                 </p>
-              </sp-card>
+              </bk-card>
             } @else {
               <div class="flex flex-col gap-3">
                 @for (task of backlogTasks(); track task.id) {
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <div class="flex-1">
-                      <sp-task-card
+                      <bk-task-card
                         [task]="task"
                         [estimationMode]="estimationMode()"
                         [doneStatus]="doneStatus()"
                         (edit)="openEdit($event)"
-                      ></sp-task-card>
+                      ></bk-task-card>
                     </div>
                     @if (sprintsEnabled()) {
                       <label class="block sm:w-56">
@@ -394,7 +394,7 @@ interface BoardColumn {
         @if (activeTab() === 'sprints') {
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div class="lg:col-span-1">
-              <sp-card>
+              <bk-card>
                 <h2 class="mb-4 text-lg font-semibold text-text">Nuevo sprint</h2>
                 <form
                   [formGroup]="sprintForm"
@@ -449,25 +449,25 @@ interface BoardColumn {
                       />
                     </label>
                   </div>
-                  <sp-button
+                  <bk-button
                     type="submit"
                     variant="primary"
                     [block]="true"
                     [disabled]="savingSprint()"
                   >
                     {{ savingSprint() ? 'Guardando…' : 'Crear sprint' }}
-                  </sp-button>
+                  </bk-button>
                 </form>
-              </sp-card>
+              </bk-card>
             </div>
 
             <div class="flex flex-col gap-3 lg:col-span-2">
               @if (sprints().length === 0) {
-                <sp-card>
+                <bk-card>
                   <p class="py-6 text-center text-sm text-muted">
                     Todavía no hay sprints en este proyecto.
                   </p>
-                </sp-card>
+                </bk-card>
               } @else {
                 @for (sprint of sprints(); track sprint.id) {
                   <div
@@ -504,7 +504,7 @@ interface BoardColumn {
                         }
                       </div>
                       <div class="flex shrink-0 flex-wrap items-center gap-2">
-                        <sp-button
+                        <bk-button
                           type="button"
                           variant="primary"
                           (click)="selectSprint(sprint)"
@@ -515,25 +515,25 @@ interface BoardColumn {
                               ? 'Ocultar burndown'
                               : 'Ver burndown'
                           }}
-                        </sp-button>
+                        </bk-button>
                         @if (sprint.status === 'active') {
-                          <sp-button
+                          <bk-button
                             type="button"
                             variant="secondary"
                             (click)="openCloseSprint(sprint)"
                             [ariaLabel]="'Cierra el sprint ' + sprint.name"
                           >
                             Cerrar sprint
-                          </sp-button>
+                          </bk-button>
                         } @else {
-                          <sp-button
+                          <bk-button
                             type="button"
                             variant="secondary"
                             (click)="toggleSprintStatus(sprint)"
                             [ariaLabel]="'Reactiva el sprint ' + sprint.name"
                           >
                             Reactivar
-                          </sp-button>
+                          </bk-button>
                         }
                       </div>
                     </div>
@@ -569,10 +569,10 @@ interface BoardColumn {
                               </span>
                             </span>
                           </div>
-                          <sp-burndown-chart
+                          <bk-burndown-chart
                             [days]="bd.days"
                             [unit]="bd.unit"
-                          ></sp-burndown-chart>
+                          ></bk-burndown-chart>
                         }
                       </div>
                     }
@@ -603,7 +603,7 @@ interface BoardColumn {
                     {{ velocityError() }}
                   </div>
                 } @else if (velocityData(); as vd) {
-                  <sp-velocity-chart [data]="vd"></sp-velocity-chart>
+                  <bk-velocity-chart [data]="vd"></bk-velocity-chart>
                 }
               </div>
             </div>
@@ -617,7 +617,7 @@ interface BoardColumn {
               <h2 class="text-lg font-semibold text-text">Cronograma de sprints</h2>
               <p class="text-xs text-muted">Cada barra representa un sprint posicionado por sus fechas de inicio y fin.</p>
             </div>
-            <sp-sprint-timeline [sprints]="sprints()"></sp-sprint-timeline>
+            <bk-sprint-timeline [sprints]="sprints()"></bk-sprint-timeline>
           </div>
         }
 
@@ -625,7 +625,7 @@ interface BoardColumn {
 
       <!-- Task modal -->
       @if (modalOpen()) {
-        <sp-task-modal
+        <bk-task-modal
           [allowedStatuses]="allowedStatuses()"
           [estimationMode]="estimationMode()"
           [members]="members()"
@@ -638,12 +638,12 @@ interface BoardColumn {
           (save)="onSaveTask($event)"
           (remove)="onDeleteTask($event)"
           (close)="closeModal()"
-        ></sp-task-modal>
+        ></bk-task-modal>
       }
 
       <!-- Close sprint modal -->
       @if (closeSprintOpen()) {
-        <sp-modal
+        <bk-modal
           title="Cerrar sprint"
           size="sm"
           (close)="cancelCloseSprint()"
@@ -665,14 +665,14 @@ interface BoardColumn {
                   al destino seleccionado
                 </p>
               </div>
-              <sp-button
+              <bk-button
                 type="button"
                 variant="primary"
                 [block]="true"
                 (click)="cancelCloseSprint()"
               >
                 Entendido
-              </sp-button>
+              </bk-button>
             </div>
           } @else {
             <!-- Confirmation state -->
@@ -716,7 +716,7 @@ interface BoardColumn {
               }
 
               <div class="flex gap-3">
-                <sp-button
+                <bk-button
                   type="button"
                   variant="secondary"
                   [block]="true"
@@ -724,8 +724,8 @@ interface BoardColumn {
                   (click)="cancelCloseSprint()"
                 >
                   Cancelar
-                </sp-button>
-                <sp-button
+                </bk-button>
+                <bk-button
                   type="button"
                   variant="primary"
                   [block]="true"
@@ -733,11 +733,11 @@ interface BoardColumn {
                   (click)="confirmCloseSprint()"
                 >
                   {{ closingSprintBusy() ? 'Cerrando…' : 'Cerrar sprint' }}
-                </sp-button>
+                </bk-button>
               </div>
             </div>
           }
-        </sp-modal>
+        </bk-modal>
       }
     }
   `,

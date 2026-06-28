@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
  * Set [interactive]="true" for clickable cards (hover lift + stronger border).
  */
 @Component({
-  selector: 'sp-card',
+  selector: 'bk-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div [class]="classes"><ng-content></ng-content></div>`,

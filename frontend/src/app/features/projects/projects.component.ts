@@ -25,7 +25,7 @@ import {
 } from './project.model';
 
 @Component({
-  selector: 'sp-projects',
+  selector: 'bk-projects',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -44,18 +44,18 @@ import {
             Administra los proyectos de tu organización.
           </p>
         </div>
-        <sp-button
+        <bk-button
           type="button"
           variant="primary"
           (click)="toggleForm()"
           [ariaLabel]="showForm() ? 'Cierra el formulario' : 'Crea un proyecto'"
         >
           {{ showForm() ? 'Cerrar' : 'Crear proyecto' }}
-        </sp-button>
+        </bk-button>
       </div>
 
       @if (showForm()) {
-        <sp-card>
+        <bk-card>
           <h2 class="mb-4 text-lg font-semibold text-text">Crea tu proyecto</h2>
           <form
             [formGroup]="form"
@@ -64,11 +64,11 @@ import {
             novalidate
           >
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Nombre"
                 placeholder="Ej. Plataforma de pagos"
                 formControlName="name"
-              ></sp-text-input>
+              ></bk-text-input>
               @if (showError('name')) {
                 <p class="mt-1 text-xs text-danger">
                   El nombre es obligatorio.
@@ -77,11 +77,11 @@ import {
             </div>
 
             <div>
-              <sp-text-input
+              <bk-text-input
                 label="Descripción"
                 placeholder="Describe brevemente el objetivo (opcional)"
                 formControlName="description"
-              ></sp-text-input>
+              ></bk-text-input>
             </div>
 
             <div>
@@ -111,23 +111,23 @@ import {
             }
 
             <div class="flex items-center justify-end gap-2">
-              <sp-button
+              <bk-button
                 type="button"
                 variant="ghost"
                 (click)="toggleForm()"
               >
                 Cancelar
-              </sp-button>
-              <sp-button
+              </bk-button>
+              <bk-button
                 type="submit"
                 variant="primary"
                 [disabled]="saving()"
               >
                 {{ saving() ? 'Guardando…' : 'Guardar proyecto' }}
-              </sp-button>
+              </bk-button>
             </div>
           </form>
-        </sp-card>
+        </bk-card>
       }
 
       @if (loading()) {
@@ -140,7 +140,7 @@ import {
           {{ loadError() }}
         </div>
       } @else if (projects().length === 0) {
-        <sp-card>
+        <bk-card>
           <div class="py-8 text-center">
             <p class="text-base font-medium text-text">
               Todavía no tienes proyectos.
@@ -149,7 +149,7 @@ import {
               Crea tu primer proyecto para empezar a organizar el trabajo.
             </p>
           </div>
-        </sp-card>
+        </bk-card>
       } @else {
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           @for (project of projects(); track project.id) {
@@ -159,7 +159,7 @@ import {
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
               [attr.aria-label]="'Abre el proyecto ' + project.name"
             >
-            <sp-card>
+            <bk-card>
               <div class="flex h-full flex-col gap-3">
                 <div class="flex items-start justify-between gap-2">
                   <h3 class="text-base font-semibold text-text">
@@ -186,7 +186,7 @@ import {
                   </span>
                 </div>
               </div>
-            </sp-card>
+            </bk-card>
             </a>
           }
         </div>

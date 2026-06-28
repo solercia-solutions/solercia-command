@@ -27,7 +27,7 @@ import {
 } from './menu-admin.model';
 
 @Component({
-  selector: 'sp-admin-menus',
+  selector: 'bk-admin-menus',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -42,19 +42,19 @@ import {
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <sp-page-header
+      <bk-page-header
         title="Actividades"
         subtitle="Organiza las actividades del menú y su jerarquía."
       >
-        <sp-button
+        <bk-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea una actividad"
         >
           Crear actividad
-        </sp-button>
-      </sp-page-header>
+        </bk-button>
+      </bk-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando actividades…</p>
@@ -75,7 +75,7 @@ import {
           </p>
         </div>
       } @else {
-        <sp-table>
+        <bk-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Actividad</th>
@@ -100,35 +100,35 @@ import {
                 <td class="px-4 py-3 text-muted">{{ row.menu.order }}</td>
                 <td class="px-4 py-3">
                   @if (row.menu.is_active) {
-                    <sp-badge tone="success">Activa</sp-badge>
+                    <bk-badge tone="success">Activa</bk-badge>
                   } @else {
-                    <sp-badge tone="muted">Inactiva</sp-badge>
+                    <bk-badge tone="muted">Inactiva</bk-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <sp-icon-button
+                    <bk-icon-button
                       icon="edit"
                       ariaLabel="Edita la actividad"
                       (click)="openEdit(row.menu)"
-                    ></sp-icon-button>
-                    <sp-icon-button
+                    ></bk-icon-button>
+                    <bk-icon-button
                       icon="delete"
                       tone="danger"
                       ariaLabel="Elimina la actividad"
                       (click)="askDelete(row.menu)"
-                    ></sp-icon-button>
+                    ></bk-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </sp-table>
+        </bk-table>
       }
     </section>
 
     @if (showForm()) {
-      <sp-modal
+      <bk-modal
         [title]="editing() ? 'Editar actividad' : 'Nueva actividad'"
         (close)="closeForm()"
       >
@@ -139,27 +139,27 @@ import {
           novalidate
         >
           <div>
-            <sp-text-input
+            <bk-text-input
               label="Nombre"
               placeholder="Ej. Proyectos"
               formControlName="name"
-            ></sp-text-input>
+            ></bk-text-input>
             @if (showError('name')) {
               <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
             }
           </div>
 
-          <sp-text-input
+          <bk-text-input
             label="Ícono (opcional)"
             placeholder="Ej. folder"
             formControlName="icon"
-          ></sp-text-input>
+          ></bk-text-input>
 
-          <sp-text-input
+          <bk-text-input
             label="Ruta (opcional)"
             placeholder="Ej. /projects"
             formControlName="path"
-          ></sp-text-input>
+          ></bk-text-input>
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
@@ -177,12 +177,12 @@ import {
             </select>
           </label>
 
-          <sp-text-input
+          <bk-text-input
             label="Orden"
             type="number"
             placeholder="0"
             formControlName="order"
-          ></sp-text-input>
+          ></bk-text-input>
 
           <label class="flex items-center gap-2 text-sm text-text">
             <input
@@ -203,19 +203,19 @@ import {
           }
 
           <div class="flex items-center justify-end gap-2">
-            <sp-button type="button" variant="ghost" (click)="closeForm()">
+            <bk-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </sp-button>
-            <sp-button type="submit" variant="primary" [disabled]="saving()">
+            </bk-button>
+            <bk-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </sp-button>
+            </bk-button>
           </div>
         </form>
-      </sp-modal>
+      </bk-modal>
     }
 
     @if (deleting()) {
-      <sp-modal size="sm" title="Eliminar actividad" (close)="cancelDelete()">
+      <bk-modal size="sm" title="Eliminar actividad" (close)="cancelDelete()">
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar
           <span class="font-medium text-text">{{ deleting()?.name }}</span>? Si
@@ -230,19 +230,19 @@ import {
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <sp-button type="button" variant="ghost" (click)="cancelDelete()">
+          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </sp-button>
-          <sp-button
+          </bk-button>
+          <bk-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </sp-button>
+          </bk-button>
         </div>
-      </sp-modal>
+      </bk-modal>
     }
   `,
 })

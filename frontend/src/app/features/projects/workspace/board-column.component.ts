@@ -24,7 +24,7 @@ export interface ColumnDrop {
  * ancestor in the workspace container.
  */
 @Component({
-  selector: 'sp-board-column',
+  selector: 'bk-board-column',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DragDropModule, TaskCardComponent],
@@ -52,12 +52,12 @@ export interface ColumnDrop {
       >
         @for (task of tasks(); track task.id) {
           <div cdkDrag class="cursor-grab active:cursor-grabbing">
-            <sp-task-card
+            <bk-task-card
               [task]="task"
               [estimationMode]="estimationMode()"
               [doneStatus]="doneStatus()"
               (edit)="editTask.emit($event)"
-            ></sp-task-card>
+            ></bk-task-card>
           </div>
         }
         @if (tasks().length === 0) {

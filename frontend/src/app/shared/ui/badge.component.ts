@@ -7,7 +7,7 @@ type BadgeTone = 'brand' | 'success' | 'muted' | 'danger' | 'warning';
  * matching foreground for proper contrast (not washed-out alpha tints).
  */
 @Component({
-  selector: 'sp-badge',
+  selector: 'bk-badge',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<span [class]="classes"><ng-content></ng-content></span>`,

@@ -43,7 +43,7 @@ function shortDate(iso: string | null | undefined): string {
  * Sprints without both dates are shown in a "sin fechas" section below.
  */
 @Component({
-  selector: 'sp-sprint-timeline',
+  selector: 'bk-sprint-timeline',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

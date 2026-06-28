@@ -1,6 +1,6 @@
 /**
  * =====================================================================
- * sp-select — Dropdown buscable con selección única y múltiple
+ * bk-select — Dropdown buscable con selección única y múltiple
  * =====================================================================
  *
  * INPUTS
@@ -26,16 +26,16 @@
  *   Esc                  Cierra el dropdown
  *
  * USO — single con ngModel
- *   <sp-select [options]="roles" placeholder="Selecciona un rol"
+ *   <bk-select [options]="roles" placeholder="Selecciona un rol"
  *              [(ngModel)]="selectedRole" (change)="onRol($event)" />
  *
  * USO — múltiple con formControl
- *   <sp-select [options]="etiquetas" [multiple]="true"
+ *   <bk-select [options]="etiquetas" [multiple]="true"
  *              placeholder="Selecciona etiquetas"
  *              [formControl]="tagsCtrl" />
  *
  * USO — objetos genéricos
- *   <sp-select [options]="usuarios" labelKey="nombreCompleto" valueKey="id"
+ *   <bk-select [options]="usuarios" labelKey="nombreCompleto" valueKey="id"
  *              placeholder="Asigna un usuario" [(ngModel)]="asignadoId" />
  * =====================================================================
  */
@@ -64,7 +64,7 @@ export interface SelectOption {
 }
 
 @Component({
-  selector: 'sp-select',
+  selector: 'bk-select',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
@@ -311,7 +311,7 @@ export class SelectComponent implements ControlValueAccessor, OnChanges {
 
   // Unique ID per instance for aria linking
   protected readonly listboxId =
-    'sp-select-listbox-' + Math.random().toString(36).slice(2, 8);
+    'bk-select-listbox-' + Math.random().toString(36).slice(2, 8);
 
   // ── CVA callbacks ─────────────────────────────────────────────────────
   private onChange: (value: any) => void = () => {};

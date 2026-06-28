@@ -22,7 +22,7 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
 import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component';
 
 @Component({
-  selector: 'sp-task-detail-page',
+  selector: 'bk-task-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -71,7 +71,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
         <!-- Description -->
         <div class="rounded-lg border border-border bg-surface p-4">
           <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">Descripción</h2>
-          <sp-rich-editor
+          <bk-rich-editor
             [ngModel]="task()!.description ?? ''"
             (ngModelChange)="updateField('description', $event)"
             [mentionableUsers]="mentionableUsers()"
@@ -107,7 +107,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
           <ul class="space-y-2">
             @for (sub of subtasks(); track sub.id) {
               <li class="flex items-center gap-2 rounded p-2 hover:bg-muted/5">
-                <sp-badge [tone]="statusTone(sub.status)">{{ sub.status }}</sp-badge>
+                <bk-badge [tone]="statusTone(sub.status)">{{ sub.status }}</bk-badge>
                 @if (sub.task_key) {
                   <a [routerLink]="['/task', sub.task_key]"
                      class="text-sm text-text hover:text-brand hover:underline flex-1">
@@ -122,7 +122,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
 
           @if (showSubtaskForm()) {
             <div class="mt-3 space-y-2 border-t border-border pt-3">
-              <sp-text-input
+              <bk-text-input
                 label="Título de la subtarea"
                 [ngModel]="newSubtaskTitle()"
                 (ngModelChange)="newSubtaskTitle.set($event)"
@@ -187,7 +187,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
                     </div>
 
                     @if (editingCommentId() === comment.id) {
-                      <sp-rich-editor
+                      <bk-rich-editor
                         [ngModel]="editBody()"
                         (ngModelChange)="editBody.set($event)"
                         [mentionableUsers]="mentionableUsers()"
@@ -243,7 +243,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
 
           <!-- New comment -->
           <div class="border-t border-border pt-4">
-            <sp-rich-editor
+            <bk-rich-editor
               [ngModel]="commentBody()"
               (ngModelChange)="commentBody.set($event)"
               [mentionableUsers]="mentionableUsers()"
@@ -294,7 +294,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
           <!-- Status -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Estado</label>
-            <sp-select
+            <bk-select
               [options]="statusOptions()"
               [ngModel]="task()!.status"
               (change)="updateField('status', $event)"
@@ -305,7 +305,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
           <!-- Priority -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Prioridad</label>
-            <sp-select
+            <bk-select
               [options]="priorityOptions"
               [ngModel]="task()!.priority"
               (change)="updateField('priority', $event)"
@@ -316,7 +316,7 @@ import { MentionUser, LinkableTask } from '../../shared/ui/rich-editor.component
           <!-- Assignee -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Responsable</label>
-            <sp-select
+            <bk-select
               [options]="assigneeOptions()"
               [ngModel]="task()!.assignee_id ?? ''"
               (change)="updateField('assignee_id', $event || null)"

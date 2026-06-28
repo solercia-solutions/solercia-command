@@ -23,7 +23,7 @@ import { NotificationPanelComponent } from './features/notifications/notificatio
 
 /** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
 @Component({
-  selector: 'sp-root',
+  selector: 'bk-root',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationPanelComponent],
@@ -219,7 +219,7 @@ import { NotificationPanelComponent } from './features/notifications/notificatio
                 <!-- Notification panel dropdown -->
                 @if (notifOpen()) {
                   <div class="absolute right-0 top-full z-40 mt-2">
-                    <sp-notification-panel (closed)="closeNotif()" />
+                    <bk-notification-panel (closed)="closeNotif()" />
                   </div>
                 }
               </div>
