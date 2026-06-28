@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   computed,
   effect,
   inject,
@@ -12,16 +13,20 @@ import {
   RouterLinkActive,
   RouterOutlet,
 } from '@angular/router';
+import { interval } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ThemeService } from './core/theme.service';
 import { AuthService } from './core/auth.service';
 import { MenuService } from './core/menu.service';
+import { NotificationsService } from './features/notifications/notifications.service';
+import { NotificationPanelComponent } from './features/notifications/notification-panel.component';
 
-/** Application shell: top bar (brand, nav, theme toggle, logout) + router outlet. */
+/** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
 @Component({
   selector: 'sp-root',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationPanelComponent],
   template: `
     <div class="flex min-h-screen flex-col bg-page text-text">
       <header
@@ -123,6 +128,7 @@ import { MenuService } from './core/menu.service';
           </div>
 
           <div class="flex items-center gap-2">
+            <!-- Theme toggle -->
             <button
               type="button"
               (click)="theme.toggleMode()"
@@ -168,6 +174,57 @@ import { MenuService } from './core/menu.service';
             </button>
 
             @if (auth.isAuthenticated()) {
+              <!-- Notification bell -->
+              <div class="relative">
+                <button
+                  type="button"
+                  (click)="toggleNotif()"
+                  [attr.aria-expanded]="notifOpen()"
+                  [attr.aria-label]="
+                    notifs.unreadCount() > 0
+                      ? 'Centro de notificaciones, ' + notifs.unreadCount() + ' sin leer'
+                      : 'Centro de notificaciones'
+                  "
+                  class="relative grid h-9 w-9 place-items-center rounded-lg border border-border
+                         bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  @if (notifs.unreadCount() > 0) {
+                    <span
+                      aria-hidden="true"
+                      class="absolute -right-1 -top-1 flex min-h-[18px] min-w-[18px] items-center
+                             justify-center rounded-full bg-danger px-1
+                             text-[10px] font-bold leading-none text-white"
+                    >
+                      {{ notifs.unreadCount() > 99 ? '99+' : notifs.unreadCount() }}
+                    </span>
+                  }
+                </button>
+
+                <!-- Notification panel dropdown -->
+                @if (notifOpen()) {
+                  <div class="absolute right-0 top-full z-40 mt-2">
+                    <sp-notification-panel (closed)="closeNotif()" />
+                  </div>
+                }
+              </div>
+
+              <!-- Logout button -->
               <button
                 type="button"
                 (click)="logout()"
@@ -275,12 +332,22 @@ import { MenuService } from './core/menu.service';
         }
       </header>
 
-      <!-- Click-away backdrop for the open dropdown. -->
+      <!-- Click-away backdrop for nav dropdowns. -->
       @if (openId()) {
         <button
           type="button"
           (click)="closeDropdown()"
           aria-label="Cierra el menú"
+          class="fixed inset-0 z-20 cursor-default"
+        ></button>
+      }
+
+      <!-- Click-away backdrop for the notification panel. -->
+      @if (notifOpen()) {
+        <button
+          type="button"
+          (click)="closeNotif()"
+          aria-label="Cierra las notificaciones"
           class="fixed inset-0 z-20 cursor-default"
         ></button>
       }
@@ -297,13 +364,17 @@ export class AppComponent {
   protected readonly theme = inject(ThemeService);
   protected readonly auth = inject(AuthService);
   protected readonly menu = inject(MenuService);
+  protected readonly notifs = inject(NotificationsService);
   private readonly router = inject(Router);
 
-  /** Which dropdown (by menu id) is open, or null. */
+  /** Which nav dropdown (by menu id) is open, or null. */
   protected readonly openId = signal<string | null>(null);
 
   /** Whether the mobile navigation panel is open. */
   protected readonly mobileOpen = signal(false);
+
+  /** Whether the notification panel is open. */
+  protected readonly notifOpen = signal(false);
 
   /** Static fallback nav links when the menu tree is unavailable. */
   protected readonly fallbackLinks = [
@@ -319,7 +390,7 @@ export class AppComponent {
 
   constructor() {
     // Hydrate the session (user + menus) whenever authentication turns on,
-    // and clear the menu tree on logout. Guards prevent duplicate calls.
+    // and clear state on logout. Guards prevent duplicate calls.
     effect(() => {
       if (this.auth.isAuthenticated()) {
         if (!this.auth.user()) {
@@ -328,20 +399,49 @@ export class AppComponent {
         if (!this.menu.loaded()) {
           this.menu.load();
         }
+        // Seed the notification badge as soon as the user is authenticated.
+        this.notifs.refreshUnreadCount();
       } else {
         this.menu.clear();
         this.openId.set(null);
+        this.notifOpen.set(false);
         this.mobileOpen.set(false);
       }
     });
+
+    // Poll unread count every 60 seconds while the component is alive.
+    interval(60_000)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (this.auth.isAuthenticated()) {
+          this.notifs.refreshUnreadCount();
+        }
+      });
+  }
+
+  /** Close all overlays when the user presses Escape. */
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.closeNotif();
+    this.closeDropdown();
   }
 
   protected toggleDropdown(id: string): void {
+    this.notifOpen.set(false);
     this.openId.update((current) => (current === id ? null : id));
   }
 
   protected closeDropdown(): void {
     this.openId.set(null);
+  }
+
+  protected toggleNotif(): void {
+    this.openId.set(null);
+    this.notifOpen.update((v) => !v);
+  }
+
+  protected closeNotif(): void {
+    this.notifOpen.set(false);
   }
 
   protected toggleMobile(): void {
@@ -354,6 +454,7 @@ export class AppComponent {
 
   protected logout(): void {
     this.closeDropdown();
+    this.closeNotif();
     this.closeMobile();
     this.auth.logout();
     void this.router.navigate(['/login']);
