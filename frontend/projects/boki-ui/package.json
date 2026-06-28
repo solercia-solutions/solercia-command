@@ -1,0 +1,26 @@
+{
+  "name": "@boki/ui",
+  "version": "0.1.0",
+  "description": "Boki UI — Angular component library with JSON-driven theming",
+  "author": "Camilo Calderón",
+  "license": "SEE LICENSE IN LICENSE",
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.placeholder.example.com/"
+  },
+  "peerDependencies": {
+    "@angular/common": "^20.0.0",
+    "@angular/core": "^20.0.0",
+    "rxjs": "^7.8.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "esm2022": "./esm2022/boki-ui.mjs",
+      "esm": "./esm2022/boki-ui.mjs",
+      "default": "./fesm2022/boki-ui.mjs"
+    },
+    "./tailwind-preset": "./tailwind-preset.js",
+    "./assets/*": "./assets/*"
+  }
+}
