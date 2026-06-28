@@ -168,6 +168,7 @@ interface BoardColumn {
             >
               @for (column of boardColumns(); track column.status) {
                 <sp-board-column
+                  class="shrink-0"
                   [status]="column.status"
                   [tasks]="column.tasks"
                   [estimationMode]="estimationMode()"
