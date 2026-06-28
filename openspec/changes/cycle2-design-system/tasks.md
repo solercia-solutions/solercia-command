@@ -28,9 +28,15 @@
 - [x] 3.3 Animaciones de apertura de `bk-modal`/`bk-select` (por token: `bk-anim-*`)
 - Nota: dropdown del `bk-select` se recorta levemente dentro del modal (overflow). Fix de raíz = CDK Overlay (Fase 4).
 
-## Fase 4 — Migrar la app a `@boki/ui` ⬜
+## Fase 4 — Migrar la app a `@boki/ui` ⬜ (sin CDK — decisión owner)
 - [ ] 4.1 Reapuntar imports de `shared/ui` al paquete (ventana coordinada)
 - [ ] 4.2 Verificación de regresión (Playwright)
+- [ ] 4.3 (opcional, sin deps) mitigar recorte del dropdown del bk-select dentro de modales sin CDK
+
+## Operación del paquete (versionado + release)
+- [ ] OP.1 Repo propio + semver + CHANGELOG
+- [ ] OP.2 GitHub Action de release en tag → ng build boki-ui → npm publish (GitHub Packages)
+- [ ] OP.3 Definir visibilidad (repo privado) y distribución (paquete público o privado) + LICENSE
 
 ## Fase 5 — Spike "vibe" dinámico ⬜ (opcional)
 - [ ] 5.1 Tokens de blur/glow + superficie glass

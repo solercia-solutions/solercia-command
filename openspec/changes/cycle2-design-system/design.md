@@ -31,7 +31,7 @@ frontend/projects/boki-ui/
    - `bokiHttpErrorInterceptor` (funcional): mapea status → `AppError` tipado (401 sesión, 0 red, 4xx cliente, 5xx servidor), loguea y rethrow.
    - `AppError`: `{ code, userMessage, technical, cause }`.
    - `provideBokiErrors()`: cablea ErrorHandler + interceptor + config.
-7. **CDK como única dependencia de comportamiento (recomendado, Fase 3+):** `@angular/cdk` ya está. `CDK Overlay` para modal/dropdown elimina de raíz el bug de `position:fixed` vs ancestro con `transform` y mejora a11y, sin imponer estilo. La piel sigue 100% propia.
+7. **DECISIÓN DEL OWNER (2026-06-28): NO se adopta Angular CDK.** Se evaluó CDK (overlay, drag&drop, accordion, table…) pero se decide **seguir 100% con componentes propios sin agregar dependencias ni features nuevas** por ahora. Implicación aceptada: el recorte del dropdown del `bk-select` dentro de modales se resuelve a mano (reposicionamiento) o se acepta, no con CDK Overlay. Prioridad: cero dependencias + licenciabilidad sobre conveniencia.
 8. **Prefijo `bk-`** unificado (ya lo estandarizó el flujo paralelo).
 
 ## Verificación
