@@ -1,5 +1,6 @@
 """Business logic for sprints."""
 
+import math
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -9,7 +10,13 @@ from app.methodology.factory import get_strategy
 from app.modules.projects.repository import ProjectRepository
 from app.modules.sprints.models import Sprint
 from app.modules.sprints.repository import SprintRepository
-from app.modules.sprints.schemas import SprintCreate, SprintRead, SprintUpdate
+from app.modules.sprints.schemas import (
+    SprintCreate,
+    SprintRead,
+    SprintUpdate,
+    VelocitySprintEntry,
+    VelocityRead,
+)
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
 
@@ -207,6 +214,130 @@ class SprintService:
                 }
             )
         return days
+
+    async def close_sprint(
+        self,
+        organization_id: uuid.UUID,
+        sprint_id: uuid.UUID,
+        target_sprint_id: uuid.UUID | None = None,
+    ) -> dict:
+        """Close a sprint: tally completed points and move incomplete tasks.
+
+        Idempotent on the 409 path — re-closing an already-closed sprint returns
+        a conflict so callers can detect duplicates without silent no-ops.
+
+        The entire operation (task moves + sprint update) is committed in a single
+        transaction via ``repo.save()``.
+        """
+
+        sprint = await self.repo.get(organization_id, sprint_id)
+        if sprint is None:
+            raise AppException(
+                "El sprint no existe o no tienes acceso a él.",
+                code="sprint_not_found",
+                status_code=404,
+            )
+
+        if sprint.status == "closed":
+            raise AppException(
+                "El sprint ya está cerrado.",
+                code="sprint_already_closed",
+                status_code=409,
+            )
+
+        if target_sprint_id is not None:
+            target = await self.repo.get_for_project(
+                organization_id, sprint.project_id, target_sprint_id
+            )
+            if target is None:
+                raise AppException(
+                    "El sprint destino no existe en este proyecto.",
+                    code="target_sprint_not_found",
+                    status_code=404,
+                )
+            if target.status == "closed":
+                raise AppException(
+                    "No puedes mover tareas a un sprint que ya está cerrado.",
+                    code="target_sprint_closed",
+                    status_code=422,
+                )
+
+        completed_points = await self.repo.sum_done_points_for_sprint(
+            organization_id, sprint_id
+        )
+        tasks_moved = await self.repo.count_and_move_incomplete_tasks(
+            organization_id, sprint_id, target_sprint_id
+        )
+
+        sprint.status = "closed"
+        sprint.closed_at = datetime.now(timezone.utc)
+        sprint.completed_points = completed_points
+        sprint = await self.repo.save(sprint)
+
+        return {
+            "sprint": SprintRead.model_validate(sprint),
+            "tasks_moved": tasks_moved,
+        }
+
+    async def velocity(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+    ) -> VelocityRead:
+        """Return the velocity report for a project.
+
+        ``series`` contains every closed sprint ordered by ``closed_at`` so the
+        frontend can plot a velocity trend chart. ``average_velocity`` is the
+        arithmetic mean of ``completed_points`` across all closed sprints.
+        ``backlog_points`` counts unassigned + incomplete task points.
+        ``projected_sprints`` estimates how many more sprints are needed at the
+        current average pace (``None`` when average is zero).
+        """
+
+        project = await self.projects.get(organization_id, project_id)
+        if project is None:
+            raise AppException(
+                "El proyecto no existe o no tienes acceso a él.",
+                code="project_not_found",
+                status_code=404,
+            )
+
+        closed_sprints = await self.repo.list_closed_for_project(
+            organization_id, project_id
+        )
+
+        series = [
+            VelocitySprintEntry(
+                sprint_id=s.id,
+                name=s.name,
+                completed_points=s.completed_points,
+                closed_at=s.closed_at,
+            )
+            for s in closed_sprints
+        ]
+
+        average_velocity = (
+            sum(e.completed_points for e in series) / len(series)
+            if series
+            else 0.0
+        )
+
+        backlog_points = await self.repo.count_backlog_points_for_project(
+            organization_id, project_id
+        )
+
+        projected_sprints = (
+            math.ceil(backlog_points / average_velocity)
+            if average_velocity > 0
+            else None
+        )
+
+        return VelocityRead(
+            series=series,
+            average_velocity=average_velocity,
+            backlog_points=backlog_points,
+            projected_sprints=projected_sprints,
+        )
 
     async def _require_sprints_enabled(
         self, organization_id: uuid.UUID, project_id: uuid.UUID

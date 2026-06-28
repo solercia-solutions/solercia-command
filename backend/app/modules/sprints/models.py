@@ -7,7 +7,7 @@ A sprint groups tasks within a single project for time-boxed delivery
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -37,4 +37,13 @@ class Sprint(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
     # layer rather than constrained by a database enum.
     status: Mapped[str] = mapped_column(
         String(20), default="active", nullable=False
+    )
+    # Story points of tasks that were in Done status when the sprint was closed.
+    # Populated by the close-sprint operation; 0 for open sprints.
+    completed_points: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    # Server-side timestamp set when status transitions to 'closed'.
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
