@@ -39,3 +39,7 @@ pgdata/
 # --- Tooling / agent artifacts ---
 .atl/
 .playwright-mcp/
+
+# --- Uploaded files ---
+backend/uploads/
+uploads/

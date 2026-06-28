@@ -45,10 +45,46 @@ class ProjectRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_code(
+        self, organization_id: uuid.UUID, code: str
+    ) -> Project | None:
+        """Return the active project matching ``code`` within the organization."""
+
+        result = await self.db.execute(
+            select(Project).where(
+                Project.organization_id == organization_id,
+                Project.code == code.upper(),
+                Project.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def code_exists(
+        self, organization_id: uuid.UUID, code: str, exclude_id: uuid.UUID | None = None
+    ) -> bool:
+        """Return True if ``code`` is already used in the organization."""
+
+        stmt = select(Project.id).where(
+            Project.organization_id == organization_id,
+            Project.code == code.upper(),
+            Project.is_active.is_(True),
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(Project.id != exclude_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def create(self, project: Project) -> Project:
         """Persist a new project and return the refreshed instance."""
 
         self.db.add(project)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def save(self, project: Project) -> Project:
+        """Flush pending changes on an attached project and return it refreshed."""
+
         await self.db.commit()
         await self.db.refresh(project)
         return project

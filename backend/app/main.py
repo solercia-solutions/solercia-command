@@ -11,7 +11,9 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import engine
 from app.db_init import init_db, seed_default
+from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
+from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
 from app.modules.menus.router import router as menus_admin_router
@@ -84,6 +86,8 @@ register_exception_handlers(app)
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(projects_router, prefix=API_PREFIX)
 app.include_router(tasks_router, prefix=API_PREFIX)
+app.include_router(comments_router, prefix=API_PREFIX)
+app.include_router(attachments_router, prefix=API_PREFIX)
 app.include_router(sprints_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 # Admin / RBAC management endpoints (require the ADMIN role).

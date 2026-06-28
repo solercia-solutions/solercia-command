@@ -13,6 +13,10 @@ class TaskCreate(BaseModel):
 
     ``status`` is optional; the service defaults it to the first allowed status
     of the project methodology and validates any provided value.
+
+    Pass ``parent_task_id`` to create a subtask. When ``parent_task_id`` is set
+    the service enforces ``task_type='subtask'`` and rejects ``estimation_points``
+    (story points are not counted for subtasks to avoid double-counting velocity).
     """
 
     title: str = Field(min_length=1, max_length=200)
@@ -26,6 +30,7 @@ class TaskCreate(BaseModel):
     due_date: datetime | None = None
     start_date: datetime | None = None
     sprint_id: uuid.UUID | None = None
+    parent_task_id: uuid.UUID | None = None
 
     @field_validator("title")
     @classmethod
@@ -85,6 +90,7 @@ class TaskRead(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     sprint_id: uuid.UUID | None = None
+    parent_task_id: uuid.UUID | None = None
     title: str
     description: str | None = None
     task_type: str
@@ -102,6 +108,13 @@ class TaskRead(BaseModel):
     risk_flag: bool = False
     risk_reason: str | None = None
     created_at: datetime
+    # Populated by the service: sequential number within the project.
+    task_number: int | None = None
+    # Human-readable composite key (e.g. "SDM-7"). Set transiently by service.
+    task_key: str | None = None
+    # Ratio of done subtasks to total subtasks [0.0, 1.0].
+    # None when the task has no subtasks; only populated on single-task reads.
+    subtask_progress: float | None = None
 
 
 class MemberRead(BaseModel):

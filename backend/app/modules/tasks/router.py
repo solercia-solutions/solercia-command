@@ -42,7 +42,7 @@ async def list_tasks(
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List a project's tasks, optionally filtered by sprint, status or assignee."""
+    """List a project's top-level tasks, optionally filtered by sprint, status or assignee."""
 
     service = TaskService(db)
     tasks = await service.list_tasks(
@@ -62,12 +62,31 @@ async def create_task(
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Create a task within a project."""
+    """Create a task (or subtask when ``parent_task_id`` is set) within a project."""
 
     service = TaskService(db)
     task = await service.create_task(
         membership.organization_id, project_id, payload
     )
+    return {"data": task}
+
+
+# NOTE: this fixed-path route must be declared BEFORE the ``{task_id}`` route
+# so FastAPI does not try to coerce the literal "by-key" into a UUID.
+@router.get("/tasks/by-key/{key}")
+async def get_task_by_key(
+    key: str,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Resolve a task by its human-readable key (e.g. ``SDM-7``).
+
+    The key format is ``{PROJECT_CODE}-{TASK_NUMBER}``. Returns the task if it
+    belongs to the caller's organization.
+    """
+
+    service = TaskService(db)
+    task = await service.get_task_by_key(membership.organization_id, key)
     return {"data": task}
 
 
@@ -77,7 +96,7 @@ async def get_task(
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Return a single task owned by the caller's organization."""
+    """Return a single task (including subtask progress) owned by the caller's organization."""
 
     service = TaskService(db)
     task = await service.get_task(membership.organization_id, task_id)
@@ -111,3 +130,16 @@ async def delete_task(
     service = TaskService(db)
     await service.delete_task(membership.organization_id, task_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/tasks/{task_id}/subtasks")
+async def list_subtasks(
+    task_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the direct subtasks of a task."""
+
+    service = TaskService(db)
+    subtasks = await service.list_subtasks(membership.organization_id, task_id)
+    return {"data": subtasks, "meta": {"total": len(subtasks)}}

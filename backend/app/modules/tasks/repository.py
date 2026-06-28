@@ -7,7 +7,7 @@ every read joins ``Task`` to ``Project`` and filters by ``organization_id``.
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organizations.models import OrganizationMember
@@ -30,6 +30,9 @@ class TaskRepository:
         sprint_id: uuid.UUID | None = None,
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
+        parent_task_id: uuid.UUID | None = None,
+        subtasks_only: bool = False,
+        top_level_only: bool = False,
     ) -> Sequence[Task]:
         """Return active tasks of a project, filtered and ordered for a board."""
 
@@ -48,6 +51,12 @@ class TaskRepository:
             stmt = stmt.where(Task.status == status)
         if assignee_id is not None:
             stmt = stmt.where(Task.assignee_id == assignee_id)
+        if parent_task_id is not None:
+            stmt = stmt.where(Task.parent_task_id == parent_task_id)
+        if subtasks_only:
+            stmt = stmt.where(Task.parent_task_id.isnot(None))
+        if top_level_only:
+            stmt = stmt.where(Task.parent_task_id.is_(None))
 
         stmt = stmt.order_by(Task.order.asc(), Task.created_at.asc())
         result = await self.db.execute(stmt)
@@ -85,6 +94,46 @@ class TaskRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_project_and_number(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        task_number: int,
+    ) -> Task | None:
+        """Return the active task identified by its sequential project number."""
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.project_id == project_id,
+                Task.task_number == task_number,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def allocate_task_number(self, project_id: uuid.UUID) -> int:
+        """Atomically increment the project task counter and return the new value.
+
+        Uses ``UPDATE ... RETURNING`` inside the current transaction so no two
+        concurrent requests receive the same task_number for the same project.
+        The surrounding ``commit()`` in :meth:`create` seals both operations
+        (counter increment + task row INSERT) into a single atomic transaction.
+        """
+
+        result = await self.db.execute(
+            text(
+                "UPDATE projects "
+                "SET task_counter = task_counter + 1 "
+                "WHERE id = :project_id "
+                "RETURNING task_counter"
+            ),
+            {"project_id": str(project_id)},
+        )
+        return result.scalar_one()
+
     async def create(self, task: Task) -> Task:
         """Persist a new task and return the refreshed instance."""
 
@@ -99,6 +148,29 @@ class TaskRepository:
         await self.db.commit()
         await self.db.refresh(task)
         return task
+
+    async def get_subtask_counts(
+        self, task_id: uuid.UUID, done_status: str
+    ) -> tuple[int, int]:
+        """Return ``(total, done)`` subtask counts for ``task_id``."""
+
+        total_result = await self.db.execute(
+            select(func.count()).select_from(Task).where(
+                Task.parent_task_id == task_id,
+                Task.is_active.is_(True),
+            )
+        )
+        total = total_result.scalar_one() or 0
+
+        done_result = await self.db.execute(
+            select(func.count()).select_from(Task).where(
+                Task.parent_task_id == task_id,
+                Task.status == done_status,
+                Task.is_active.is_(True),
+            )
+        )
+        done = done_result.scalar_one() or 0
+        return total, done
 
     async def list_org_members(
         self, organization_id: uuid.UUID

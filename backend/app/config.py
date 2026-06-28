@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # Allow VS Code dev tunnels (https://<id>-<port>.<region>.devtunnels.ms) and similar.
     CORS_ORIGIN_REGEX: str = r"https://.*\.devtunnels\.(ms|com)"
 
+    # File uploads — directory where uploaded files are stored on disk.
+    # Use an absolute path in production (e.g. /data/uploads).
+    # Relative paths resolve from the process working directory (inside /app in Docker).
+    UPLOAD_DIR: str = "./uploads"
+
 
 @lru_cache
 def get_settings() -> Settings:

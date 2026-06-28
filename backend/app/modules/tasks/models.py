@@ -105,3 +105,8 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
         Boolean, default=False, nullable=False
     )
     risk_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Sequential number scoped to the project (e.g. task #7 of project "SDM"
+    # → task_key "SDM-7"). Assigned atomically via UPDATE ... RETURNING on
+    # projects.task_counter. Nullable for backward-compat with existing rows.
+    task_number: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)

@@ -1,0 +1,10 @@
+# Development / test dependencies (not installed in the runtime image).
+# Install with:  pip install -r requirements.txt -r requirements-dev.txt
+#
+# Integration tests that hit the database are skipped unless TEST_DATABASE_URL
+# points at a reachable Postgres instance, e.g.:
+#   export TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test
+
+pytest>=8.0
+pytest-asyncio>=0.23
+httpx>=0.27

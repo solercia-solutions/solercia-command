@@ -5,17 +5,20 @@ populated before ``create_all`` runs (also used by Alembic's env).
 """
 
 import logging
+import re
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, Base, engine
 from app.methodology.factory import get_strategy
 
 # Import ALL models so they register on the shared metadata.
+from app.modules.attachments.models import Attachment  # noqa: F401
+from app.modules.comments.models import TaskComment  # noqa: F401
 from app.modules.dependencies.models import Dependency  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
 from app.modules.organizations.models import (  # noqa: F401
@@ -104,6 +107,123 @@ _DEMO_TASK_TITLES: list[str] = [
 ]
 
 
+def _derive_backfill_code(name: str) -> str:
+    """Generate a code from a project name (same logic as ProjectService)."""
+
+    clean = re.sub(r"[^a-zA-Z0-9 ]", "", name).upper()
+    words = clean.split()
+    if not words:
+        return "PRJ"
+    if len(words) >= 2:
+        code = "".join(w[0] for w in words if w)
+    else:
+        code = words[0][:6]
+    if len(code) < 2:
+        code = (words[0] + code)[:4]
+    return code[:10]
+
+
+async def _backfill_project_codes(session: AsyncSession) -> None:
+    """Assign ``code`` to every project that still has ``code IS NULL``.
+
+    Idempotent: rows that already have a code are left unchanged.
+    """
+
+    result = await session.execute(
+        select(Project).where(Project.code.is_(None), Project.is_active.is_(True))
+    )
+    projects_without_code = list(result.scalars().all())
+    if not projects_without_code:
+        return
+
+    # Track codes already assigned *in this session* to avoid clashes.
+    # Existing non-null codes are loaded to avoid collisions.
+    existing_result = await session.execute(
+        select(Project.organization_id, Project.code).where(Project.code.isnot(None))
+    )
+    # {organization_id: {code, ...}}
+    used: dict = {}
+    for org_id, code in existing_result.all():
+        used.setdefault(org_id, set()).add(code)
+
+    for project in projects_without_code:
+        base = _derive_backfill_code(project.name)
+        candidate = base
+        suffix = 2
+        org_codes = used.setdefault(project.organization_id, set())
+        while candidate in org_codes:
+            candidate = f"{base[:8]}{suffix}"
+            suffix += 1
+        project.code = candidate
+        org_codes.add(candidate)
+
+    logger.info(
+        "Backfilled project codes for %d project(s).", len(projects_without_code)
+    )
+
+
+async def _backfill_task_numbers(session: AsyncSession) -> None:
+    """Assign ``task_number`` to every task that still has ``task_number IS NULL``.
+
+    Tasks are numbered sequentially per project in ``created_at`` order.
+    After numbering, the project's ``task_counter`` is updated to the highest
+    number assigned so new task allocations continue from the correct value.
+    Idempotent: tasks that already have a task_number are skipped.
+    """
+
+    # Collect all projects that have unnumbered tasks.
+    project_result = await session.execute(
+        select(Task.project_id)
+        .where(Task.task_number.is_(None), Task.is_active.is_(True))
+        .distinct()
+    )
+    project_ids = [row[0] for row in project_result.all()]
+    if not project_ids:
+        return
+
+    for project_id in project_ids:
+        # Load all unnumbered tasks ordered by creation time.
+        tasks_result = await session.execute(
+            select(Task)
+            .where(
+                Task.project_id == project_id,
+                Task.task_number.is_(None),
+                Task.is_active.is_(True),
+            )
+            .order_by(Task.created_at.asc())
+        )
+        unnumbered = list(tasks_result.scalars().all())
+        if not unnumbered:
+            continue
+
+        # Find the current highest task_number for this project (already assigned rows).
+        max_result = await session.execute(
+            select(func.max(Task.task_number)).where(
+                Task.project_id == project_id,
+                Task.task_number.isnot(None),
+            )
+        )
+        current_max = max_result.scalar_one() or 0
+
+        next_number = current_max + 1
+        for task in unnumbered:
+            task.task_number = next_number
+            next_number += 1
+
+        # Update the project counter to match the highest assigned number.
+        await session.execute(
+            text(
+                "UPDATE projects SET task_counter = :counter WHERE id = :pid "
+                "AND task_counter < :counter"
+            ),
+            {"counter": next_number - 1, "pid": str(project_id)},
+        )
+
+    logger.info(
+        "Backfilled task numbers for tasks in %d project(s).", len(project_ids)
+    )
+
+
 async def init_db() -> None:
     """Create all tables if they do not yet exist."""
 
@@ -138,6 +258,11 @@ async def seed_default() -> None:
         task_count = await session.execute(select(func.count()).select_from(Task))
         if (task_count.scalar_one() or 0) == 0:
             await _seed_demo_workitems(session, organization, members, admin)
+
+        # Backfill project codes and task numbers for any rows that pre-date
+        # these fields (idempotent — rows with values already set are skipped).
+        await _backfill_project_codes(session)
+        await _backfill_task_numbers(session)
 
         await session.commit()
         logger.info(
