@@ -22,10 +22,11 @@
 - [x] 2.7 Verificar app + modales con Playwright (`fullyVisible:true`) + commit
 - [x] 2.8 Recomendación de skills de estilo (`frontend-design`) — ver resumen/README
 
-## Fase 3 — Quick wins UX ⬜ (coordinar con agente paralelo)
-- [ ] 3.1 `bk-modal`: tamaños `xl`/`2xl`/full + apilado móvil
-- [ ] 3.2 Roles: reemplazar checkbox-list por `bk-select` multi + buscable
-- [ ] 3.3 Animaciones de apertura de `bk-modal`/`bk-select` (por token)
+## Fase 3 — Quick wins UX ✅
+- [x] 3.1 `bk-modal`: tamaños `xl`/`2xl`/full + apilado móvil (usuarios usa `xl`)
+- [x] 3.2 Roles: reemplazar checkbox-list por `bk-select` multi + buscable (vía `formControlName`)
+- [x] 3.3 Animaciones de apertura de `bk-modal`/`bk-select` (por token: `bk-anim-*`)
+- Nota: dropdown del `bk-select` se recorta levemente dentro del modal (overflow). Fix de raíz = CDK Overlay (Fase 4).
 
 ## Fase 4 — Migrar la app a `@boki/ui` ⬜
 - [ ] 4.1 Reapuntar imports de `shared/ui` al paquete (ventana coordinada)

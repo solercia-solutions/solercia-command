@@ -178,7 +178,7 @@ export interface SelectOption {
       <!-- ── Dropdown panel ───────────────────────────────────────────── -->
       @if (isOpen()) {
         <div
-          class="absolute z-50 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg"
+          class="bk-anim-pop absolute z-50 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg"
         >
           <!-- Buscador -->
           <div class="border-b border-border p-2">

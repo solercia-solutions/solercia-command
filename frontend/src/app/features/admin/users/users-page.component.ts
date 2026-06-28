@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import { PageHeaderComponent } from '../../../shared/ui/page-header.component';
 import { BadgeComponent } from '../../../shared/ui/badge.component';
 import { IconButtonComponent } from '../../../shared/ui/icon-button.component';
 import { ModalComponent } from '../../../shared/ui/modal.component';
+import { SelectComponent } from '../../../shared/ui/select.component';
 import { TableComponent } from '../../../shared/ui/table.component';
 import { UsersService } from './users.service';
 import { AdminUser } from './user-admin.model';
@@ -38,6 +40,7 @@ import { Role } from '../roles/role.model';
     BadgeComponent,
     IconButtonComponent,
     ModalComponent,
+    SelectComponent,
     TableComponent,
   ],
   template: `
@@ -134,7 +137,7 @@ import { Role } from '../roles/role.model';
 
     @if (showForm()) {
       <bk-modal
-        size="lg"
+        size="xl"
         [title]="editing() ? 'Editar usuario' : 'Nuevo usuario'"
         (close)="closeForm()"
       >
@@ -228,28 +231,19 @@ import { Role } from '../roles/role.model';
           </label>
 
           <div>
-            <span class="mb-1.5 block text-sm font-medium text-text">Roles</span>
             @if (roles().length === 0) {
+              <span class="mb-1.5 block text-sm font-medium text-text">Roles</span>
               <p class="text-xs text-muted">
                 No hay roles creados todavía. Crea roles para poder asignarlos.
               </p>
             } @else {
-              <div class="flex flex-col gap-1">
-                @for (role of roles(); track role.id) {
-                  <label
-                    class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-text hover:bg-muted/10"
-                  >
-                    <input
-                      type="checkbox"
-                      [checked]="selectedRoleIds().has(role.id)"
-                      (change)="toggleRole(role.id)"
-                      class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
-                    />
-                    <span>{{ role.name }}</span>
-                    <span class="text-xs text-muted">{{ role.code }}</span>
-                  </label>
-                }
-              </div>
+              <bk-select
+                label="Roles"
+                [multiple]="true"
+                [options]="roleOptions()"
+                placeholder="Asigna uno o más roles"
+                formControlName="role_ids"
+              ></bk-select>
             }
           </div>
 
@@ -324,6 +318,12 @@ export class UsersPageComponent implements OnInit {
   protected readonly items = signal<AdminUser[]>([]);
   protected readonly dependencies = signal<Dependency[]>([]);
   protected readonly roles = signal<Role[]>([]);
+  protected readonly roleOptions = computed(() =>
+    this.roles().map((r) => ({
+      value: r.id,
+      label: r.code ? `${r.name} · ${r.code}` : r.name,
+    })),
+  );
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
 
@@ -332,7 +332,6 @@ export class UsersPageComponent implements OnInit {
   protected readonly deleting = signal<AdminUser | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
-  protected readonly selectedRoleIds = signal<Set<string>>(new Set());
 
   protected readonly form = this.fb.nonNullable.group({
     primer_nombre: ['', [Validators.required]],
@@ -343,6 +342,7 @@ export class UsersPageComponent implements OnInit {
     password: ['', [Validators.required, Validators.minLength(8)]],
     dependency_id: [''],
     is_active: [true],
+    role_ids: [[] as string[]],
   });
 
   ngOnInit(): void {
@@ -379,20 +379,9 @@ export class UsersPageComponent implements OnInit {
     return '';
   }
 
-  protected toggleRole(id: string): void {
-    const next = new Set(this.selectedRoleIds());
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    this.selectedRoleIds.set(next);
-  }
-
   protected openCreate(): void {
     this.editing.set(null);
     this.formError.set(null);
-    this.selectedRoleIds.set(new Set());
     this.setPasswordRequired(true);
     this.form.reset({
       primer_nombre: '',
@@ -403,6 +392,7 @@ export class UsersPageComponent implements OnInit {
       password: '',
       dependency_id: '',
       is_active: true,
+      role_ids: [],
     });
     this.showForm.set(true);
   }
@@ -410,7 +400,6 @@ export class UsersPageComponent implements OnInit {
   protected openEdit(item: AdminUser): void {
     this.editing.set(item);
     this.formError.set(null);
-    this.selectedRoleIds.set(new Set((item.roles ?? []).map((r) => r.id)));
     this.setPasswordRequired(false);
     this.form.reset({
       primer_nombre: item.primer_nombre,
@@ -421,6 +410,7 @@ export class UsersPageComponent implements OnInit {
       password: '',
       dependency_id: item.dependency_id ?? '',
       is_active: item.is_active,
+      role_ids: (item.roles ?? []).map((r) => r.id),
     });
     this.showForm.set(true);
   }
@@ -438,7 +428,7 @@ export class UsersPageComponent implements OnInit {
     }
 
     const raw = this.form.getRawValue();
-    const roleIds = Array.from(this.selectedRoleIds());
+    const roleIds = raw.role_ids;
     this.saving.set(true);
 
     const editing = this.editing();

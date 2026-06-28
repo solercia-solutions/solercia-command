@@ -178,6 +178,32 @@ body {
   animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease);
 }
 
+/* Open animations for overlays (modal backdrop/panel, dropdown panel).
+   Token-driven; no fill-mode so no transform lingers after the run. */
+@keyframes bk-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bk-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bk-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.bk-anim-backdrop {
+  animation: bk-backdrop-in var(--sp-motion-base) var(--sp-ease);
+}
+.bk-anim-modal {
+  animation: bk-modal-in var(--sp-motion-base) var(--sp-ease);
+  transform-origin: center;
+}
+.bk-anim-pop {
+  animation: bk-pop-in var(--sp-motion-fast) var(--sp-ease);
+  transform-origin: top;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -16,7 +16,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      class="bk-anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm sm:p-6"
       (click)="close.emit()"
     >
       <div
@@ -60,16 +60,19 @@ import {
 })
 export class ModalComponent {
   @Input({ required: true }) title = '';
-  @Input() size: 'sm' | 'md' | 'lg' = 'md';
+  @Input() size: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full' = 'md';
   @Output() close = new EventEmitter<void>();
 
   get panelClasses(): string {
     const base =
-      'max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-lg';
-    const widths: Record<'sm' | 'md' | 'lg', string> = {
+      'bk-anim-modal max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-lg';
+    const widths: Record<'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full', string> = {
       sm: 'max-w-sm',
       md: 'max-w-md',
       lg: 'max-w-lg',
+      xl: 'max-w-2xl',
+      '2xl': 'max-w-4xl',
+      full: 'max-w-[min(95vw,72rem)]',
     };
     return `${base} ${widths[this.size]}`;
   }
