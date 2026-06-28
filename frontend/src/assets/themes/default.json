@@ -1,156 +1,124 @@
 {
   "light": {
-    "tenant": "default",
-    "logo": {
-      "url": "/assets/logos/bokibot_logo.png",
-      "altText": "BokiBot Platform",
-      "width": 120
+    "meta": { "tenant": "default", "name": "Solercia Light" },
+    "color": {
+      "brand": "#4F46E5",
+      "brandFg": "#FFFFFF",
+      "brandHover": "#4338CA",
+      "brandSoft": "#EEF2FF",
+      "brandSoftFg": "#4338CA",
+
+      "page": "#F4F6FB",
+      "surface": "#FFFFFF",
+      "elevated": "#FFFFFF",
+      "sunken": "#EDF1F8",
+
+      "text": "#0B1220",
+      "muted": "#5A6B85",
+      "subtle": "#8A99B3",
+
+      "border": "#E5E9F2",
+      "borderStrong": "#D3DAE8",
+
+      "success": "#0E9F6E",
+      "successSoft": "#E3F5EE",
+      "successSoftFg": "#047857",
+      "warning": "#D97706",
+      "warningSoft": "#FDF0E3",
+      "warningSoftFg": "#B45309",
+      "danger": "#E02424",
+      "dangerSoft": "#FDEBEB",
+      "dangerSoftFg": "#B91C1C",
+      "info": "#2563EB",
+      "accent": "#7C3AED",
+      "ring": "#6366F1"
     },
-    "colors": {
-      "primary": "#2563EB",
-      "secondary": "#7C3AED",
-      "accent": "#F59E0B",
-      "success": "#10B981",
-      "warning": "#F59E0B",
-      "danger": "#EF4444",
-      "info": "#3B82F6",
-      "textPrimary": "#0F172A",
-      "textSecondary": "#64748B",
-      "textMuted": "#94A3B8"
+    "radius": {
+      "sm": "8px",
+      "md": "10px",
+      "lg": "14px",
+      "xl": "18px",
+      "2xl": "24px",
+      "full": "9999px"
+    },
+    "shadow": {
+      "xs": "0 1px 2px 0 rgba(15, 23, 42, 0.04)",
+      "sm": "0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05)",
+      "md": "0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06)",
+      "lg": "0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10)",
+      "xl": "0 28px 60px -16px rgba(15, 23, 42, 0.22)"
     },
     "typography": {
-      "fontFamily": "'Inter', system-ui, -apple-system, sans-serif",
-      "fontFamilyMono": "'JetBrains Mono', monospace",
-      "fontSizeBase": "14px",
-      "fontSizeSm": "12px",
-      "fontSizeLg": "16px",
-      "fontSizeXl": "20px",
-      "fontWeightNormal": 400,
-      "fontWeightBold": 600,
-      "lineHeight": "1.5"
+      "fontSans": "'Inter', system-ui, -apple-system, sans-serif",
+      "fontDisplay": "'Manrope', 'Inter', system-ui, sans-serif",
+      "fontMono": "'JetBrains Mono', ui-monospace, monospace"
     },
-    "borders": {
-      "radiusSm": "6px",
-      "radiusMd": "8px",
-      "radiusLg": "12px",
-      "radiusFull": "9999px",
-      "widthDefault": "1px",
-      "colorDefault": "#E2E8F0"
-    },
-    "sizing": {
-      "inputHeight": "36px",
-      "buttonHeight": "36px",
-      "componentSm": "32px",
-      "componentMd": "36px",
-      "componentLg": "40px",
-      "sidebarWidth": "240px",
-      "headerHeight": "56px"
-    },
-    "spacing": {
-      "xs": "4px",
-      "sm": "8px",
-      "md": "16px",
-      "lg": "24px",
-      "xl": "32px"
-    },
-    "shadows": {
-      "sm": "0 1px 2px rgba(0, 0, 0, 0.05)",
-      "md": "0 4px 6px rgba(0, 0, 0, 0.07)",
-      "lg": "0 10px 15px rgba(0, 0, 0, 0.1)",
-      "card": "0 4px 12px 0 rgba(19, 19, 19, 0.08), 0 2px 6px 2px rgba(19, 19, 19, 0.02)"
-    },
-    "zIndex": {
-      "dropdown": 1000,
-      "modal": 1050,
-      "tooltip": 1100
-    },
-    "alerts": {
-      "borderRadius": "8px",
-      "showIcon": true,
-      "position": "top-right",
-      "duration": 5000
-    },
-    "backgrounds": {
-      "page": "#F8FAFC",
-      "surface": "#FFFFFF",
-      "overlay": "rgba(0, 0, 0, 0.5)"
+    "motion": {
+      "fast": "120ms",
+      "base": "200ms",
+      "slow": "320ms",
+      "ease": "cubic-bezier(0.4, 0, 0.2, 1)"
     }
   },
   "dark": {
-    "tenant": "default",
-    "logo": {
-      "url": "/assets/logos/bokibot_logo.png",
-      "altText": "BokiBot Platform",
-      "width": 120
-    },
-    "colors": {
-      "primary": "#60A5FA",
-      "secondary": "#A78BFA",
-      "accent": "#FBBF24",
+    "meta": { "tenant": "default", "name": "Solercia Dark" },
+    "color": {
+      "brand": "#6366F1",
+      "brandFg": "#FFFFFF",
+      "brandHover": "#818CF8",
+      "brandSoft": "#20264A",
+      "brandSoftFg": "#C7D2FE",
+
+      "page": "#0A0F1C",
+      "surface": "#131A2B",
+      "elevated": "#1B2438",
+      "sunken": "#0E1424",
+
+      "text": "#E6EBF4",
+      "muted": "#93A1B8",
+      "subtle": "#647189",
+
+      "border": "#25304A",
+      "borderStrong": "#36425F",
+
       "success": "#34D399",
+      "successSoft": "#10241E",
+      "successSoftFg": "#6EE7B7",
       "warning": "#FBBF24",
+      "warningSoft": "#2A2110",
+      "warningSoftFg": "#FCD34D",
       "danger": "#F87171",
-      "info": "#93C5FD",
-      "textPrimary": "#F1F5F9",
-      "textSecondary": "#CBD5E1",
-      "textMuted": "#64748B"
+      "dangerSoft": "#2C1618",
+      "dangerSoftFg": "#FCA5A5",
+      "info": "#60A5FA",
+      "accent": "#A78BFA",
+      "ring": "#818CF8"
+    },
+    "radius": {
+      "sm": "8px",
+      "md": "10px",
+      "lg": "14px",
+      "xl": "18px",
+      "2xl": "24px",
+      "full": "9999px"
+    },
+    "shadow": {
+      "xs": "0 1px 2px 0 rgba(0, 0, 0, 0.40)",
+      "sm": "0 1px 3px 0 rgba(0, 0, 0, 0.50), 0 1px 2px -1px rgba(0, 0, 0, 0.40)",
+      "md": "0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50)",
+      "lg": "0 18px 40px -12px rgba(0, 0, 0, 0.70), 0 6px 14px -8px rgba(0, 0, 0, 0.55)",
+      "xl": "0 30px 64px -16px rgba(0, 0, 0, 0.75)"
     },
     "typography": {
-      "fontFamily": "'Inter', system-ui, -apple-system, sans-serif",
-      "fontFamilyMono": "'JetBrains Mono', monospace",
-      "fontSizeBase": "14px",
-      "fontSizeSm": "12px",
-      "fontSizeLg": "16px",
-      "fontSizeXl": "20px",
-      "fontWeightNormal": 400,
-      "fontWeightBold": 600,
-      "lineHeight": "1.5"
+      "fontSans": "'Inter', system-ui, -apple-system, sans-serif",
+      "fontDisplay": "'Manrope', 'Inter', system-ui, sans-serif",
+      "fontMono": "'JetBrains Mono', ui-monospace, monospace"
     },
-    "borders": {
-      "radiusSm": "6px",
-      "radiusMd": "8px",
-      "radiusLg": "12px",
-      "radiusFull": "9999px",
-      "widthDefault": "1px",
-      "colorDefault": "#334155"
-    },
-    "sizing": {
-      "inputHeight": "36px",
-      "buttonHeight": "36px",
-      "componentSm": "32px",
-      "componentMd": "36px",
-      "componentLg": "40px",
-      "sidebarWidth": "240px",
-      "headerHeight": "56px"
-    },
-    "spacing": {
-      "xs": "4px",
-      "sm": "8px",
-      "md": "16px",
-      "lg": "24px",
-      "xl": "32px"
-    },
-    "shadows": {
-      "sm": "0 1px 2px rgba(0, 0, 0, 0.2)",
-      "md": "0 4px 6px rgba(0, 0, 0, 0.3)",
-      "lg": "0 10px 15px rgba(0, 0, 0, 0.4)",
-      "card": "0 4px 12px 0 rgba(0, 0, 0, 0.15), 0 2px 6px 2px rgba(0, 0, 0, 0.05)"
-    },
-    "zIndex": {
-      "dropdown": 1000,
-      "modal": 1050,
-      "tooltip": 1100
-    },
-    "alerts": {
-      "borderRadius": "8px",
-      "showIcon": true,
-      "position": "top-right",
-      "duration": 5000
-    },
-    "backgrounds": {
-      "page": "#0F172A",
-      "surface": "#1E293B",
-      "overlay": "rgba(0, 0, 0, 0.7)"
+    "motion": {
+      "fast": "120ms",
+      "base": "200ms",
+      "slow": "320ms",
+      "ease": "cubic-bezier(0.4, 0, 0.2, 1)"
     }
   }
 }

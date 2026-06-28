@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
 type BadgeTone = 'brand' | 'success' | 'muted' | 'danger' | 'warning';
 
-/** Small pill used for roles, codes and status flags. Theme-aware. */
+/**
+ * Small pill for roles, codes and status flags. Uses solid soft tokens with a
+ * matching foreground for proper contrast (not washed-out alpha tints).
+ */
 @Component({
   selector: 'sp-badge',
   standalone: true,
@@ -14,13 +17,13 @@ export class BadgeComponent {
 
   get classes(): string {
     const base =
-      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium';
+      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold';
     const tones: Record<BadgeTone, string> = {
-      brand: 'bg-brand/10 text-brand',
-      success: 'bg-success/10 text-success',
-      muted: 'bg-muted/10 text-muted',
-      danger: 'bg-danger/10 text-danger',
-      warning: 'bg-warning/10 text-warning',
+      brand: 'bg-brand-soft text-brand-soft-fg',
+      success: 'bg-success-soft text-success-soft-fg',
+      muted: 'bg-sunken text-muted',
+      danger: 'bg-danger-soft text-danger-soft-fg',
+      warning: 'bg-warning-soft text-warning-soft-fg',
     };
     return `${base} ${tones[this.tone]}`;
   }

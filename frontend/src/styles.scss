@@ -3,36 +3,110 @@
 @tailwind utilities;
 
 /* ============================================================
-   Solercia design tokens (--sp-*)
-   Values are RGB channels so Tailwind can apply alpha via
-   rgb(var(--sp-*) / <alpha-value>). Light is the default; the
-   .dark class on <html> swaps the whole palette.
-   Adapted (simplified) from boki-front's --bk-* token system.
+   Solercia design tokens (--sp-*) — STATIC FALLBACK / first paint.
+   ThemeService re-applies these from assets/themes/default.json at
+   runtime (and can swap them per tenant). Keep this in sync with
+   default.json: colors are RGB channels for alpha support, the rest
+   are raw CSS values.
    ============================================================ */
 :root {
-  --sp-brand: 37 99 235; /* #2563EB */
-  --sp-brand-fg: 255 255 255; /* #FFFFFF */
-  --sp-bg-page: 248 250 252; /* #F8FAFC */
-  --sp-surface: 255 255 255; /* #FFFFFF */
-  --sp-text: 15 23 42; /* #0F172A */
-  --sp-muted: 100 116 139; /* #64748B */
-  --sp-border: 226 232 240; /* #E2E8F0 */
-  --sp-success: 16 185 129; /* #10B981 */
-  --sp-warning: 245 158 11; /* #F59E0B */
-  --sp-danger: 239 68 68; /* #EF4444 */
+  /* color */
+  --sp-brand: 79 70 229;
+  --sp-brand-fg: 255 255 255;
+  --sp-brand-hover: 67 56 202;
+  --sp-brand-soft: 238 242 255;
+  --sp-brand-soft-fg: 67 56 202;
+
+  --sp-page: 244 246 251;
+  --sp-surface: 255 255 255;
+  --sp-elevated: 255 255 255;
+  --sp-sunken: 237 241 248;
+
+  --sp-text: 11 18 32;
+  --sp-muted: 90 107 133;
+  --sp-subtle: 138 153 179;
+
+  --sp-border: 229 233 242;
+  --sp-border-strong: 211 218 232;
+
+  --sp-success: 14 159 110;
+  --sp-success-soft: 227 245 238;
+  --sp-success-soft-fg: 4 120 87;
+  --sp-warning: 217 119 6;
+  --sp-warning-soft: 253 240 227;
+  --sp-warning-soft-fg: 180 83 9;
+  --sp-danger: 224 36 36;
+  --sp-danger-soft: 253 235 235;
+  --sp-danger-soft-fg: 185 28 28;
+  --sp-info: 37 99 235;
+  --sp-accent: 124 58 237;
+  --sp-ring: 99 102 241;
+
+  /* radius */
+  --sp-radius-sm: 8px;
+  --sp-radius-md: 10px;
+  --sp-radius-lg: 14px;
+  --sp-radius-xl: 18px;
+  --sp-radius-2xl: 24px;
+  --sp-radius-full: 9999px;
+
+  /* shadow */
+  --sp-shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --sp-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --sp-shadow-md: 0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --sp-shadow-lg: 0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10);
+  --sp-shadow-xl: 0 28px 60px -16px rgba(15, 23, 42, 0.22);
+
+  /* typography */
+  --sp-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --sp-font-display: 'Manrope', 'Inter', system-ui, sans-serif;
+  --sp-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* motion */
+  --sp-motion-fast: 120ms;
+  --sp-motion-base: 200ms;
+  --sp-motion-slow: 320ms;
+  --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark {
-  --sp-brand: 59 130 246; /* #3B82F6 */
-  --sp-brand-fg: 255 255 255; /* #FFFFFF */
-  --sp-bg-page: 15 23 42; /* #0F172A */
-  --sp-surface: 30 41 59; /* #1E293B */
-  --sp-text: 241 245 249; /* #F1F5F9 */
-  --sp-muted: 148 163 184; /* #94A3B8 */
-  --sp-border: 51 65 85; /* #334155 */
-  --sp-success: 52 211 153; /* #34D399 */
-  --sp-warning: 251 191 36; /* #FBBF24 */
-  --sp-danger: 248 113 113; /* #F87171 */
+  --sp-brand: 99 102 241;
+  --sp-brand-fg: 255 255 255;
+  --sp-brand-hover: 129 140 248;
+  --sp-brand-soft: 32 38 74;
+  --sp-brand-soft-fg: 199 210 254;
+
+  --sp-page: 10 15 28;
+  --sp-surface: 19 26 43;
+  --sp-elevated: 27 36 56;
+  --sp-sunken: 14 20 36;
+
+  --sp-text: 230 235 244;
+  --sp-muted: 147 161 184;
+  --sp-subtle: 100 113 137;
+
+  --sp-border: 37 48 74;
+  --sp-border-strong: 54 66 95;
+
+  --sp-success: 52 211 153;
+  --sp-success-soft: 16 36 30;
+  --sp-success-soft-fg: 110 231 183;
+  --sp-warning: 251 191 36;
+  --sp-warning-soft: 42 33 16;
+  --sp-warning-soft-fg: 252 211 77;
+  --sp-danger: 248 113 113;
+  --sp-danger-soft: 44 22 24;
+  --sp-danger-soft-fg: 252 165 165;
+  --sp-info: 96 165 250;
+  --sp-accent: 167 139 250;
+  --sp-ring: 129 140 248;
+
+  /* shadow (deeper on dark surfaces) */
+  --sp-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.40);
+  --sp-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.50), 0 1px 2px -1px rgba(0, 0, 0, 0.40);
+  --sp-shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50);
+  --sp-shadow-lg: 0 18px 40px -12px rgba(0, 0, 0, 0.70), 0 6px 14px -8px rgba(0, 0, 0, 0.55);
+  --sp-shadow-xl: 0 30px 64px -16px rgba(0, 0, 0, 0.75);
 }
 
 html,
@@ -42,27 +116,70 @@ body {
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: rgb(var(--sp-bg-page));
+  font-family: var(--sp-font-sans);
+  background-color: rgb(var(--sp-page));
   color: rgb(var(--sp-text));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Tabular figures for dashboard metrics so numbers don't jiggle. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 :focus-visible {
-  outline: 2px solid rgb(var(--sp-brand));
+  outline: 2px solid rgb(var(--sp-ring));
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgb(var(--sp-brand) / 0.18);
 }
 
 /* Slim custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--sp-muted) / 0.5);
+  background: rgb(var(--sp-subtle) / 0.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--sp-muted) / 0.8);
+  background: rgb(var(--sp-subtle) / 0.7);
+  background-clip: padding-box;
+}
+
+/* Entry animation — one tasteful staggered reveal on route content. */
+@keyframes sp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.sp-animate-in {
+  animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

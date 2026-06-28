@@ -27,16 +27,17 @@ export class ButtonComponent {
 
   get classes(): string {
     const base =
-      'inline-flex items-center justify-center gap-2 h-10 rounded-lg px-4 text-sm font-medium ' +
-      'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 ' +
-      'disabled:opacity-50 disabled:cursor-not-allowed';
+      'inline-flex items-center justify-center gap-2 h-10 rounded-lg px-4 text-sm font-semibold ' +
+      'transition-all duration-150 ease-theme active:translate-y-px focus:outline-none ' +
+      'focus-visible:ring-2 focus-visible:ring-ring/55 focus-visible:ring-offset-2 focus-visible:ring-offset-page ' +
+      'disabled:opacity-50 disabled:pointer-events-none';
     const width = this.block ? 'w-full' : '';
     const variants: Record<ButtonVariant, string> = {
-      primary: 'bg-brand text-brand-fg hover:bg-brand/90',
+      primary: 'bg-brand text-brand-fg shadow-sm hover:bg-brand-hover hover:shadow-md',
       secondary:
-        'bg-surface text-text border border-border hover:bg-muted/10',
-      ghost: 'bg-transparent text-text hover:bg-muted/10',
-      danger: 'bg-danger text-white hover:bg-danger/90',
+        'bg-surface text-text border border-border hover:bg-sunken hover:border-border-strong',
+      ghost: 'bg-transparent text-muted hover:bg-sunken hover:text-text',
+      danger: 'bg-danger text-white shadow-sm hover:brightness-110',
     };
     return `${base} ${width} ${variants[this.variant]}`.trim();
   }

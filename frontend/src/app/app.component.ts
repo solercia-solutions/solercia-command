@@ -23,42 +23,44 @@ import { MenuService } from './core/menu.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <div class="flex min-h-screen flex-col bg-page text-text transition-colors">
+    <div class="flex min-h-screen flex-col bg-page text-text">
       <header
-        class="sticky top-0 z-20 border-b border-border bg-surface/80 backdrop-blur"
+        class="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur-md"
       >
         <div
-          class="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4"
+          class="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6"
         >
           <div class="flex items-center gap-6">
             <a
-              class="flex items-center gap-2 font-semibold tracking-tight"
+              class="flex items-center gap-2.5"
               routerLink="/projects"
               aria-label="Solercia PM, inicio"
             >
               <span
-                class="grid h-7 w-7 place-items-center rounded-lg bg-brand text-brand-fg text-sm font-bold"
+                class="grid h-8 w-8 place-items-center rounded-xl bg-brand text-brand-fg text-sm font-bold shadow-sm"
                 aria-hidden="true"
                 >S</span
               >
-              <span class="text-text">Solercia PM</span>
+              <span
+                class="font-display text-[15px] font-bold tracking-tight text-text"
+                >Solercia PM</span
+              >
             </a>
 
             @if (auth.isAuthenticated()) {
               <nav
-                class="hidden items-center gap-1 sm:flex"
+                class="hidden items-center gap-1 md:flex"
                 aria-label="Navegación principal"
               >
                 @if (useMenuNav()) {
                   @for (item of menu.menus(); track item.id) {
                     @if (item.children.length > 0) {
-                      <!-- Parent with children: dropdown -->
                       <div class="relative">
                         <button
                           type="button"
                           (click)="toggleDropdown(item.id)"
                           [attr.aria-expanded]="openId() === item.id"
-                          class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
+                          class="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
                         >
                           {{ item.name }}
                           <svg
@@ -78,15 +80,15 @@ import { MenuService } from './core/menu.service';
                         </button>
                         @if (openId() === item.id) {
                           <div
-                            class="absolute left-0 top-full z-30 mt-1 min-w-48 rounded-lg border border-border bg-surface p-1 shadow-lg"
+                            class="absolute left-0 top-full z-30 mt-1.5 min-w-52 rounded-xl border border-border bg-elevated p-1.5 shadow-lg"
                           >
                             @for (child of item.children; track child.id) {
                               @if (child.path) {
                                 <a
                                   [routerLink]="child.path"
-                                  routerLinkActive="bg-brand/10 !text-brand"
+                                  routerLinkActive="bg-brand-soft !text-brand-soft-fg"
                                   (click)="closeDropdown()"
-                                  class="block rounded-md px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
+                                  class="block rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
                                 >
                                   {{ child.name }}
                                 </a>
@@ -96,39 +98,25 @@ import { MenuService } from './core/menu.service';
                         }
                       </div>
                     } @else if (item.path) {
-                      <!-- Leaf: direct link -->
                       <a
                         [routerLink]="item.path"
-                        routerLinkActive="bg-brand/10 !text-brand"
-                        class="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
+                        routerLinkActive="bg-brand-soft !text-brand-soft-fg"
+                        class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
                       >
                         {{ item.name }}
                       </a>
                     }
                   }
                 } @else {
-                  <!-- Fallback static links when the menu tree is unavailable -->
-                  <a
-                    routerLink="/projects"
-                    routerLinkActive="bg-brand/10 !text-brand"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
-                  >
-                    Proyectos
-                  </a>
-                  <a
-                    routerLink="/executive"
-                    routerLinkActive="bg-brand/10 !text-brand"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
-                  >
-                    Vista de jefe
-                  </a>
-                  <a
-                    routerLink="/performance"
-                    routerLinkActive="bg-brand/10 !text-brand"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-text"
-                  >
-                    Rendimiento
-                  </a>
+                  @for (link of fallbackLinks; track link.path) {
+                    <a
+                      [routerLink]="link.path"
+                      routerLinkActive="bg-brand-soft !text-brand-soft-fg"
+                      class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
+                    >
+                      {{ link.label }}
+                    </a>
+                  }
                 }
               </nav>
             }
@@ -142,11 +130,10 @@ import { MenuService } from './core/menu.service';
                 theme.isDark() ? 'Activa el modo claro' : 'Activa el modo oscuro'
               "
               class="grid h-9 w-9 place-items-center rounded-lg border border-border
-                     bg-surface text-text transition-colors hover:bg-muted/10
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                     bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
             >
               @if (theme.isDark()) {
-                <!-- Sun -->
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="18"
@@ -163,7 +150,6 @@ import { MenuService } from './core/menu.service';
                   <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
                 </svg>
               } @else {
-                <!-- Moon -->
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="18"
@@ -185,9 +171,9 @@ import { MenuService } from './core/menu.service';
               <button
                 type="button"
                 (click)="logout()"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-border
+                class="hidden h-9 items-center gap-2 rounded-lg border border-border
                        bg-surface px-3 text-sm font-medium text-text transition-colors
-                       hover:bg-muted/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                       hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 sm:inline-flex"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -207,9 +193,86 @@ import { MenuService } from './core/menu.service';
                 </svg>
                 <span>Cerrar sesión</span>
               </button>
+
+              <!-- Mobile menu toggle -->
+              <button
+                type="button"
+                (click)="toggleMobile()"
+                [attr.aria-expanded]="mobileOpen()"
+                aria-label="Abre el menú de navegación"
+                class="grid h-9 w-9 place-items-center rounded-lg border border-border
+                       bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 md:hidden"
+              >
+                @if (mobileOpen()) {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                } @else {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                }
+              </button>
             }
           </div>
         </div>
+
+        <!-- Mobile navigation panel -->
+        @if (auth.isAuthenticated() && mobileOpen()) {
+          <nav
+            class="border-t border-border bg-surface px-4 py-3 md:hidden"
+            aria-label="Navegación móvil"
+          >
+            <div class="flex flex-col gap-0.5">
+              @if (useMenuNav()) {
+                @for (item of menu.menus(); track item.id) {
+                  @if (item.children.length > 0) {
+                    <p class="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-subtle">
+                      {{ item.name }}
+                    </p>
+                    @for (child of item.children; track child.id) {
+                      @if (child.path) {
+                        <a
+                          [routerLink]="child.path"
+                          routerLinkActive="bg-brand-soft !text-brand-soft-fg"
+                          (click)="closeMobile()"
+                          class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
+                        >
+                          {{ child.name }}
+                        </a>
+                      }
+                    }
+                  } @else if (item.path) {
+                    <a
+                      [routerLink]="item.path"
+                      routerLinkActive="bg-brand-soft !text-brand-soft-fg"
+                      (click)="closeMobile()"
+                      class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
+                    >
+                      {{ item.name }}
+                    </a>
+                  }
+                }
+              } @else {
+                @for (link of fallbackLinks; track link.path) {
+                  <a
+                    [routerLink]="link.path"
+                    routerLinkActive="bg-brand-soft !text-brand-soft-fg"
+                    (click)="closeMobile()"
+                    class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
+                  >
+                    {{ link.label }}
+                  </a>
+                }
+              }
+              <button
+                type="button"
+                (click)="logout()"
+                class="mt-1 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                Cerrar sesión
+              </button>
+            </div>
+          </nav>
+        }
       </header>
 
       <!-- Click-away backdrop for the open dropdown. -->
@@ -218,12 +281,14 @@ import { MenuService } from './core/menu.service';
           type="button"
           (click)="closeDropdown()"
           aria-label="Cierra el menú"
-          class="fixed inset-0 z-10 cursor-default"
+          class="fixed inset-0 z-20 cursor-default"
         ></button>
       }
 
-      <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-        <router-outlet></router-outlet>
+      <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <div class="sp-animate-in">
+          <router-outlet></router-outlet>
+        </div>
       </main>
     </div>
   `,
@@ -236,6 +301,16 @@ export class AppComponent {
 
   /** Which dropdown (by menu id) is open, or null. */
   protected readonly openId = signal<string | null>(null);
+
+  /** Whether the mobile navigation panel is open. */
+  protected readonly mobileOpen = signal(false);
+
+  /** Static fallback nav links when the menu tree is unavailable. */
+  protected readonly fallbackLinks = [
+    { path: '/projects', label: 'Proyectos' },
+    { path: '/executive', label: 'Vista de jefe' },
+    { path: '/performance', label: 'Rendimiento' },
+  ];
 
   /** Use the menu-driven nav only when a non-empty tree has loaded. */
   protected readonly useMenuNav = computed<boolean>(
@@ -256,6 +331,7 @@ export class AppComponent {
       } else {
         this.menu.clear();
         this.openId.set(null);
+        this.mobileOpen.set(false);
       }
     });
   }
@@ -268,8 +344,17 @@ export class AppComponent {
     this.openId.set(null);
   }
 
+  protected toggleMobile(): void {
+    this.mobileOpen.update((v) => !v);
+  }
+
+  protected closeMobile(): void {
+    this.mobileOpen.set(false);
+  }
+
   protected logout(): void {
     this.closeDropdown();
+    this.closeMobile();
     this.auth.logout();
     void this.router.navigate(['/login']);
   }

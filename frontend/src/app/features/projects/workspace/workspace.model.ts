@@ -38,6 +38,8 @@ export interface Sprint {
   start_date?: string | null;
   end_date?: string | null;
   status: SprintStatus;
+  completed_points?: number;
+  closed_at?: string | null;
   created_at: string;
 }
 
@@ -111,6 +113,41 @@ export interface SprintListResponse {
 }
 export interface SprintItemResponse {
   data: Sprint;
+}
+
+/* ---- Sprint close --------------------------------------------------------- */
+
+export interface SprintClosePayload {
+  target_sprint_id?: string | null;
+}
+
+export interface SprintCloseResult {
+  sprint: Sprint;
+  tasks_moved: number;
+}
+
+export interface SprintCloseResponse {
+  data: SprintCloseResult;
+}
+
+/* ---- Velocity ------------------------------------------------------------- */
+
+export interface VelocityEntry {
+  sprint_id: string;
+  name: string;
+  completed_points: number;
+  closed_at: string | null;
+}
+
+export interface VelocityData {
+  series: VelocityEntry[];
+  average_velocity: number;
+  backlog_points: number;
+  projected_sprints: number | null;
+}
+
+export interface VelocityResponse {
+  data: VelocityData;
 }
 
 /* ---- Burndown ------------------------------------------------------------- */

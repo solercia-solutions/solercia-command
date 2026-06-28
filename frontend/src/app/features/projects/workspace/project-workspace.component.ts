@@ -3,6 +3,7 @@ import {
   Component,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -20,6 +21,9 @@ import {
 } from '@angular/cdk/drag-drop';
 import { ButtonComponent } from '../../../shared/ui/button.component';
 import { CardComponent } from '../../../shared/ui/card.component';
+import { BadgeComponent } from '../../../shared/ui/badge.component';
+import { ModalComponent } from '../../../shared/ui/modal.component';
+import { TableComponent } from '../../../shared/ui/table.component';
 import { ProjectsService } from '../projects.service';
 import { EstimationMode, ProjectDetail } from '../project.model';
 import { WorkspaceService } from './workspace.service';
@@ -29,6 +33,8 @@ import {
 } from './board-column.component';
 import { TaskCardComponent } from './task-card.component';
 import { BurndownChartComponent } from './burndown-chart.component';
+import { VelocityChartComponent } from './velocity-chart.component';
+import { SprintTimelineComponent } from './sprint-timeline.component';
 import {
   TaskFormResult,
   TaskModalComponent,
@@ -37,12 +43,18 @@ import {
   BurndownData,
   METHODOLOGY_BADGE,
   Member,
+  PRIORITY_CHIP_CLASS,
+  PRIORITY_LABELS,
   Sprint,
+  SprintCloseResult,
   Task,
+  VelocityData,
   formatShortDate,
+  statusDisplay,
 } from './workspace.model';
 
-type TabId = 'board' | 'backlog' | 'sprints';
+type TabId = 'board' | 'backlog' | 'sprints' | 'timeline';
+type ViewMode = 'board' | 'grid';
 
 /** Board column working state; `tasks` are live arrays for CDK drag-drop. */
 interface BoardColumn {
@@ -52,8 +64,8 @@ interface BoardColumn {
 
 /**
  * Methodology-driven project workspace. Renders a board (one column per
- * allowed status), plus backlog and sprint tabs when the methodology enables
- * them. All behaviour derives from `methodology_info` — no per-methodology ifs.
+ * allowed status), plus backlog, sprint and timeline tabs when the methodology
+ * enables them. All behaviour derives from `methodology_info`.
  */
 @Component({
   selector: 'sp-project-workspace',
@@ -65,10 +77,15 @@ interface BoardColumn {
     DragDropModule,
     ButtonComponent,
     CardComponent,
+    BadgeComponent,
+    ModalComponent,
+    TableComponent,
     BoardColumnComponent,
     TaskCardComponent,
     TaskModalComponent,
     BurndownChartComponent,
+    VelocityChartComponent,
+    SprintTimelineComponent,
   ],
   template: `
     @if (loading()) {
@@ -153,32 +170,165 @@ interface BoardColumn {
           </div>
         }
 
-        <!-- BOARD -->
+        <!-- BOARD / GRID -->
         @if (activeTab() === 'board') {
-          @if (boardColumns().length === 0) {
-            <sp-card>
-              <p class="py-6 text-center text-sm text-muted">
-                Esta metodología no define columnas de tablero.
-              </p>
-            </sp-card>
-          } @else {
-            <div
-              cdkDropListGroup
-              class="flex gap-4 overflow-x-auto pb-2"
+          <!-- View mode toggle -->
+          <div class="flex items-center gap-2" role="group" aria-label="Modo de visualización">
+            <button
+              type="button"
+              (click)="viewMode.set('board')"
+              class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium
+                     transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+              [class.border-brand]="viewMode() === 'board'"
+              [class.bg-brand/10]="viewMode() === 'board'"
+              [class.text-brand]="viewMode() === 'board'"
+              [class.border-border]="viewMode() !== 'board'"
+              [class.text-muted]="viewMode() !== 'board'"
+              [attr.aria-pressed]="viewMode() === 'board'"
+              aria-label="Vista tablero"
             >
-              @for (column of boardColumns(); track column.status) {
-                <sp-board-column
-                  class="shrink-0"
-                  [status]="column.status"
-                  [tasks]="column.tasks"
-                  [estimationMode]="estimationMode()"
-                  [doneStatus]="doneStatus()"
-                  (addTask)="openCreate($event)"
-                  (editTask)="openEdit($event)"
-                  (dropped)="onDrop($event)"
-                ></sp-board-column>
-              }
-            </div>
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="18"/>
+              </svg>
+              Tablero
+            </button>
+            <button
+              type="button"
+              (click)="viewMode.set('grid')"
+              class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium
+                     transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+              [class.border-brand]="viewMode() === 'grid'"
+              [class.bg-brand/10]="viewMode() === 'grid'"
+              [class.text-brand]="viewMode() === 'grid'"
+              [class.border-border]="viewMode() !== 'grid'"
+              [class.text-muted]="viewMode() !== 'grid'"
+              [attr.aria-pressed]="viewMode() === 'grid'"
+              aria-label="Vista cuadrícula"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+              Cuadrícula
+            </button>
+          </div>
+
+          @if (viewMode() === 'board') {
+            <!-- Kanban board -->
+            @if (boardColumns().length === 0) {
+              <sp-card>
+                <p class="py-6 text-center text-sm text-muted">
+                  Esta metodología no define columnas de tablero.
+                </p>
+              </sp-card>
+            } @else {
+              <div
+                cdkDropListGroup
+                class="flex gap-4 overflow-x-auto pb-2"
+              >
+                @for (column of boardColumns(); track column.status) {
+                  <sp-board-column
+                    class="shrink-0"
+                    [status]="column.status"
+                    [tasks]="column.tasks"
+                    [estimationMode]="estimationMode()"
+                    [doneStatus]="doneStatus()"
+                    (addTask)="openCreate($event)"
+                    (editTask)="openEdit($event)"
+                    (dropped)="onDrop($event)"
+                  ></sp-board-column>
+                }
+              </div>
+            }
+          } @else {
+            <!-- Grid view -->
+            @if (allTasks().length === 0) {
+              <sp-card>
+                <p class="py-6 text-center text-sm text-muted">
+                  No hay tareas en este proyecto.
+                </p>
+              </sp-card>
+            } @else {
+              <sp-table>
+                <thead>
+                  <tr class="border-b border-border bg-surface/60">
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Código</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Título</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Estado</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Responsable</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Prioridad</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Fecha límite</th>
+                    @if (estimationMode() !== 'none') {
+                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Estimación</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (task of allTasks(); track task.id) {
+                    <tr
+                      class="border-b border-border/50 transition-colors hover:bg-brand/5 cursor-pointer"
+                      (click)="openEdit(task)"
+                    >
+                      <td class="px-4 py-3 text-xs font-mono text-muted">
+                        @if (task.task_key) {
+                          <a
+                            [routerLink]="['/task', task.task_key]"
+                            (click)="$event.stopPropagation()"
+                            class="font-semibold text-brand hover:underline"
+                            [attr.aria-label]="'Abre el detalle de ' + task.task_key"
+                          >{{ task.task_key }}</a>
+                        } @else {
+                          <span class="text-muted">—</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3 text-sm text-text max-w-xs truncate">
+                        {{ task.title }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-muted/10 text-muted">
+                          {{ statusDisplay(task.status) }}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-sm text-text">
+                        {{ task.assignee_name || '—' }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <span
+                          class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                          [class]="priorityChipClass(task.priority)"
+                        >{{ priorityLabel(task.priority) }}</span>
+                      </td>
+                      <td class="px-4 py-3 text-sm text-muted">
+                        {{ dateLabel(task.due_date) }}
+                      </td>
+                      @if (estimationMode() !== 'none') {
+                        <td class="px-4 py-3 text-sm text-muted text-right tabular-nums">
+                          @if (estimationMode() === 'points' || estimationMode() === 'both') {
+                            @if (task.estimation_points != null) {
+                              <span>{{ task.estimation_points }} pts</span>
+                            }
+                          }
+                          @if (estimationMode() === 'hours' || estimationMode() === 'both') {
+                            @if (task.estimation_hours != null) {
+                              <span class="ml-1">{{ task.estimation_hours }} h</span>
+                            }
+                          }
+                          @if (task.estimation_points == null && task.estimation_hours == null) {
+                            <span>—</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </sp-table>
+            }
           }
         }
 
@@ -337,6 +487,11 @@ interface BoardColumn {
                           >
                             {{ sprint.status === 'active' ? 'Activo' : 'Cerrado' }}
                           </span>
+                          @if (sprint.status === 'closed' && sprint.completed_points != null) {
+                            <span class="text-xs text-muted">
+                              {{ sprint.completed_points }} pts completados
+                            </span>
+                          }
                         </div>
                         @if (sprint.goal) {
                           <p class="mt-1 text-sm text-muted">{{ sprint.goal }}</p>
@@ -348,7 +503,7 @@ interface BoardColumn {
                           </p>
                         }
                       </div>
-                      <div class="flex shrink-0 items-center gap-2">
+                      <div class="flex shrink-0 flex-wrap items-center gap-2">
                         <sp-button
                           type="button"
                           variant="primary"
@@ -361,18 +516,25 @@ interface BoardColumn {
                               : 'Ver burndown'
                           }}
                         </sp-button>
-                        <sp-button
-                          type="button"
-                          variant="secondary"
-                          (click)="toggleSprintStatus(sprint)"
-                          [ariaLabel]="
-                            sprint.status === 'active'
-                              ? 'Cierra el sprint ' + sprint.name
-                              : 'Reactiva el sprint ' + sprint.name
-                          "
-                        >
-                          {{ sprint.status === 'active' ? 'Cerrar' : 'Reactivar' }}
-                        </sp-button>
+                        @if (sprint.status === 'active') {
+                          <sp-button
+                            type="button"
+                            variant="secondary"
+                            (click)="openCloseSprint(sprint)"
+                            [ariaLabel]="'Cierra el sprint ' + sprint.name"
+                          >
+                            Cerrar sprint
+                          </sp-button>
+                        } @else {
+                          <sp-button
+                            type="button"
+                            variant="secondary"
+                            (click)="toggleSprintStatus(sprint)"
+                            [ariaLabel]="'Reactiva el sprint ' + sprint.name"
+                          >
+                            Reactivar
+                          </sp-button>
+                        }
                       </div>
                     </div>
 
@@ -417,9 +579,48 @@ interface BoardColumn {
                   </div>
                 }
               }
+
+              <!-- Velocity section -->
+              <div class="mt-2">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h3 class="text-base font-semibold text-text">Velocidad del equipo</h3>
+                  @if (velocityLoaded()) {
+                    <button
+                      type="button"
+                      (click)="loadVelocity()"
+                      class="text-xs text-muted hover:text-text transition-colors"
+                      aria-label="Actualiza la velocidad del equipo"
+                    >Actualizar</button>
+                  }
+                </div>
+                @if (velocityLoading()) {
+                  <p class="py-4 text-center text-sm text-muted">Cargando velocidad…</p>
+                } @else if (velocityError()) {
+                  <div
+                    role="alert"
+                    class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+                  >
+                    {{ velocityError() }}
+                  </div>
+                } @else if (velocityData(); as vd) {
+                  <sp-velocity-chart [data]="vd"></sp-velocity-chart>
+                }
+              </div>
             </div>
           </div>
         }
+
+        <!-- TIMELINE -->
+        @if (activeTab() === 'timeline') {
+          <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-lg font-semibold text-text">Cronograma de sprints</h2>
+              <p class="text-xs text-muted">Cada barra representa un sprint posicionado por sus fechas de inicio y fin.</p>
+            </div>
+            <sp-sprint-timeline [sprints]="sprints()"></sp-sprint-timeline>
+          </div>
+        }
+
       </section>
 
       <!-- Task modal -->
@@ -438,6 +639,105 @@ interface BoardColumn {
           (remove)="onDeleteTask($event)"
           (close)="closeModal()"
         ></sp-task-modal>
+      }
+
+      <!-- Close sprint modal -->
+      @if (closeSprintOpen()) {
+        <sp-modal
+          title="Cerrar sprint"
+          size="sm"
+          (close)="cancelCloseSprint()"
+        >
+          @if (closeSprintResult(); as result) {
+            <!-- Success state -->
+            <div class="flex flex-col gap-4">
+              <div class="rounded-lg bg-success/10 px-4 py-3 text-sm text-success">
+                Sprint cerrado exitosamente.
+              </div>
+              <div class="flex flex-col gap-1 text-sm text-text">
+                <p>
+                  <span class="font-semibold">{{ result.sprint.completed_points ?? 0 }}</span>
+                  puntos completados
+                </p>
+                <p>
+                  <span class="font-semibold">{{ result.tasks_moved }}</span>
+                  {{ result.tasks_moved === 1 ? 'tarea movida' : 'tareas movidas' }}
+                  al destino seleccionado
+                </p>
+              </div>
+              <sp-button
+                type="button"
+                variant="primary"
+                [block]="true"
+                (click)="cancelCloseSprint()"
+              >
+                Entendido
+              </sp-button>
+            </div>
+          } @else {
+            <!-- Confirmation state -->
+            <div class="flex flex-col gap-4">
+              <p class="text-sm text-muted">
+                Al cerrar el sprint se calculan los puntos completados. Las tareas
+                incompletas se mueven al destino que selecciones.
+              </p>
+
+              @if (activeSprintsForClose().length > 0) {
+                <label class="block">
+                  <span class="mb-1.5 block text-sm font-medium text-text">
+                    Mover tareas incompletas a
+                  </span>
+                  <select
+                    [value]="closingTargetSprintId()"
+                    (change)="closingTargetSprintId.set(toSelectValue($event))"
+                    class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
+                           transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                    aria-label="Selecciona el destino de las tareas incompletas"
+                  >
+                    <option value="">Backlog (por defecto)</option>
+                    @for (s of activeSprintsForClose(); track s.id) {
+                      <option [value]="s.id">{{ s.name }}</option>
+                    }
+                  </select>
+                </label>
+              } @else {
+                <p class="rounded-lg bg-muted/10 px-3 py-2 text-xs text-muted">
+                  Las tareas incompletas se moverán al backlog (no hay otros sprints activos).
+                </p>
+              }
+
+              @if (closeSprintError()) {
+                <div
+                  role="alert"
+                  class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+                >
+                  {{ closeSprintError() }}
+                </div>
+              }
+
+              <div class="flex gap-3">
+                <sp-button
+                  type="button"
+                  variant="secondary"
+                  [block]="true"
+                  [disabled]="closingSprintBusy()"
+                  (click)="cancelCloseSprint()"
+                >
+                  Cancelar
+                </sp-button>
+                <sp-button
+                  type="button"
+                  variant="primary"
+                  [block]="true"
+                  [disabled]="closingSprintBusy()"
+                  (click)="confirmCloseSprint()"
+                >
+                  {{ closingSprintBusy() ? 'Cerrando…' : 'Cerrar sprint' }}
+                </sp-button>
+              </div>
+            </div>
+          }
+        </sp-modal>
       }
     }
   `,
@@ -466,6 +766,7 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly sprints = signal<Sprint[]>([]);
 
   protected readonly activeTab = signal<TabId>('board');
+  protected readonly viewMode = signal<ViewMode>('board');
 
   protected readonly modalOpen = signal(false);
   protected readonly editingTask = signal<Task | null>(null);
@@ -480,12 +781,35 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly burndownLoading = signal(false);
   protected readonly burndownError = signal<string | null>(null);
 
+  /* ---- Close sprint state ----------------------------------------------- */
+  protected readonly closeSprintOpen = signal(false);
+  protected readonly closingSprintId = signal<string | null>(null);
+  protected readonly closingTargetSprintId = signal<string>('');
+  protected readonly closingSprintBusy = signal(false);
+  protected readonly closeSprintError = signal<string | null>(null);
+  protected readonly closeSprintResult = signal<SprintCloseResult | null>(null);
+
+  /* ---- Velocity state --------------------------------------------------- */
+  protected readonly velocityData = signal<VelocityData | null>(null);
+  protected readonly velocityLoading = signal(false);
+  protected readonly velocityError = signal<string | null>(null);
+  protected readonly velocityLoaded = signal(false);
+
   protected readonly sprintForm = this.fb.group({
     name: ['', [Validators.required]],
     goal: [''],
     start_date: [''],
     end_date: [''],
   });
+
+  constructor() {
+    // Lazy-load velocity when the sprints tab becomes active.
+    effect(() => {
+      if (this.activeTab() === 'sprints' && !this.velocityLoaded()) {
+        this.loadVelocity();
+      }
+    });
+  }
 
   protected readonly tabs = computed(() => {
     const info = this.project()?.methodology_info;
@@ -497,6 +821,7 @@ export class ProjectWorkspaceComponent implements OnInit {
     }
     if (info?.sprints_enabled) {
       list.push({ id: 'sprints', label: 'Sprints' });
+      list.push({ id: 'timeline', label: 'Cronograma' });
     }
     return list;
   });
@@ -522,9 +847,38 @@ export class ProjectWorkspaceComponent implements OnInit {
     this.allTasks().filter((task) => task.sprint_id == null),
   );
 
+  /** Active sprints other than the one being closed (for the target selector). */
+  protected readonly activeSprintsForClose = computed<Sprint[]>(() =>
+    this.sprints().filter(
+      (s) => s.status === 'active' && s.id !== this.closingSprintId(),
+    ),
+  );
+
   protected methodologyBadge(): string {
     const methodology = this.project()?.methodology;
     return methodology ? METHODOLOGY_BADGE[methodology] : '';
+  }
+
+  protected statusDisplay(status: string): string {
+    return statusDisplay(status);
+  }
+
+  protected priorityChipClass(priority: string): string {
+    return (
+      PRIORITY_CHIP_CLASS[priority as keyof typeof PRIORITY_CHIP_CLASS] ??
+      'bg-muted/10 text-muted'
+    );
+  }
+
+  protected priorityLabel(priority: string): string {
+    return (
+      PRIORITY_LABELS[priority as keyof typeof PRIORITY_LABELS] ?? priority
+    );
+  }
+
+  /** Extracts the value from a native select change event. */
+  protected toSelectValue(event: Event): string {
+    return (event.target as HTMLSelectElement).value;
   }
 
   ngOnInit(): void {
@@ -592,6 +946,24 @@ export class ProjectWorkspaceComponent implements OnInit {
     });
   }
 
+  protected loadVelocity(): void {
+    this.velocityLoading.set(true);
+    this.velocityError.set(null);
+    this.workspace.velocity(this.projectId()).subscribe({
+      next: (res) => {
+        this.velocityData.set(res.data);
+        this.velocityLoading.set(false);
+        this.velocityLoaded.set(true);
+      },
+      error: () => {
+        this.velocityLoading.set(false);
+        this.velocityError.set(
+          'No se pudo cargar la velocidad del equipo. Inténtalo más tarde.',
+        );
+      },
+    });
+  }
+
   /** Rebuild the board columns from the current statuses + tasks. */
   private buildBoard(): void {
     const statuses = this.allowedStatuses();
@@ -625,7 +997,6 @@ export class ProjectWorkspaceComponent implements OnInit {
       event.previousIndex,
       event.currentIndex,
     );
-    // Optimistic: the status IS the column.
     moved.status = status;
     this.boardColumns.update((cols) => [...cols]);
 
@@ -733,7 +1104,6 @@ export class ProjectWorkspaceComponent implements OnInit {
       .subscribe({
         next: () => {
           this.loadTasks();
-          // Keep the open burndown in sync with the new sprint contents.
           const selected = this.selectedSprintId();
           if (selected && (selected === value || selected === task.sprint_id)) {
             this.loadBurndown(selected);
@@ -785,10 +1155,57 @@ export class ProjectWorkspaceComponent implements OnInit {
       .subscribe({ next: () => this.loadSprints() });
   }
 
+  /* ---- Close sprint ------------------------------------------------------ */
+
+  protected openCloseSprint(sprint: Sprint): void {
+    this.closingSprintId.set(sprint.id);
+    this.closingTargetSprintId.set('');
+    this.closeSprintError.set(null);
+    this.closeSprintResult.set(null);
+    this.closeSprintOpen.set(true);
+  }
+
+  protected cancelCloseSprint(): void {
+    this.closeSprintOpen.set(false);
+    this.closingSprintId.set(null);
+  }
+
+  protected confirmCloseSprint(): void {
+    const sprintId = this.closingSprintId();
+    if (!sprintId) return;
+
+    this.closingSprintBusy.set(true);
+    this.closeSprintError.set(null);
+
+    const target = this.closingTargetSprintId();
+    this.workspace
+      .closeSprint(sprintId, target ? { target_sprint_id: target } : {})
+      .subscribe({
+        next: (res) => {
+          this.closingSprintBusy.set(false);
+          this.closeSprintResult.set(res.data);
+          this.loadSprints();
+          this.loadTasks();
+          // Invalidate velocity so it reloads fresh.
+          this.velocityLoaded.set(false);
+          this.velocityData.set(null);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.closingSprintBusy.set(false);
+          if (err.status === 409) {
+            this.closeSprintError.set('Este sprint ya estaba cerrado.');
+          } else {
+            this.closeSprintError.set(
+              'No se pudo cerrar el sprint. Inténtalo de nuevo.',
+            );
+          }
+        },
+      });
+  }
+
   /* ---- Burndown ---------------------------------------------------------- */
 
   protected selectSprint(sprint: Sprint): void {
-    // Toggle: clicking the open sprint again hides its burndown.
     if (this.selectedSprintId() === sprint.id) {
       this.selectedSprintId.set(null);
       this.burndown.set(null);

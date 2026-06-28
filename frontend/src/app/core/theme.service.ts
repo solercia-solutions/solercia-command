@@ -1,25 +1,34 @@
 import { Injectable, signal, computed, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ThemeFile, ThemeConfig } from './theme.model';
+import { ThemeConfig, ThemeFile } from './theme.model';
 
 // Unified with the early anti-flash script in index.html.
 const THEME_PREF_KEY = 'sp-dark-mode';
 
+/**
+ * JSON-driven, signal-based theme controller.
+ *
+ * Loads a ThemeFile (light + dark) at startup and projects the active mode
+ * into CSS custom properties (`--sp-*`). Colors become "R G B" channels so
+ * Tailwind utilities can apply alpha; radius/shadow/typography/motion are
+ * injected as raw values. styles.scss holds an identical static fallback for
+ * first paint and the JSON-failed path.
+ *
+ * To re-theme (incl. per-tenant): point loadTheme() at another JSON URL.
+ */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private themeFile = signal<ThemeFile | null>(null);
   private _isDark = signal(this.loadDarkPreference());
 
-  isDark = this._isDark.asReadonly();
+  readonly isDark = this._isDark.asReadonly();
 
-  config = computed<ThemeConfig | null>(() => {
+  readonly config = computed<ThemeConfig | null>(() => {
     const file = this.themeFile();
     if (!file) return null;
     return this._isDark() ? file.dark : file.light;
   });
-
-  logo = computed(() => this.config()?.logo ?? null);
 
   constructor(private http: HttpClient) {
     effect(() => {
@@ -35,16 +44,17 @@ export class ThemeService {
       const file = await firstValueFrom(this.http.get<ThemeFile>(url));
       this.themeFile.set(file);
     } catch {
-      // Fallback: CSS variables already defined in styles.scss :root
-      console.warn('ThemeService: Failed to load theme JSON, using CSS fallback.');
+      // Fallback: the static :root / .dark variables in styles.scss stay in
+      // effect, so the app remains fully themed even if the JSON fails to load.
+      console.warn('ThemeService: failed to load theme JSON, using CSS fallback.');
     }
   }
 
   toggleMode(): void {
-    const newValue = !this._isDark();
-    this._isDark.set(newValue);
-    localStorage.setItem(THEME_PREF_KEY, String(newValue));
-    this.applyDarkClass(newValue);
+    const next = !this._isDark();
+    this._isDark.set(next);
+    localStorage.setItem(THEME_PREF_KEY, String(next));
+    this.applyDarkClass(next);
   }
 
   private loadDarkPreference(): boolean {
@@ -54,83 +64,54 @@ export class ThemeService {
   }
 
   private applyDarkClass(dark: boolean): void {
-    const html = document.documentElement;
-    if (dark) {
-      html.classList.add('dark');
-      document.body.classList.add('dark');
-    } else {
-      html.classList.remove('dark');
-      document.body.classList.remove('dark');
-    }
+    const root = document.documentElement;
+    root.classList.toggle('dark', dark);
   }
 
   private applyCssVariables(cfg: ThemeConfig): void {
     const root = document.documentElement.style;
 
-    // Colors
-    root.setProperty('--bk-color-primary', cfg.colors.primary);
-    root.setProperty('--bk-color-secondary', cfg.colors.secondary);
-    root.setProperty('--bk-color-accent', cfg.colors.accent);
-    root.setProperty('--bk-color-success', cfg.colors.success);
-    root.setProperty('--bk-color-warning', cfg.colors.warning);
-    root.setProperty('--bk-color-danger', cfg.colors.danger);
-    root.setProperty('--bk-color-info', cfg.colors.info);
-    root.setProperty('--bk-color-text-primary', cfg.colors.textPrimary);
-    root.setProperty('--bk-color-text-secondary', cfg.colors.textSecondary);
-    root.setProperty('--bk-color-text-muted', cfg.colors.textMuted);
+    // Colors -> "R G B" channels so Tailwind can do rgb(var(--sp-x) / <alpha>).
+    for (const [key, value] of Object.entries(cfg.color)) {
+      root.setProperty(`--sp-${this.kebab(key)}`, this.toChannels(value));
+    }
 
-    // Typography
-    root.setProperty('--bk-font-family', cfg.typography.fontFamily);
-    root.setProperty('--bk-font-family-mono', cfg.typography.fontFamilyMono);
-    root.setProperty('--bk-font-size-base', cfg.typography.fontSizeBase);
-    root.setProperty('--bk-font-size-sm', cfg.typography.fontSizeSm);
-    root.setProperty('--bk-font-size-lg', cfg.typography.fontSizeLg);
-    root.setProperty('--bk-font-size-xl', cfg.typography.fontSizeXl);
-    root.setProperty('--bk-font-weight-normal', String(cfg.typography.fontWeightNormal));
-    root.setProperty('--bk-font-weight-bold', String(cfg.typography.fontWeightBold));
-    root.setProperty('--bk-line-height', cfg.typography.lineHeight);
+    // Raw-value scales.
+    for (const [key, value] of Object.entries(cfg.radius)) {
+      root.setProperty(`--sp-radius-${key}`, value);
+    }
+    for (const [key, value] of Object.entries(cfg.shadow)) {
+      root.setProperty(`--sp-shadow-${key}`, value);
+    }
 
-    // Borders
-    root.setProperty('--bk-border-radius-sm', cfg.borders.radiusSm);
-    root.setProperty('--bk-border-radius-md', cfg.borders.radiusMd);
-    root.setProperty('--bk-border-radius-lg', cfg.borders.radiusLg);
-    root.setProperty('--bk-border-radius-full', cfg.borders.radiusFull);
-    root.setProperty('--bk-border-width-default', cfg.borders.widthDefault);
-    root.setProperty('--bk-border-color-default', cfg.borders.colorDefault);
+    root.setProperty('--sp-font-sans', cfg.typography.fontSans);
+    root.setProperty('--sp-font-display', cfg.typography.fontDisplay);
+    root.setProperty('--sp-font-mono', cfg.typography.fontMono);
 
-    // Sizing
-    root.setProperty('--bk-size-input-height', cfg.sizing.inputHeight);
-    root.setProperty('--bk-size-button-height', cfg.sizing.buttonHeight);
-    root.setProperty('--bk-size-component-sm', cfg.sizing.componentSm);
-    root.setProperty('--bk-size-component-md', cfg.sizing.componentMd);
-    root.setProperty('--bk-size-component-lg', cfg.sizing.componentLg);
-    root.setProperty('--bk-size-sidebar-width', cfg.sizing.sidebarWidth);
-    root.setProperty('--bk-size-header-height', cfg.sizing.headerHeight);
+    root.setProperty('--sp-motion-fast', cfg.motion.fast);
+    root.setProperty('--sp-motion-base', cfg.motion.base);
+    root.setProperty('--sp-motion-slow', cfg.motion.slow);
+    root.setProperty('--sp-ease', cfg.motion.ease);
 
-    // Spacing
-    root.setProperty('--bk-space-xs', cfg.spacing.xs);
-    root.setProperty('--bk-space-sm', cfg.spacing.sm);
-    root.setProperty('--bk-space-md', cfg.spacing.md);
-    root.setProperty('--bk-space-lg', cfg.spacing.lg);
-    root.setProperty('--bk-space-xl', cfg.spacing.xl);
-
-    // Shadows
-    root.setProperty('--bk-shadow-sm', cfg.shadows.sm);
-    root.setProperty('--bk-shadow-md', cfg.shadows.md);
-    root.setProperty('--bk-shadow-lg', cfg.shadows.lg);
-    root.setProperty('--bk-shadow-card', cfg.shadows.card ?? cfg.shadows.md);
-
-    // Z-Index
-    root.setProperty('--bk-z-dropdown', String(cfg.zIndex.dropdown));
-    root.setProperty('--bk-z-modal', String(cfg.zIndex.modal));
-    root.setProperty('--bk-z-tooltip', String(cfg.zIndex.tooltip));
-
-    // Backgrounds
-    root.setProperty('--bk-bg-page', cfg.backgrounds.page);
-    root.setProperty('--bk-bg-surface', cfg.backgrounds.surface);
-    root.setProperty('--bk-bg-overlay', cfg.backgrounds.overlay);
-
-    // Apply dark class
     this.applyDarkClass(this._isDark());
+  }
+
+  /** camelCase -> kebab-case (brandFg -> brand-fg, borderStrong -> border-strong). */
+  private kebab(key: string): string {
+    return key.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  }
+
+  /** "#4F46E5" -> "79 70 229". Passes through non-hex values unchanged. */
+  private toChannels(hex: string): string {
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    let h = m[1];
+    if (h.length === 3) {
+      h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `${r} ${g} ${b}`;
   }
 }

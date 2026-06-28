@@ -9,11 +9,13 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold text-text">{{ title }}</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight text-text">
+          {{ title }}
+        </h1>
         @if (subtitle) {
-          <p class="text-sm text-muted">{{ subtitle }}</p>
+          <p class="mt-1 text-sm text-muted">{{ subtitle }}</p>
         }
       </div>
       <ng-content></ng-content>

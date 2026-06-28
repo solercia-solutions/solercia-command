@@ -30,7 +30,9 @@ import { ExecutiveDashboard } from './executive.model';
   template: `
     <section class="flex flex-col gap-6">
       <div>
-        <h1 class="text-2xl font-semibold text-text">Vista de jefe</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight text-text">
+          Vista de jefe
+        </h1>
         <p class="text-sm text-muted">
           Panorama del equipo: en qué anda cada uno, riesgos y avance.
         </p>
@@ -50,20 +52,20 @@ import { ExecutiveDashboard } from './executive.model';
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <sp-card>
             <p class="text-sm text-muted">Proyectos</p>
-            <p class="mt-1 text-3xl font-semibold text-text">
+            <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.projects }}
             </p>
           </sp-card>
           <sp-card>
             <p class="text-sm text-muted">Tareas</p>
-            <p class="mt-1 text-3xl font-semibold text-text">
+            <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.tasks }}
             </p>
           </sp-card>
           <sp-card>
             <p class="text-sm text-muted">Vencidas</p>
             <p
-              class="mt-1 text-3xl font-semibold"
+              class="mt-1 text-3xl font-bold tracking-tight tnum"
               [class.text-danger]="dash.totals.overdue > 0"
               [class.text-text]="dash.totals.overdue === 0"
             >
@@ -73,7 +75,7 @@ import { ExecutiveDashboard } from './executive.model';
           <sp-card>
             <p class="text-sm text-muted">En riesgo</p>
             <p
-              class="mt-1 text-3xl font-semibold"
+              class="mt-1 text-3xl font-bold tracking-tight tnum"
               [class.text-warning]="dash.totals.at_risk > 0"
               [class.text-text]="dash.totals.at_risk === 0"
             >
@@ -85,7 +87,7 @@ import { ExecutiveDashboard } from './executive.model';
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <!-- En qué anda cada uno -->
           <div class="flex flex-col gap-3">
-            <h2 class="text-lg font-semibold text-text">En qué anda cada uno</h2>
+            <h2 class="font-display text-lg font-bold tracking-tight text-text">En qué anda cada uno</h2>
             @if (dash.by_assignee.length === 0) {
               <sp-card>
                 <p class="py-4 text-center text-sm text-muted">
@@ -98,7 +100,7 @@ import { ExecutiveDashboard } from './executive.model';
                   <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                       <span
-                        class="grid h-7 w-7 place-items-center rounded-full bg-brand/10 text-xs font-semibold text-brand"
+                        class="grid h-7 w-7 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-soft-fg"
                         aria-hidden="true"
                       >
                         {{ initial(person.user.full_name) }}
@@ -108,7 +110,7 @@ import { ExecutiveDashboard } from './executive.model';
                       </span>
                     </div>
                     <span
-                      class="rounded-full bg-muted/15 px-2 py-0.5 text-xs font-medium text-muted"
+                      class="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium text-muted"
                     >
                       {{ person.active_count }} activas
                     </span>
@@ -141,7 +143,7 @@ import { ExecutiveDashboard } from './executive.model';
 
           <!-- Riesgos -->
           <div class="flex flex-col gap-3">
-            <h2 class="text-lg font-semibold text-text">Riesgos</h2>
+            <h2 class="font-display text-lg font-bold tracking-tight text-text">Riesgos</h2>
             @if (dash.at_risk.length === 0) {
               <sp-card>
                 <p class="py-4 text-center text-sm text-muted">
@@ -200,7 +202,7 @@ import { ExecutiveDashboard } from './executive.model';
 
         <!-- Carga del equipo -->
         <div class="flex flex-col gap-3">
-          <h2 class="text-lg font-semibold text-text">Carga del equipo</h2>
+          <h2 class="font-display text-lg font-bold tracking-tight text-text">Carga del equipo</h2>
           <sp-card>
             @if (dash.workload.length === 0) {
               <p class="py-4 text-center text-sm text-muted">
@@ -214,7 +216,7 @@ import { ExecutiveDashboard } from './executive.model';
                       {{ item.user.full_name }}
                     </span>
                     <div
-                      class="h-2.5 flex-1 overflow-hidden rounded-full bg-muted/15"
+                      class="h-2.5 flex-1 overflow-hidden rounded-full bg-sunken"
                       role="img"
                       [attr.aria-label]="
                         item.user.full_name +
@@ -242,7 +244,7 @@ import { ExecutiveDashboard } from './executive.model';
 
         <!-- Avance por proyecto -->
         <div class="flex flex-col gap-3">
-          <h2 class="text-lg font-semibold text-text">Avance por proyecto</h2>
+          <h2 class="font-display text-lg font-bold tracking-tight text-text">Avance por proyecto</h2>
           @if (dash.projects_progress.length === 0) {
             <sp-card>
               <p class="py-4 text-center text-sm text-muted">
@@ -261,7 +263,7 @@ import { ExecutiveDashboard } from './executive.model';
                       {{ progress.project.name }}
                     </h3>
                     <span
-                      class="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand"
+                      class="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand-soft-fg"
                     >
                       {{ methodologyLabel(progress.project.methodology) }}
                     </span>
@@ -274,7 +276,7 @@ import { ExecutiveDashboard } from './executive.model';
                       >
                     </div>
                     <div
-                      class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted/15"
+                      class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-sunken"
                       role="img"
                       [attr.aria-label]="
                         'Avance ' + progress.percent_done + ' por ciento'

@@ -7,12 +7,15 @@ import {
   CreateSprintPayload,
   CreateTaskPayload,
   MemberListResponse,
+  SprintClosePayload,
+  SprintCloseResponse,
   SprintItemResponse,
   SprintListResponse,
   TaskItemResponse,
   TaskListResponse,
   UpdateSprintPayload,
   UpdateTaskPayload,
+  VelocityResponse,
 } from './workspace.model';
 
 /** Optional filters for the project task list. */
@@ -120,6 +123,27 @@ export class WorkspaceService {
   ): Observable<BurndownResponse> {
     return this.http.get<BurndownResponse>(
       `${apiBase}/projects/${projectId}/sprints/${sprintId}/burndown`,
+    );
+  }
+
+  /**
+   * Close a sprint via the dedicated close endpoint. Computes completed_points
+   * and moves incomplete tasks to the backlog or a target sprint.
+   */
+  closeSprint(
+    sprintId: string,
+    payload: SprintClosePayload = {},
+  ): Observable<SprintCloseResponse> {
+    return this.http.post<SprintCloseResponse>(
+      `${apiBase}/sprints/${sprintId}/close`,
+      payload,
+    );
+  }
+
+  /** Velocity report: completed points per closed sprint + projections. */
+  velocity(projectId: string): Observable<VelocityResponse> {
+    return this.http.get<VelocityResponse>(
+      `${apiBase}/projects/${projectId}/velocity`,
     );
   }
 }
