@@ -77,6 +77,20 @@ funcionalidad. `methodology_info` se adjunta a cada proyecto en la respuesta.
 | scrum       | To Do / In Progress / In Review / Done    | Sí      | points     | Sí      |
 | custom      | (vacío, definido por el usuario)          | No      | none       | No      |
 
+## Base de datos de test
+
+`docker-compose.yml` provisiona `solercia_test` junto a `solercia` en el mismo
+Postgres, mediante `backend/docker/initdb/create-test-db.sh` montado en
+`/docker-entrypoint-initdb.d`. Ese directorio de Postgres solo se ejecuta la
+**primera vez** que se crea el volumen de datos (`pgdata`).
+
+Si ya tienes un volumen existente (creado antes de este cambio), crea la base
+manualmente una sola vez:
+
+```bash
+docker compose exec postgres psql -U app -d solercia -c "CREATE DATABASE solercia_test"
+```
+
 ## Migraciones
 
 Alembic está configurado en modo async (`alembic/env.py`). Las migraciones se
