@@ -12,7 +12,7 @@ from app.alerts.router import router as alerts_admin_router
 from app.alerts.scheduler import start_scheduler, stop_scheduler
 from app.config import settings
 from app.database import engine
-from app.db_init import init_db, seed_default
+from app.db_init import seed_default
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
@@ -60,10 +60,15 @@ async def _wait_for_db(max_attempts: int = 15, delay_seconds: float = 2.0) -> No
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Wait for the DB, create the schema and seed defaults on startup."""
+    """Wait for the DB and seed defaults on startup.
+
+    The schema itself is no longer created here: the container entrypoint
+    (``docker/entrypoint.sh``) runs ``alembic upgrade head`` before uvicorn
+    starts, so by the time the lifespan runs the migrated schema already
+    exists (see ADR 0003 and design.md Decision 1 of change 01-fundacion-tdd).
+    """
 
     await _wait_for_db()
-    await init_db()
     await seed_default()
     # The alert scheduler must never block app startup: a failure here is logged
     # and the API keeps serving (alerts can still be triggered on-demand).

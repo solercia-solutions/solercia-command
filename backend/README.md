@@ -46,11 +46,23 @@ docker compose up --build
 La API queda disponible en `http://localhost:8000`. La documentación Swagger
 está en `http://localhost:8000/docs`.
 
-Al arrancar, el servicio espera a que Postgres esté listo, crea el esquema y
-siembra de forma idempotente:
+El entrypoint del contenedor (`backend/docker/entrypoint.sh`) ejecuta
+`alembic upgrade head` **antes** de arrancar uvicorn: el esquema lo define la
+migración baseline, no `create_all`. Ya con el esquema migrado, el `lifespan`
+de la aplicación espera a que Postgres esté listo y siembra de forma
+idempotente:
 
 - Organización `Solercia` (slug `solercia`)
 - Usuario administrador `admin@solercia.com` / `Admin123*`
+
+Si tu volumen de `pgdata` ya existía antes de este cambio (esquema creado por
+`create_all` en versiones previas), séllalo en la revisión baseline una sola
+vez —**antes** de levantar `backend`— para que `alembic upgrade head` no
+intente recrear tablas ya existentes:
+
+```bash
+docker compose run --rm --entrypoint alembic backend stamp head
+```
 
 ## Endpoints (v1)
 

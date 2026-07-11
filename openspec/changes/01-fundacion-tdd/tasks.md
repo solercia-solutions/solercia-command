@@ -35,12 +35,12 @@ Riesgo a señalar: la Fase 3 es código generado (autogenerate), no lógica manu
 - [x] 2.5 Verificar: ambos comandos, exit code 0.
 
 ## Fase 3 — Baseline Alembic + entrypoint (commit 3, R4, R5)
-- [ ] 3.1 [RED] Crear `backend/tests/test_migrations_baseline.py`: falla (no hay revisión baseline).
-- [ ] 3.2 [GREEN] `alembic revision --autogenerate -m baseline` contra `solercia_test` → `backend/alembic/versions/0001_baseline.py`; revisar el diff.
-- [ ] 3.3 [GREEN] Confirmar 3.1 en verde (`alembic check` sin diffs).
-- [ ] 3.4 Crear `backend/docker/entrypoint.sh` (`alembic upgrade head` + `exec uvicorn`); ajustar `ENTRYPOINT`/`CMD` de `backend/Dockerfile`.
-- [ ] 3.5 `backend/app/main.py`: retirar `init_db()` del `lifespan`, conservar `seed_default()`.
-- [ ] 3.6 Verificar: `docker compose up --build backend` migra antes de uvicorn; `GET /api/v1/health` → 200.
+- [x] 3.1 [RED] Crear `backend/tests/test_migrations_baseline.py`: falla (no hay revisión baseline).
+- [x] 3.2 [GREEN] `alembic revision --autogenerate -m baseline` contra `solercia_test` → `backend/alembic/versions/0001_baseline.py`; revisar el diff.
+- [x] 3.3 [GREEN] Confirmar 3.1 en verde (`alembic check` sin diffs).
+- [x] 3.4 Crear `backend/docker/entrypoint.sh` (`alembic upgrade head` + `exec uvicorn`); ajustar `ENTRYPOINT`/`CMD` de `backend/Dockerfile`.
+- [x] 3.5 `backend/app/main.py`: retirar `init_db()` del `lifespan`, conservar `seed_default()`.
+- [x] 3.6 Verificar: `docker compose up --build backend` migra antes de uvicorn; `GET /api/v1/health` → 200.
 
 ## Fase 4 — Fixtures compartidos (commit 4, R2, R3)
 - [ ] 4.1 [RED] Crear `backend/tests/test_conftest_fixtures.py` (usa `engine`/`session`/`client`/`tenant`/`user`): falla, fixtures no existen.
