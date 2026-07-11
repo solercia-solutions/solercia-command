@@ -1,0 +1,36 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Sistema de gestión de proyectos multi-tenant (reemplaza Planner/Jira).
+  Backend: FastAPI (Python 3.12), SQLAlchemy 2.0 async, asyncpg, Alembic, Pydantic v2.
+  Arquitectura backend: router -> service -> repository, patrón Strategy por metodología.
+  Frontend: Angular 20 (FSD), Tailwind — CONGELADO hasta migrar a @solercia/ui compartida.
+  Multi-tenant: row-level con columna organization_id + resolución de tenant vía JWT.
+  Testing backend: pytest + pytest-asyncio + httpx.AsyncClient, en backend/tests/.
+  Modo TDD estricto activo para todo cambio nuevo (ver rules.apply.tdd).
+
+rules:
+  proposal:
+    - "Alcance limitado a backend/. El frontend está congelado (constraint frontend-frozen): no proponer cambios de interfaz hasta liberar la migración a @solercia/ui."
+    - Incluir plan de rollback para cambios riesgosos (migraciones, autenticación, multi-tenancy).
+  specs:
+    - Usar escenarios en formato Dado/Cuando/Entonces (Given/When/Then).
+    - Usar palabras clave RFC 2119 (DEBE, DEBERÍA, PUEDE).
+  design:
+    - Documentar las decisiones de arquitectura con su justificación.
+    - Respetar el patrón router -> service -> repository; el router nunca debe usar SQLAlchemy directamente.
+  tasks:
+    - Agrupar las tareas por fase, con numeración jerárquica.
+    - Cada tarea debe poder completarse en una sola sesión de trabajo.
+  apply:
+    - "TDD estricto obligatorio: escribir la prueba en rojo antes que el código, luego pasar a verde y refactorizar."
+    - Seguir los patrones existentes del código (soft delete, auditoría created_by/updated_by).
+    tdd: true
+    test_command: "cd backend && pytest tests/ -v"
+  verify:
+    test_command: "cd backend && pytest tests/ -v"
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Advertir antes de fusionar deltas destructivos hacia las specs principales.

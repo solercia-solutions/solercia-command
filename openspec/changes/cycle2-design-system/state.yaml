@@ -1,0 +1,21 @@
+change: cycle2-design-system
+title: Sistema de diseño del frontend (Angular 20) — tokens, modales, componentes bk-* del ciclo 2
+artifact_store: openspec
+strict_tdd: true
+status: ON-HOLD
+blocked_by: "Migración a la librería compartida @solercia/ui — docs/PLAN_MIGRACION_SOLERCIA_UI.md; en solercia_flows es el programa 07 · Súper Front @sol/ui (épicas E0-E7)"
+hard_rule: "frontend congelado — ningún cambio SDD debe tocar frontend/ hasta que la librería @solercia/ui esté disponible"
+phases:
+  explore: skipped           # el ciclo arrancó directo en proposal (diseño de sistema visual sobre base conocida de boki-front)
+  proposal: done             # openspec/changes/cycle2-design-system/proposal.md
+  spec: skipped              # ciclo de diseño UI: los requisitos viven en proposal.md y design.md (sin spec formal)
+  design: done               # openspec/changes/cycle2-design-system/design.md
+  tasks: partial             # openspec/changes/cycle2-design-system/tasks.md — Fases 0-1 ejecutadas; el resto quedó pendiente al declararse la pausa
+  apply: on-hold             # detenido por el congelamiento del frontend (ver blocked_by / hard_rule)
+  verify: pending
+  archive: pending
+next_recommended:
+  - NO reanudar este ciclo hasta que la migración a @solercia/ui esté disponible (levantar el bloqueo es un evento externo a este repo)
+  - Al levantar el bloqueo, re-evaluar tasks.md contra @solercia/ui antes de continuar el apply (parte del trabajo pendiente puede quedar absorbido por la librería)
+  - Mientras tanto, todo el trabajo SDD del proyecto es backend (ver openspec/AVANCE.md, cambios 01-10)
+updated: 2026-07-11
