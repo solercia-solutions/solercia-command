@@ -1,5 +1,5 @@
 """TaskAtRiskStrategy — tasks near due_date with no recent activity."""
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ class TaskAtRiskStrategy(AlertStrategy):
     ) -> list[AlertCandidate]:
         days_before = threshold_params.get("days_before", 3)
         inactive_days = threshold_params.get("inactive_days", 3)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff_due = now + timedelta(days=days_before)
         cutoff_inactive = now - timedelta(days=inactive_days)
 

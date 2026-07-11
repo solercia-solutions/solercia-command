@@ -1,6 +1,7 @@
 """User ORM model."""
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String, Uuid, func
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -8,6 +9,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.shared.base_model import PkMixin, SoftDeleteMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    # Import-time cycle guard: roles.models imports users only under
+    # TYPE_CHECKING too, so this stays a type-only reference.
+    from app.modules.roles.models import Role
 
 
 class User(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -41,7 +47,7 @@ class User(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Read-only view of the user's RBAC roles, resolved through user_roles.
-    roles: Mapped[list["Role"]] = relationship(  # noqa: F821 - string ref
+    roles: Mapped[list["Role"]] = relationship(
         "Role",
         secondary="user_roles",
         lazy="selectin",
@@ -61,7 +67,7 @@ class User(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
         parts = [self.primer_nombre, self.primer_apellido]
         return " ".join(part for part in parts if part)
 
-    @full_name.expression
+    @full_name.expression  # type: ignore[no-redef]
     def full_name(cls):  # noqa: N805 - hybrid expression receives the class
         """SQL form so ``User.full_name`` is usable in ``order_by`` clauses."""
 

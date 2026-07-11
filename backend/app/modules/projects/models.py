@@ -1,5 +1,7 @@
 """Project ORM model."""
 
+from typing import TYPE_CHECKING, Any
+
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,3 +43,8 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     # Monotonically increasing counter used to assign task_number values
     # atomically via UPDATE ... RETURNING, avoiding race conditions.
     task_counter: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    if TYPE_CHECKING:
+        # Transient attribute attached by ProjectService for response
+        # serialization only; never persisted (no mapped_column/column).
+        methodology_info: dict[str, Any]

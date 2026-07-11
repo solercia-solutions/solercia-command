@@ -15,12 +15,12 @@ from app.database import engine
 from app.db_init import init_db, seed_default
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
-from app.modules.notifications.router import router as notifications_router
 from app.modules.auth.router import router as auth_router
 from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
 from app.modules.menus.router import router as menus_admin_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.projects.router import router as projects_router
 from app.modules.roles.router import router as roles_admin_router
 from app.modules.sprints.router import router as sprints_router

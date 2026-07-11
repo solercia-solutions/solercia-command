@@ -10,7 +10,6 @@ import uuid
 from pathlib import Path
 
 from fastapi import UploadFile
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -172,7 +171,8 @@ class AttachmentService:
             )
 
         # Normalize content type; never trust the raw client value blindly.
-        content_type = (file.content_type or "application/octet-stream").lower().split(";")[0].strip()
+        raw_content_type = file.content_type or "application/octet-stream"
+        content_type = raw_content_type.lower().split(";")[0].strip()
         if content_type in _BLOCKED_TYPES:
             raise AppException(
                 "Este tipo de archivo no está permitido.",

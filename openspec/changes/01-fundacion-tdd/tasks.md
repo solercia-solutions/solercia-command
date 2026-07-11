@@ -28,11 +28,11 @@ Riesgo a señalar: la Fase 3 es código generado (autogenerate), no lógica manu
 - [x] 1.4 Verificar: `docker compose up -d postgres` + `psql -c '\l'` confirma `solercia_test`.
 
 ## Fase 2 — ruff + mypy (commit 2, R6, R7)
-- [ ] 2.1 Agregar `ruff` y `mypy` a `backend/requirements-dev.txt`.
-- [ ] 2.2 Crear `backend/pyproject.toml`: ruff (`E,F,I,B,UP,SIM,C4`, `line-length=100`, ignores en `alembic/`/`tests/`), mypy no estricto sobre `app/`, `[tool.pytest.ini_options]` con `asyncio_default_fixture_loop_scope="session"`.
-- [ ] 2.3 `ruff check .` en `backend/`: corregir hasta cero hallazgos.
-- [ ] 2.4 `mypy app/`: corregir hasta cero hallazgos.
-- [ ] 2.5 Verificar: ambos comandos, exit code 0.
+- [x] 2.1 Agregar `ruff` y `mypy` a `backend/requirements-dev.txt`.
+- [x] 2.2 Crear `backend/pyproject.toml`: ruff (`E,F,I,B,UP,SIM,C4`, `line-length=100`, ignores en `alembic/`/`tests/`), mypy no estricto sobre `app/`, `[tool.pytest.ini_options]` con `asyncio_default_fixture_loop_scope="session"`.
+- [x] 2.3 `ruff check .` en `backend/`: corregir hasta cero hallazgos.
+- [x] 2.4 `mypy app/`: corregir hasta cero hallazgos.
+- [x] 2.5 Verificar: ambos comandos, exit code 0.
 
 ## Fase 3 — Baseline Alembic + entrypoint (commit 3, R4, R5)
 - [ ] 3.1 [RED] Crear `backend/tests/test_migrations_baseline.py`: falla (no hay revisión baseline).

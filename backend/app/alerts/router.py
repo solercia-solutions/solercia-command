@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.alerts.evaluator import evaluate_all_organizations
 from app.database import get_db
 from app.dependencies import require_admin
 from app.modules.users.models import User
-from app.alerts.evaluator import evaluate_all_organizations
 
 router = APIRouter(tags=["alerts"])
 

@@ -1,6 +1,7 @@
 """Application settings loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,7 +35,7 @@ class Settings(BaseSettings):
     # same-site navigations while blocking cross-site POSTs.
     REFRESH_COOKIE_NAME: str = "refresh_token"
     COOKIE_SECURE: bool = False
-    COOKIE_SAMESITE: str = "lax"
+    COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:4200"]

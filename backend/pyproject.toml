@@ -1,0 +1,60 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency injection relies on calling `Depends(...)` (and the
+# parameter helpers below) as function-argument defaults; B008 normally bans
+# calls in defaults because they usually indicate a mutable-default bug, but
+# these specific callables are immutable markers, not mutable state.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic revisions are generated code; migration bodies keep the shape
+# produced by `alembic revision --autogenerate`.
+"alembic/**" = ["E", "F", "I", "B", "UP", "SIM", "C4"]
+# Tests favor readability (star imports of fixtures, longer lines) over strict
+# lint compliance.
+"tests/**" = ["SIM", "C4"]
+# UP042 wants `(str, Enum)` mixins rewritten as `enum.StrEnum`. That is a
+# behavioral change, not a style fix: StrEnum inherits `ReprEnum`, which
+# changes `str()`/f-string formatting of members, and SQLAlchemy's `Enum`
+# column type resolves storage differently depending on the mixin. Every
+# domain enum here is persisted via `SAEnum(..., native_enum=False)`, so the
+# risk is out of proportion to a lint fix; kept as `(str, Enum)` deliberately.
+"app/shared/enums.py" = ["UP042"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+check_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*", "redis.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# `asyncio_default_fixture_loop_scope = "session"` is required alongside the
+# session-scoped `engine` fixture (see tests/conftest.py). Without it, a
+# session-scoped async engine binds its asyncpg connections to the event loop
+# of the FIRST test, and subsequent tests running on a different per-test loop
+# fail intermittently ("Future attached to a different loop" / "another
+# operation is in progress"). The engine itself also uses `poolclass=NullPool`
+# so no pooled connection outlives the loop that created it.
+asyncio_default_fixture_loop_scope = "session"

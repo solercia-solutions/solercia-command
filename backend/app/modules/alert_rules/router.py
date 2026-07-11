@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_membership, require_admin
-from app.modules.organizations.models import OrganizationMember
-from app.modules.users.models import User
 from app.modules.alert_rules.schemas import AlertRuleRead, AlertRuleUpdate
 from app.modules.alert_rules.service import AlertRuleService
+from app.modules.organizations.models import OrganizationMember
+from app.modules.users.models import User
 
 router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
 

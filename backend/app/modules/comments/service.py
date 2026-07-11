@@ -2,7 +2,7 @@
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,7 +149,7 @@ class CommentService:
                 status_code=403,
             )
         comment.is_active = False
-        comment.deleted_at = datetime.now(timezone.utc)
+        comment.deleted_at = datetime.now(UTC)
         await self.repo.save(comment)
 
     # -- helpers -----------------------------------------------------------

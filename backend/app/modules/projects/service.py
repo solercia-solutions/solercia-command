@@ -33,10 +33,7 @@ def _derive_code(name: str) -> str:
     words = clean.split()
     if not words:
         return "PRJ"
-    if len(words) >= 2:
-        code = "".join(w[0] for w in words if w)
-    else:
-        code = words[0][:6]
+    code = "".join(w[0] for w in words if w) if len(words) >= 2 else words[0][:6]
     # Ensure at least 2 chars; if initials is just one letter, use first 3 of word.
     if len(code) < 2:
         code = (words[0] + code)[:4]

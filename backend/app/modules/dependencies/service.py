@@ -2,7 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,7 +69,7 @@ class DependencyService:
 
         dependency = await self._require(organization_id, dependency_id)
         dependency.is_active = False
-        dependency.deleted_at = datetime.now(timezone.utc)
+        dependency.deleted_at = datetime.now(UTC)
         await self.repo.save(dependency)
 
     async def _require(

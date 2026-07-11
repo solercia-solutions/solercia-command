@@ -1,5 +1,5 @@
 """TaskOverdueStrategy — tasks past due_date without completed_at."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ class TaskOverdueStrategy(AlertStrategy):
     async def evaluate(
         self, db: AsyncSession, organization_id, threshold_params: dict
     ) -> list[AlertCandidate]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await db.execute(
             select(Task)
             .join(Project, Project.id == Task.project_id)

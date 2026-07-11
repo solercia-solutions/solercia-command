@@ -1,12 +1,12 @@
 """Notification ORM model — in-app notification per user."""
 import uuid
 
-from sqlalchemy import ForeignKey, String, Text, Uuid
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.shared.base_model import PkMixin, TimestampMixin, TenantMixin
+from app.shared.base_model import PkMixin, TenantMixin, TimestampMixin
 from app.shared.enums import NotificationStatus
 
 

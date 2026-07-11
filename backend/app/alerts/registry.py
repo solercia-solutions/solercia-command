@@ -1,8 +1,8 @@
 """Alert strategy registry and factory."""
 from app.alerts.base import AlertStrategy
+from app.alerts.strategies.sprint_at_risk import SprintAtRiskStrategy
 from app.alerts.strategies.task_at_risk import TaskAtRiskStrategy
 from app.alerts.strategies.task_overdue import TaskOverdueStrategy
-from app.alerts.strategies.sprint_at_risk import SprintAtRiskStrategy
 from app.alerts.strategies.workload_imbalance import WorkloadImbalanceStrategy
 
 _STRATEGIES: dict[str, type[AlertStrategy]] = {

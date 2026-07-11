@@ -7,7 +7,7 @@ populated before ``create_all`` runs (also used by Alembic's env).
 import logging
 import re
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select, text
@@ -15,12 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, Base, engine
 from app.methodology.factory import get_strategy
+from app.modules.alert_rules.models import AlertRule  # noqa: F401
 
 # Import ALL models so they register on the shared metadata.
 from app.modules.attachments.models import Attachment  # noqa: F401
 from app.modules.comments.models import TaskComment  # noqa: F401
 from app.modules.dependencies.models import Dependency  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
+from app.modules.notifications.models import Notification  # noqa: F401
 from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,
@@ -31,8 +33,6 @@ from app.modules.roles.models import (  # noqa: F401
     RoleMenu,
     UserRole,
 )
-from app.modules.alert_rules.models import AlertRule  # noqa: F401
-from app.modules.notifications.models import Notification  # noqa: F401
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
@@ -79,7 +79,7 @@ _MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
 ]
 
 # Menu grants per role. "*" grants every menu.
-_ROLE_MENU_SEED: dict[str, object] = {
+_ROLE_MENU_SEED: dict[str, str | list[str]] = {
     "ADMIN": "*",
     "MANAGER": ["Proyectos", "Vista de jefe", "Rendimiento"],
     "MEMBER": ["Proyectos"],
@@ -116,10 +116,7 @@ def _derive_backfill_code(name: str) -> str:
     words = clean.split()
     if not words:
         return "PRJ"
-    if len(words) >= 2:
-        code = "".join(w[0] for w in words if w)
-    else:
-        code = words[0][:6]
+    code = "".join(w[0] for w in words if w) if len(words) >= 2 else words[0][:6]
     if len(code) < 2:
         code = (words[0] + code)[:4]
     return code[:10]
@@ -390,7 +387,7 @@ async def _ensure_role_menus(
         target = (
             list(menus.values())
             if spec == "*"
-            else [menus[name] for name in spec]  # type: ignore[union-attr]
+            else [menus[name] for name in spec]
         )
         for menu in target:
             existing = await session.execute(
@@ -597,7 +594,7 @@ async def _seed_demo_tasks(
     overdue and a couple are flagged at risk to populate the executive view.
     """
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     priorities = [Priority.high, Priority.medium, Priority.critical, Priority.low]
     max_tasks = 12
     rounds = 4
@@ -725,7 +722,7 @@ async def _seed_scrum_sprint(
     if (existing.scalar_one() or 0) > 0:
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     sprint = Sprint(
         project_id=scrum_project.id,
         name="Sprint 1",

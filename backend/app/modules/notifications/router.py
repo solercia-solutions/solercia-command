@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_membership
-from app.modules.organizations.models import OrganizationMember
 from app.modules.notifications.schemas import NotificationRead, NotificationStatusUpdate
 from app.modules.notifications.service import NotificationService
+from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import NotificationStatus
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])

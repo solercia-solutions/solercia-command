@@ -53,7 +53,7 @@ def create_access_token(subject: str, expires_minutes: int | None = None) -> str
     """Create a signed access JWT whose subject is the user identifier."""
 
     minutes = expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     payload = {
         "sub": str(subject),
         "type": ACCESS_TOKEN_TYPE,
@@ -73,7 +73,7 @@ def create_refresh_token(
     """
 
     days = expires_days or settings.REFRESH_TOKEN_EXPIRE_DAYS
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     jti = uuid.uuid4().hex
     payload = {
         "sub": str(subject),

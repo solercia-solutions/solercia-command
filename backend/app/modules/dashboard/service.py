@@ -11,7 +11,8 @@ All figures are scoped to the caller's organization.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,7 +55,7 @@ class DashboardService:
     async def executive(self, organization_id: uuid.UUID) -> dict:
         """Build the full executive payload for the caller's organization."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         projects = list(await self.projects.list_by_org(organization_id))
         tasks = list(await self.tasks.list_for_org(organization_id))
         members = await self.tasks.list_org_members(organization_id)
@@ -94,7 +95,7 @@ class DashboardService:
         frontend can show "sin datos" instead of a misleading 100%.
         """
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         projects = list(await self.projects.list_by_org(organization_id))
         tasks = list(await self.tasks.list_for_org(organization_id))
         if sprint_id is not None:
@@ -198,7 +199,7 @@ class DashboardService:
         result.sort(key=lambda row: row["active_count"], reverse=True)
         return result
 
-    def _build_at_risk(self, tasks, bounds, name_map, now) -> list[dict]:
+    def _build_at_risk(self, tasks, bounds, name_map, now) -> list[TaskRead]:
         """Tasks overdue-and-not-done OR explicitly flagged at risk."""
 
         at_risk: list[TaskRead] = []
@@ -234,7 +235,7 @@ class DashboardService:
             }
             for user, _ in members
         ]
-        result.sort(key=lambda row: row["active_count"], reverse=True)
+        result.sort(key=lambda row: cast(int, row["active_count"]), reverse=True)
         return result
 
     def _build_projects_progress(

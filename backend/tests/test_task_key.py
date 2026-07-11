@@ -1,12 +1,10 @@
 """Tests for project code + task_number / task_key features (Feature #3)."""
 
 import re
-import uuid
 
 import pytest
 
 from app.modules.projects.service import _derive_code
-
 
 # ---------------------------------------------------------------------------
 # Unit tests — no DB needed
@@ -136,7 +134,6 @@ async def test_get_task_by_key() -> None:
         r = await client.get("/projects")
         projects = r.json()["data"]
         project_id = projects[0]["id"]
-        code = projects[0]["code"]
 
         # Create a task to resolve.
         r = await client.post(

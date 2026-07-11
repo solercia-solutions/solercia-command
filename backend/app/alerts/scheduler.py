@@ -13,9 +13,9 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from app.alerts.evaluator import evaluate_all_organizations
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.alerts.evaluator import evaluate_all_organizations
 
 logger = logging.getLogger("solercia.scheduler")
 

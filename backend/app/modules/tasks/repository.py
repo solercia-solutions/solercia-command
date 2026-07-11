@@ -14,6 +14,7 @@ from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 from app.modules.users.models import User
+from app.shared.enums import MemberRole
 
 
 class TaskRepository:
@@ -174,7 +175,7 @@ class TaskRepository:
 
     async def list_org_members(
         self, organization_id: uuid.UUID
-    ) -> Sequence[tuple[User, str]]:
+    ) -> Sequence[tuple[User, MemberRole]]:
         """Return ``(User, role)`` pairs for the organization's active members."""
 
         result = await self.db.execute(
@@ -184,9 +185,9 @@ class TaskRepository:
                 OrganizationMember.organization_id == organization_id,
                 User.is_active.is_(True),
             )
-            .order_by(User.full_name.asc())
+            .order_by(User.full_name.asc())  # type: ignore[attr-defined]
         )
-        return list(result.all())
+        return list(result.tuples().all())
 
     async def is_org_member(
         self, organization_id: uuid.UUID, user_id: uuid.UUID

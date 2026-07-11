@@ -1,5 +1,5 @@
 """SprintAtRiskStrategy — active sprint with < 50% points at 75% elapsed time."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ class SprintAtRiskStrategy(AlertStrategy):
     async def evaluate(
         self, db: AsyncSession, organization_id, threshold_params: dict
     ) -> list[AlertCandidate]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await db.execute(
             select(Sprint)
             .join(Project, Project.id == Sprint.project_id)
@@ -46,6 +46,11 @@ class SprintAtRiskStrategy(AlertStrategy):
 
         candidates = []
         for sprint in sprints:
+            # The query above filters `start_date`/`end_date IS NOT NULL`, but
+            # that guarantee is not visible to the type checker from the SQL
+            # WHERE clause alone.
+            assert sprint.start_date is not None
+            assert sprint.end_date is not None
             total_secs = (sprint.end_date - sprint.start_date).total_seconds()
             if total_secs <= 0:
                 continue

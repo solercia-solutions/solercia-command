@@ -10,6 +10,7 @@ their project.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -110,3 +111,8 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
     # → task_key "SDM-7"). Assigned atomically via UPDATE ... RETURNING on
     # projects.task_counter. Nullable for backward-compat with existing rows.
     task_number: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+    if TYPE_CHECKING:
+        # Transient attribute attached by TaskService for response
+        # serialization only; never persisted (no mapped_column/column).
+        assignee_name: str | None

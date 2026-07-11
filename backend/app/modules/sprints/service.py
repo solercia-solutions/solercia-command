@@ -2,7 +2,7 @@
 
 import math
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,8 +14,8 @@ from app.modules.sprints.schemas import (
     SprintCreate,
     SprintRead,
     SprintUpdate,
-    VelocitySprintEntry,
     VelocityRead,
+    VelocitySprintEntry,
 )
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
@@ -181,7 +181,7 @@ class SprintService:
 
         start = sprint.start_date.date()
         end = sprint.end_date.date()
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         num_days = (end - start).days + 1
         if num_days < 1:
             return []
@@ -270,7 +270,7 @@ class SprintService:
         )
 
         sprint.status = "closed"
-        sprint.closed_at = datetime.now(timezone.utc)
+        sprint.closed_at = datetime.now(UTC)
         sprint.completed_points = completed_points
         sprint = await self.repo.save(sprint)
 

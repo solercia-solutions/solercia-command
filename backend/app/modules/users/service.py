@@ -1,7 +1,7 @@
 """Business logic for user management (admin), scoped by organization."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -142,7 +142,7 @@ class UserService:
 
         user = await self._require(organization_id, user_id)
         user.is_active = False
-        user.deleted_at = datetime.now(timezone.utc)
+        user.deleted_at = datetime.now(UTC)
         await self.repo.save(user)
 
     async def replace_roles(

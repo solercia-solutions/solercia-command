@@ -1,7 +1,7 @@
 """Business logic for roles (RBAC) and their menu grants."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -98,7 +98,7 @@ class RoleService:
 
         role = await self._require(organization_id, role_id)
         role.is_active = False
-        role.deleted_at = datetime.now(timezone.utc)
+        role.deleted_at = datetime.now(UTC)
         await self.repo.save(role)
 
     async def replace_menus(

@@ -2,7 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,7 +112,7 @@ class MenuService:
 
         menu = await self._require(menu_id)
         menu.is_active = False
-        menu.deleted_at = datetime.now(timezone.utc)
+        menu.deleted_at = datetime.now(UTC)
         await self.repo.save(menu)
 
     async def _require(self, menu_id: uuid.UUID) -> Menu:

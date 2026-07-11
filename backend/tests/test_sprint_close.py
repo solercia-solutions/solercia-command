@@ -17,7 +17,6 @@ import pytest
 
 from tests.conftest import skip_no_db
 
-
 # ---------------------------------------------------------------------------
 # Unit tests — no DB needed
 # ---------------------------------------------------------------------------
@@ -54,7 +53,6 @@ def test_velocity_average_multiple_sprints() -> None:
 def test_velocity_projected_rounds_up() -> None:
     """projected_sprints rounds up (ceiling), not down."""
 
-    series = [{"completed_points": 7}]
     average = 7.0
     backlog = 10
     projected = math.ceil(backlog / average)

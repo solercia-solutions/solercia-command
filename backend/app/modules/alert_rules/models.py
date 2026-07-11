@@ -1,9 +1,9 @@
 """AlertRule ORM model — configurable alert rule per organization."""
-from sqlalchemy import Boolean, JSON, String
+from sqlalchemy import JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.shared.base_model import PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin
+from app.shared.base_model import PkMixin, SoftDeleteMixin, TenantMixin, TimestampMixin
 
 
 class AlertRule(PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):

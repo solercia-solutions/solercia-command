@@ -45,7 +45,8 @@ class ProjectCreate(BaseModel):
         upper = value.strip().upper()
         if not _CODE_RE.match(upper):
             raise ValueError(
-                "El código debe tener entre 2 y 10 caracteres alfanuméricos en mayúsculas (ej. 'SDM', 'PLT2')."
+                "El código debe tener entre 2 y 10 caracteres alfanuméricos "
+                "en mayúsculas (ej. 'SDM', 'PLT2')."
             )
         return upper
 

@@ -21,8 +21,9 @@ class TestSubtaskPointsGuard:
     """
 
     def test_payload_with_points_is_valid_schema(self) -> None:
-        from app.modules.tasks.schemas import TaskCreate
         import uuid
+
+        from app.modules.tasks.schemas import TaskCreate
 
         # Schema validation should pass; service validation raises for subtasks.
         payload = TaskCreate(
@@ -51,7 +52,6 @@ async def test_create_subtask_rejects_points() -> None:
     """Creating a subtask with estimation_points raises 422."""
 
     import os
-    import uuid
 
     import httpx
 

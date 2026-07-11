@@ -7,8 +7,7 @@ branching scattered across the codebase.
 
 import re
 import uuid
-from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -182,6 +181,7 @@ class TaskService:
         # -- Subtask validation -------------------------------------------
         is_subtask = data.parent_task_id is not None
         if is_subtask:
+            assert data.parent_task_id is not None  # narrows for the type checker
             # Verify the parent belongs to the same project and organization.
             parent = await self.repo.get(organization_id, data.parent_task_id)
             if parent is None or parent.project_id != project_id:
@@ -198,7 +198,8 @@ class TaskService:
                 )
             if data.estimation_points is not None:
                 raise AppException(
-                    "Las subtareas no admiten puntos de historia para evitar el doble conteo del velocity.",
+                    "Las subtareas no admiten puntos de historia para evitar "
+                    "el doble conteo del velocity.",
                     code="subtask_points_not_allowed",
                     status_code=422,
                 )
@@ -267,16 +268,8 @@ class TaskService:
                 status_code=422,
             )
 
-        next_points = (
-            changes["estimation_points"]
-            if "estimation_points" in changes
-            else task.estimation_points
-        )
-        next_hours = (
-            changes["estimation_hours"]
-            if "estimation_hours" in changes
-            else task.estimation_hours
-        )
+        next_points = changes.get("estimation_points", task.estimation_points)
+        next_hours = changes.get("estimation_hours", task.estimation_hours)
         if "estimation_points" in changes or "estimation_hours" in changes:
             self._validate_estimation(strategy, next_points, next_hours)
             task.estimation_points = next_points
@@ -317,7 +310,7 @@ class TaskService:
 
         task = await self._require_task(organization_id, task_id)
         task.is_active = False
-        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_at = datetime.now(UTC)
         await self.repo.save(task)
 
     # -- helpers -----------------------------------------------------------
@@ -396,7 +389,7 @@ class TaskService:
         allowed = strategy.allowed_statuses()
         done = allowed[-1] if allowed else None
         if done is not None and status == done:
-            return current or datetime.now(timezone.utc)
+            return current or datetime.now(UTC)
         return None
 
     @staticmethod
