@@ -7,7 +7,9 @@ branching scattered across the codebase.
 
 import re
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,12 @@ from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpda
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
+
+if TYPE_CHECKING:
+    # Type-only: `tasks` never imports `boards` at module level (design.md
+    # C4). Every runtime use is a deferred import inside the method that
+    # needs it.
+    from app.modules.boards.models import BoardColumn
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
 _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
@@ -261,8 +269,20 @@ class TaskService:
         changes = data.model_dump(exclude_unset=True)
 
         if "status" in changes:
-            task.status = self._resolve_status(
-                strategy, changes["status"], allow_default=False
+            from app.modules.boards.repository import BoardRepository
+            from app.modules.boards.service import BoardService
+
+            board = await BoardRepository(self.repo.db).get_board_with_columns(
+                task.project_id
+            )
+            columns = board.columns if board is not None else []
+            target = self._resolve_column_for_status(columns, changes["status"])
+            # Same WIP-enforcing code path as PATCH /tasks/{id}/column
+            # (design.md, "un solo camino WIP"); commit=False defers the
+            # actual write to this method's own save() below so the status
+            # move and every other field change land in ONE transaction.
+            task = await BoardService(self.repo.db).move_to_column(
+                task, target, actor_id=actor_id, enforce_wip=True, commit=False
             )
             task.completed_at = self._resolve_completed_at(
                 strategy, task.status, task.completed_at
@@ -312,6 +332,54 @@ class TaskService:
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
+    async def move_task_column(
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        board_column_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> TaskRead:
+        """Move a task to ``board_column_id``, deriving ``status`` from its ``status_key``.
+
+        Canonical entry point for board moves (``PATCH /tasks/{id}/column``).
+        The column MUST belong to the task's own project board — a column
+        that only exists on a DIFFERENT project (or that a fixed methodology
+        never seeded, e.g. planner's board has no "In Review" column) is
+        rejected the same way an unknown id would be (tasks.md delta,
+        "Movimiento a estado no permitido por la strategy").
+        """
+
+        from app.modules.boards.repository import BoardRepository
+        from app.modules.boards.service import BoardService
+
+        task = await self._require_task(organization_id, task_id)
+        project = await self._require_project(organization_id, task.project_id)
+        strategy = await resolve_board_strategy(project, self.repo.db)
+
+        board = await BoardRepository(self.repo.db).get_board_with_columns(
+            project.id
+        )
+        columns = board.columns if board is not None else []
+        target = next((c for c in columns if c.id == board_column_id), None)
+        if target is None:
+            raise AppException(
+                "La columna indicada no pertenece al board de este proyecto.",
+                code="invalid_board_column",
+                status_code=422,
+            )
+
+        task = await BoardService(self.repo.db).move_to_column(
+            task, target, actor_id=actor_id, enforce_wip=True, commit=False
+        )
+        task.completed_at = self._resolve_completed_at(
+            strategy, task.status, task.completed_at
+        )
+        task = await self.repo.save(task)
+
+        name_map = await self._assignee_name_map(organization_id)
+        return self._to_read(task, name_map, project_code=project.code)
+
     async def delete_task(
         self, organization_id: uuid.UUID, task_id: uuid.UUID
     ) -> None:
@@ -347,6 +415,37 @@ class TaskService:
                 status_code=404,
             )
         return task
+
+    @staticmethod
+    def _resolve_column_for_status(
+        columns: Sequence["BoardColumn"], status: str
+    ) -> "BoardColumn":
+        """Find the column whose ``status_key`` equals ``status`` among ``columns``.
+
+        Raises 422 ``board_has_no_columns`` when the board has none, or 422
+        ``invalid_status`` listing the allowed ``status_key`` values when
+        ``status`` matches none of them. Used by ``update_task``'s ``status``
+        field so it shares the SAME allowed-values contract as
+        ``move_task_column``/``_resolve_create_status_and_column``.
+        """
+
+        if not columns:
+            raise AppException(
+                "El board de este proyecto no tiene columnas configuradas. "
+                "Agrega al menos una columna antes de crear o mover tareas.",
+                code="board_has_no_columns",
+                status_code=422,
+            )
+        column = next((c for c in columns if c.status_key == status), None)
+        if column is None:
+            allowed = ", ".join(c.status_key for c in columns)
+            raise AppException(
+                "El estado seleccionado no es válido para esta metodología. "
+                f"Estados permitidos: {allowed}.",
+                code="invalid_status",
+                status_code=422,
+            )
+        return column
 
     async def _resolve_create_status_and_column(
         self,

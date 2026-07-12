@@ -129,6 +129,12 @@ class TaskRead(BaseModel):
     updated_by: uuid.UUID | None = None
 
 
+class TaskColumnMove(BaseModel):
+    """Payload to move a task to a different board column (canonical move)."""
+
+    board_column_id: uuid.UUID
+
+
 class MemberRead(BaseModel):
     """An organization member that can be assigned to tasks."""
 

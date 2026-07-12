@@ -75,13 +75,13 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Batch C — move semantics
 
-- [ ] T19 [RED] Unit: conteo WIP (lock→count→escritura condicional) rechaza si `count>=wip_limit`, acepta si no, ignora `wip_limit` nulo. (R6)
-- [ ] T20 [GREEN] `boards/service.py:move_to_column(task, target, *, actor_id, enforce_wip=True)`: `SELECT ... FOR UPDATE` → count → 409 si excede, si no escribe `board_column_id/status` y estampa `updated_by=actor_id`; import de `Task` solo vía repo propio (nunca `tasks.service`). (R6)
-- [ ] T21 [RED] Integration: `PATCH /tasks/{id}/column` mueve y deriva `status`; columna inválida→422; destino no permitido por la strategy (planner→`in_review`)→rechazado. (R7)
-- [ ] T22 [GREEN] `tasks/router.py`: nuevo `PATCH /tasks/{id}/column` `{board_column_id}` → `actor_id=membership.user_id`. (R7)
-- [ ] T23 [GREEN] `tasks/service.py:update_task`: `status` en el payload mapea a columna por `status_key` y delega en el mismo `move_to_column` (un solo camino WIP). (R7)
-- [ ] T24 [RED] Integration: WIP en el límite rechaza el 4º movimiento (409); 2→3 se acepta; movimientos concurrentes a la misma columna serializan vía row lock (`skip_no_db`). (R6)
-- [ ] T25 [GREEN] Ajustes de `move_to_column` según T24; `completed_at` sigue derivando de `resolve_board_strategy(project).allowed_statuses()[-1]`. (R6)
+- [x] T19 [RED] Unit: conteo WIP (lock→count→escritura condicional) rechaza si `count>=wip_limit`, acepta si no, ignora `wip_limit` nulo. (R6)
+- [x] T20 [GREEN] `boards/service.py:move_to_column(task, target, *, actor_id, enforce_wip=True)`: `SELECT ... FOR UPDATE` → count → 409 si excede, si no escribe `board_column_id/status` y estampa `updated_by=actor_id`; import de `Task` solo vía repo propio (nunca `tasks.service`). (R6)
+- [x] T21 [RED] Integration: `PATCH /tasks/{id}/column` mueve y deriva `status`; columna inválida→422; destino no permitido por la strategy (planner→`in_review`)→rechazado. (R7)
+- [x] T22 [GREEN] `tasks/router.py`: nuevo `PATCH /tasks/{id}/column` `{board_column_id}` → `actor_id=membership.user_id`. (R7)
+- [x] T23 [GREEN] `tasks/service.py:update_task`: `status` en el payload mapea a columna por `status_key` y delega en el mismo `move_to_column` (un solo camino WIP). (R7)
+- [x] T24 [RED] Integration: WIP en el límite rechaza el 4º movimiento (409); 2→3 se acepta; movimientos concurrentes a la misma columna serializan vía row lock (`skip_no_db`). (R6)
+- [x] T25 [GREEN] Ajustes de `move_to_column` según T24; `completed_at` sigue derivando de `resolve_board_strategy(project).allowed_statuses()[-1]`. (R6)
 
 ## Batch D — configuración runtime de columnas
 

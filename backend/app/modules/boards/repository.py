@@ -9,10 +9,11 @@ module only through a deferred import inside its methods.
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boards.models import Board, BoardColumn
+from app.modules.tasks.models import Task
 
 
 class BoardRepository:
@@ -130,6 +131,37 @@ class BoardRepository:
             select(Board).where(Board.id == board_id, Board.is_active.is_(True))
         )
         return result.scalar_one_or_none()
+
+    async def lock_column(self, column_id: uuid.UUID) -> BoardColumn | None:
+        """``SELECT ... FOR UPDATE`` a single active column, or ``None``.
+
+        Serializes concurrent movers into the SAME target column: whoever
+        acquires the row lock first counts and writes; the next transaction
+        blocks until the first commits, then sees the up-to-date count
+        (design.md D3/C5 — lock -> count -> conditional write).
+        """
+
+        result = await self.db.execute(
+            select(BoardColumn)
+            .where(BoardColumn.id == column_id, BoardColumn.is_active.is_(True))
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
+    async def count_active_tasks_in_column(self, column_id: uuid.UUID) -> int:
+        """Count active tasks currently assigned to ``column_id``.
+
+        Queries ``Task`` directly — this repository is the ONLY place the
+        ``boards`` module may touch ``Task`` rows (design.md C4); `tasks`
+        itself is never imported here.
+        """
+
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.board_column_id == column_id, Task.is_active.is_(True))
+        )
+        return result.scalar_one() or 0
 
     async def get_column(
         self, board_id: uuid.UUID, column_id: uuid.UUID

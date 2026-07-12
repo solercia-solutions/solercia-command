@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
-from app.modules.tasks.schemas import TaskCreate, TaskUpdate
+from app.modules.tasks.schemas import TaskColumnMove, TaskCreate, TaskUpdate
 from app.modules.tasks.service import TaskService
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
@@ -124,6 +124,28 @@ async def update_task(
     service = TaskService(db)
     task = await service.update_task(
         membership.organization_id, task_id, payload, actor_id=actor_id
+    )
+    return {"data": task}
+
+
+@router.patch("/tasks/{task_id}/column")
+async def move_task_column(
+    task_id: uuid.UUID,
+    payload: TaskColumnMove,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Move a task to a different board column, deriving ``status`` from it.
+
+    Canonical entry point for board moves (WIP-enforced; see
+    ``TaskService.move_task_column``). ``PATCH /tasks/{id}`` with a plain
+    ``status`` string still works and shares the same WIP-enforcing path.
+    """
+
+    service = TaskService(db)
+    task = await service.move_task_column(
+        membership.organization_id, task_id, payload.board_column_id, actor_id=actor_id
     )
     return {"data": task}
 
