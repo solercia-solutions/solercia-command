@@ -43,6 +43,10 @@ def _make_db(author_full_name: str = "Ana García") -> AsyncMock:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=user_result)
     db.commit = AsyncMock()
+    # Real dict, not an auto-mocked attribute: `flush_pending` (change
+    # 09-websocket-realtime) reads/pops `db.info["realtime_pending"]`, same
+    # as the production `AsyncSession.info` it stands in for here.
+    db.info = {}
     return db
 
 

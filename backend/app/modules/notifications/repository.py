@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.notifications.models import Notification
+from app.realtime.publisher import buffer_notification
 from app.shared.enums import NotificationStatus
 from app.shared.pagination import PaginationParams, paginate
 
@@ -97,8 +98,18 @@ class NotificationRepository:
         return (result.scalar_one() or 0) > 0
 
     async def create(self, **kwargs) -> Notification:
+        """Persist a notification — the single point where one is born.
+
+        Also buffers it for realtime push (``buffer_notification``): the
+        evaluator and comment mentions both call this method directly (the
+        service layer has no ``create()`` of its own), so this is the ONE
+        place that needs to know about the realtime channel. The actual push
+        happens later, when the transaction owner drains the buffer with
+        ``flush_pending(db)`` right after ``commit()`` (design.md D2).
+        """
         notification = Notification(**kwargs)
         self.db.add(notification)
         await self.db.flush()
         await self.db.refresh(notification)
+        buffer_notification(self.db, notification)
         return notification

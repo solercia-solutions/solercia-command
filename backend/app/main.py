@@ -34,6 +34,7 @@ from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
+from app.realtime.router import router as realtime_router
 from app.reminders.scheduler import register_reminders_job
 from app.shared.exceptions import register_exception_handlers
 
@@ -144,6 +145,10 @@ app.include_router(alerts_admin_router, prefix=API_PREFIX)
 app.include_router(alert_rules_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(reminders_router, prefix=API_PREFIX)
+# Realtime push (WebSocket) is a best-effort channel: off does not affect
+# REST, which stays authoritative regardless (design.md, Migration / Rollout).
+if settings.WS_ENABLED:
+    app.include_router(realtime_router, prefix=API_PREFIX)
 
 
 @app.get("/", tags=["health"])

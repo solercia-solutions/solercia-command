@@ -9,6 +9,7 @@ from app.alerts.registry import get_strategy
 from app.modules.alert_rules.models import AlertRule
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.organizations.models import Organization
+from app.realtime.publisher import flush_pending
 
 logger = logging.getLogger("solercia.alerts")
 
@@ -60,6 +61,11 @@ async def evaluate_organization(db: AsyncSession, organization_id: uuid.UUID) ->
             created += 1
 
     await db.commit()
+    # One drain per commit: evaluate_all_organizations reuses this SAME
+    # session across N organizations, and flush_pending pops the buffer
+    # atomically so an earlier organization's payloads are never re-sent
+    # here (design.md D2, gate correction).
+    await flush_pending(db)
     logger.info(
         "Alert evaluation for org %s: %d new notifications.", organization_id, created
     )

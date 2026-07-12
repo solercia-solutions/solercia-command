@@ -14,6 +14,7 @@ from app.modules.notifications.repository import NotificationRepository
 from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.users.models import User
+from app.realtime.publisher import flush_pending
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
@@ -272,3 +273,6 @@ class CommentService:
 
         if created_any:
             await self._db.commit()
+            # Drain right after this commit — only what was just committed
+            # gets pushed (design.md D2/D5).
+            await flush_pending(self._db)

@@ -46,12 +46,12 @@ Apply de 09 corre al final de la serialización vigente (orden 11→10→06→09
 
 ## Fase C — Integración push (Commit 3)
 
-- [ ] C1 RED `backend/tests/test_realtime_push.py`: WS conectado + mención vía REST (mismo TestClient)→`notification.created` con `NotificationRead`; socket de otro user/org no recibe nada; alerta materializada por el evaluador→push; `WS_ENABLED=False` o publish falla→notificación igual persistida y recuperable en `GET /notifications`. Override `app.dependency_overrides[get_db]` con engine `NullPool` propio sobre `TEST_DATABASE_URL` creado DENTRO del loop del TestClient (PROHIBIDO el `get_db` real); limpieza explícita + `dispose()` en teardown. Todo fallando.
-- [ ] C2 GREEN `backend/app/modules/notifications/repository.py::create()`: tras `flush`/`refresh`, `buffer_notification(self.db, notification)` — único hook (`NotificationService` no tiene `create()`).
-- [ ] C3 GREEN `backend/app/alerts/evaluator.py::evaluate_organization`: tras `await db.commit()`, `await flush_pending(db)`.
-- [ ] C4 GREEN `backend/app/modules/comments/service.py::_dispatch_mention_notifications`: dentro de `if created_any:`, tras el commit, `await flush_pending(self._db)`.
-- [ ] C5 GREEN `backend/app/main.py`: `if settings.WS_ENABLED: app.include_router(realtime_router, prefix=API_PREFIX)`.
-- [ ] C6 VERIFY `cd backend && pytest tests/ -v` completo; sin regresión en menciones/alertas/notifications; `ruff check .`; `mypy app`.
+- [x] C1 RED `backend/tests/test_realtime_push.py`: WS conectado + mención vía REST (mismo TestClient)→`notification.created` con `NotificationRead`; socket de otro user/org no recibe nada; alerta materializada por el evaluador→push; `WS_ENABLED=False` o publish falla→notificación igual persistida y recuperable en `GET /notifications`. Override `app.dependency_overrides[get_db]` con engine `NullPool` propio sobre `TEST_DATABASE_URL` creado DENTRO del loop del TestClient (PROHIBIDO el `get_db` real); limpieza explícita + `dispose()` en teardown. Todo fallando.
+- [x] C2 GREEN `backend/app/modules/notifications/repository.py::create()`: tras `flush`/`refresh`, `buffer_notification(self.db, notification)` — único hook (`NotificationService` no tiene `create()`).
+- [x] C3 GREEN `backend/app/alerts/evaluator.py::evaluate_organization`: tras `await db.commit()`, `await flush_pending(db)`.
+- [x] C4 GREEN `backend/app/modules/comments/service.py::_dispatch_mention_notifications`: dentro de `if created_any:`, tras el commit, `await flush_pending(self._db)`.
+- [x] C5 GREEN `backend/app/main.py`: `if settings.WS_ENABLED: app.include_router(realtime_router, prefix=API_PREFIX)`.
+- [x] C6 VERIFY `cd backend && pytest tests/ -v` completo; sin regresión en menciones/alertas/notifications; `ruff check .`; `mypy app`.
 
 ## Trazabilidad de requisitos
 
