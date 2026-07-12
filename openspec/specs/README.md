@@ -18,13 +18,14 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | Checklists de tarea | [checklists](checklists/spec.md) | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
 | Comentarios y menciones | [comments-mentions](comments-mentions/spec.md) | baseline |
 | Vista ejecutiva | [dashboard-executive](dashboard-executive/spec.md) | baseline + [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) |
+| Notificaciones por email | [email-notifications](email-notifications/spec.md) | [08-email-notifications](../changes/archive/2026-07-12-08-email-notifications/) |
 | Herramientas de desarrollo | [dev-tooling](dev-tooling/spec.md) | [01-fundacion-tdd](../changes/archive/2026-07-11-01-fundacion-tdd/) |
 | Búsqueda global | [global-search](global-search/spec.md) | [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) |
 | Labels (etiquetas de tarea) | [labels](labels/spec.md) | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
 | Estrategias de metodología | [methodology-strategies](methodology-strategies/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) |
 | Multi-tenancy | [multi-tenancy](multi-tenancy/spec.md) | baseline |
 | Notificaciones en tiempo real | [realtime-notifications](realtime-notifications/spec.md) | [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) |
-| Notificaciones in-app | [notifications-inapp](notifications-inapp/spec.md) | baseline + [06-reminders](../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) |
+| Notificaciones in-app | [notifications-inapp](notifications-inapp/spec.md) | baseline + [06-reminders](../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) + [08-email-notifications](../changes/archive/2026-07-12-08-email-notifications/) |
 | Recordatorios (manuales y por regla) | [reminders](reminders/spec.md) | [06-reminders](../changes/archive/2026-07-12-06-reminders/) |
 | Proyectos | [projects](projects/spec.md) | baseline |
 | Catálogo RBAC | [rbac-catalog](rbac-catalog/spec.md) | baseline |
@@ -54,6 +55,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) | `test-coverage-baseline/spec.md` (nueva) | `test-coverage-baseline` (creada: contrato de cobertura de tests as-built) |
 | [06-reminders](../changes/archive/2026-07-12-06-reminders/) | `reminders/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `reminders` (creada: recordatorios manuales y por regla), `notifications-inapp` (modificada: origen `rule_type="reminder"`) |
 | [07-assets-sdmujer](../changes/archive/2026-07-12-07-assets-sdmujer/) | `assets/spec.md` (nueva), `alert-engine/spec.md` (ADDED) | `assets` (creada: inventario de activos, licencias y vínculos con tareas), `alert-engine` (modificada: estrategias `license_expiring` y `license_expired`) |
+| [08-email-notifications](../changes/archive/2026-07-12-08-email-notifications/) | `email-notifications/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `email-notifications` (creada: canal email agnóstico al proveedor, digest configurable, outbox transaccional, idempotencia), `notifications-inapp` (modificada: encolado email en la creación + columna `emailed_at`) |
 | [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) | `realtime-notifications/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `realtime-notifications` (creada: canal WS push en tiempo real), `notifications-inapp` (modificada: publicación best-effort al conectar) |
 
 ## Inconsistencias detectadas

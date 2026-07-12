@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-12 (cambios 01-07, 09, 10 y 11 completados; 06-reminders archivado — recordatorios manuales y automáticos por regla; `Reminder` + `ReminderRule` con disparo idempotente vía scheduler; origen `rule_type="reminder"` integrado a la bandeja compartida; 21 escenarios verificados, 439/439 tests verdes, ruff/mypy limpios; 10-busqueda-global archivado — búsqueda global multi-entidad (GET /api/v1/search) + filtros avanzados de tareas con pg_trgm + índices GIN; 17 escenarios verificados, 414/414 tests verdes, ruff/mypy limpios; 11-blindaje-baseline archivado — backfill de tests as-built con TDD estricto de 10 capacidades críticas: auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive; matriz de permisos y aislamiento multi-tenant; suite crece de 258 a 382 a 414 tests; 09-websocket-realtime archivado — canal WebSocket que empuja notificaciones in-app en tiempo real, best-effort, complementa polling REST; `realtime-notifications` (nueva capacidad) + `notifications-inapp` (delta ADDED sobre publicación); 13 escenarios verificados, 466/466 tests verdes, ruff/mypy limpios; push real black-box end-to-end confirmado contra contenedor; 07-assets-sdmujer archivado — módulo de inventario de activos (`assets`, `asset_licenses`, `asset_tasks`) + alertas de vencimiento de licencia (`license_expiring`, `license_expired`); 16 escenarios verificados (28 totales), 498/498 tests verdes, ruff/mypy limpios, migración 0010 limpia con ciclo downgrade/upgrade probado; solo 08-email-notifications pendiente del roadmap backend; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-12 (todos los 11 cambios del roadmap backend completados y archivados: 01-fundacion-tdd, 02-contrato-api, 03-boards-persistentes, 04-labels-checklists-dependencias, 05-trabajo-realizado, 06-reminders, 07-assets-sdmujer, 08-email-notifications, 09-websocket-realtime, 10-busqueda-global, 11-blindaje-baseline); 08-email-notifications archivado — canal email agnóstico al proveedor (adaptadores console/smtp, intercambiables por EMAIL_BACKEND), digest configurable por usuario (none|daily|weekly con hora configurable), outbox transaccional con idempotencia por dedup_key, preferencias REST GET/PUT, aislamiento multi-tenant, plantillas español colombiano formal; 19 escenarios verificados, 539/539 tests verdes, ruff/mypy limpios, migraciones 0011/0012 limpias con ciclo downgrade/upgrade probado, push y black-box email+digests verificados contra contenedor; backend del MVP terminado, arquitectura agnóstica a proveedores de email completada; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -44,11 +44,11 @@ flowchart TD
     class C05 done
     class C06 done
     class C07 done
+    class C08 done
     class C09 done
     class C10 done
     class C11 done
     class FE inprogress
-    class C08 pending
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
     classDef inprogress fill:#eab308,stroke:#854d0e,color:#000000
@@ -80,7 +80,7 @@ Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna 
 | Vista ejecutiva | [specs/dashboard-executive/spec.md](specs/dashboard-executive/spec.md) | CERO tests |
 | Convenciones de API | [specs/api-conventions/spec.md](specs/api-conventions/spec.md) | Sin tests transversales |
 
-Total tras cambio 07: **498 tests en 30 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 + 32 en cambio 07 = 498; crecimiento con TDD estricto en cada ciclo).
+Total tras cambio 08: **539 tests en 35 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 07 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 + 41 en cambio 08 = 539; crecimiento con TDD estricto en cada ciclo).
 
 ---
 
@@ -98,7 +98,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 | 11 | `11-blindaje-baseline` | Blindaje de la línea base: backfill de TDD de las 10 capacidades as-built sin tests (auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive) + matriz de permisos + aislamiento multi-tenant + 1 bugfix real (usuarios soft-borrados en listado). | 🟩 Completado | [test-coverage-baseline](specs/test-coverage-baseline/spec.md) (nueva) |
 | 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | 🟩 Completado | [reminders](specs/reminders/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | 🟩 Completado | [assets](specs/assets/spec.md) (nueva) · [alert-engine](specs/alert-engine/spec.md) (modificada) |
-| 08 | `08-email-notifications` | Canal email con digest configurable. | ⬜ Pendiente | — |
+| 08 | `08-email-notifications` | Canal email con digest configurable. | 🟩 Completado | [email-notifications](specs/email-notifications/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 09 | `09-websocket-realtime` | Push in-app en tiempo real. | 🟩 Completado | [realtime-notifications](specs/realtime-notifications/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 10 | `10-busqueda-global` | Búsqueda global + filtros avanzados. | 🟩 Completado | [global-search](specs/global-search/spec.md) (nueva) · [tasks](specs/tasks/spec.md) (modificada) |
 
@@ -130,11 +130,17 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 - ✅ **Integración transversal**: TaskHistory capturada automática en PATCH de tareas y cierre de sprints; `record_task_history` integrado en tasks/service.py y sprints/service.py.
 - ✅ **Cobertura TDD**: 258 tests (43 nuevos: time_logs, activity, dashboard work_gap); 3 suites nuevas todas verdes; ruff/mypy limpios.
 
-### Aún pendiente (tras cambio 11)
-- **Deuda documentada del código**:
+### Aún pendiente (tras cambio 08 — Backend MVP terminado)
+
+**ROADMAP BACKEND 100% COMPLETADO**: todos los 11 cambios (01-11) están planificados, implementados, verificados y archivados. El backend del MVP es funcional y listo para el frontend.
+
+- **Deuda documentada del código** (no bloqueante, post-MVP):
   - `UserRepository.get_in_org` sin filtro `is_active` (pre-existente, prior a cambio 11; bug identificado y corregido en commit `40631fa`).
   - `get_current_membership`: tie-break por `created_at` (comportamiento determinista correcto, pero no documentado con la razón de la ordenación por timestamp).
-  - `viewer` sin gate de rol en el dominio (acceso de lectura concedido a todos los miembros; no aplica `require_role()` granular).
-  - `mypy` configurado para excluir `backend/tests/` (decisión preexistente; después del crecimiento de ~150 tests nuevos tipados con dataclasses en cambio 11, podría valer la pena evaluar tipar tests también en cambios futuros, fuera de alcance).
-- **Documentación desactualizada**: docs/METHODOLOGY-FEATURES.md no refleja el código actual.
-- **TODO de lock distribuido Redis** en el evaluador de alertas (REDIS_URL declarado y sin uso).
+  - `viewer` sin gate de rol en el dominio (acceso de lectura concedido a todos los miembros; no aplica `require_role()` granular — RBAC visto pero sin escalado a nivel de campo).
+  - `mypy` configurado para excluir `backend/tests/` (decisión preexistente; después del crecimiento de ~200 tests nuevos tipados con dataclasses en cambios 11 y 08, podría valer la pena evaluar tipar tests también en cambios futuros).
+  - **12 tests black-box sin skipif** en email (entrega, digest, preferencias) — ninguno de ellos identifica regresiones, pero marcan el módulo como beta-verificado fuera del TDD estricto por congelación de `docker-compose` (decisión pragmática: validación post-apply en contenedor del entorno permanente, no en solercia_test).
+  - **Lock distribuido Redis** multi-réplica: REDIS_URL declarado en config; el evaluador de alertas hoy corre en una única instancia (no hay Celery beat distribuido), por lo que el lock no es crítico en MVP. Documentado como TODO para escalabilidad.
+  - **Adaptador Redis pub/sub WS**: `realtime-notifications` usa un publisher in-process (buffer_notification) en el worker de gunicorn. Futuro: adaptador Redis para multi-instancia con pub/sub real.
+- **Documentación desactualizada**: docs/METHODOLOGY-FEATURES.md no refleja el código actual (feature branches con metodologías).
+- **Fringe case de tie-break**: cuando dos usuarios con el mismo `created_at` (microsegundos idénticos) se consultan en una query sin ordered índice, el sort pasa a la BD con comportamiento indefinido — no afecta MVP (usuarios son insertados secuencialmente), pero deuda de hardening.

@@ -1644,6 +1644,151 @@ o `silenced`.
 
 ---
 
+## Preferencias de notificación
+
+Endpoints **protegidos**. Configuran la frecuencia del resumen de notificaciones por correo electrónico (digest) del usuario autenticado. El sistema aplica defaults sensatos (`frequency: none`) si el usuario no tiene registro previo.
+
+### GET `/api/v1/notification-preferences`
+
+Devuelve la preferencia de digest del usuario autenticado (o defaults si no existe registro).
+
+**Request**
+
+```http
+GET /api/v1/notification-preferences HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <access_token>
+```
+
+**Response `200 OK`** — el usuario sin registro previo recibe defaults:
+
+```json
+{
+  "data": {
+    "frequency": "none",
+    "digest_hour": null,
+    "digest_weekday": null
+  }
+}
+```
+
+**Response `200 OK`** — el usuario con preferencia activa:
+
+```json
+{
+  "data": {
+    "frequency": "daily",
+    "digest_hour": 8,
+    "digest_weekday": null
+  }
+}
+```
+
+| Campo            | Tipo                                    | Notas                                                     |
+| ---------------- | --------------------------------------- | --------------------------------------------------------- |
+| `frequency`      | `none` \| `daily` \| `weekly`          | `none` = sin digest; `daily` = a la hora especificada; `weekly` = en el día/hora especificados. |
+| `digest_hour`    | int (0-23) \| null                     | Hora del día (UTC o según configuración de la app) para despachar el digest. Obligatorio si `frequency != "none"`. |
+| `digest_weekday` | int (0-6) \| null                      | Día de la semana (0=lunes, 6=domingo) para digest semanal. Obligatorio si `frequency == "weekly"`. |
+
+### PUT `/api/v1/notification-preferences`
+
+Crea o actualiza la preferencia del usuario autenticado. Valida `frequency` y la hora; una preferencia inválida responde `422`.
+
+**Request**
+
+```http
+PUT /api/v1/notification-preferences HTTP/1.1
+Host: localhost:8000
+Content-Type: application/json
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+  "frequency": "daily",
+  "digest_hour": 8
+}
+```
+
+| Campo            | Tipo                                    | Obligatorio | Notas                                                         |
+| ---------------- | --------------------------------------- | ----------- | ------------------------------------------------------------- |
+| `frequency`      | `none` \| `daily` \| `weekly`          | Sí          | Frecuencia del digest.                                        |
+| `digest_hour`    | int (0-23)                              | No          | Requerido si `frequency != "none"`.                           |
+| `digest_weekday` | int (0-6)                               | No          | Requerido si `frequency == "weekly"`.                         |
+
+**Response `200 OK`** — `{ "data": NotificationPreference }` (misma forma de respuesta que `GET`).
+
+**Response `422 Unprocessable Entity`** — campos faltantes u mal formados:
+
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body", "digest_hour"],
+      "msg": "La hora debe estar entre 0 y 23."
+    }
+  ]
+}
+```
+
+**Response `422 Unprocessable Entity`** — frecuencia inválida:
+
+```json
+{
+  "detail": "La frecuencia debe ser 'none', 'daily' o 'weekly'.",
+  "code": "invalid_frequency",
+  "status": 422
+}
+```
+
+---
+
+## Canal email
+
+### Arquitectura
+
+El sistema envía notificaciones también por correo electrónico como complemento al canal in-app. El envío es **best-effort** (una falla no afecta a la persistencia de la notificación in-app) y se clasifica en dos categorías:
+
+- **Urgentes**: enviadas **inmediatamente** tras la creación de la notificación (ej. `rule_type="license_expired"`).
+- **Digest**: agrupadas en un resumen diario o semanal según la preferencia del usuario (ej. `rule_type="task_overdue"`, `rule_type="task_at_risk"`). Si el usuario tiene `frequency="none"`, nunca recibe digest.
+
+### Configuración
+
+| Variable              | Valor por defecto | Descripción                                                              |
+| --------------------- | ------------------ | ---------------------------------------------------------------------- |
+| `EMAIL_ENABLED`       | `False`            | Master switch. `False` = sin encolado ni envío.                         |
+| `EMAIL_BACKEND`       | `"console"`        | Adaptador: `"console"` (captura en memoria, dev/tests) o `"smtp"` (real). |
+| `SMTP_HOST`           | `"localhost"`      | Host SMTP (solo si `EMAIL_BACKEND="smtp"`).                            |
+| `SMTP_PORT`           | `25`               | Puerto SMTP.                                                            |
+| `SMTP_USER`           | `""`               | Usuario SMTP (opcional).                                               |
+| `SMTP_PASSWORD`       | `""`               | Contraseña SMTP (opcional).                                            |
+| `SMTP_FROM`           | `"noreply@..."`    | Dirección «from» en el encabezado.                                      |
+| `EMAIL_MAX_ATTEMPTS`  | `5`                | Reintentos antes de marcar como `failed` (terminal).                    |
+| `EMAIL_DIGEST_TZ`     | `"America/Bogota"` | Zona horaria para cálculo de digest.                                    |
+| `EMAIL_DISPATCH_INTERVAL_MINUTES` | `5` | Intervalo del job periódico de despacho urgentes/reintentos.            |
+| `EMAIL_DIGEST_INTERVAL_MINUTES`   | `30` | Intervalo del job periódico de agregación de digest.                    |
+
+### Outbox transaccional
+
+Las notificaciones urgentes se encolan en la tabla `email_outbox` dentro de la misma transacción que crea la `Notification`, garantizando atomicidad. Si la transacción se revierte, el correo también se revierte. El envío es post-commit best-effort:
+
+1. El sistema llama `enqueue_immediate_email()` dentro de la tx de negocio.
+2. La tx hace commit; `email_outbox` tiene filas `status="pending"`.
+3. Un job periódico (`email_dispatch`) despacha las filas `pending` (claim atómico, reintentos, marcado `sent`/`failed`).
+4. Un fallo de red/SMTP no bloquea ni revierte la tx de negocio.
+
+**Estados de outbox**: `pending` (sin enviar) → `sending` (en despacho, claim para evitar duplicados) → `sent` (éxito) o `failed` (terminal, tras `EMAIL_MAX_ATTEMPTS` fallos, se registra ERROR y no se reintenta).
+
+### Idempotencia
+
+Cada fila de `email_outbox` tiene `dedup_key` único (por organización, tipo de notificación y período). Ejecutar el job dos veces con el mismo estado no genera un segundo correo:
+
+- Digest: dedup_key = `"digest:{user_id}:{período}"`. Las notificaciones se marcan `emailed_at` tras envío; un segundo digest no encuentra notificaciones sin `emailed_at` y no envía.
+- Urgentes: dedup_key = `"urgent:{notification_id}"`. La tabla `email_outbox` asegura que no hay dos filas con la misma clave.
+
+---
+
 ## Reglas de alerta
 
 Reglas configurables del motor de alertas, org-scoped. **No hay `POST`**: las reglas se
