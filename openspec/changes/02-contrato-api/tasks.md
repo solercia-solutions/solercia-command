@@ -97,4 +97,4 @@ Chain strategy: stacked-to-main
 
 ## Cierre
 
-- [ ] T33 — Suite completa + lint: `cd backend && pytest tests/ -v`, `ruff check .`, `mypy .` — todo en verde antes de handoff a `sdd-verify`.
+- [x] T33 — Suite completa + lint: `cd backend && pytest tests/ -v`, `ruff check .`, `mypy .` — todo en verde antes de handoff a `sdd-verify`.
