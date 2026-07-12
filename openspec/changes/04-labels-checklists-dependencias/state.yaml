@@ -1,0 +1,27 @@
+change: 04-labels-checklists-dependencias
+title: Labels, checklists y dependencias tarea-tarea + estrategia de alerta blocked_task
+artifact_store: hybrid
+strict_tdd: true
+status: IN-PROGRESS
+depends_on: 02-contrato-api
+depends_on_note: "Hereda el contrato de paginación (filtro de tareas por label, listas) y la auditoría created_by/updated_by de 02-contrato-api. Conceptualmente independiente de 03-boards. El apply no debería iniciar hasta que 02-contrato-api esté aplicado."
+hard_rule: "backend únicamente — frontend/ congelado (constraint frontend-frozen). No proponer ni tocar interfaz."
+scope:
+  - "Labels: Label (scope de proyecto: name, color) + TaskLabel (M:N) + CRUD + filtro de tareas por etiqueta."
+  - "Checklists: TaskChecklist (1:N por tarea) + ChecklistItem (1:N: is_done, order) + endpoints + progreso agregado en el detalle de tarea."
+  - "Dependencias tarea-tarea: TaskDependency (M:N con tipos blocks/is_blocked_by), prevención de ciclos, endpoints link/unlink/list, bloqueo expuesto en el detalle."
+  - "Alerta blocked_task: estrategia (bloqueada > X días vía threshold_params) registrada en el registry + AlertRule seed por defecto."
+naming_collision_note: "El módulo backend/app/modules/dependencies/ es ÁREAS organizacionales (tabla dependencies, clase Dependency), NO dependencias de tarea. La feature nueva DEBE usar módulo/tabla propios (task_links / task_dependencies) y clase TaskDependency para evitar colisión."
+phases:
+  explore: skipped           # alcance ya definido por el roadmap (openspec/AVANCE.md, fila 04)
+  proposal: done             # openspec/changes/04-labels-checklists-dependencias/proposal.md
+  spec: done                # openspec/changes/04-labels-checklists-dependencias/specs/{labels,checklists,task-dependencies,alert-blocked-task}.md
+  design: done               # openspec/changes/04-labels-checklists-dependencias/design.md — módulo task_links/tabla task_dependencies, DFS de ciclos, seed idempotente blocked_task
+  tasks: done                # openspec/changes/04-labels-checklists-dependencias/tasks.md — 25 tareas, 5 batches (A-E) + gate final, commits encadenados a main
+  apply: pending             # BLOQUEADO hasta apply de 02-contrato-api
+  verify: pending
+  archive: pending
+next_recommended:
+  - sdd-spec y sdd-design (pueden correr en paralelo)
+  - "design DEBE fijar el nombre definitivo del módulo/tabla de dependencias (evitar colisión con dependencies/), el algoritmo de detección de ciclos y la idempotencia del seed de la regla blocked_task"
+updated: 2026-07-11
