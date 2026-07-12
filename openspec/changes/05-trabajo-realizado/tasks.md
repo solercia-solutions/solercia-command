@@ -61,9 +61,9 @@ Dependencia dura: `sdd-apply` NO puede iniciar hasta que **02-contrato-api** est
 
 ## Fase D — Documentación y cierre (Commit 4)
 
-- [ ] T24 Actualizar `docs/API.md`: rutas de `time_logs`/`activity` y bloque `work_gap` en `GET /dashboard/executive` (request/response de ejemplo).
-- [ ] T25 Actualizar `docs/ARCHITECTURE.md`: entidades `TaskTimeLog`/`TaskHistory` y flujo `work_gap` en el diagrama de vista ejecutiva.
-- [ ] T26 VERIFY final — `cd backend && pytest tests/ -v`, `ruff check .`, `mypy app` en verde; sin regresiones en `test_sprint_close.py`, `test_comments.py`, `test_attachments.py`, `test_mention_notifications.py`, `test_subtasks.py`, `test_task_key.py`.
+- [x] T24 Actualizar `docs/API.md`: rutas de `time_logs`/`activity` y bloque `work_gap` en `GET /dashboard/executive` (request/response de ejemplo).
+- [x] T25 Actualizar `docs/ARCHITECTURE.md`: entidades `TaskTimeLog`/`TaskHistory` y flujo `work_gap` en el diagrama de vista ejecutiva.
+- [x] T26 VERIFY final — `cd backend && pytest tests/ -v`, `ruff check .`, `mypy app` en verde (258 passed); sin regresiones en `test_sprint_close.py`, `test_comments.py`, `test_attachments.py`, `test_mention_notifications.py`, `test_subtasks.py`, `test_task_key.py` (44 passed). Fix adicional durante T26: `TaskHistory.created_at` ganó un `default=` Python-side (`datetime.now(UTC)`) — `func.now()` de Postgres es fijo por transacción SQL, no por sentencia, y la fixture de tests comparte una transacción externa por test (SAVEPOINT-anidada); varios PATCH en un mismo test producían `created_at` idénticos y el `ORDER BY created_at DESC` de T13 se volvía no determinista en desempates (detectado como test intermitente al correr la suite completa).
 
 ## Trazabilidad de requisitos
 

@@ -349,7 +349,39 @@ tasks
   risk_reason       text    NULL
   created_at        timestamptz
   completed_at      timestamptz NULL                 (instante en que la tarea entró a la columna «done»; null si no está terminada)
+
+task_time_logs
+  id              uuid    PK
+  organization_id uuid    FK → organizations.id   (tenant)
+  task_id         uuid    FK → tasks.id
+  user_id         uuid    FK → users.id            (dueño del registro — quién trabajó las horas)
+  work_date       date                             (alias de API: "date")
+  hours           numeric(5,2)                     (> 0, hasta 24; sin UNIQUE — se suman varios tramos/día)
+  note            text    NULL
+  created_at      timestamptz
+
+task_history
+  id              uuid    PK
+  organization_id uuid    FK → organizations.id   (tenant)
+  task_id         uuid    FK → tasks.id
+  actor_id        uuid    FK → users.id   NULL     (null = actor de sistema)
+  actor_type      text                             (user | system)
+  field           text                             (status | assignee_id | estimation_points | estimation_hours | sprint_id | priority)
+  old_value       text    NULL
+  new_value       text    NULL
+  created_at      timestamptz                      (alias de API: "changed_at")
 ```
+
+> **`task_time_logs`/`task_history`** (change 05, «trabajo realizado») son las tablas fuente
+> del bloque `work_gap` de la vista ejecutiva (sección 9). `task_time_logs` es un registro
+> mutable (`SoftDeleteMixin` + `AuditMixin`): editar/borrar es **estrictamente del dueño**
+> (`user_id`), sin excepción de rol — ni `manager` ni `admin` pueden tocar el registro de
+> otra persona. `task_history` es **append-only** (sin `SoftDeleteMixin`, sin `AuditMixin`
+> — sus propios `actor_id`/`actor_type` cumplen ese rol): se llena por asignación explícita
+> desde el servicio que muta la tarea (`TaskService.update_task` con `actor_type=user`,
+> `SprintService.close_sprint` con `actor_type=system`), nunca por triggers ni event
+> listeners de SQLAlchemy — un `UPDATE` masivo (como el cierre de sprint) no dispara
+> eventos por fila, así que el registro tendría huecos si dependiera de ellos.
 
 > **`completed_at` es un campo de evento.** El service lo fija en `now()` cuando el
 > `status` de la tarea cambia **a** la última columna (`allowed_statuses[-1]`, la columna
@@ -372,6 +404,10 @@ projects      1 ───< sprints             (un proyecto scrum tiene muchos s
 projects      1 ───< tasks               (un proyecto tiene muchas tareas)
 sprints       1 ───< tasks               (una tarea puede pertenecer a un sprint; null = backlog)
 users         1 ───< tasks               (assignee_id: una tarea tiene a lo sumo una persona asignada)
+tasks         1 ───< task_time_logs      (una tarea tiene muchos registros de tiempo trabajado)
+users         1 ───< task_time_logs      (user_id: quién registró el tiempo — el dueño del registro)
+tasks         1 ───< task_history        (una tarea tiene muchas filas de historial, append-only)
+users         1 ───< task_history        (actor_id, NULL = cambio de sistema)
 ```
 
 ### Forma de `Project` expuesta por la API
@@ -557,13 +593,14 @@ El panel no codifica «qué significa estar terminado» por metodología; lo der
 ### Bloques que devuelve el panel
 
 ```
-GET /dashboard/executive  (tenant del token)
+GET /dashboard/executive?threshold_days=N  (tenant del token, N por defecto = 3)
    │
    ├─ by_assignee:        por persona → sus tareas activas (in_progress[]) + active_count
    ├─ at_risk:            tareas vencidas-y-no-terminadas o con risk_flag = true
    ├─ workload:           por persona → active_count (carga actual)
    ├─ projects_progress:  por proyecto → total, done, in_progress, percent_done
-   └─ totals:             { projects, tasks, overdue, at_risk }
+   ├─ totals:             { projects, tasks, overdue, at_risk }
+   └─ work_gap:           cruce asignado vs. realizado (ver subsección dedicada abajo)
 ```
 
 - `percent_done = round(done / total * 100)` por proyecto (0 cuando `total = 0`).
@@ -608,6 +645,42 @@ Una persona que cierra sus compromisos en o antes de la fecha límite tiende a `
 **después** del `due_date` (tarde) baja la tasa. Las tareas sin `due_date` o aún sin terminar
 no entran en el cálculo. El payload incluye `generated_at` (instante del cómputo) para que la
 UI muestre cuándo se tomó la foto.
+
+### Cruce asignado vs. realizado (`work_gap`)
+
+El bloque `work_gap` (change 05, «trabajo realizado») responde «¿lo asignado se está
+ejecutando de verdad?», cruzando lo planeado (`Task.estimation_hours`) contra lo
+efectivamente trabajado (`TaskTimeLog`) y contra el rastro de actividad de cada tarea
+(`TaskHistory`). Vive **dentro** de `GET /dashboard/executive` como un bloque más — no hay
+un endpoint `/dashboard/discrepancy` separado; `performance` no se toca.
+
+```
+DashboardService.executive(org_id, threshold_days=3)
+   │
+   ├─ list_for_org(org_id)                         → tareas activas del tenant (ya cargadas)
+   ├─ TimeLogRepository.hours_by_user(org_id)       → GROUP BY sobre task_time_logs (todo el histórico)
+   ├─ TimeLogRepository.last_activity_by_user       → última fecha de time-log por usuario
+   ├─ ActivityRepository.last_activity_by_actor     → último created_at de historial por actor
+   ├─ {TimeLog,Activity}Repository
+   │     .task_ids_with_recent_entries(org, cutoff) → ids de tarea con actividad en la ventana N
+   └─ _work_gap()                                   → cruza todo en Python, sin N+1
+```
+
+Por colaborador con **al menos una tarea activa asignada**:
+
+| Campo                  | Definición                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `hours_logged`           | Suma **de todo el histórico** de `TaskTimeLog.hours` (no acota por `threshold_days`).           |
+| `hours_estimated`        | Suma de `estimation_hours` de sus tareas activas asignadas (calculado en Python, sin query extra). |
+| `tasks_assigned`         | Conteo de tareas activas asignadas.                                                              |
+| `tasks_with_activity`    | De esas, cuántas tienen un `TaskHistory` **o** `TaskTimeLog` en los últimos `threshold_days` días. |
+| `no_recent_activity[]`   | Colaboradores con tarea activa asignada y **cero** actividad (ninguna fuente) en los últimos `threshold_days` días — o que nunca registraron actividad. |
+
+`threshold_days` (query param `?threshold_days=N`, por defecto `3`, `>= 1`) gobierna
+únicamente `tasks_with_activity` y `no_recent_activity`; `hours_logged`/`hours_estimated`
+son siempre acumulados totales. El costo es fijo (2-3 agregaciones `GROUP BY` + la carga de
+tareas que `executive()` ya hacía) sin importar cuántas personas o tareas tenga la
+organización — mismo patrón O(1) del resto del panel.
 
 ---
 

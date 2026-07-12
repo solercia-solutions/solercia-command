@@ -973,10 +973,14 @@ hace qué y qué está en riesgo?». Las definiciones de *done*, *active*, *at r
 se derivan de los `allowed_statuses` de cada proyecto (ver `docs/ARCHITECTURE.md`, sección
 «Vista ejecutiva»).
 
+| Parámetro        | Tipo | Notas                                                                 |
+| ----------------- | ---- | ---------------------------------------------------------------------- |
+| `threshold_days`  | int  | Opcional, por defecto `3` (`>= 1`). Ventana de `work_gap.no_recent_activity`. |
+
 **Request**
 
 ```http
-GET /api/v1/dashboard/executive HTTP/1.1
+GET /api/v1/dashboard/executive?threshold_days=3 HTTP/1.1
 Host: localhost:8000
 Authorization: Bearer <access_token>
 ```
@@ -1049,7 +1053,21 @@ Authorization: Bearer <access_token>
         "percent_done": 42
       }
     ],
-    "totals": { "projects": 3, "tasks": 27, "overdue": 4, "at_risk": 6 }
+    "totals": { "projects": 3, "tasks": 27, "overdue": 4, "at_risk": 6 },
+    "work_gap": {
+      "by_user": [
+        {
+          "user": { "id": "b2d4f6a8-0c1e-4a3b-9d5f-7e8c9a0b1d2e", "full_name": "Laura Gómez" },
+          "hours_logged": 6.0,
+          "hours_estimated": 10.0,
+          "tasks_assigned": 5,
+          "tasks_with_activity": 3
+        }
+      ],
+      "no_recent_activity": [
+        { "id": "8f1c2e7a-3b4d-4c5e-9a0b-1d2e3f4a5b6c", "full_name": "Administrador Solercia" }
+      ]
+    }
   }
 }
 ```
@@ -1061,6 +1079,18 @@ Authorization: Bearer <access_token>
 | `workload`          | Carga actual por persona (`active_count` = tareas no terminadas asignadas).                  |
 | `projects_progress` | Por proyecto: `total`, `done`, `in_progress` (= `total - done`) y `percent_done`.            |
 | `totals`            | Conteos globales del tenant: `projects`, `tasks`, `overdue`, `at_risk`.                       |
+| `work_gap`          | Cruce asignado vs. realizado (ver detalle abajo).                                             |
+
+**`work_gap`** — bloque aditivo (change 05); solo incluye colaboradores con **al menos una
+tarea activa asignada**:
+
+| Campo                             | Significado                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| `by_user[].hours_logged`           | Suma **de todo el histórico** de `TaskTimeLog.hours` del colaborador (no acota por `threshold_days`). |
+| `by_user[].hours_estimated`        | Suma de `estimation_hours` de sus tareas **activas** asignadas.                              |
+| `by_user[].tasks_assigned`         | Conteo de tareas activas asignadas.                                                          |
+| `by_user[].tasks_with_activity`    | De esas, cuántas tienen un `TaskHistory` o `TaskTimeLog` en los **últimos `threshold_days` días**. |
+| `no_recent_activity[]`             | Colaboradores con tarea activa asignada y **cero** actividad (ni `TaskHistory` ni `TaskTimeLog`, de cualquiera de sus tareas) en los últimos `threshold_days` días. `{ id, full_name }`. |
 
 ---
 
@@ -1567,6 +1597,168 @@ Endpoint **protegido y admin** (`require_admin`). Ajusta `enabled` y/o `threshol
 
 ---
 
+## Registro de tiempo (time-logs)
+
+Endpoints **protegidos**. Cada colaborador registra su propio tiempo trabajado en una tarea
+(«trabajo realizado»); es la fuente que el bloque `work_gap` de la vista ejecutiva compara
+contra `estimation_hours`. **Editar y eliminar son estrictamente del dueño**: un `manager` o
+`admin` que intente modificar el registro de otra persona recibe `403`, sin excepción de rol.
+La lectura «de todos» (`GET /users/{user_id}/time-logs` y su `summary` de otro usuario) sí
+está reservada a `admin`/`manager` — un `member`/`viewer` solo consulta lo propio.
+
+### GET `/api/v1/tasks/{task_id}/time-logs` 📄
+
+Lista las entradas de tiempo de una tarea (cualquier miembro autenticado). Soporta paginación
+opcional (ver «Paginación»). Campos ordenables (`sort`): `date` (por defecto), `created_at`,
+`hours`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "task_id": "uuid",
+      "user_id": "uuid",
+      "date": "2026-02-10",
+      "hours": 2.5,
+      "note": "Avance inicial",
+      "created_at": "ISO-8601 timestamp",
+      "created_by": "uuid | null",
+      "updated_by": "uuid | null"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+> `date` es el alias público de la columna interna `work_date` (`TaskTimeLog.work_date`) —
+> el contrato observable usa `date`, la columna puede diferir.
+
+### POST `/api/v1/tasks/{task_id}/time-logs`
+
+Registra tiempo propio (`201`). `user_id` siempre es el usuario autenticado — no se acepta
+como input. `hours` es un `Decimal > 0` (máximo `24`); `hours <= 0` responde `422`.
+
+```json
+{ "date": "2026-02-10", "hours": 2.5, "note": "Avance inicial" }
+```
+
+**Response `201 Created`** — `{ "data": TimeLog }` (ver arriba).
+
+### PATCH `/api/v1/time-logs/{log_id}`
+
+Edita una entrada propia. `403` si el llamante no es el dueño (`log.user_id`), **incluidos**
+`manager`/`admin`.
+
+```json
+{ "hours": 3 }
+```
+
+**Response `200 OK`** — `{ "data": TimeLog }`.
+
+### DELETE `/api/v1/time-logs/{log_id}`
+
+Borrado lógico de una entrada propia. `403` si el llamante no es el dueño, **incluidos**
+`manager`/`admin`.
+
+**Response `204 No Content`**
+
+### GET `/api/v1/users/{user_id}/time-logs` 📄
+
+Lista las entradas de un usuario. El propio usuario siempre puede consultarse a sí mismo;
+consultar a otro usuario requiere rol `admin` o `manager` (`403` para `member`/`viewer`).
+Soporta paginación opcional y filtro de rango de fechas.
+
+| Parámetro   | Tipo | Notas                                   |
+| ----------- | ---- | ---------------------------------------- |
+| `date_from` | date | Opcional. Filtra `date >= date_from`.    |
+| `date_to`   | date | Opcional. Filtra `date <= date_to`.      |
+
+**Response `200 OK`** — misma forma que el listado por tarea, con `meta` de paginación.
+
+### GET `/api/v1/users/{user_id}/time-logs/summary`
+
+Agregación diaria y semanal de horas de un usuario. Mismo control de visibilidad que el
+listado por usuario (propio siempre; ajeno solo `admin`/`manager`).
+
+| Parámetro   | Tipo | Notas                                  |
+| ----------- | ---- | --------------------------------------- |
+| `date_from` | date | Opcional. Acota la ventana agregada.    |
+| `date_to`   | date | Opcional. Acota la ventana agregada.    |
+
+**Response `200 OK`**
+
+```json
+{
+  "data": {
+    "daily": [{ "date": "2026-02-16", "hours": 5.0 }],
+    "weekly": [{ "week_start": "2026-02-16", "hours": 10.0 }]
+  }
+}
+```
+
+> Si un usuario registra más de una entrada el mismo día (misma o distinta tarea), la
+> agregación diaria las suma. `week_start` es el lunes ISO de la semana (`date_trunc('week',
+> work_date)` en Postgres); la agregación semanal suma todas las entradas de esa semana.
+
+---
+
+## Historial de actividad (activity)
+
+Endpoints **protegidos** y de **solo lectura**: no existe `PATCH`/`DELETE` sobre una fila de
+historial — una petición a esas rutas responde `404` de enrutamiento (la ruta no existe), no
+un `403` de autorización. El changelog se genera automáticamente en el backend (nunca es
+input del cliente): al cambiar `status`, `assignee_id`, `estimation_points`/
+`estimation_hours`, `sprint_id` o `priority` vía `PATCH /tasks/{id}` (`actor_type: "user"`),
+y al mover tareas incompletas en `POST /sprints/{id}/close` (`actor_type: "system"`,
+`actor_id: null`).
+
+### GET `/api/v1/tasks/{task_id}/history` 📄
+
+Historial completo de una tarea, ordenado por `changed_at` **descendente** por defecto.
+Soporta paginación opcional. Campos ordenables (`sort`): `created_at` (por defecto), `field`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "task_id": "uuid",
+      "actor_id": "uuid | null",
+      "actor_type": "user | system",
+      "field": "status",
+      "old_value": "To Do",
+      "new_value": "Doing",
+      "changed_at": "ISO-8601 timestamp"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+> `changed_at` es el alias público de la columna interna `created_at`
+> (`TaskHistory.created_at`) — el contrato observable usa `changed_at`. `actor_id` es `null`
+> cuando `actor_type == "system"` (p. ej. el cierre de sprint que mueve tareas al backlog).
+
+### GET `/api/v1/users/{user_id}/activity` 📄
+
+Cambios que un usuario provocó como actor (`actor_id`), filtrables por día o rango. Soporta
+paginación opcional.
+
+| Parámetro   | Tipo | Notas                                          |
+| ----------- | ---- | ------------------------------------------------ |
+| `date`      | date | Opcional. Restringe a un único día calendario.    |
+| `date_from` | date | Opcional. Inicio de rango (inclusive).            |
+| `date_to`   | date | Opcional. Fin de rango (inclusive).               |
+
+**Response `200 OK`** — misma forma que el historial por tarea, con `meta` de paginación.
+
+---
+
 ## Administración (`/admin/*`)
 
 Endpoints **protegidos** por la dependencia `require_admin`: el llamante debe tener un rol de
@@ -1875,8 +2067,8 @@ enviada).
 
 ## Resumen de endpoints
 
-Regenerada desde la superficie real de los **18 routers** del backend. 📄 = soporta
-paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **13**
+Regenerada desde la superficie real de los **20 routers** del backend. 📄 = soporta
+paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **17**
 endpoints en el alcance de ese contrato.
 
 | Método | Ruta                                       | Auth | 📄 | Descripción                                  |
@@ -1912,7 +2104,7 @@ endpoints en el alcance de ese contrato.
 | GET    | `/api/v1/comments/{id}/attachments`        | Sí   |    | Lista los adjuntos de un comentario (no paginable). |
 | POST   | `/api/v1/comments/{id}/attachments`        | Sí   |    | Sube un adjunto a un comentario.             |
 | GET    | `/api/v1/attachments/{id}/download`        | Sí   |    | Descarga el archivo binario de un adjunto.   |
-| GET    | `/api/v1/dashboard/executive`              | Sí   |    | Panel ejecutivo agregado del tenant.         |
+| GET    | `/api/v1/dashboard/executive`              | Sí   |    | Panel ejecutivo agregado del tenant (incl. `work_gap`, opcional `threshold_days`). |
 | GET    | `/api/v1/dashboard/performance`            | Sí   |    | Rendimiento por colaborador (opcional `sprint_id`). |
 | GET    | `/api/v1/projects/{id}/labels`             | Sí   | 📄 | Lista las etiquetas activas del proyecto.    |
 | POST   | `/api/v1/projects/{id}/labels`             | Sí   |    | Crea una etiqueta.                           |
@@ -1937,6 +2129,14 @@ endpoints en el alcance de ese contrato.
 | PATCH  | `/api/v1/notifications/{id}`               | Sí   |    | Cambia el estado de una notificación propia. |
 | GET    | `/api/v1/alert-rules`                      | Sí   | 📄 | Lista las reglas de alerta del tenant.       |
 | PATCH  | `/api/v1/alert-rules/{id}`                 | Admin |   | Ajusta `enabled`/`threshold_params` de una regla. |
+| GET    | `/api/v1/tasks/{id}/time-logs`             | Sí   | 📄 | Lista las entradas de tiempo de una tarea.   |
+| POST   | `/api/v1/tasks/{id}/time-logs`             | Sí   |    | Registra tiempo propio en una tarea.         |
+| PATCH  | `/api/v1/time-logs/{id}`                   | Sí   |    | Edita una entrada propia (403 si no es el dueño). |
+| DELETE | `/api/v1/time-logs/{id}`                   | Sí   |    | Elimina (lógico) una entrada propia (403 si no es el dueño). |
+| GET    | `/api/v1/users/{id}/time-logs`             | Sí   | 📄 | Lista las entradas de un usuario (propio siempre; ajeno solo admin/manager). |
+| GET    | `/api/v1/users/{id}/time-logs/summary`     | Sí   |    | Agregación diaria/semanal de horas de un usuario. |
+| GET    | `/api/v1/tasks/{id}/history`               | Sí   | 📄 | Historial de cambios de una tarea (desc por defecto). |
+| GET    | `/api/v1/users/{id}/activity`              | Sí   | 📄 | Cambios que un usuario provocó (filtro por día/rango). |
 | GET    | `/api/v1/admin/dependencies`               | Admin | 📄 | Lista las dependencias del tenant.          |
 | POST   | `/api/v1/admin/dependencies`               | Admin |   | Crea una dependencia.                       |
 | GET    | `/api/v1/admin/dependencies/{id}`          | Admin |   | Devuelve una dependencia por id.            |
@@ -1970,11 +2170,13 @@ endpoints en el alcance de ese contrato.
 ## Modelos de datos del contrato
 
 > **Auditoría (`created_by`/`updated_by`)**: `User`, `Dependency`, `Role`, `Menu`,
-> `Project`, `Task`, `Sprint`, `Comment`, `Attachment` y `AlertRule` exponen `created_by` y
-> `updated_by` (`uuid | null`) — quién creó/modificó por última vez el registro, resuelto
-> del usuario autenticado (nunca aceptado como input del cliente). Son `null` en filas
-> creadas antes de esta migración o sembradas por el arranque del sistema (`db_init.py`),
-> de forma **permanente** — no hay *backfill* histórico.
+> `Project`, `Task`, `Sprint`, `Comment`, `Attachment`, `AlertRule` y `TimeLog` exponen
+> `created_by` y `updated_by` (`uuid | null`) — quién creó/modificó por última vez el
+> registro, resuelto del usuario autenticado (nunca aceptado como input del cliente). Son
+> `null` en filas creadas antes de esta migración o sembradas por el arranque del sistema
+> (`db_init.py`), de forma **permanente** — no hay *backfill* histórico. `TaskHistory` NO
+> tiene `created_by`/`updated_by` — usa sus propios `actor_id`/`actor_type` (`user | system`)
+> en su lugar, es una fila de auditoría en sí misma y nunca se modifica tras crearse.
 
 ### `TokenResponse`
 
@@ -2321,3 +2523,45 @@ endpoints en el alcance de ese contrato.
 > clase `TaskDependency`, tabla `task_dependencies`, módulo `task_links` — deliberadamente
 > distinto del módulo/tabla/clase `Dependency` de «Administración», que son áreas
 > organizacionales sin relación alguna con este concepto).
+
+### `TimeLog`
+
+```json
+{
+  "id": "uuid",
+  "task_id": "uuid",
+  "user_id": "uuid",
+  "date": "2026-02-10",
+  "hours": 2.5,
+  "note": "string | null",
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+> Clase `TaskTimeLog`, tabla `task_time_logs`, módulo `time_logs`. `date` es el alias
+> público de la columna `work_date`; `hours` es `Decimal(5,2) > 0` (máximo `24`). Sin
+> `unique`: un usuario puede registrar varios tramos el mismo día (misma o distinta tarea) —
+> la agregación de `summary` los suma.
+
+### `TaskHistory`
+
+```json
+{
+  "id": "uuid",
+  "task_id": "uuid",
+  "actor_id": "uuid | null",
+  "actor_type": "user | system",
+  "field": "status",
+  "old_value": "string | null",
+  "new_value": "string | null",
+  "changed_at": "ISO-8601 timestamp"
+}
+```
+
+> Clase `TaskHistory`, tabla `task_history`, módulo `activity`. Fila *append-only*: no hay
+> `PATCH`/`DELETE`. `changed_at` es el alias público de la columna `created_at`. Campos
+> rastreados: `status`, `assignee_id`, `estimation_points`, `estimation_hours`, `sprint_id`,
+> `priority` (no incluye `due_date`). `actor_id` es `null` cuando `actor_type == "system"`
+> (p. ej. `POST /sprints/{id}/close` moviendo tareas incompletas al backlog).

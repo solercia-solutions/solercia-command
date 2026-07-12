@@ -17,7 +17,7 @@ service/router) is built in Batch B per tasks.md T09-T19.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -50,8 +50,19 @@ class TaskHistory(PkMixin, TenantMixin, Base):
     field: Mapped[str] = mapped_column(String(60), nullable=False)
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Python-side ``default`` (NOT just ``server_default``): Postgres' ``now()``
+    # is fixed for the lifetime of a SQL transaction, not per-statement. Every
+    # request in this codebase's test suite shares ONE outer transaction
+    # (SAVEPOINT-nested), so several history rows inserted across separate
+    # requests within the same test would otherwise get the IDENTICAL
+    # ``created_at`` and make ``ORDER BY created_at DESC`` non-deterministic
+    # for ties. ``datetime.now(UTC)`` is evaluated in Python at INSERT time
+    # (once per row, real wall-clock), giving a genuinely increasing
+    # timestamp per change. ``server_default`` stays as a DB-level fallback
+    # for rows inserted outside the ORM.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
