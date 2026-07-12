@@ -1,0 +1,25 @@
+change: 02-contrato-api
+title: Contrato de API — paginación estándar, auditoría created_by/updated_by y refresco de docs/API.md
+artifact_store: hybrid
+strict_tdd: true
+status: IN-PROGRESS
+depends_on: 01-fundacion-tdd
+depends_on_note: "El apply NO puede iniciar hasta que 01-fundacion-tdd esté aplicado (Alembic adoptado + fixtures + BD solercia_test). La migración de auditoría y el TDD estricto dependen de esa base."
+hard_rule: "backend únicamente — frontend/ congelado (constraint frontend-frozen). No proponer ni tocar interfaz."
+scope:
+  - "Paginación estándar (?page&size&sort&order + meta {page,size,total}) en listas: tasks, notifications, users, roles, menus, dependencies, projects, sprints, comments, attachments, alert-rules."
+  - "Auditoría automática created_by/updated_by en modelos de dominio, poblada desde el usuario autenticado + migración Alembic."
+  - "Refresco de docs/API.md a la superficie real tras aterrizar paginación y auditoría."
+phases:
+  explore: skipped           # alcance ya definido por el roadmap (openspec/AVANCE.md, fila 02)
+  proposal: done             # openspec/changes/02-contrato-api/proposal.md
+  spec: done               # openspec/changes/02-contrato-api/specs/api-pagination.md, specs/audit-fields.md
+  design: done               # openspec/changes/02-contrato-api/design.md — paginación opt-in + auditoría explícita en servicio + AuditMixin sobre modelos con SoftDelete
+  tasks: done               # openspec/changes/02-contrato-api/tasks.md — 33 tasks, 6 commit batches (A-D), TDD RED/GREEN pairs
+  apply: pending             # BLOQUEADO hasta apply de 01-fundacion-tdd
+  verify: pending
+  archive: pending
+next_recommended:
+  - sdd-spec y sdd-design (pueden correr en paralelo)
+  - "design DEBE resolver la estrategia de retrocompatibilidad de paginación (default sin params) y la whitelist de campos ordenables"
+updated: 2026-07-11
