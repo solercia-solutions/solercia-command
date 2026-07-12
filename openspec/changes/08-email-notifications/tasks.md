@@ -32,16 +32,16 @@ Chain strategy: stacked-to-main
 
 ## Fase A — Puerto, adaptadores, plantillas y config (Commit 1)
 
-- [ ] T01 [Foundation] `app/config.py`: `EMAIL_ENABLED: bool = False`, `EMAIL_BACKEND: str = "console"` (default — la suite jamás toca red), `SMTP_HOST/PORT/USER/PASSWORD/FROM_EMAIL/FROM_NAME/USE_TLS`, `EMAIL_MAX_ATTEMPTS: int = 5`, `EMAIL_DIGEST_TZ: str = "America/Bogota"`, `EMAIL_DISPATCH_INTERVAL_MINUTES`, `EMAIL_DIGEST_INTERVAL_MINUTES`.
-- [ ] T02 [Foundation] `backend/requirements.txt`: añadir `aiosmtplib` (única dependencia nueva, aislada tras el adaptador `smtp`).
-- [ ] T03 RED `backend/tests/test_email_policy.py`: `email_class("license_expired")` → `IMMEDIATE`; el resto (`task_overdue`, `sprint_at_risk`, `license_expiring`, `mention`, `task_at_risk`, `reminder`) → `DIGESTIBLE`. [R3,R5]
-- [ ] T04 RED `backend/tests/test_email_templates.py`: `render_immediate(...)`/`render_digest(...)` devuelven `(subject, text_body, html_body)`; tuteo formal ("tu licencia", "verifica"/"revisa"), nunca voseo ("tenés", "verificá"); `html_body` presente para `multipart/alternative`; digest con N ítems los lista todos. [R9]
-- [ ] T05 RED `backend/tests/test_email_sender.py`: `ConsoleEmailSender.send()` captura el mensaje en memoria sin red; `SmtpEmailSender.send()` arma MIME `multipart/alternative` y llama `aiosmtplib.send` (mockeado) con `to`/`subject`/cuerpos correctos; `get_email_sender()` devuelve el adaptador correcto según `EMAIL_BACKEND`. [R1]
-- [ ] T06 VERIFY confirmar los 3 archivos RED fallando (ImportError — módulo `app.email` inexistente) antes de GREEN.
-- [ ] T07 GREEN `app/email/policy.py`: `EmailClass` (enum Python puro `IMMEDIATE|DIGESTIBLE`, NO persistido), `IMMEDIATE_RULE_TYPES = {"license_expired"}`, `email_class(rule_type: str) -> EmailClass`. [R3,R5]
-- [ ] T08 GREEN `app/email/templates.py`: funciones puras `render_immediate(notification)`/`render_digest(user, notifications)` → tupla; HTML mínimo inline, español colombiano formal (tuteo, sin Jinja). [R9]
-- [ ] T09 GREEN `app/email/sender.py`: `EmailSender` (Protocol), `ConsoleEmailSender` (log estructurado + captura en memoria), `SmtpEmailSender` (`aiosmtplib`, único adaptador con esa dependencia), `get_email_sender()` factory por `settings.EMAIL_BACKEND`. [R1]
-- [ ] T10 VERIFY `cd backend && pytest tests/test_email_policy.py tests/test_email_templates.py tests/test_email_sender.py -v` en verde; `ruff check .` y `mypy app` limpios.
+- [x] T01 [Foundation] `app/config.py`: `EMAIL_ENABLED: bool = False`, `EMAIL_BACKEND: str = "console"` (default — la suite jamás toca red), `SMTP_HOST/PORT/USER/PASSWORD/FROM_EMAIL/FROM_NAME/USE_TLS`, `EMAIL_MAX_ATTEMPTS: int = 5`, `EMAIL_DIGEST_TZ: str = "America/Bogota"`, `EMAIL_DISPATCH_INTERVAL_MINUTES`, `EMAIL_DIGEST_INTERVAL_MINUTES`.
+- [x] T02 [Foundation] `backend/requirements.txt`: añadir `aiosmtplib` (única dependencia nueva, aislada tras el adaptador `smtp`).
+- [x] T03 RED `backend/tests/test_email_policy.py`: `email_class("license_expired")` → `IMMEDIATE`; el resto (`task_overdue`, `sprint_at_risk`, `license_expiring`, `mention`, `task_at_risk`, `reminder`) → `DIGESTIBLE`. [R3,R5]
+- [x] T04 RED `backend/tests/test_email_templates.py`: `render_immediate(...)`/`render_digest(...)` devuelven `(subject, text_body, html_body)`; tuteo formal ("tu licencia", "verifica"/"revisa"), nunca voseo ("tenés", "verificá"); `html_body` presente para `multipart/alternative`; digest con N ítems los lista todos. [R9]
+- [x] T05 RED `backend/tests/test_email_sender.py`: `ConsoleEmailSender.send()` captura el mensaje en memoria sin red; `SmtpEmailSender.send()` arma MIME `multipart/alternative` y llama `aiosmtplib.send` (mockeado) con `to`/`subject`/cuerpos correctos; `get_email_sender()` devuelve el adaptador correcto según `EMAIL_BACKEND`. [R1]
+- [x] T06 VERIFY confirmar los 3 archivos RED fallando (ImportError — módulo `app.email` inexistente) antes de GREEN.
+- [x] T07 GREEN `app/email/policy.py`: `EmailClass` (enum Python puro `IMMEDIATE|DIGESTIBLE`, NO persistido), `IMMEDIATE_RULE_TYPES = {"license_expired"}`, `email_class(rule_type: str) -> EmailClass`. [R3,R5]
+- [x] T08 GREEN `app/email/templates.py`: funciones puras `render_immediate(notification)`/`render_digest(user, notifications)` → tupla; HTML mínimo inline, español colombiano formal (tuteo, sin Jinja). [R9]
+- [x] T09 GREEN `app/email/sender.py`: `EmailSender` (Protocol), `ConsoleEmailSender` (log estructurado + captura en memoria), `SmtpEmailSender` (`aiosmtplib`, único adaptador con esa dependencia), `get_email_sender()` factory por `settings.EMAIL_BACKEND`. [R1]
+- [x] T10 VERIFY `cd backend && pytest tests/test_email_policy.py tests/test_email_templates.py tests/test_email_sender.py -v` en verde; `ruff check .` y `mypy app` limpios.
 
 ## Fase B — Outbox transaccional, migración, hook y job de despacho (Commit 2)
 

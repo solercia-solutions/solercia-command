@@ -62,6 +62,25 @@ class Settings(BaseSettings):
     WS_HEARTBEAT_SECONDS: int = 30
     WS_IDLE_TIMEOUT_SECONDS: int = 90
 
+    # Email engine — master switch off by default (aditivo, see
+    # openspec/changes/08-email-notifications/design.md). ``EMAIL_BACKEND``
+    # defaults to "console" so the test suite never touches the network even
+    # if a test forgets to stub the sender explicitly; "smtp" only activates
+    # by explicit configuration.
+    EMAIL_ENABLED: bool = False
+    EMAIL_BACKEND: str = "console"
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    FROM_EMAIL: str = "no-reply@solercia.com"
+    FROM_NAME: str = "Solercia"
+    SMTP_USE_TLS: bool = True
+    EMAIL_MAX_ATTEMPTS: int = 5
+    EMAIL_DIGEST_TZ: str = "America/Bogota"
+    EMAIL_DISPATCH_INTERVAL_MINUTES: int = 5
+    EMAIL_DIGEST_INTERVAL_MINUTES: int = 15
+
 
 @lru_cache
 def get_settings() -> Settings:
