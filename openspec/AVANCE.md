@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; roadmap backend definido con 10 cambios pendientes; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; cambio 01-fundacion-tdd completado y archivado; 9 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -35,8 +35,9 @@ flowchart TD
     FE -.bloqueado por @solercia/ui.- B0
 
     class B0 done
+    class C01 done
     class FE inprogress
-    class C01,C02,C03,C04,C05,C06,C07,C08,C09,C10 pending
+    class C02,C03,C04,C05,C06,C07,C08,C09,C10 pending
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
     classDef inprogress fill:#eab308,stroke:#854d0e,color:#000000
@@ -78,7 +79,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 
 | # | Cambio | Alcance | Estado |
 |---|--------|---------|--------|
-| 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | ⬜ Pendiente |
+| 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | 🟩 Completado |
 | 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | ⬜ Pendiente |
 | 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | ⬜ Pendiente |
 | 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | ⬜ Pendiente |
@@ -99,14 +100,17 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 
 ---
 
-## Deuda transversal detectada (2026-07-11)
+## Deuda transversal detectada (2026-07-11) y resoluciones
 
-- **Cero migraciones Alembic**: el esquema se crea con `Base.metadata.create_all` en startup + seed en `db_init` (Alembic instalado, ninguna revisión).
-- **Sin paginación**: todas las listas devuelven todo; `meta.total = len`.
-- **Sin auditoría `created_by`/`updated_by`** en ningún modelo.
-- **Solo 43 tests en 6 archivos**. Módulos con CERO tests: auth, users, organizations, projects (CRUD), roles, menus, dependencies, dashboard, endpoints de alert_rules y notifications, motor de alertas completo, estrategias de metodología.
-- **Tests de integración frágiles**: requieren `TEST_DATABASE_URL` (se saltan sin ella) y la BD `solercia_test` NO existe en docker-compose.
-- **Sin ruff ni mypy** (cero linting/type-checking).
+### Resuelto en cambio 01-fundacion-tdd
+- ✅ **Migraciones Alembic**: Baseline Alembic creada y adoptada como flujo de verdad; cambios de modelo posteriores vía `--autogenerate`.
+- ✅ **Tests de integración**: BD `solercia_test` provisionada en docker-compose; fixtures compartidos en conftest; 43 tests existentes + nuevos pasan sin regresiones.
+- ✅ **Linting y type-checking**: ruff + mypy adoptados con línea base limpia (cero hallazgos); comandos documentados.
+
+### Aún pendiente
+- **Sin paginación**: todas las listas devuelven todo; `meta.total = len` (cambio 02).
+- **Sin auditoría `created_by`/`updated_by`** en ningún modelo (cambio 02).
+- **Solo 43 tests en 6 archivos**. Módulos con CERO tests: auth, users, organizations, projects (CRUD), roles, menus, dependencies, dashboard, endpoints de alert_rules y notifications, motor de alertas completo, estrategias de metodología (backfill en cambios posteriores).
 - **Documentación desactualizada**: docs/API.md y docs/METHODOLOGY-FEATURES.md no reflejan el código actual.
 - **Permisos granulares por endpoint (viewer/manager/member) mayormente no aplicados**; conviven dos sistemas de roles paralelos (MemberRole vs catálogo RBAC).
 - **TODO de lock distribuido Redis** en el evaluador de alertas (REDIS_URL declarado y sin uso).

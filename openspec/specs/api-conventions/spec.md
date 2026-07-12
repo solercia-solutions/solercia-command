@@ -13,7 +13,7 @@ Contrato transversal del backend: envelope de respuestas, formato de errores, so
 - **Errores**: `{"detail", "code", "status"}` (+ `errors` en 422), vía `AppException` + `register_exception_handlers`. Mensajes en español colombiano.
 - **Soft delete**: `is_active` + `deleted_at` en la mayoría de modelos de dominio; ausente en tablas de unión y en `Notification` (ciclo de vida por status).
 - **Timestamps**: `created_at` / `updated_at` server-side en todos los modelos.
-- **Esquema y seed**: en startup, `db_init.init_db` crea el esquema con `Base.metadata.create_all` y ejecuta `seed_default` idempotente (org "Solercia", 3 dependencias, roles ADMIN/MANAGER/MEMBER, 8 menús, role_menus, admin + 3 usuarios demo, 4 alert rules, proyectos/tareas demo). CERO revisiones Alembic (solo .gitkeep).
+- **Esquema y seed**: El esquema DEBE ser gestionado por revisiones de Alembic versionadas. El arranque asume que las migraciones ya se aplicaron y se limita a ejecutar `seed_default` idempotente (org "Solercia", 3 dependencias, roles ADMIN/MANAGER/MEMBER, 8 menús, role_menus, admin + 3 usuarios demo, 4 alert rules, proyectos/tareas demo). Existe una revisión baseline Alembic que describe el esquema actual.
 - **Config** (pydantic-settings): DATABASE_URL (asyncpg), REDIS_URL (declarado, SIN uso), JWT_*, cookies, CORS (localhost:4200 + devtunnels), UPLOAD_DIR, ALERT_SCHEDULER_INTERVAL_HOURS.
 
 ## Requisitos
@@ -22,6 +22,8 @@ Contrato transversal del backend: envelope de respuestas, formato de errores, so
 - **R2**: Todo error DEBE serializarse como `{"detail", "code", "status"}` (con `errors` adicional en validaciones 422) a través de `AppException` y los handlers registrados.
 - **R3**: El borrado de entidades de dominio DEBE ser suave (`is_active` + `deleted_at`); las consultas DEBEN excluir registros borrados.
 - **R4**: `seed_default` DEBE ser idempotente: arranques repetidos no duplican datos.
+- **R5**: El esquema de base de datos DEBE originarse y evolucionar mediante revisiones de Alembic versionadas. El arranque asume que las migraciones ya se aplicaron y se limita a ejecutar `seed_default` sobre el esquema ya migrado. `seed_default` NO cambia de comportamiento (sigue siendo idempotente).
+- **R6**: Todo cambio de esquema posterior a la línea base DEBE expresarse como una nueva revisión de Alembic generada con `alembic revision --autogenerate`, revisada y versionada junto con el código que la origina.
 
 ### Escenarios centrales
 
@@ -40,14 +42,28 @@ Contrato transversal del backend: envelope de respuestas, formato de errores, so
 - Cuando la aplicación reinicia
 - Entonces `seed_default` no crea duplicados.
 
+**R5 — Inicialización de esquema gestionada por Alembic**
+- Dado una base de datos vacía
+- Cuando se ejecuta `alembic upgrade head`
+- Entonces el esquema resultante es equivalente al que hoy produce `Base.metadata.create_all` (mismas tablas y columnas).
+
+**R5 — El arranque ya no recrea el esquema con create_all**
+- Dado un entorno donde las migraciones Alembic ya se aplicaron
+- Cuando la aplicación arranca
+- Entonces el arranque NO ejecuta `create_all` para definir el esquema; solo corre `seed_default` sobre el esquema ya migrado.
+
+**R6 — Cambio de modelo requiere revisión Alembic**
+- Dado un modelo SQLAlchemy modificado (campo o tabla nueva)
+- Cuando se ejecuta `alembic revision --autogenerate` contra una BD con el baseline aplicado
+- Entonces se genera una revisión no vacía que describe el cambio, lista para revisión de código.
+
 ## Limitaciones y deuda conocida
 
 - SIN paginación: las listas devuelven todo y `meta.total = len` (el contrato `?page&size&sort&order` del CLAUDE.md no existe).
 - NO existen `created_by` / `updated_by` (auditoría del CLAUDE.md sin implementar).
-- Esquema por `create_all` en startup: Alembic instalado pero sin ninguna revisión — no hay camino de migraciones.
 - REDIS_URL declarado y sin uso real.
 - docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity ni close.
-- Sin linters ni type-checking (ruff/mypy ausentes).
+- ~~Sin linters ni type-checking~~ → RESUELTO en cambio 01-fundacion-tdd: ruff + mypy adoptados con línea base limpia.
 
 ## Referencias
 

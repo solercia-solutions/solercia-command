@@ -1,0 +1,22 @@
+change: 01-fundacion-tdd
+title: Fundación TDD del backend — BD de test + fixtures compartidos + adopción de Alembic + ruff/mypy
+artifact_store: hybrid
+strict_tdd: true
+status: archived
+priority: 1
+rationale: "PRIORIDAD 1 del roadmap backend (openspec/AVANCE.md, fila 01): desbloquea el TDD estricto de los cambios 02-10."
+hard_rule: "Alcance solo backend/. El frontend está congelado (constraint frontend-frozen): este cambio no toca frontend/."
+phases:
+  explore: skipped           # la línea base as-built en openspec/specs/ reemplaza el explore
+  proposal: done             # openspec/changes/archive/2026-07-11-01-fundacion-tdd/proposal.md
+  spec: done                 # openspec/changes/archive/2026-07-11-01-fundacion-tdd/specs/dev-tooling.md, specs/api-conventions.md
+  design: done               # openspec/changes/archive/2026-07-11-01-fundacion-tdd/design.md
+  tasks: done                # openspec/changes/archive/2026-07-11-01-fundacion-tdd/tasks.md
+  apply: done                # 26/26 tareas, 7 commits (f512753..bec98df); excepción documentada en task 6.1 (2 fallos preexistentes en test_sprint_close.py, fuera de alcance)
+  verify: done                # PASS WITH WARNINGS — 0 CRITICAL, 2 WARNING, 2 SUGGESTION. Ver openspec/changes/archive/2026-07-11-01-fundacion-tdd/verify-report.md
+  archive: done               # Archivado en openspec/changes/archive/2026-07-11-01-fundacion-tdd/. Specs fusionadas en openspec/specs/{dev-tooling,api-conventions}.
+archive_notes:
+  - "R3 reconciliado en merge: texto reescrito para reflejar que fixtures son ADITIVOS (D3 del design) y no implican reescritura de los 43 tests existentes."
+  - "WARNING 1 documentado: commit f512753 incluyó borrado de docs/TRANSCRIPCIONES.md (92 líneas), problema de higiene de commit no bloqueante."
+  - "SUGGESTION: bug preexistente en test_sprint_close.py (URL /projects/{id}/tasks/{id} vs /tasks/{id}), confirmado anterior a 01-fundacion-tdd, recomendado fix en 02-contrato-api."
+updated: 2026-07-11
