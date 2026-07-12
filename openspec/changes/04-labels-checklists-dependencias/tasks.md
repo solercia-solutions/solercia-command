@@ -51,15 +51,15 @@ R5 CRUD checklist · R6 CRUD/toggle/reorder ítems · R7 progreso agregado
 ## Batch C — task_links (TaskDependency)
 R8 enlazar mismo proyecto · R9 prevención de ciclos · R10 desenlazar/listar · R11 estado de bloqueo en detalle
 
-- [ ] T10 GREEN: `TaskDependency` (Pk+Timestamp+Soft+Tenant) + migración (down=B); `UniqueConstraint(blocker_task_id, blocked_task_id)`
-- [ ] T11 RED+GREEN: link exige mismo proyecto; rechaza auto-lazo y proyectos distintos → 422 (R8)
-- [ ] T12 RED primero: ciclo directo A→B→A → 422 con código de ciclo (R9)
-- [ ] T13 GREEN: DFS de ciclos en el service — una query de aristas activas (`is_active=true`) del proyecto, adyacencia, DFS desde `blocked` (R9)
-- [ ] T14 RED+GREEN: ciclo transitivo A→B→C→A → 422 (R9)
-- [ ] T15 RED+GREEN: `type=is_blocked_by` invierte antes de persistir (`related_task_id`→blocker; tarea del path→blocked); `type=blocks` no invierte
-- [ ] T16 RED+GREEN: unlink = soft delete (nunca físico); listado bidireccional `blocks`/`is_blocked_by` (R10)
-- [ ] T17 RED+GREEN: `get_incomplete_blockers` (aristas activas, `blocker.completed_at IS NULL`) → `is_blocked`+`blockers[]` en `TaskRead`; se limpia al completar el bloqueador (R11)
-- [ ] T18 GREEN: router link/unlink/list con `pagination_params`+`paginate`+`SORTABLE_FIELDS` propio (contrato de 02); montar `task_links_router`
+- [x] T10 GREEN: `TaskDependency` (Pk+Timestamp+Soft+Tenant) + migración (down=B); `UniqueConstraint(blocker_task_id, blocked_task_id)`
+- [x] T11 RED+GREEN: link exige mismo proyecto; rechaza auto-lazo y proyectos distintos → 422 (R8)
+- [x] T12 RED primero: ciclo directo A→B→A → 422 con código de ciclo (R9)
+- [x] T13 GREEN: DFS de ciclos en el service — una query de aristas activas (`is_active=true`) del proyecto, adyacencia, DFS desde `blocked` (R9)
+- [x] T14 RED+GREEN: ciclo transitivo A→B→C→A → 422 (R9)
+- [x] T15 RED+GREEN: `type=is_blocked_by` invierte antes de persistir (`related_task_id`→blocker; tarea del path→blocked); `type=blocks` no invierte
+- [x] T16 RED+GREEN: unlink = soft delete (nunca físico); listado bidireccional `blocks`/`is_blocked_by` (R10)
+- [ ] T17 RED+GREEN: `get_incomplete_blockers` (aristas activas, `blocker.completed_at IS NULL`) → `is_blocked`+`blockers[]` en `TaskRead`; se limpia al completar el bloqueador (R11) — **diferido a commit C2** (split por tamaño de diff)
+- [x] T18 GREEN: router link/unlink/list con `pagination_params`+`paginate`+`SORTABLE_FIELDS` propio (contrato de 02); montar `task_links_router`
 
 ## Batch D — Alerta blocked_task
 R12 estrategia en registry · R13 deduplicación · R14 seed idempotente

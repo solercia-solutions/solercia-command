@@ -37,6 +37,7 @@ from app.modules.roles.models import (  # noqa: F401
     UserRole,
 )
 from app.modules.sprints.models import Sprint  # noqa: F401
+from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 from app.shared.enums import MemberRole, Methodology, Priority, ProjectStatus
