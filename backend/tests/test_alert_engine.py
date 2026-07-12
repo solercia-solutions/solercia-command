@@ -368,6 +368,35 @@ async def test_patch_alert_rule_allows_rbac_admin_to_adjust(
 
 
 # ---------------------------------------------------------------------------
+# Matriz de permisos — GET /alert-rules: sin gate de rol
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "role", [MemberRole.admin, MemberRole.manager, MemberRole.member, MemberRole.viewer]
+)
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_alert_rules_has_no_role_gate(
+    role: MemberRole,
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    make_member,
+) -> None:
+    """Every ``MemberRole`` — including ``viewer`` — gets 2xx from
+    ``GET /alert-rules``: only authentication + membership, unlike its
+    ``PATCH`` sibling which does require the RBAC ADMIN role.
+    """
+
+    _, token = await make_member(session, tenant, role)
+
+    response = await client.get("/alert-rules", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+
+
+# ---------------------------------------------------------------------------
 # R4 — POST /alerts/evaluate exige require_admin
 # ---------------------------------------------------------------------------
 
@@ -408,8 +437,8 @@ async def test_scheduler_registers_alert_evaluation_job_and_stops_cleanly() -> N
 
     from app.alerts import scheduler as scheduler_module
 
-    scheduler = scheduler_module.start_scheduler()
     try:
+        scheduler = scheduler_module.start_scheduler()
         job = scheduler.get_job("alert_evaluation")
         assert job is not None
         assert isinstance(job.trigger, IntervalTrigger)

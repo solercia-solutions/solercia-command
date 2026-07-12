@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organizations.models import Organization
-from tests.conftest import skip_no_db
+from tests.conftest import TwoOrgs, skip_no_db
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -171,3 +171,61 @@ async def test_replace_user_roles_replaces_the_full_set(
     assert response.status_code == 200, response.text
     codes = {role["code"] for role in response.json()["data"]["roles"]}
     assert codes == {"ROLE_C"}
+
+
+# ---------------------------------------------------------------------------
+# Aislamiento entre organizaciones (two_orgs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_users_never_crosses_organizations(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET /admin/users for org A never lists a user that only belongs to org B."""
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    response = await client.get("/admin/users", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.b.user.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_patch_delete_roles_of_other_org_user_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET/PATCH/DELETE /admin/users/{id} and PUT .../roles on a user that only
+    belongs to org B, called with org A's admin token, are all rejected with
+    404 — the membership check (``UserRepository.get_in_org``) never leaks
+    org B's data to org A.
+    """
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    other_user_id = two_orgs.b.user.id
+
+    get_response = await client.get(
+        f"/admin/users/{other_user_id}", headers=_auth(two_orgs.a.token)
+    )
+    patch_response = await client.patch(
+        f"/admin/users/{other_user_id}",
+        json={"primer_nombre": "Hijacked"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/users/{other_user_id}", headers=_auth(two_orgs.a.token)
+    )
+    roles_response = await client.put(
+        f"/admin/users/{other_user_id}/roles",
+        json={"role_ids": []},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert get_response.status_code == 404
+    assert patch_response.status_code == 404
+    assert delete_response.status_code == 404
+    assert roles_response.status_code == 404

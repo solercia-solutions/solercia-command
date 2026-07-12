@@ -72,7 +72,7 @@ async def test_by_assignee_groups_in_progress_tasks_per_person(
     assert response.status_code == 200, response.text
     by_assignee = response.json()["data"]["by_assignee"]
     entry = next(row for row in by_assignee if row["user"]["id"] == str(owner.id))
-    assert entry["active_count"] >= 1
+    assert entry["active_count"] == 1
     assert any(t["id"] == task_id for t in entry["in_progress"])
 
 
@@ -160,8 +160,8 @@ async def test_workload_projects_progress_and_totals(
     assert progress_entry["percent_done"] == 50
 
     totals = body["totals"]
-    assert totals["projects"] >= 1
-    assert totals["tasks"] >= 2
+    assert totals["projects"] == 1
+    assert totals["tasks"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +201,7 @@ async def test_performance_reports_completed_tasks_and_supports_sprint_filter(
         for row in unfiltered.json()["data"]["collaborators"]
         if row["user"]["id"] == str(owner.id)
     )
-    assert unfiltered_entry["completed_tasks"] >= 1
+    assert unfiltered_entry["completed_tasks"] == 1
 
     filtered = await client.get(
         "/dashboard/performance",

@@ -9,8 +9,11 @@ Uses the shared in-process fixtures (``client``/``session``) plus the
 ``two_orgs`` fixture (dos organizaciones con datos propios) for isolation.
 """
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import TwoOrgs, skip_no_db
@@ -86,16 +89,40 @@ async def test_membership_resolved_from_first_membership_by_created_at(
 ) -> None:
     """A user with TWO memberships operates on the FIRST one created (org A),
     never on the later one (org B), confirming R2's resolution rule.
+
+    Both memberships are assigned EXPLICIT, distinct ``created_at`` values.
+    Under the ``session`` fixture's SAVEPOINT, ``func.now()`` resolves to the
+    same transaction-start timestamp for every statement in the test, so the
+    org A membership (seeded by ``two_orgs``) and the org B membership added
+    here would otherwise tie on ``created_at`` and ``get_current_membership``
+    (``order_by(created_at.asc())``, no tiebreaker) would return an
+    indeterminate row — the assertion below would then pass by luck, not
+    because R2's ordering rule actually held.
     """
 
     from app.modules.organizations.models import OrganizationMember
     from app.shared.enums import MemberRole
+
+    earlier = datetime.now(UTC) - timedelta(minutes=5)
+    later = datetime.now(UTC)
+
+    org_a_membership = (
+        await session.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == two_orgs.a.organization.id,
+                OrganizationMember.user_id == two_orgs.a.user.id,
+            )
+        )
+    ).scalar_one()
+    org_a_membership.created_at = earlier
+    await session.flush()
 
     session.add(
         OrganizationMember(
             organization_id=two_orgs.b.organization.id,
             user_id=two_orgs.a.user.id,
             role=MemberRole.member,
+            created_at=later,
         )
     )
     await session.flush()

@@ -305,3 +305,44 @@ async def test_projects_and_tasks_crud_has_no_role_gate(
         headers=_auth(token),
     )
     assert task_response.status_code == 201, task_response.text
+
+
+# ---------------------------------------------------------------------------
+# Lectura de metodologías: sin gate de rol
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "role", [MemberRole.admin, MemberRole.manager, MemberRole.member, MemberRole.viewer]
+)
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_methodology_read_has_no_role_gate(
+    role: MemberRole,
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    make_member,
+) -> None:
+    """There is no dedicated ``GET /methodologies`` route in this codebase;
+    the real read surface for a project's methodology behavior is
+    ``GET /projects/{id}``, which attaches ``methodology_info`` from the
+    Strategy (``ProjectService._attach_methodology_info``). Every
+    ``MemberRole`` — including ``viewer`` — gets 2xx: only authentication +
+    membership, no role gate. This freezes the gate actually observed.
+    """
+
+    _, token = await make_member(session, tenant, role)
+
+    create_response = await client.post(
+        "/projects",
+        json={"name": f"{role.value} Methodology Project", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert create_response.status_code == 201, create_response.text
+    project_id = create_response.json()["data"]["id"]
+
+    response = await client.get(f"/projects/{project_id}", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    assert "methodology_info" in response.json()["data"]

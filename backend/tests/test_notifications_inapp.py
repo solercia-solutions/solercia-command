@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organizations.models import Organization
+from app.shared.enums import MemberRole
 from tests.conftest import TwoOrgs, skip_no_db
 
 
@@ -184,3 +185,31 @@ async def test_patch_notification_changes_status_and_lowers_unread_count(
 
     after = await client.get("/notifications/unread-count", headers=_auth(token))
     assert after.json()["data"]["count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Matriz de permisos — GET /notifications: sin gate de rol
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "role", [MemberRole.admin, MemberRole.manager, MemberRole.member, MemberRole.viewer]
+)
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_notifications_has_no_role_gate(
+    role: MemberRole,
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    make_member,
+) -> None:
+    """Every ``MemberRole`` — including ``viewer`` — gets 2xx from
+    ``GET /notifications``: only authentication + membership, no role gate.
+    """
+
+    _, token = await make_member(session, tenant, role)
+
+    response = await client.get("/notifications", headers=_auth(token))
+
+    assert response.status_code == 200, response.text

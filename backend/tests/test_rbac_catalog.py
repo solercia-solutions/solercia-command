@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.organizations.models import Organization
 from app.shared.enums import MemberRole
-from tests.conftest import skip_no_db
+from tests.conftest import TwoOrgs, skip_no_db
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -222,3 +222,134 @@ async def test_delete_role_is_soft_delete(
     ).scalar_one()
     assert row.is_active is False
     assert row.deleted_at is not None
+
+
+# ---------------------------------------------------------------------------
+# Aislamiento entre organizaciones (two_orgs) — roles y dependencies
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_roles_never_crosses_organizations(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET /admin/roles for org A never lists a role owned by org B."""
+
+    from app.modules.roles.models import Role
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    other_role = Role(
+        organization_id=two_orgs.b.organization.id, code="ORGB_ROLE", name="Org B Role"
+    )
+    session.add(other_role)
+    await session.flush()
+
+    response = await client.get("/admin/roles", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(other_role.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_patch_delete_role_of_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET/PATCH/DELETE /admin/roles/{id} on a role owned by org B, called
+    with org A's admin token, are all rejected with 404 — the admin RBAC of
+    org A cannot read or edit org B's roles.
+    """
+
+    from app.modules.roles.models import Role
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    other_role = Role(
+        organization_id=two_orgs.b.organization.id, code="ORGB_ROLE2", name="Org B Role 2"
+    )
+    session.add(other_role)
+    await session.flush()
+
+    get_response = await client.get(
+        f"/admin/roles/{other_role.id}", headers=_auth(two_orgs.a.token)
+    )
+    patch_response = await client.patch(
+        f"/admin/roles/{other_role.id}",
+        json={"name": "Hijacked"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/roles/{other_role.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert get_response.status_code == 404
+    assert patch_response.status_code == 404
+    assert delete_response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_dependencies_never_crosses_organizations(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET /admin/dependencies for org A never lists a dependency owned by
+    org B.
+    """
+
+    from app.modules.dependencies.models import Dependency
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    other_dependency = Dependency(
+        organization_id=two_orgs.b.organization.id, name="Org B Dependency"
+    )
+    session.add(other_dependency)
+    await session.flush()
+
+    response = await client.get(
+        "/admin/dependencies", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(other_dependency.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_patch_delete_dependency_of_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """GET/PATCH/DELETE /admin/dependencies/{id} on a dependency owned by org
+    B, called with org A's admin token, are all rejected with 404 — the
+    admin RBAC of org A cannot read or edit org B's dependencies.
+    """
+
+    from app.modules.dependencies.models import Dependency
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    other_dependency = Dependency(
+        organization_id=two_orgs.b.organization.id, name="Org B Dependency 2"
+    )
+    session.add(other_dependency)
+    await session.flush()
+
+    get_response = await client.get(
+        f"/admin/dependencies/{other_dependency.id}", headers=_auth(two_orgs.a.token)
+    )
+    patch_response = await client.patch(
+        f"/admin/dependencies/{other_dependency.id}",
+        json={"name": "Hijacked"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/dependencies/{other_dependency.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert get_response.status_code == 404
+    assert patch_response.status_code == 404
+    assert delete_response.status_code == 404
