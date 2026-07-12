@@ -126,3 +126,20 @@ class LicenseType(str, Enum):
     perpetual = "perpetual"
     subscription = "subscription"
     trial = "trial"
+
+
+class EmailOutboxStatus(str, Enum):
+    """Lifecycle status of a transactional outbox row (``app.email``, D2/D3)."""
+
+    pending = "pending"
+    sending = "sending"
+    sent = "sent"
+    failed = "failed"
+
+
+class DigestFrequency(str, Enum):
+    """How often a user wants their non-urgent notifications summarized (D4/D7)."""
+
+    none = "none"
+    daily = "daily"
+    weekly = "weekly"

@@ -13,6 +13,7 @@ from app.alerts.scheduler import start_scheduler, stop_scheduler
 from app.config import settings
 from app.database import engine
 from app.db_init import seed_default
+from app.email.scheduler import register_email_jobs
 from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.assets.router import router as assets_router
@@ -97,6 +98,15 @@ async def lifespan(app: FastAPI):
             register_reminders_job(scheduler)
         except Exception:  # noqa: BLE001
             logger.exception("Failed to register the reminders job; continuing without it.")
+    # The email jobs are registered onto the SAME scheduler instance, gated by
+    # the master switch (design.md, "aditivo tras EMAIL_ENABLED"). Isolated
+    # try/except: a failure here never rolls back the alert/reminders jobs
+    # already registered (dependency direction: main -> email, never alerts -> email).
+    if scheduler is not None and settings.EMAIL_ENABLED:
+        try:
+            register_email_jobs(scheduler)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to register the email jobs; continuing without them.")
     yield
     try:
         stop_scheduler()

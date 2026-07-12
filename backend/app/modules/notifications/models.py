@@ -1,8 +1,9 @@
 """Notification ORM model — in-app notification per user."""
 import uuid
+from datetime import datetime
 
+from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -29,3 +30,8 @@ class Notification(PkMixin, TimestampMixin, TenantMixin, Base):
         nullable=False,
         index=True,
     )
+    # Set the moment this notification is delivered by email (immediate or
+    # digest) — NULL until then. Prevents the digest from re-summarizing a
+    # notification already sent, and lets the immediate-send hook mark it
+    # atomically in the same transaction that creates the row (D2).
+    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

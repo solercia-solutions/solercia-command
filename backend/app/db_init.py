@@ -14,9 +14,10 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, Base, engine
-from app.methodology.factory import get_strategy
 
 # Import ALL models so they register on the shared metadata.
+from app.email.models import EmailOutbox  # noqa: F401
+from app.methodology.factory import get_strategy
 from app.modules.activity.models import TaskHistory  # noqa: F401
 from app.modules.alert_rules.models import AlertRule  # noqa: F401
 from app.modules.assets.models import Asset, AssetLicense, AssetTask  # noqa: F401

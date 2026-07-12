@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from app.email.outbox import enqueue_immediate_email
 from app.modules.notifications.models import Notification
 from app.realtime.publisher import buffer_notification
 from app.shared.enums import NotificationStatus
@@ -100,16 +101,21 @@ class NotificationRepository:
     async def create(self, **kwargs) -> Notification:
         """Persist a notification — the single point where one is born.
 
-        Also buffers it for realtime push (``buffer_notification``): the
-        evaluator and comment mentions both call this method directly (the
-        service layer has no ``create()`` of its own), so this is the ONE
-        place that needs to know about the realtime channel. The actual push
+        Also buffers it for realtime push (``buffer_notification``) and, if
+        urgent, enqueues it for immediate email delivery in the SAME
+        transaction (``enqueue_immediate_email`` — change 08, design.md D2):
+        the evaluator and comment mentions both call this method directly
+        (the service layer has no ``create()`` of its own), so this is the
+        ONE place that needs to know about either channel. The realtime push
         happens later, when the transaction owner drains the buffer with
-        ``flush_pending(db)`` right after ``commit()`` (design.md D2).
+        ``flush_pending(db)`` right after ``commit()``; the email is drained
+        later still by the ``email_dispatch`` job (D3) — neither channel
+        blocks or can fail this write.
         """
         notification = Notification(**kwargs)
         self.db.add(notification)
         await self.db.flush()
         await self.db.refresh(notification)
         buffer_notification(self.db, notification)
+        await enqueue_immediate_email(self.db, notification)
         return notification
