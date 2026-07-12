@@ -56,10 +56,10 @@ Chain strategy: stacked-to-main
 
 ## Batch B1 — tasks + notifications
 
-- [ ] T07 RED — `backend/tests/test_tasks_pagination.py`: `GET /projects/{id}/tasks` sin params = lista completa + `meta{total}` (byte-compat); `?page=2&size=10` = slice correcto; `?sort=assignee_name`→422; `?sort=created_at&order=desc`→200 ordenado. (R1, R2, R3, G3)
-- [ ] T08 GREEN — Wire `pagination_params`/`paginate` en `tasks/router.py` + `tasks/repository.py`; `SORTABLE_FIELDS` sin `assignee_name`. (R1, R2, R3, G3)
-- [ ] T09 RED — `backend/tests/test_notifications_pagination.py`: `GET /notifications` — mismos 4 escenarios (compat, slice, sort inválido 422, sort/order válidos). (R1, R2, R3)
-- [ ] T10 GREEN — Wire pagination en `notifications/router.py` + `notifications/repository.py`. (R1, R2, R3)
+- [x] T07 RED — `backend/tests/test_tasks_pagination.py`: `GET /projects/{id}/tasks` sin params = lista completa + `meta{total}` (byte-compat); `?page=2&size=10` = slice correcto; `?sort=assignee_name`→422; `?sort=created_at&order=desc`→200 ordenado. (R1, R2, R3, G3)
+- [x] T08 GREEN — Wire `pagination_params`/`paginate` en `tasks/router.py` + `tasks/repository.py`; `SORTABLE_FIELDS` sin `assignee_name`. (R1, R2, R3, G3)
+- [x] T09 RED — `backend/tests/test_notifications_pagination.py`: `GET /notifications` — mismos 4 escenarios (compat, slice, sort inválido 422, sort/order válidos). (R1, R2, R3)
+- [x] T10 GREEN — Wire pagination en `notifications/router.py` + `notifications/repository.py`. (R1, R2, R3)
 
 ## Batch B2 — catálogos admin (users, roles, menus)
 

@@ -14,6 +14,7 @@ from app.dependencies import get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.tasks.schemas import TaskCreate, TaskUpdate
 from app.modules.tasks.service import TaskService
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(tags=["tasks"])
 
@@ -39,20 +40,26 @@ async def list_tasks(
     sprint_id: uuid.UUID | None = Query(default=None),
     status: str | None = Query(default=None),
     assignee_id: uuid.UUID | None = Query(default=None),
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List a project's top-level tasks, optionally filtered by sprint, status or assignee."""
+    """List a project's top-level tasks, optionally filtered by sprint, status or assignee.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = TaskService(db)
-    tasks = await service.list_tasks(
+    tasks, total = await service.list_tasks(
         membership.organization_id,
         project_id,
         sprint_id=sprint_id,
         status=status,
         assignee_id=assignee_id,
+        pagination=pagination,
     )
-    return {"data": tasks, "meta": {"total": len(tasks)}}
+    return {"data": tasks, "meta": build_list_meta(pagination, total)}
 
 
 @router.post("/projects/{project_id}/tasks", status_code=status.HTTP_201_CREATED)

@@ -10,6 +10,7 @@ from app.modules.notifications.schemas import NotificationRead, NotificationStat
 from app.modules.notifications.service import NotificationService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import NotificationStatus
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -17,18 +18,23 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 @router.get("", response_model=dict)
 async def list_notifications(
     status: NotificationStatus | None = Query(default=None),
+    pagination: PaginationParams = Depends(pagination_params),
     db: AsyncSession = Depends(get_db),
     membership: OrganizationMember = Depends(get_current_membership),
 ) -> dict:
-    """List notifications for the current user. Defaults to active only."""
+    """List notifications for the current user. Defaults to active only.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
     service = NotificationService(db)
-    notifications = await service.list_notifications(
-        membership.organization_id, membership.user_id, status
+    notifications, total = await service.list_notifications(
+        membership.organization_id, membership.user_id, status, pagination
     )
     return {
         "data": [NotificationRead.model_validate(n).model_dump() for n in notifications],
         "message": "Notificaciones obtenidas.",
-        "meta": {"total": len(notifications)},
+        "meta": build_list_meta(pagination, total),
     }
 
 

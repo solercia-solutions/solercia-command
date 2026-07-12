@@ -1,5 +1,6 @@
 """Notification service — business logic for in-app notifications."""
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +9,7 @@ from app.modules.notifications.repository import NotificationRepository
 from app.modules.notifications.schemas import NotificationStatusUpdate
 from app.shared.enums import NotificationStatus
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 
 class NotificationService:
@@ -19,8 +21,11 @@ class NotificationService:
         org_id: uuid.UUID,
         user_id: uuid.UUID,
         status_filter: NotificationStatus | None,
-    ) -> list[Notification]:
-        return await self.repo.list_for_user(org_id, user_id, status_filter)
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Notification], int]:
+        return await self.repo.list_for_user(
+            org_id, user_id, status_filter, pagination
+        )
 
     async def unread_count(self, org_id: uuid.UUID, user_id: uuid.UUID) -> int:
         return await self.repo.count_active(org_id, user_id)

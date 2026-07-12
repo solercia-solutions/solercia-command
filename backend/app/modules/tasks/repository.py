@@ -9,12 +9,27 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 from app.modules.users.models import User
 from app.shared.enums import MemberRole
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /projects/{id}/tasks``. The first entry is
+# the default order when pagination is requested without an explicit ``sort``.
+# ``assignee_name`` is deliberately excluded: it's a Python-side computed
+# field (see ``TaskService._to_read``), not an ORM column in this statement.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "order": Task.order,
+    "title": Task.title,
+    "status": Task.status,
+    "priority": Task.priority,
+    "due_date": Task.due_date,
+    "created_at": Task.created_at,
+}
 
 
 class TaskRepository:
@@ -34,8 +49,15 @@ class TaskRepository:
         parent_task_id: uuid.UUID | None = None,
         subtasks_only: bool = False,
         top_level_only: bool = False,
-    ) -> Sequence[Task]:
-        """Return active tasks of a project, filtered and ordered for a board."""
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Task], int]:
+        """Return active tasks of a project, filtered and ordered for a board.
+
+        Returns ``(rows, total)``. When ``pagination`` is ``None`` or the
+        caller didn't opt in (see :attr:`PaginationParams.requested`), ``rows``
+        is the full filtered collection (byte-compatible with the pre-pagination
+        behavior) and ``total`` is simply ``len(rows)``.
+        """
 
         stmt = (
             select(Task)
@@ -59,9 +81,13 @@ class TaskRepository:
         if top_level_only:
             stmt = stmt.where(Task.parent_task_id.is_(None))
 
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
         stmt = stmt.order_by(Task.order.asc(), Task.created_at.asc())
         result = await self.db.execute(stmt)
-        return result.scalars().all()
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def list_for_org(
         self, organization_id: uuid.UUID

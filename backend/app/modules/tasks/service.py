@@ -20,6 +20,7 @@ from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpdate
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 # Fallback default status for blank-slate (custom) methodologies that expose no
 # predefined columns.
@@ -65,20 +66,28 @@ class TaskService:
         sprint_id: uuid.UUID | None = None,
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
-    ) -> list[TaskRead]:
-        """Return the project's top-level tasks honoring the optional filters."""
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[TaskRead], int]:
+        """Return the project's top-level tasks honoring the optional filters.
+
+        Returns ``(tasks, total)`` — see ``TaskRepository.list_for_project``.
+        """
 
         project = await self._require_project(organization_id, project_id)
-        tasks = await self.repo.list_for_project(
+        tasks, total = await self.repo.list_for_project(
             organization_id,
             project_id,
             sprint_id=sprint_id,
             status=status,
             assignee_id=assignee_id,
             top_level_only=True,
+            pagination=pagination,
         )
         name_map = await self._assignee_name_map(organization_id)
-        return [self._to_read(task, name_map, project_code=project.code) for task in tasks]
+        reads = [
+            self._to_read(task, name_map, project_code=project.code) for task in tasks
+        ]
+        return reads, total
 
     async def get_task(
         self, organization_id: uuid.UUID, task_id: uuid.UUID
@@ -154,7 +163,7 @@ class TaskService:
 
         task = await self._require_task(organization_id, task_id)
         project = await self._require_project(organization_id, task.project_id)
-        subtasks = await self.repo.list_for_project(
+        subtasks, _ = await self.repo.list_for_project(
             organization_id,
             task.project_id,
             parent_task_id=task_id,
