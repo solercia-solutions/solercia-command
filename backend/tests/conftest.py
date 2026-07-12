@@ -20,6 +20,7 @@ them. New tests (from this file onward) should prefer the in-process ASGI
 import os
 import uuid
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
@@ -178,3 +179,206 @@ async def user(session: AsyncSession, tenant):
 
     token = create_access_token(str(new_user.id))
     return new_user, token
+
+
+@pytest_asyncio.fixture
+async def second_tenant(session: AsyncSession):
+    """A second persisted ``Organization``, distinct from ``tenant``."""
+
+    from app.modules.organizations.models import Organization
+
+    organization = Organization(
+        name="Second Org", slug=f"second-org-{uuid.uuid4().hex[:12]}"
+    )
+    session.add(organization)
+    await session.flush()
+    return organization
+
+
+@pytest.fixture
+def make_member():
+    """Factory fixture: ``await make_member(session, org, role) -> (User, token)``.
+
+    Unlike the ``user`` fixture (always ``MemberRole.member``), this factory
+    builds a member of any ``MemberRole`` for a given organization. The email
+    is generated internally (``uuid.uuid4().hex[:12]``, same scheme as
+    ``user``) — no ``suffix`` parameter — so it is safe to call repeatedly
+    within the same org/test.
+    """
+
+    async def _make_member(session: AsyncSession, org, role):
+        from app.modules.organizations.models import OrganizationMember
+        from app.modules.users.models import User
+        from app.shared.security import create_access_token, hash_password
+
+        role_label = str(role.value if hasattr(role, "value") else role)
+        new_user = User(
+            email=f"member-{uuid.uuid4().hex[:12]}@example.com",
+            primer_nombre="Member",
+            primer_apellido=role_label.capitalize(),
+            hashed_password=hash_password("Test123*"),
+        )
+        session.add(new_user)
+        await session.flush()
+
+        session.add(
+            OrganizationMember(
+                organization_id=org.id,
+                user_id=new_user.id,
+                role=role,
+            )
+        )
+        await session.flush()
+
+        token = create_access_token(str(new_user.id))
+        return new_user, token
+
+    return _make_member
+
+
+@pytest.fixture
+def rbac_admin():
+    """Factory fixture: ``await rbac_admin(session, org, user) -> None``.
+
+    Grants ``user`` the RBAC ``ADMIN`` role in ``org`` (satisfies
+    ``require_admin``). ``MemberRole`` (used by ``require_role``) is a
+    SEPARATE system from the RBAC catalog (used by ``require_admin``) — see
+    multi-tenancy/rbac-catalog specs. This creates the RBAC ``Role``/
+    ``UserRole`` link directly; it does NOT touch the user's
+    ``OrganizationMember.role``.
+    """
+
+    async def _rbac_admin(session: AsyncSession, org, user) -> None:
+        from app.modules.roles.models import Role, UserRole
+
+        role = Role(organization_id=org.id, code="ADMIN", name="Administrator")
+        session.add(role)
+        await session.flush()
+
+        session.add(UserRole(user_id=user.id, role_id=role.id))
+        await session.flush()
+
+    return _rbac_admin
+
+
+@dataclass
+class OrgData:
+    """One organization's worth of seeded tenant-scoped data."""
+
+    organization: object
+    user: object
+    token: str
+    project: object
+    task: object
+    alert_rule: object
+    notification: object
+
+
+@dataclass
+class TwoOrgs:
+    """Two fully-seeded organizations (A/B) for cross-tenant isolation tests."""
+
+    a: OrgData
+    b: OrgData
+
+
+async def _seed_org_data(session: AsyncSession, *, name: str, code: str) -> OrgData:
+    """Create one organization with a user, project, task, alert_rule and notification."""
+
+    from app.modules.alert_rules.models import AlertRule
+    from app.modules.notifications.models import Notification
+    from app.modules.organizations.models import Organization, OrganizationMember
+    from app.modules.projects.models import Project
+    from app.modules.tasks.models import Task
+    from app.modules.users.models import User
+    from app.shared.enums import MemberRole, Methodology
+    from app.shared.security import create_access_token, hash_password
+
+    organization = Organization(name=name, slug=f"{code.lower()}-{uuid.uuid4().hex[:12]}")
+    session.add(organization)
+    await session.flush()
+
+    owner = User(
+        email=f"owner-{uuid.uuid4().hex[:12]}@example.com",
+        primer_nombre="Owner",
+        primer_apellido=code,
+        hashed_password=hash_password("Test123*"),
+    )
+    session.add(owner)
+    await session.flush()
+
+    session.add(
+        OrganizationMember(
+            organization_id=organization.id,
+            user_id=owner.id,
+            role=MemberRole.admin,
+        )
+    )
+    await session.flush()
+
+    project = Project(
+        organization_id=organization.id,
+        name=f"{name} Project",
+        methodology=Methodology.kanban,
+        code=code,
+        task_counter=0,
+    )
+    session.add(project)
+    await session.flush()
+
+    task = Task(
+        project_id=project.id,
+        title=f"{name} Task",
+        status="Backlog",
+        assignee_id=owner.id,
+    )
+    session.add(task)
+    await session.flush()
+
+    alert_rule = AlertRule(
+        organization_id=organization.id,
+        rule_type="task_overdue",
+        enabled=True,
+        threshold_params={},
+    )
+    session.add(alert_rule)
+    await session.flush()
+
+    notification = Notification(
+        organization_id=organization.id,
+        recipient_user_id=owner.id,
+        rule_type="task_overdue",
+        title=f"{name} notification",
+        body="Seed notification for isolation tests.",
+        target_type="task",
+        target_id=task.id,
+        dedup_key=f"task_overdue:{task.id}",
+    )
+    session.add(notification)
+    await session.flush()
+
+    token = create_access_token(str(owner.id))
+    return OrgData(
+        organization=organization,
+        user=owner,
+        token=token,
+        project=project,
+        task=task,
+        alert_rule=alert_rule,
+        notification=notification,
+    )
+
+
+@pytest_asyncio.fixture
+async def two_orgs(session: AsyncSession) -> TwoOrgs:
+    """Two organizations (A/B), each with its own user/project/task/alert_rule/notification.
+
+    Mandatory fixture for every tenant-scoped suite (design.md, "fixtures de
+    dos organizaciones para aislamiento"): asserts that a member of A never
+    lists/reads/edits/deletes a resource whose ``organization_id`` — own or
+    inherited (e.g. Task -> Project) — belongs to B.
+    """
+
+    org_a = await _seed_org_data(session, name="Org A", code="ORGA")
+    org_b = await _seed_org_data(session, name="Org B", code="ORGB")
+    return TwoOrgs(a=org_a, b=org_b)

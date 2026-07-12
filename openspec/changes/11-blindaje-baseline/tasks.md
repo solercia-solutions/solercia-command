@@ -32,13 +32,13 @@ Nota: `Chained PRs recommended: No` se refiere a la ausencia de cadena de Pull R
 
 ## Lote A — conftest (fixtures nuevas) + multi-tenancy + auth (Commit 1)
 
-- [ ] T01 [Foundation] `backend/tests/conftest.py`: agregar `second_tenant(session)`, `make_member(session, org, role) -> (User, token)` (email único vía `uuid.uuid4().hex[:12]`, sin parámetro `suffix`) y `rbac_admin(session, org, user)` (`Role(code="ADMIN")` + `UserRole`).
-- [ ] T02 RED `backend/tests/test_multi_tenancy.py`: R1 aislamiento row-level en `/projects`; R2 tenant resuelto desde `get_current_membership` (1.ª membresía por `created_at`, nunca por parámetro del cliente); R3 `MemberRole` como base de `require_role`; R4 seed idempotente de "Solercia". Usa fixture `two_orgs` (aún inexistente) → falla en colección, confirma rojo.
-- [ ] T03 [Foundation] `backend/tests/conftest.py`: agregar fixture `two_orgs(session) -> TwoOrgs` — orgA/orgB, cada una con user, project, task, alert_rule y notification propios (corrección vinculante del design).
-- [ ] T04 VERIFY `pytest tests/test_multi_tenancy.py -v` → verde.
-- [ ] T05 RED `backend/tests/test_auth.py`: R1/R2 login (access 30 min + cookie refresh httpOnly 7 días `SameSite=lax`); R3 rotación de refresh (jti nuevo + access nuevo); R4 bcrypt con truncamiento a 72 bytes; R5 `GET /auth/me/menus` árbol filtrado por rol; logout 204 + cookie eliminada. (rojo: aserción invertida, ej. mismo jti tras refresh)
-- [ ] T06 VERIFY `pytest tests/test_auth.py -v` → verde.
-- [ ] T07 VERIFY checkpoint Lote A — `cd backend && pytest tests/ -v` (258+nuevos) verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar multi-tenancy y auth + fixtures de dos organizaciones`.
+- [x] T01 [Foundation] `backend/tests/conftest.py`: agregar `second_tenant(session)`, `make_member(session, org, role) -> (User, token)` (email único vía `uuid.uuid4().hex[:12]`, sin parámetro `suffix`) y `rbac_admin(session, org, user)` (`Role(code="ADMIN")` + `UserRole`).
+- [x] T02 RED `backend/tests/test_multi_tenancy.py`: R1 aislamiento row-level en `/projects`; R2 tenant resuelto desde `get_current_membership` (1.ª membresía por `created_at`, nunca por parámetro del cliente); R3 `MemberRole` como base de `require_role`; R4 seed idempotente de "Solercia". Usa fixture `two_orgs` (aún inexistente) → falla en colección, confirma rojo.
+- [x] T03 [Foundation] `backend/tests/conftest.py`: agregar fixture `two_orgs(session) -> TwoOrgs` — orgA/orgB, cada una con user, project, task, alert_rule y notification propios (corrección vinculante del design).
+- [x] T04 VERIFY `pytest tests/test_multi_tenancy.py -v` → verde.
+- [x] T05 RED `backend/tests/test_auth.py`: R1/R2 login (access 30 min + cookie refresh httpOnly 7 días `SameSite=lax`); R3 rotación de refresh (jti nuevo + access nuevo); R4 bcrypt con truncamiento a 72 bytes; R5 `GET /auth/me/menus` árbol filtrado por rol; logout 204 + cookie eliminada. (rojo: aserción invertida, ej. mismo jti tras refresh)
+- [x] T06 VERIFY `pytest tests/test_auth.py -v` → verde.
+- [x] T07 VERIFY checkpoint Lote A — `cd backend && pytest tests/ -v` (258+nuevos) verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar multi-tenancy y auth + fixtures de dos organizaciones`.
 
 ## Lote B — rbac-catalog + matriz de permisos + users-admin (Commit 2)
 
