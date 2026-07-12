@@ -50,9 +50,9 @@ Riesgo a señalar: la Fase 3 es código generado (autogenerate), no lógica manu
 - [x] 4.5 Verificar: sin `TEST_DATABASE_URL` — integración se salta con razón explícita (R1, caso borde).
 
 ## Fase 5 — README (commit 5, R5, R7)
-- [ ] 5.1 Documentar venv + `pip install -r requirements.txt -r requirements-dev.txt`.
-- [ ] 5.2 Documentar comandos `pytest`, `ruff check`, `mypy`.
-- [ ] 5.3 Reemplazar sección "Migraciones" (ADR 0003 diferido) por el flujo vigente: `alembic revision --autogenerate` por cambio de modelo.
+- [x] 5.1 Documentar venv + `pip install -r requirements.txt -r requirements-dev.txt`.
+- [x] 5.2 Documentar comandos `pytest`, `ruff check`, `mypy`.
+- [x] 5.3 Reemplazar sección "Migraciones" (ADR 0003 diferido) por el flujo vigente: `alembic revision --autogenerate` por cambio de modelo.
 
 ## Fase 6 — Verificación final (sin commit propio)
 - [ ] 6.1 Suite completa con `TEST_DATABASE_URL`: 43+N tests en verde, cero fallos, cero skips inesperados.

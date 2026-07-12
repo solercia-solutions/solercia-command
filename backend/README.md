@@ -11,7 +11,7 @@ app/
   database.py          Engine async, sessionmaker y Base declarativa
   dependencies.py      Dependencias de auth y de alcance por organización
   main.py              App FastAPI, CORS, routers y lifespan (espera de BD + seed)
-  db_init.py           create_all + seed del administrador por defecto
+  db_init.py           seed idempotente (organización, RBAC, admin, demo); create_all solo para fixtures de test
   shared/              Mixins de modelo, enums, seguridad y manejo de errores
   methodology/         Patrón Strategy por metodología (planner/kanban/scrum/custom)
   modules/
@@ -105,11 +105,60 @@ docker compose exec postgres psql -U app -d solercia -c "CREATE DATABASE solerci
 
 ## Migraciones
 
-Alembic está configurado en modo async (`alembic/env.py`). Las migraciones se
-difieren (ADR 0003): el esquema se crea con `create_all` en el arranque. Para
-generar la primera migración cuando se decida adoptarlas:
+Alembic está configurado en modo async (`alembic/env.py`) y es la **fuente de
+verdad del esquema**: `Base.metadata.create_all` ya no crea el esquema en el
+arranque de la aplicación (ver la sección "Ejecución" arriba). Toda la línea
+base vigente vive en `backend/alembic/versions/0001_baseline.py`, generada con
+`alembic revision --autogenerate` contra una base de datos vacía y equivalente
+al esquema que antes producía `create_all`.
+
+Todo cambio de modelo SQLAlchemy (campo nuevo, tabla nueva, índice, etc.) se
+expresa como una nueva revisión Alembic **antes de mergear**:
 
 ```bash
-alembic revision --autogenerate -m "initial schema"
+# 1. Modifica el/los modelos en app/modules/**/models.py.
+# 2. Con el esquema actual aplicado (alembic upgrade head), genera la revisión:
+alembic revision --autogenerate -m "descripcion_del_cambio"
+# 3. Revisa el diff generado en backend/alembic/versions/ — el autogenerate
+#    no es infalible con renombres de columnas ni con algunos tipos.
+# 4. Aplica la migración:
 alembic upgrade head
+```
+
+`alembic check` (Alembic 1.14+) confirma que el esquema migrado no tiene
+diferencias pendientes contra los modelos; `backend/tests/test_migrations_baseline.py`
+lo ejecuta como guardia automática contra una base de datos desechable.
+
+## Desarrollo local (sin Docker)
+
+Para correr `pytest`, `ruff` y `mypy` directamente en el host (fuera de los
+contenedores) crea un entorno virtual e instala las dependencias de
+desarrollo:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Con Postgres accesible (`docker compose up -d postgres`) y `solercia_test`
+provisionada (ver "Base de datos de test" arriba), exporta la URL de test y
+corre la suite:
+
+```bash
+export TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test
+pytest tests/ -v
+```
+
+Sin `TEST_DATABASE_URL` los tests que necesitan base de datos se saltan con
+una razón explícita en el reporte (no fallan ni pasan en falso); los tests
+unitarios corren siempre.
+
+Lint y tipos, con cero hallazgos esperados (configurados en
+`backend/pyproject.toml`):
+
+```bash
+ruff check .
+mypy app/
 ```
