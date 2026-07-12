@@ -38,11 +38,19 @@ class UserRepository:
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
     ) -> tuple[Sequence[User], int]:
-        """Return ``(users, total)`` — every user belonging to the organization."""
+        """Return ``(users, total)`` — every ACTIVE user belonging to the organization.
+
+        Soft-deleted users (``is_active=False``) are excluded, matching R3
+        ("DELETE ... deja de aparecer en la lista") — see
+        users-admin/spec.md and the bugfix note in this change's design.
+        """
 
         stmt = select(User).join(
             OrganizationMember, OrganizationMember.user_id == User.id
-        ).where(OrganizationMember.organization_id == organization_id)
+        ).where(
+            OrganizationMember.organization_id == organization_id,
+            User.is_active.is_(True),
+        )
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
