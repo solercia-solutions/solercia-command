@@ -8,7 +8,7 @@ branching scattered across the codebase.
 import re
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpdate
-from app.shared.enums import EstimationMode
+from app.shared.enums import EstimationMode, Priority
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
@@ -72,14 +72,21 @@ class TaskService:
         sprint_id: uuid.UUID | None = None,
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
-        label_id: uuid.UUID | None = None,
+        label_id: Sequence[uuid.UUID] | None = None,
+        priority: Priority | None = None,
+        due_from: date | None = None,
+        due_to: date | None = None,
+        q: str | None = None,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
 
         Returns ``(tasks, total)`` — see ``TaskRepository.list_for_project``.
+        Raises a ``422`` when ``due_from`` is after ``due_to`` (change
+        10-busqueda-global, R8) before ever touching the repository.
         """
 
+        self._validate_due_range(due_from, due_to)
         project = await self._require_project(organization_id, project_id)
         tasks, total = await self.repo.list_for_project(
             organization_id,
@@ -87,7 +94,11 @@ class TaskService:
             sprint_id=sprint_id,
             status=status,
             assignee_id=assignee_id,
-            label_id=label_id,
+            label_ids=label_id,
+            priority=priority,
+            due_from=due_from,
+            due_to=due_to,
+            q=q,
             top_level_only=True,
             pagination=pagination,
         )
@@ -96,6 +107,17 @@ class TaskService:
             self._to_read(task, name_map, project_code=project.code) for task in tasks
         ]
         return reads, total
+
+    @staticmethod
+    def _validate_due_range(due_from: date | None, due_to: date | None) -> None:
+        """Reject an inverted ``due_from``/``due_to`` range (R8)."""
+
+        if due_from is not None and due_to is not None and due_from > due_to:
+            raise AppException(
+                "La fecha 'due_from' no puede ser posterior a 'due_to'.",
+                code="invalid_due_range",
+                status_code=422,
+            )
 
     async def get_task(
         self, organization_id: uuid.UUID, task_id: uuid.UUID

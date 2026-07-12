@@ -5,6 +5,7 @@ organization. Responses are wrapped in a ``{data, meta}`` envelope.
 """
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.tasks.schemas import TaskColumnMove, TaskCreate, TaskUpdate
 from app.modules.tasks.service import TaskService
+from app.shared.enums import Priority
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(tags=["tasks"])
@@ -40,15 +42,30 @@ async def list_tasks(
     sprint_id: uuid.UUID | None = Query(default=None),
     status: str | None = Query(default=None),
     assignee_id: uuid.UUID | None = Query(default=None),
-    label_id: uuid.UUID | None = Query(default=None),
+    label_id: list[uuid.UUID] | None = Query(
+        default=None, description="Repetible; unión (OR) entre etiquetas."
+    ),
+    priority: Priority | None = Query(default=None),
+    due_from: date | None = Query(
+        default=None, description="Inicio del rango de vencimiento (inclusive)."
+    ),
+    due_to: date | None = Query(
+        default=None, description="Fin del rango de vencimiento (inclusive)."
+    ),
+    q: str | None = Query(
+        default=None, description="Texto libre sobre título/descripción."
+    ),
     pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List a project's top-level tasks, optionally filtered by sprint, status, assignee or label.
+    """List a project's top-level tasks, combining every optional filter.
 
     Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
-    those params the full collection is returned unchanged.
+    those params the full collection is returned unchanged. ``label_id`` is
+    repeatable (``?label_id=a&label_id=b``, OR semantics); ``priority``,
+    ``due_from``/``due_to`` (range) and ``q`` (title/description) compose
+    with every other filter (change 10-busqueda-global, R7).
     """
 
     service = TaskService(db)
@@ -59,6 +76,10 @@ async def list_tasks(
         status=status,
         assignee_id=assignee_id,
         label_id=label_id,
+        priority=priority,
+        due_from=due_from,
+        due_to=due_to,
+        q=q,
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}

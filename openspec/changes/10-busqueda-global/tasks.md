@@ -55,12 +55,12 @@ Nota: `Chained PRs recommended: No` refiere a la ausencia de cadena de Pull Requ
 
 ## Lote C — Filtros avanzados de tareas (Commit 3)
 
-- [ ] T16 RED `backend/tests/test_task_filters.py`: combinación simultánea `status+priority+assignee_id+label_id+due_from+due_to`; `label_id` repetible con semántica OR (unión sin duplicados); `q` sobre `title`/`description`; rango `due_from`/`due_to`; 422 por `priority` fuera de catálogo; 422 por `due_from>due_to`; `meta{page,size,total}` con paginación estándar de 02. Rojo (los kwargs aún no existen en el repository).
-- [ ] T17 GREEN `backend/app/modules/tasks/repository.py::list_for_project`: kwargs opcionales `priority`, `label_ids: Sequence[UUID]` (OR vía `TaskLabel.label_id.in_(...)` + `.distinct()`), `due_from`, `due_to`, `q` (`ILIKE` sobre `title`/`description`); patrón incremental `if x is not None: stmt = stmt.where(...)` ya presente.
-- [ ] T18 GREEN `backend/app/modules/tasks/schemas.py` (o módulo de query params): `priority: Priority | None`, `label_id: list[UUID] | None` (repetible, retrocompatible con un solo valor), `due_from`/`due_to: date | None`, `q: str | None`.
-- [ ] T19 GREEN `backend/app/modules/tasks/service.py`: valida `due_from<=due_to` (cross-field) → `AppException` 422 antes de delegar al repository; `priority` como enum ya da 422 automático vía Pydantic.
-- [ ] T20 GREEN `backend/app/modules/tasks/router.py`: exponer los nuevos query params en `GET /projects/{id}/tasks` (`label_id` pasa a `Query(default=None)` repetible), manteniendo la paginación estándar existente.
-- [ ] T21 VERIFY `pytest backend/tests/test_task_filters.py -v` en verde; `pytest backend/tests/ -v` completo sin regresiones (`test_tasks_pagination.py`, `test_boards*.py`, `test_labels.py`); `ruff check .`, `mypy app`. Commit `feat(tasks): filtros avanzados combinables + paginación estándar`.
+- [x] T16 RED `backend/tests/test_task_filters.py`: combinación simultánea `status+priority+assignee_id+label_id+due_from+due_to`; `label_id` repetible con semántica OR (unión sin duplicados); `q` sobre `title`/`description`; rango `due_from`/`due_to`; 422 por `priority` fuera de catálogo; 422 por `due_from>due_to`; `meta{page,size,total}` con paginación estándar de 02. Rojo (los kwargs aún no existen en el repository).
+- [x] T17 GREEN `backend/app/modules/tasks/repository.py::list_for_project`: kwargs opcionales `priority`, `label_ids: Sequence[UUID]` (OR vía `TaskLabel.label_id.in_(...)` + `.distinct()`), `due_from`, `due_to`, `q` (`ILIKE` sobre `title`/`description`); patrón incremental `if x is not None: stmt = stmt.where(...)` ya presente.
+- [x] T18 GREEN `backend/app/modules/tasks/schemas.py` (o módulo de query params): `priority: Priority | None`, `label_id: list[UUID] | None` (repetible, retrocompatible con un solo valor), `due_from`/`due_to: date | None`, `q: str | None`.
+- [x] T19 GREEN `backend/app/modules/tasks/service.py`: valida `due_from<=due_to` (cross-field) → `AppException` 422 antes de delegar al repository; `priority` como enum ya da 422 automático vía Pydantic.
+- [x] T20 GREEN `backend/app/modules/tasks/router.py`: exponer los nuevos query params en `GET /projects/{id}/tasks` (`label_id` pasa a `Query(default=None)` repetible), manteniendo la paginación estándar existente.
+- [x] T21 VERIFY `pytest backend/tests/test_task_filters.py -v` en verde; `pytest backend/tests/ -v` completo sin regresiones (`test_tasks_pagination.py`, `test_boards*.py`, `test_labels.py`); `ruff check .`, `mypy app`. Commit `feat(tasks): filtros avanzados combinables + paginación estándar`.
 
 ## Trazabilidad de requisitos
 

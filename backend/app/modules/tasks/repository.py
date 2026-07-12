@@ -6,6 +6,7 @@ every read joins ``Task`` to ``Project`` and filters by ``organization_id``.
 
 import uuid
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 from app.modules.users.models import User
-from app.shared.enums import MemberRole
+from app.shared.enums import MemberRole, Priority
 from app.shared.pagination import PaginationParams, paginate
 
 # Whitelist for ``?sort=`` on ``GET /projects/{id}/tasks``. The first entry is
@@ -47,7 +48,11 @@ class TaskRepository:
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
         parent_task_id: uuid.UUID | None = None,
-        label_id: uuid.UUID | None = None,
+        label_ids: Sequence[uuid.UUID] | None = None,
+        priority: Priority | None = None,
+        due_from: date | None = None,
+        due_to: date | None = None,
+        q: str | None = None,
         subtasks_only: bool = False,
         top_level_only: bool = False,
         pagination: PaginationParams | None = None,
@@ -58,6 +63,12 @@ class TaskRepository:
         caller didn't opt in (see :attr:`PaginationParams.requested`), ``rows``
         is the full filtered collection (byte-compatible with the pre-pagination
         behavior) and ``total`` is simply ``len(rows)``.
+
+        ``label_ids`` (one or more) matches ANY of the given labels (OR
+        semantics, deduplicated via ``.distinct()``); ``due_from``/``due_to``
+        filter on the DATE portion of ``due_date`` (a task with no
+        ``due_date`` never matches a range filter, change 10-busqueda-global
+        design.md "Decisión 5").
         """
 
         stmt = (
@@ -81,15 +92,26 @@ class TaskRepository:
             stmt = stmt.where(Task.parent_task_id.isnot(None))
         if top_level_only:
             stmt = stmt.where(Task.parent_task_id.is_(None))
-        if label_id is not None:
+        if label_ids:
             # Deferred import: `tasks` never depends on `labels` at module
             # level (mirrors the `boards` deferred-import pattern, design.md
             # C4) — `labels` is the module that depends on `tasks`.
             from app.modules.labels.models import TaskLabel
 
-            stmt = stmt.join(TaskLabel, TaskLabel.task_id == Task.id).where(
-                TaskLabel.label_id == label_id
+            stmt = (
+                stmt.join(TaskLabel, TaskLabel.task_id == Task.id)
+                .where(TaskLabel.label_id.in_(label_ids))
+                .distinct()
             )
+        if priority is not None:
+            stmt = stmt.where(Task.priority == priority)
+        if due_from is not None:
+            stmt = stmt.where(func.date(Task.due_date) >= due_from)
+        if due_to is not None:
+            stmt = stmt.where(func.date(Task.due_date) <= due_to)
+        if q is not None:
+            pattern = f"%{q}%"
+            stmt = stmt.where(Task.title.ilike(pattern) | Task.description.ilike(pattern))
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
