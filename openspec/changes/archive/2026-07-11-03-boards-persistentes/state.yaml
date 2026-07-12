@@ -2,7 +2,8 @@ change: 03-boards-persistentes
 title: Boards persistentes — Board/BoardColumn sembrados desde la strategy, board_column_id, límites WIP y configuración de columnas en runtime
 artifact_store: hybrid
 strict_tdd: true
-status: IN-PROGRESS
+status: DONE
+archive: done
 depends_on: 02-contrato-api
 depends_on_note: "Orden de apply: los endpoints nuevos/modificados deben seguir el contrato de paginación/auditoría que aterriza 02, y las migraciones Alembic se encadenan linealmente. Spec y design pueden avanzar en paralelo sin esperar a 02."
 hard_rule: "backend únicamente — frontend/ congelado (constraint frontend-frozen). Sin drag&drop ni UI de tablero; este cambio entrega la API."
@@ -25,8 +26,8 @@ phases:
   design: done               # openspec/changes/03-boards-persistentes/design.md — BoardAwareStrategy (custom sin if methodology==), Board 1:1 + BoardColumn(status_key inmutable), move_to_column con SELECT...FOR UPDATE (WIP→409), backfill determinista status→columna, quitar columna con tareas exige destino
   tasks: done                # openspec/changes/03-boards-persistentes/tasks.md — 6 commits secuenciales (A boards module, B resolve_board_strategy rewire, C move_to_column+WIP, D column config API, E backfill migration, Final suite/lint); apply bloqueado hasta 02-contrato-api
   apply: done                # 40/40 tasks; 6 commits (7a9b103, a02067c, d61d644, 08004cc, cb4d849 + tasks.md marks); 179/179 pytest, ruff+mypy clean
-  verify: pending
-  archive: pending
+  verify: done                # openspec/changes/03-boards-persistentes/verify-report.md — PASS; 179/179 pytest, ruff+mypy clean, live HTTP spot-checks, backfill verified en solercia, 0 CRITICAL/0 WARNING/1 SUGGESTION
+  archive: done
 next_recommended:
-  - sdd-verify
+  - none
 updated: 2026-07-11

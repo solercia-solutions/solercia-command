@@ -1,8 +1,38 @@
-# Boards — Especificación (nueva)
+# Spec — Tableros persistentes (boards)
+
+> Introducido en cambio 03-boards-persistentes (2026-07-11). Especifica Board/BoardColumn con siembra desde strategy, WIP y configuración runtime.
 
 ## Propósito
 
 Persistir el tablero por proyecto (`Board` + `BoardColumn`) sembrado desde `strategy.default_columns()`, habilitar el movimiento de tareas entre columnas, aplicar límites WIP y exponer una API de configuración de columnas en runtime que hace usable la metodología `custom`.
+
+## Alcance
+
+| Método | Ruta | Propósito |
+|--------|------|-----------|
+| GET | /api/v1/projects/{id}/board | Obtener board con columnas del proyecto |
+| PATCH | /api/v1/boards/{id}/columns/{col_id} | Renombrar columna (status_key inmutable) |
+| PATCH | /api/v1/boards/{id}/columns/reorder | Reordenar columnas |
+| POST | /api/v1/boards/{id}/columns | Agregar columna al board |
+| DELETE | /api/v1/boards/{id}/columns/{col_id} | Quitar columna con reglas de reasignación |
+
+Modelo `Board` (Pk + Timestamp + SoftDelete + Audit):
+
+| Campo | Descripción |
+|-------|-------------|
+| project_id | FK UNIQUE a Project (1:1) |
+| created_by, updated_by | Auditoría |
+
+Modelo `BoardColumn` (Pk + Timestamp + SoftDelete + Audit):
+
+| Campo | Descripción |
+|-------|-------------|
+| board_id | FK a Board (1:N) |
+| name | Texto visible de la columna |
+| status_key | Estado que adopta Task.status al entrar (inmutable, UNIQUE por board) |
+| column_order | Posición en el board (ordenar por column_order, created_at) |
+| wip_limit | Límite de tareas activas (nullable = sin límite) |
+| created_by, updated_by | Auditoría |
 
 ## Requirements
 
@@ -107,3 +137,16 @@ En columnas con `wip_limit` no nulo, el sistema DEBE contar las tareas activas y
 - DADO una columna con `wip_limit = 3` y 2 tareas activas
 - CUANDO se mueve una tercera tarea a esa columna
 - ENTONCES el movimiento se acepta
+
+## Limitaciones y deuda conocida
+
+- **Slugs vs. nombres literales en status_key**: las metodologías fijas (planner, kanban, scrum) usan nombres literales con espacios y acentos ("Sin iniciar", "In Review") como status_key, mientras que las columnas agregadas runtime a custom usan slugs (_slugify). MVP aceptable (frontend congelado); futuro: normalizar a slugs en toda la línea base.
+- Sin swimlanes, sub-columnas ni WIP avanzado (ej. WIP per-person).
+- Sin múltiples boards por proyecto.
+- Sin re-siembra al cambiar la metodología de un proyecto existente (custom fijo).
+
+## Referencias
+
+- backend/app/modules/boards/ (models.py, repository.py, service.py, router.py, schemas.py)
+- backend/app/modules/projects/service.py (sembrado de board en create_project)
+- backend/alembic/versions/0003_add_boards_and_board_column_id.py

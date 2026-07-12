@@ -37,6 +37,8 @@ Modelo `Task` (Pk + Timestamp + SoftDelete; scope de tenant vía join a Project)
 - **R2**: `PATCH` DEBE rechazar estados no permitidos por la strategy de la metodología del proyecto.
 - **R3**: El detalle de una tarea con subtareas DEBE incluir el progreso agregado de sus subtareas.
 - **R4**: La lista por proyecto DEBE soportar los filtros combinables `sprint_id`, `status` y `assignee_id`.
+- **R5** (03-boards-persistentes): `Task` DEBE tener campo `board_column_id` (FK nullable a BoardColumn); al crear, asignación por defecto a primera columna por order; al mover, status derivado de status_key de la columna destino.
+- **R6** (03-boards-persistentes): Backfill al aplicar migración: tarea existente → columna con status_key coincidente, si no → primera columna por order.
 
 ### Escenarios centrales
 
@@ -55,9 +57,51 @@ Modelo `Task` (Pk + Timestamp + SoftDelete; scope de tenant vía join a Project)
 - Cuando se consulta `GET /tasks/{id}`
 - Entonces el detalle reporta el progreso 2/4.
 
+### MODIFIED Requirements (03-boards-persistentes)
+
+#### Requirement: Estado validado por metodología
+
+`PATCH` DEBE derivar el `status` de la tarea desde el `status_key` de la `BoardColumn` destino (`board_column_id`) cuando el movimiento se realiza entre columnas del board del proyecto. El `status` resultante DEBE pertenecer a `allowed_statuses()` de la strategy de la metodología del proyecto; un movimiento hacia una columna cuyo `status_key` no esté permitido DEBE rechazarse.
+(Previously: `PATCH` aceptaba un campo `status` libre validado directamente contra `allowed_statuses()`, sin relación con ninguna entidad de columna persistida porque no existían `Board`/`BoardColumn`.)
+
+**Scenario: Movimiento válido actualiza status desde la columna**
+- DADO una tarea de un proyecto kanban asignada a la columna `Backlog` (`status_key = backlog`)
+- CUANDO se hace `PATCH` moviéndola a la columna `Doing` (`status_key = doing`)
+- ENTONCES `board_column_id` pasa a apuntar a `Doing` y `status` pasa a `doing`
+
+**Scenario: Movimiento a estado no permitido por la strategy**
+- DADO una tarea de un proyecto planner
+- CUANDO se intenta mover la tarea a una columna cuyo `status_key` es `in_review` (no permitido por planner)
+- ENTONCES la API rechaza el movimiento
+
+### ADDED Requirements (03-boards-persistentes)
+
+#### Requirement: Campo board_column_id
+
+`Task` DEBE tener un campo `board_column_id` (FK nulable a `BoardColumn`). Toda tarea creada en un proyecto cuyo board tenga al menos una columna DEBE quedar asignada a una columna: la indicada explícitamente en la solicitud de creación, o —si no se indica ninguna— la primera columna del board por `order`, fijando `status` desde su `status_key`.
+
+**Scenario: Asignación a columna por defecto al crear**
+- DADO un proyecto kanban cuyo board tiene columnas `[Backlog, Doing, Done]` en ese orden
+- CUANDO se crea una tarea sin especificar columna
+- ENTONCES la tarea se asigna a la columna `Backlog` (primera por `order`) y `status = backlog`
+
+#### Requirement: Backfill de tareas existentes a columnas por status
+
+Al aplicar la migración de este cambio, toda tarea existente DEBE quedar asignada a la `BoardColumn` sembrada cuyo `status_key` coincida con su `status` actual. Si ningún `status_key` sembrado coincide con el `status` de una tarea, esa tarea DEBE asignarse a la primera columna del board por `order` (columna de fallback) y el caso DEBE quedar registrado para revisión posterior.
+
+**Scenario: Backfill con coincidencia directa**
+- DADO una tarea existente con `status = "done"` en un proyecto kanban cuyo board sembrado tiene una columna con `status_key = "done"`
+- CUANDO corre la migración de backfill
+- ENTONCES la tarea queda con `board_column_id` apuntando a esa columna
+
+**Scenario: Backfill con status sin columna coincidente**
+- DADO una tarea existente con `status = "archived"` que no coincide con ningún `status_key` de las columnas sembradas del proyecto
+- CUANDO corre la migración de backfill
+- ENTONCES la tarea se asigna a la primera columna del board por `order` y el caso se registra para revisión
+
 ## Limitaciones y deuda conocida
 
-- NO existe `board_column_id` ni entidades Board/BoardColumn: el "tablero" es solo el status string de la strategy.
+- Boards y columnas persistidas (introducidas en 03-boards-persistentes); board_column_id en Task es nullable para compatibilidad con custom sin columnas.
 - NO existen Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency, TaskTimeLog ni TaskHistory (previstos en CLAUDE.md).
 - Sin validación Fibonacci de puntos; sin paginación en listas.
 - Tests: cobertura de clave legible (test_task_key, 13) y subtareas (test_subtasks, 4); el CRUD/PATCH general y los filtros tienen CERO tests directos. Sin tests de permisos.

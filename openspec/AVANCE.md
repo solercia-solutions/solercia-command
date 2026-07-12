@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; cambios 01-fundacion-tdd y 02-contrato-api completados y archivados; 8 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; cambios 01-fundacion-tdd, 02-contrato-api y 03-boards-persistentes completados y archivados; 7 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -37,8 +37,9 @@ flowchart TD
     class B0 done
     class C01 done
     class C02 done
+    class C03 done
     class FE inprogress
-    class C03,C04,C05,C06,C07,C08,C09,C10 pending
+    class C04,C05,C06,C07,C08,C09,C10 pending
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
     classDef inprogress fill:#eab308,stroke:#854d0e,color:#000000
@@ -82,7 +83,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 |---|--------|---------|--------|
 | 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | 🟩 Completado |
 | 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | 🟩 Completado |
-| 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | ⬜ Pendiente |
+| 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | 🟩 Completado |
 | 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | ⬜ Pendiente |
 | 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | ⬜ Pendiente |
 | 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | ⬜ Pendiente |
