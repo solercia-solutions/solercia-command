@@ -107,7 +107,7 @@ Al aplicar la migración de este cambio, toda tarea existente DEBE quedar asigna
 
 - Boards y columnas persistidas (introducidas en 03-boards-persistentes); board_column_id en Task es nullable para compatibilidad con custom sin columnas.
 - Existen Label/TaskLabel (04-labels-checklists-dependencias), TaskChecklist/ChecklistItem (04-labels-checklists-dependencias), TaskDependency (04-labels-checklists-dependencias).
-- NO existen TaskTimeLog ni TaskHistory (previstos en CLAUDE.md para cambio 05-trabajo-realizado).
+- TaskTimeLog y TaskHistory implementados en 05-trabajo-realizado (registros de tiempo y changelog automático).
 - Estado `cancelled` en Task aún no implementado; requiere enriquecimiento en desbloqueo de TaskDependency (deuda trazada en 04).
 - Sin validación Fibonacci de puntos; sin paginación en listas.
 - Tests: cobertura de clave legible (test_task_key, 13) y subtareas (test_subtasks, 4); el CRUD/PATCH general y los filtros tienen CERO tests directos. Sin tests de permisos.
