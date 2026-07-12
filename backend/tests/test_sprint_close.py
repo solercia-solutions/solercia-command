@@ -122,8 +122,8 @@ async def test_close_sprint_sums_only_done_tasks() -> None:
 
         # Move the done task to the terminal status (last allowed).
         r = await client.patch(
-            f"/projects/{project_id}/tasks/{done_task_id}",
-            json={"status": "done"},
+            f"/tasks/{done_task_id}",
+            json={"status": "Done"},
         )
         assert r.status_code == 200
 
@@ -181,7 +181,7 @@ async def test_close_sprint_moves_incomplete_to_backlog() -> None:
         assert r.json()["data"]["tasks_moved"] == 1
 
         # Verify the task is now in the backlog.
-        r = await client.get(f"/projects/{project_id}/tasks/{task_id}")
+        r = await client.get(f"/tasks/{task_id}")
         assert r.status_code == 200
         assert r.json()["data"]["sprint_id"] is None
 
