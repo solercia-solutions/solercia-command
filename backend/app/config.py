@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # Alert engine
     ALERT_SCHEDULER_INTERVAL_HOURS: int = 1
 
+    # Reminder engine — separate interval from the alert engine's own job
+    # (both run on the same AsyncIOScheduler instance, see app/reminders/scheduler.py).
+    REMINDER_SCHEDULER_INTERVAL_MINUTES: int = 5
+
 
 @lru_cache
 def get_settings() -> Settings:

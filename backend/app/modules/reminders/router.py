@@ -2,9 +2,8 @@
 
 All endpoints require authentication and are scoped to the caller's own
 resources within their current organization. Responses are wrapped in a
-``{data[, message][, meta]}`` envelope. ``POST /reminders/dispatch`` (Fase B,
-admin-only) is appended at the bottom of this router once the dispatch engine
-exists (``app.reminders.dispatcher``).
+``{data[, message][, meta]}`` envelope. ``POST /reminders/dispatch`` (Fase B)
+is admin-only (``require_admin``), espejo de ``POST /alerts/evaluate``.
 """
 
 import uuid
@@ -13,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_actor_id, get_current_membership
+from app.dependencies import get_actor_id, get_current_membership, require_admin
 from app.modules.organizations.models import OrganizationMember
 from app.modules.reminders.schemas import (
     ReminderCreate,
@@ -22,6 +21,8 @@ from app.modules.reminders.schemas import (
     ReminderUpdate,
 )
 from app.modules.reminders.service import ReminderRuleService, ReminderService
+from app.modules.users.models import User
+from app.reminders.dispatcher import dispatch_reminders
 from app.shared.enums import ReminderStatus
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
@@ -161,3 +162,16 @@ async def update_reminder_rule(
         actor_id=actor_id,
     )
     return {"data": rule, "message": "Regla de recordatorio actualizada."}
+
+
+@router.post("/reminders/dispatch")
+async def trigger_reminder_dispatch(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict:
+    """Trigger the reminder dispatcher on demand (admin only). Useful for testing."""
+    total = await dispatch_reminders(db)
+    return {
+        "data": {"created": total},
+        "message": f"Disparo de recordatorios completado. {total} notificaciones nuevas creadas.",
+    }

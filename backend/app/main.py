@@ -34,6 +34,7 @@ from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
+from app.reminders.scheduler import register_reminders_job
 from app.shared.exceptions import register_exception_handlers
 
 logging.basicConfig(level=logging.INFO)
@@ -80,10 +81,20 @@ async def lifespan(app: FastAPI):
     await seed_default()
     # The alert scheduler must never block app startup: a failure here is logged
     # and the API keeps serving (alerts can still be triggered on-demand).
+    scheduler = None
     try:
-        start_scheduler()
+        scheduler = start_scheduler()
     except Exception:  # noqa: BLE001
         logger.exception("Failed to start the alert scheduler; continuing without it.")
+    # The reminders job is registered onto the SAME scheduler instance
+    # (design.md, "segundo job propio en el MISMO AsyncIOScheduler"). Isolated
+    # try/except: a failure here never rolls back the already-started alert
+    # scheduler (dependency direction: main -> reminders, never alerts -> reminders).
+    if scheduler is not None:
+        try:
+            register_reminders_job(scheduler)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to register the reminders job; continuing without it.")
     yield
     try:
         stop_scheduler()

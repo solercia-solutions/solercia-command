@@ -377,3 +377,40 @@ async def test_disable_reminder_rule(
     )
     assert response.status_code == 200, response.text
     assert response.json()["data"]["enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# R7 — Disparo manual admin-only (Fase B)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_dispatch_endpoint_admin_returns_count(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+    rbac_admin,
+) -> None:
+    """POST /reminders/dispatch with RBAC ADMIN runs the dispatcher and reports a count."""
+
+    admin, admin_token = user
+    await rbac_admin(session, tenant, admin)
+
+    response = await client.post("/reminders/dispatch", headers=_auth(admin_token))
+
+    assert response.status_code == 200, response.text
+    assert isinstance(response.json()["data"]["created"], int)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_dispatch_endpoint_rejects_non_admin(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """POST /reminders/dispatch without the RBAC ADMIN role responds 403."""
+
+    _, token = user
+    response = await client.post("/reminders/dispatch", headers=_auth(token))
+    assert response.status_code == 403
