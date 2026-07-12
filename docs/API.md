@@ -2366,6 +2366,7 @@ endpoints en el alcance de ese contrato.
 | GET    | `/api/v1/notifications`                    | Sí   | 📄 | Lista las notificaciones del usuario.        |
 | GET    | `/api/v1/notifications/unread-count`       | Sí   |    | Conteo de notificaciones activas.            |
 | PATCH  | `/api/v1/notifications/{id}`               | Sí   |    | Cambia el estado de una notificación propia. |
+| GET    | `/api/v1/notifications/{id}/deliveries`    | Sí   |    | Auditoría de entregas por canal (admin/manager). |
 | GET    | `/api/v1/reminders`                        | Sí   | 📄 | Lista los recordatorios personales del usuario. |
 | POST   | `/api/v1/reminders`                        | Sí   |    | Crea un recordatorio manual (futuro únicamente; 422 si `remind_at` ≤ ahora). |
 | GET    | `/api/v1/reminders/{id}`                   | Sí   |    | Devuelve un recordatorio propio (404 si es ajeno). |
@@ -2544,6 +2545,92 @@ ws.onclose = () => {
 | `WS_ENABLED` | `true` | Habilita/deshabilita el endpoint WS. Si `false`, retorna `503` (endpoint no disponible). |
 | `WS_HEARTBEAT_SECONDS` | `30` | Intervalo en segundos para enviar `ping` al cliente. |
 | `WS_IDLE_TIMEOUT_SECONDS` | `60` | Tiempo máximo en segundos sin recibir `pong` antes de cerrar la conexión. |
+
+---
+
+## Auditoría de entregas de notificaciones
+
+### GET `/api/v1/notifications/{id}/deliveries`
+
+Devuelve el historial de entregas (intentos, canales, estado) de una notificación específica. Acceso restringido a usuarios con rol `admin` o `manager` de la organización. Útil para auditar por qué una notificación se envió o falló.
+
+**Permisos**
+
+- ✅ Permitido: `admin`, `manager`
+- ❌ Rechazado: `member`, `viewer` (incluido el dueño de la notificación)
+
+**Request**
+
+```http
+GET /api/v1/notifications/a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d/deliveries HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <access_token>
+```
+
+**Response `200 OK`** — Entregas encontradas
+
+```json
+{
+  "data": {
+    "deliveries": [
+      {
+        "id": "del-uuid-1",
+        "notification_id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+        "channel": "email",
+        "status": "sent",
+        "attempts": 1,
+        "last_error": null,
+        "sent_at": "2026-07-12T10:30:15Z",
+        "created_at": "2026-07-12T10:30:00Z"
+      }
+    ],
+    "digested": false
+  }
+}
+```
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `deliveries[]` | array | Entregas registradas para esa notificación. |
+| `deliveries[].id` | uuid | Identificador de la fila de entrega. |
+| `deliveries[].notification_id` | uuid | FK de la notificación; `null` si es una entrega agregada de digest. |
+| `deliveries[].channel` | string | Canal: `email`, `websocket` (best-effort no aparece), u otro adaptador registrado. |
+| `deliveries[].status` | string | `pending` (reintento pendiente) \| `sent` (entregado con éxito) \| `failed` (agotados reintentos). |
+| `deliveries[].attempts` | int | Número de intentos de envío realizados. |
+| `deliveries[].last_error` | string \| null | Mensaje de error del último intento fallido (nunca expone payload ni credenciales). |
+| `deliveries[].sent_at` | timestamp \| null | Instante en que se completó el envío exitoso. |
+| `digested` | bool | `true` si la notificación fue parte de un digest sin fila individual (hoy no genera fila). |
+
+**Response `403 Forbidden`** — Rol insuficiente
+
+```json
+{
+  "detail": "No tienes permisos para acceder a esta información.",
+  "code": "notification_deliveries_forbidden",
+  "status": 403
+}
+```
+
+**Response `404 Not Found`** — Notificación no existe o pertenece a otra organización
+
+```json
+{
+  "detail": "La notificación no existe o no tienes acceso.",
+  "code": "notification_not_found",
+  "status": 404
+}
+```
+
+---
+
+### Arquitectura de entregas
+
+El hub de notificaciones (`notification-hub`) entrega cada notificación a través de canales registrados. Cada canal declara su **política**:
+
+- **`durable`**: persiste fila en `notification_deliveries`, reintenta según configuración (máximo de intentos), genera log `ERROR` al agotar reintentos. Ejemplos: `email`.
+- **`best_effort`**: sin persistencia en `notification_deliveries` (fire-and-forget post-commit). Si no hay destinatario conectado, se pierde silenciosamente. La notificación permanece accesible vía REST. Ejemplos: `websocket`.
+
+El despachador genérico (`dispatch_deliveries`) corre como job periódico: reclama filas `pending` de forma atómica, intenta envío por canal, registra `sent` o `failed` terminal + retry counter. Una notificación urgente (ej. `license_expired`) encola inmediata en `notification_deliveries` en la misma transacción de negocio; no urgentes quedan pendientes de digest con `emailed_at IS NULL`.
 
 ---
 

@@ -1,6 +1,6 @@
 # Spec — Notificaciones in-app (notifications-inapp)
 
-> **Origen**: línea base as-built (2026-07-11) + [06-reminders](../../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../../changes/archive/2026-07-12-09-websocket-realtime/) + [08-email-notifications](../../changes/archive/2026-07-12-08-email-notifications/)
+> **Origen**: línea base as-built (2026-07-11) + [06-reminders](../../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../../changes/archive/2026-07-12-09-websocket-realtime/) + [08-email-notifications](../../changes/archive/2026-07-12-08-email-notifications/) + [12-notification-hub](../../changes/archive/2026-07-12-12-notification-hub/)
 
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
@@ -67,13 +67,13 @@ El sistema MUST aceptar `rule_type="reminder"` como origen válido de `Notificat
 
 ### Requirement: Publicación al canal realtime en la creación
 
-Cuando el sistema crea una notificación (por mención o por el motor de alertas), MUST invocar, desde el punto único de creación, la publicación best-effort hacia el canal realtime (`realtime-notifications`) del `recipient_user_id`, sin alterar el modelo `Notification` ni el contrato de los endpoints REST existentes (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/{id}`). Esto levanta la limitación de "canal único polling" documentada en la línea base.
+Cuando el sistema crea una notificación (por mención o por el motor de alertas), el punto único de creación MUST delegar el fan-out en el hub de entregas (`notification-hub`), que MUST incluir al canal realtime (`realtime-notifications`) como canal registrado de política `best_effort` hacia el `recipient_user_id`, sin alterar el modelo `Notification` ni el contrato de los endpoints REST existentes (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/{id}`). El punto de creación MUST NOT invocar el canal realtime de forma cableada.
 
-#### Scenario: Creación dispara publicación
+#### Scenario: Creación dispara publicación vía el hub
 
 - GIVEN el punto único de creación de `Notification` (`NotificationRepository.create()`, usado por el evaluador de alertas y por las menciones — el service NO tiene `create()`)
 - WHEN se persiste una notificación nueva y su transacción hace commit
-- THEN el sistema publica (drenaje post-commit best-effort) hacia el canal realtime del destinatario además de persistir el registro
+- THEN el hub publica (drenaje post-commit best-effort) hacia el canal realtime del destinatario, además de persistir el registro
 
 #### Scenario: REST sigue siendo autoritativo
 
@@ -83,12 +83,12 @@ Cuando el sistema crea una notificación (por mención o por el motor de alertas
 
 ### Requirement: Encolado de entrega email en la creación
 
-Desde el punto único de creación (`NotificationRepository.create()`), el sistema MUST encolar la entrega por email (inmediata si el `rule_type` es urgente, o diferida al digest en caso contrario), best-effort, sin alterar el contrato de los endpoints REST existentes (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/{id}`) ni el resto del modelo `Notification`, salvo la columna aditiva `emailed_at`.
+Desde el punto único de creación (`NotificationRepository.create()`), el sistema MUST delegar en el hub de entregas la entrega por email (inmediata si el `rule_type` es urgente, o diferida al digest en caso contrario), a través del canal email registrado con política `durable` sobre `notification_deliveries`, sin alterar el contrato de los endpoints REST existentes (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/{id}`) ni el resto del modelo `Notification`, salvo la columna aditiva `emailed_at`.
 
 #### Scenario: Notificación urgente se encola para envío inmediato
 - GIVEN el punto único de creación de `Notification` con `rule_type="license_expired"`
 - WHEN se persiste y su transacción hace commit
-- THEN queda encolada en el outbox para despacho inmediato best-effort, además de persistida como siempre
+- THEN queda encolada en `notification_deliveries` como entrega DURABLE (el job despachador la envía con reintentos y estado terminal auditable), además de persistida como siempre
 
 #### Scenario: Notificación no urgente queda pendiente de digest
 - GIVEN una notificación creada con `rule_type` no urgente (ej. mención, `task_at_risk`)

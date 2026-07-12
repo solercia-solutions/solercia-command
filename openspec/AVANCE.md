@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-12 (todos los 11 cambios del roadmap backend completados y archivados: 01-fundacion-tdd, 02-contrato-api, 03-boards-persistentes, 04-labels-checklists-dependencias, 05-trabajo-realizado, 06-reminders, 07-assets-sdmujer, 08-email-notifications, 09-websocket-realtime, 10-busqueda-global, 11-blindaje-baseline); 08-email-notifications archivado — canal email agnóstico al proveedor (adaptadores console/smtp, intercambiables por EMAIL_BACKEND), digest configurable por usuario (none|daily|weekly con hora configurable), outbox transaccional con idempotencia por dedup_key, preferencias REST GET/PUT, aislamiento multi-tenant, plantillas español colombiano formal; 19 escenarios verificados, 539/539 tests verdes, ruff/mypy limpios, migraciones 0011/0012 limpias con ciclo downgrade/upgrade probado, push y black-box email+digests verificados contra contenedor; backend del MVP terminado, arquitectura agnóstica a proveedores de email completada; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-12 (12-notification-hub archivado — hub agnóstico al canal con puerto DeliveryChannel + registro de canales (durable/best_effort), outbox generalizado notification_deliveries (rename de email_outbox), despachador genérico con claim atómico + reintentos + estado terminal, adaptadores durable (email) y best_effort (WebSocket) refactorizados sin cambio observable, endpoint GET /notifications/{id}/deliveries (admin/manager) para auditoría de entregas, fronteras de extracción declaradas para canales futuros (FCM/APNs/SMS/webhook); 22 nuevos tests (561/561 total base 539 + 22 nuevos), ruff/mypy limpios, migración 0013 rename+round-trip probada, dos correcciones de gate documentadas: aislamiento de fallos entre canales y bootstrap del registro en db_init; backend de notificaciones completamente estandarizado. Todos los 12 cambios del roadmap backend (01-11 + 12) completados y archivados; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -21,6 +21,7 @@ flowchart TD
     C08["08 · Email notifications<br/>digest configurable"]
     C09["09 · WebSocket realtime<br/>push in-app"]
     C10["10 · Búsqueda global<br/>+ filtros avanzados"]
+    C12["12 · Notification hub<br/>entrega agnóstica al canal"]
 
     FE["Frontend Angular 20<br/>cycle2-design-system<br/>EN PAUSA — espera @solercia/ui"]
 
@@ -33,6 +34,8 @@ flowchart TD
     C02 --> C09
     C04 --> C10
     C05 --> C10
+    C08 --> C12
+    C09 --> C12
 
     FE -.bloqueado por @solercia/ui.- B0
 
@@ -48,6 +51,7 @@ flowchart TD
     class C09 done
     class C10 done
     class C11 done
+    class C12 done
     class FE inprogress
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
@@ -80,13 +84,13 @@ Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna 
 | Vista ejecutiva | [specs/dashboard-executive/spec.md](specs/dashboard-executive/spec.md) | CERO tests |
 | Convenciones de API | [specs/api-conventions/spec.md](specs/api-conventions/spec.md) | Sin tests transversales |
 
-Total tras cambio 08: **539 tests en 35 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 07 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 + 41 en cambio 08 = 539; crecimiento con TDD estricto en cada ciclo).
+Total tras cambio 12: **561 tests en 35 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 07 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 + 41 en cambio 08 + 22 en cambio 12 = 561; crecimiento con TDD estricto en cada ciclo).
 
 ---
 
 ## Roadmap de cambios backend
 
-Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/changes/NN-nombre/`) con TDD estricto.
+**COMPLETADO** — todos los 12 cambios archivados. Ciclo SDD completo por cambio (`openspec/changes/NN-nombre/`) con TDD estricto aplicado en todo el roadmap backend.
 
 | # | Cambio | Alcance | Estado | Specs producidas/modificadas |
 |---|--------|---------|--------|------------------------------|
@@ -101,6 +105,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 | 08 | `08-email-notifications` | Canal email con digest configurable. | 🟩 Completado | [email-notifications](specs/email-notifications/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 09 | `09-websocket-realtime` | Push in-app en tiempo real. | 🟩 Completado | [realtime-notifications](specs/realtime-notifications/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 10 | `10-busqueda-global` | Búsqueda global + filtros avanzados. | 🟩 Completado | [global-search](specs/global-search/spec.md) (nueva) · [tasks](specs/tasks/spec.md) (modificada) |
+| 12 | `12-notification-hub` | Hub agnóstico al canal: puerto `DeliveryChannel` + registro de canales (durable/best_effort), outbox generalizado `notification_deliveries`, despachador genérico con claim atómico + reintentos, adaptadores email (durable) y WS (best_effort) refactorizados sin cambio observable, endpoint de auditoría `/deliveries`, extensibilidad para canales futuros (FCM/APNs/SMS/webhook). | 🟩 Completado | [notification-hub](specs/notification-hub/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md), [email-notifications](specs/email-notifications/spec.md), [realtime-notifications](specs/realtime-notifications/spec.md) (modificadas) |
 
 ---
 
