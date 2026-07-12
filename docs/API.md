@@ -2161,8 +2161,8 @@ enviada).
 
 ## Resumen de endpoints
 
-Regenerada desde la superficie real de los **20 routers** del backend. 📄 = soporta
-paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **17**
+Regenerada desde la superficie real de los **21 routers** del backend. 📄 = soporta
+paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **19**
 endpoints en el alcance de ese contrato.
 
 | Método | Ruta                                       | Auth | 📄 | Descripción                                  |
@@ -2221,6 +2221,15 @@ endpoints en el alcance de ese contrato.
 | GET    | `/api/v1/notifications`                    | Sí   | 📄 | Lista las notificaciones del usuario.        |
 | GET    | `/api/v1/notifications/unread-count`       | Sí   |    | Conteo de notificaciones activas.            |
 | PATCH  | `/api/v1/notifications/{id}`               | Sí   |    | Cambia el estado de una notificación propia. |
+| GET    | `/api/v1/reminders`                        | Sí   | 📄 | Lista los recordatorios personales del usuario. |
+| POST   | `/api/v1/reminders`                        | Sí   |    | Crea un recordatorio manual (futuro únicamente; 422 si `remind_at` ≤ ahora). |
+| GET    | `/api/v1/reminders/{id}`                   | Sí   |    | Devuelve un recordatorio propio (404 si es ajeno). |
+| PATCH  | `/api/v1/reminders/{id}`                   | Sí   |    | Edita `remind_at`/`message` de recordatorio en `scheduled` (422 en otro status). |
+| DELETE | `/api/v1/reminders/{id}`                   | Sí   |    | Cancela un recordatorio (solo `scheduled`). |
+| GET    | `/api/v1/reminder-rules`                   | Sí   | 📄 | Lista las reglas automáticas de recordatorio del usuario. |
+| POST   | `/api/v1/reminder-rules`                   | Sí   |    | Crea una regla (e.g. `task_due_soon` con `lead_days`). |
+| PATCH  | `/api/v1/reminder-rules/{id}`              | Sí   |    | Edita `lead_days`, `enabled`, `params` de una regla propia. |
+| POST   | `/api/v1/reminders/dispatch`               | Admin |   | Ejecuta el disparo del motor de reminders bajo demanda (retorna conteo creado). |
 | GET    | `/api/v1/alert-rules`                      | Sí   | 📄 | Lista las reglas de alerta del tenant.       |
 | PATCH  | `/api/v1/alert-rules/{id}`                 | Admin |   | Ajusta `enabled`/`threshold_params` de una regla. |
 | GET    | `/api/v1/tasks/{id}/time-logs`             | Sí   | 📄 | Lista las entradas de tiempo de una tarea.   |
