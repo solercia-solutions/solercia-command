@@ -191,7 +191,7 @@ def test_blocked_task_is_registered() -> None:
 async def test_seed_creates_five_rules_including_blocked_task(
     session: AsyncSession, tenant: Organization
 ) -> None:
-    """Seeding a fresh organization creates exactly 5 default rules, one per rule_type."""
+    """Seeding a fresh organization creates exactly 7 default rules, one per rule_type."""
 
     from app.db_init import _ensure_alert_rules
     from app.modules.alert_rules.models import AlertRule
@@ -210,8 +210,10 @@ async def test_seed_creates_five_rules_including_blocked_task(
         "sprint_at_risk",
         "workload_imbalance",
         "blocked_task",
+        "license_expiring",
+        "license_expired",
     }
-    assert len(rules) == 5
+    assert len(rules) == 7
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -235,4 +237,4 @@ async def test_reseed_does_not_duplicate_rules(
     rules = result.scalars().all()
 
     rule_types = [r.rule_type for r in rules]
-    assert len(rule_types) == len(set(rule_types)) == 5
+    assert len(rule_types) == len(set(rule_types)) == 7

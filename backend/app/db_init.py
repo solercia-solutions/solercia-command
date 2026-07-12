@@ -237,6 +237,8 @@ _DEFAULT_ALERT_RULES: list[tuple[str, bool, dict]] = [
     ("sprint_at_risk", True, {}),
     ("workload_imbalance", True, {"max_active_tasks": 8}),
     ("blocked_task", True, {"blocked_days": 3}),
+    ("license_expiring", True, {"lead_days": [30, 7, 1]}),
+    ("license_expired", True, {}),
 ]
 
 
