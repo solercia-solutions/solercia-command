@@ -6,12 +6,15 @@ organization and wrapped in a ``{data}`` envelope.
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_membership
-from app.modules.dashboard.service import DashboardService
+from app.modules.dashboard.service import (
+    DEFAULT_WORK_GAP_THRESHOLD_DAYS,
+    DashboardService,
+)
 from app.modules.organizations.models import OrganizationMember
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -19,13 +22,18 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/executive")
 async def executive_dashboard(
+    threshold_days: int = Query(default=DEFAULT_WORK_GAP_THRESHOLD_DAYS, ge=1),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Return the executive ("vista de jefe") summary for the organization."""
+    """Return the executive ("vista de jefe") summary for the organization.
+
+    ``threshold_days`` (default 3) sets the lookback window for the
+    ``work_gap.no_recent_activity`` list (dashboard-executive.md).
+    """
 
     service = DashboardService(db)
-    data = await service.executive(membership.organization_id)
+    data = await service.executive(membership.organization_id, threshold_days)
     return {"data": data}
 
 

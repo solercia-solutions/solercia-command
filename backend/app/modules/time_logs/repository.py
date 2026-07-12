@@ -218,3 +218,23 @@ class TimeLogRepository:
             .group_by(TaskTimeLog.user_id)
         )
         return {row[0]: row[1] for row in result.all()}
+
+    async def task_ids_with_recent_entries(
+        self, organization_id: uuid.UUID, since: date
+    ) -> set[uuid.UUID]:
+        """Return the distinct ``task_id``s with a log dated ``since`` or later.
+
+        Feeds the dashboard's ``work_gap`` "tasks_with_activity" count
+        alongside ``activity.repository.task_ids_with_recent_entries``.
+        """
+
+        result = await self.db.execute(
+            select(TaskTimeLog.task_id)
+            .distinct()
+            .where(
+                TaskTimeLog.organization_id == organization_id,
+                TaskTimeLog.is_active.is_(True),
+                TaskTimeLog.work_date >= since,
+            )
+        )
+        return set(result.scalars().all())

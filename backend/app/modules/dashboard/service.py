@@ -11,17 +11,24 @@ All figures are scoped to the caller's organization.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.methodology.board_aware import resolve_board_strategy
+from app.modules.activity.repository import ActivityRepository
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import TaskRead
+from app.modules.time_logs.repository import TimeLogRepository
+
+# Default lookback window for "no_recent_activity" (dashboard-executive.md,
+# "Colaboradores sin actividad reciente").
+DEFAULT_WORK_GAP_THRESHOLD_DAYS = 3
 
 
 class _StatusBounds:
@@ -52,9 +59,19 @@ class DashboardService:
         self.db = db
         self.projects = ProjectRepository(db)
         self.tasks = TaskRepository(db)
+        self.time_logs = TimeLogRepository(db)
+        self.activity = ActivityRepository(db)
 
-    async def executive(self, organization_id: uuid.UUID) -> dict:
-        """Build the full executive payload for the caller's organization."""
+    async def executive(
+        self,
+        organization_id: uuid.UUID,
+        threshold_days: int = DEFAULT_WORK_GAP_THRESHOLD_DAYS,
+    ) -> dict:
+        """Build the full executive payload for the caller's organization.
+
+        ``threshold_days`` governs the ``work_gap.no_recent_activity`` window
+        (dashboard-executive.md, "Colaboradores sin actividad reciente").
+        """
 
         now = datetime.now(UTC)
         projects, _ = await self.projects.list_by_org(organization_id)
@@ -72,6 +89,9 @@ class DashboardService:
             projects, tasks, bounds
         )
         totals = self._build_totals(projects, tasks, bounds, now)
+        work_gap = await self._work_gap(
+            organization_id, tasks, bounds, members, now, threshold_days
+        )
 
         return {
             "by_assignee": by_assignee,
@@ -79,6 +99,7 @@ class DashboardService:
             "workload": workload,
             "projects_progress": projects_progress,
             "totals": totals,
+            "work_gap": work_gap,
         }
 
     async def performance(
@@ -293,6 +314,111 @@ class DashboardService:
             "overdue": overdue,
             "at_risk": at_risk,
         }
+
+    async def _work_gap(
+        self,
+        organization_id: uuid.UUID,
+        tasks: list[Task],
+        bounds: dict[uuid.UUID, "_StatusBounds"],
+        members,
+        now: datetime,
+        threshold_days: int,
+    ) -> dict:
+        """Build the ``work_gap`` block: hours/tasks cruce + no-recent-activity list.
+
+        Per collaborator with at least one active assigned task: ``hours_logged``
+        (all-time sum of ``TaskTimeLog.hours``) vs. ``hours_estimated`` (sum of
+        ``estimation_hours`` of their active tasks), and ``tasks_assigned`` vs.
+        ``tasks_with_activity`` (tasks with a ``TaskHistory``/``TaskTimeLog``
+        entry within the last ``threshold_days`` days). ``no_recent_activity``
+        lists collaborators whose most recent activity (of either kind, ANY
+        task) is older than ``threshold_days`` days, or who have none at all
+        (dashboard-executive.md, "Colaboradores sin actividad reciente").
+
+        Fixed number of aggregation queries regardless of team/task size: 2
+        for hours/last-activity per source + 2 for "recent task ids" per
+        source (design.md, "Cruce dashboard sin N+1").
+        """
+
+        cutoff_date = now.date() - timedelta(days=threshold_days)
+        cutoff_datetime = now - timedelta(days=threshold_days)
+
+        active_task_ids_by_user: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for task in tasks:
+            if task.assignee_id is None:
+                continue
+            bound = bounds.get(task.project_id)
+            if bound is None or not bound.is_active(task.status):
+                continue
+            active_task_ids_by_user.setdefault(task.assignee_id, set()).add(task.id)
+
+        hours_logged_by_user = await self.time_logs.hours_by_user(organization_id)
+        hours_estimated_by_user = self._hours_estimated_by_user(tasks, bounds)
+        recent_task_ids = await self.time_logs.task_ids_with_recent_entries(
+            organization_id, cutoff_date
+        )
+        recent_task_ids |= await self.activity.task_ids_with_recent_entries(
+            organization_id, cutoff_datetime
+        )
+        last_log_activity = await self.time_logs.last_activity_by_user(organization_id)
+        last_history_activity = await self.activity.last_activity_by_actor(
+            organization_id
+        )
+
+        by_user: list[dict] = []
+        no_recent_activity: list[dict] = []
+        for member_user, _ in members:
+            assigned_ids = active_task_ids_by_user.get(member_user.id)
+            if not assigned_ids:
+                continue
+
+            tasks_with_activity = sum(
+                1 for task_id in assigned_ids if task_id in recent_task_ids
+            )
+            by_user.append(
+                {
+                    "user": {"id": member_user.id, "full_name": member_user.full_name},
+                    "hours_logged": hours_logged_by_user.get(
+                        member_user.id, Decimal("0")
+                    ),
+                    "hours_estimated": hours_estimated_by_user.get(
+                        member_user.id, Decimal("0")
+                    ),
+                    "tasks_assigned": len(assigned_ids),
+                    "tasks_with_activity": tasks_with_activity,
+                }
+            )
+
+            last_activity_date = last_log_activity.get(member_user.id)
+            last_history_dt = last_history_activity.get(member_user.id)
+            if last_history_dt is not None:
+                history_date = last_history_dt.date()
+                if last_activity_date is None or history_date > last_activity_date:
+                    last_activity_date = history_date
+
+            if last_activity_date is None or last_activity_date < cutoff_date:
+                no_recent_activity.append(
+                    {"id": member_user.id, "full_name": member_user.full_name}
+                )
+
+        return {"by_user": by_user, "no_recent_activity": no_recent_activity}
+
+    @staticmethod
+    def _hours_estimated_by_user(
+        tasks: list[Task], bounds: dict[uuid.UUID, "_StatusBounds"]
+    ) -> dict[uuid.UUID, Decimal]:
+        """Sum ``estimation_hours`` of each user's active assigned tasks, in Python."""
+
+        totals: dict[uuid.UUID, Decimal] = {}
+        for task in tasks:
+            if task.assignee_id is None:
+                continue
+            bound = bounds.get(task.project_id)
+            if bound is None or not bound.is_active(task.status):
+                continue
+            hours = task.estimation_hours or Decimal("0")
+            totals[task.assignee_id] = totals.get(task.assignee_id, Decimal("0")) + hours
+        return totals
 
     # -- predicates --------------------------------------------------------
 

@@ -54,10 +54,10 @@ Dependencia dura: `sdd-apply` NO puede iniciar hasta que **02-contrato-api** est
 
 ## Fase C — Dashboard: bloque `work_gap` (Commit 3)
 
-- [ ] T20 RED `backend/tests/test_dashboard_work_gap.py`: `hours_logged` vs `hours_estimated` (R11); `tasks_assigned` vs `tasks_with_activity` (R11); `no_recent_activity` con umbral por defecto 3 días (R12); `?threshold_days` configurable (R12); colaborador con actividad reciente no marcado (R12). Todo fallando.
-- [ ] T21 GREEN `dashboard/service.py`: agregaciones `hours_by_user` y `last_activity_by_user`; renombrar `discrepancy()`→`_work_gap(org_id, threshold_days)` plegado dentro de `executive()`. [R11,R12]
-- [ ] T22 GREEN `dashboard/router.py`: query param `?threshold_days` (default 3) en `GET /dashboard/executive`. [R12]
-- [ ] T23 VERIFY `pytest backend/tests/test_dashboard_work_gap.py` + suite de dashboard existente en verde; confirmar que `performance` no cambia.
+- [x] T20 RED `backend/tests/test_dashboard_work_gap.py`: `hours_logged` vs `hours_estimated` (R11); `tasks_assigned` vs `tasks_with_activity` (R11); `no_recent_activity` con umbral por defecto 3 días (R12); `?threshold_days` configurable (R12); colaborador con actividad reciente no marcado (R12). Todo fallando.
+- [x] T21 GREEN `dashboard/service.py`: agregaciones `hours_by_user`/`last_activity_by_user`/`last_activity_by_actor` (`time_logs`/`activity` repos) + `task_ids_with_recent_entries` en ambos; `_work_gap(org_id, tasks, bounds, members, now, threshold_days)` plegado dentro de `executive()` (no existía `discrepancy()` previo en este apply — se implementó directo como `_work_gap`). [R11,R12]
+- [x] T22 GREEN `dashboard/router.py`: query param `?threshold_days` (default 3, `ge=1`) en `GET /dashboard/executive`. [R12]
+- [x] T23 VERIFY `pytest backend/tests/test_dashboard_work_gap.py` en verde; `test_performance_endpoint_contract_unchanged` confirma que `performance` no cambia (sin bloque `work_gap`).
 
 ## Fase D — Documentación y cierre (Commit 4)
 

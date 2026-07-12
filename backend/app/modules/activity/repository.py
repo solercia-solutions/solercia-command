@@ -116,3 +116,23 @@ class ActivityRepository:
             .group_by(TaskHistory.actor_id)
         )
         return {row[0]: row[1] for row in result.all()}
+
+    async def task_ids_with_recent_entries(
+        self, organization_id: uuid.UUID, since: datetime
+    ) -> set[uuid.UUID]:
+        """Return the distinct ``task_id``s with a history row at/after ``since``.
+
+        Any actor (including system changes) counts — feeds the dashboard's
+        ``work_gap`` "tasks_with_activity" count alongside
+        ``time_logs.repository.task_ids_with_recent_entries``.
+        """
+
+        result = await self.db.execute(
+            select(TaskHistory.task_id)
+            .distinct()
+            .where(
+                TaskHistory.organization_id == organization_id,
+                TaskHistory.created_at >= since,
+            )
+        )
+        return set(result.scalars().all())
