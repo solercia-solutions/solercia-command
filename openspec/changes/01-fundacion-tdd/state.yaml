@@ -12,10 +12,10 @@ phases:
   spec: done                 # openspec/changes/01-fundacion-tdd/specs/dev-tooling.md, specs/api-conventions.md
   design: done               # openspec/changes/01-fundacion-tdd/design.md
   tasks: done                # openspec/changes/01-fundacion-tdd/tasks.md
-  apply: pending
+  apply: done                # 26/26 tareas, 6 commits (f512753..1cb0f75); excepción documentada en task 6.1 (2 fallos preexistentes en test_sprint_close.py, fuera de alcance)
   verify: pending
   archive: pending
 next_recommended:
-  - sdd-spec y sdd-design pueden ejecutarse en paralelo
-  - "spec debe decidir: startup pasa a 'alembic upgrade' o conserva 'create_all' como puente"
+  - sdd-verify
+  - "Riesgo a revisar: bug preexistente en test_sprint_close.py (URL /projects/{id}/tasks/{id} vs /tasks/{id}) descubierto durante apply, no corregido por estar fuera de alcance de dev-tooling"
 updated: 2026-07-11
