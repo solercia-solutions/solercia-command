@@ -42,13 +42,13 @@ Nota: `Chained PRs recommended: No` se refiere a la ausencia de cadena de Pull R
 
 ## Lote B — rbac-catalog + matriz de permisos + users-admin (Commit 2)
 
-- [ ] T08 RED `backend/tests/test_rbac_catalog.py`: R1 `require_admin` en `/admin/roles`,`/admin/menus`,`/admin/dependencies` (sin ADMIN → 403); R2 `PUT /admin/roles/{id}/menus` reemplaza grants (semántica de set) y `GET /auth/me/menus` refleja el cambio; R3 árbol de menús anidado por `parent_id`/`order`; R4 borrado suave. Actor autorizado vía `rbac_admin`. (rojo: aserción invertida)
-- [ ] T09 VERIFY `pytest tests/test_rbac_catalog.py -v` → verde.
-- [ ] T10 RED `backend/tests/test_users_admin.py`: R1 `require_admin` en todo `/admin/users`; R2 creación 201 + solo hash bcrypt almacenado; R3 `DELETE` borrado suave (204, fila persiste, desaparece del listado); R4 `PUT /{id}/roles` reemplaza el set completo de roles. (rojo: aserción invertida, ej. fila eliminada físicamente en R3)
-- [ ] T11 VERIFY `pytest tests/test_users_admin.py -v` → verde.
-- [ ] T12 RED `backend/tests/test_permissions_matrix.py`: `parametrize (endpoint, método, actor, esperado)` — familia `require_admin` (rbac-catalog, users-admin, `PATCH /alert-rules/{id}`, `POST /alerts/evaluate`) → `rbac_admin` 2xx, `member`/`manager` sin RBAC → 403; `GET /users/{id}/time-logs` ajeno → chequeo INLINE en `TimeLogService._require_visibility` (no `require_role()`): member/viewer 403, admin/manager 200; `PATCH`/`DELETE /time-logs/{id}` → dueño 2xx, no-dueño (incl. admin/manager) 403; CRUD `projects`/`tasks` → los 4 `MemberRole` 2xx (sin gate de rol). (rojo: aserción invertida)
-- [ ] T13 VERIFY `pytest tests/test_permissions_matrix.py -v` → verde; confirma los 403 documentados en el design.
-- [ ] T14 VERIFY checkpoint Lote B — suite completa verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar rbac-catalog, users-admin y matriz de permisos`.
+- [x] T08 RED `backend/tests/test_rbac_catalog.py`: R1 `require_admin` en `/admin/roles`,`/admin/menus`,`/admin/dependencies` (sin ADMIN → 403); R2 `PUT /admin/roles/{id}/menus` reemplaza grants (semántica de set) y `GET /auth/me/menus` refleja el cambio; R3 árbol de menús anidado por `parent_id`/`order`; R4 borrado suave. Actor autorizado vía `rbac_admin`. (rojo: aserción invertida)
+- [x] T09 VERIFY `pytest tests/test_rbac_catalog.py -v` → verde.
+- [x] T10 RED `backend/tests/test_users_admin.py`: R1 `require_admin` en todo `/admin/users`; R2 creación 201 + solo hash bcrypt almacenado; R3 `DELETE` borrado suave (204, fila persiste, desaparece del listado); R4 `PUT /{id}/roles` reemplaza el set completo de roles. (rojo: aserción invertida, ej. fila eliminada físicamente en R3) — RED destapó bug real: `UserRepository.list_by_org` no filtraba `is_active`; corregido en commit propio `fix(users-admin): excluir usuarios inactivos del listado /admin/users`.
+- [x] T11 VERIFY `pytest tests/test_users_admin.py -v` → verde.
+- [x] T12 RED `backend/tests/test_permissions_matrix.py`: `parametrize (endpoint, método, actor, esperado)` — familia `require_admin` (rbac-catalog, users-admin, `PATCH /alert-rules/{id}`, `POST /alerts/evaluate`) → `rbac_admin` 2xx, `member`/`manager` sin RBAC → 403; `GET /users/{id}/time-logs` ajeno → chequeo INLINE en `TimeLogService._require_visibility` (no `require_role()`): member/viewer 403, admin/manager 200; `PATCH`/`DELETE /time-logs/{id}` → dueño 2xx, no-dueño (incl. admin/manager) 403; CRUD `projects`/`tasks` → los 4 `MemberRole` 2xx (sin gate de rol). (rojo: aserción invertida)
+- [x] T13 VERIFY `pytest tests/test_permissions_matrix.py -v` → verde; confirma los 403 documentados en el design.
+- [x] T14 VERIFY checkpoint Lote B — suite completa verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar rbac-catalog, users-admin y matriz de permisos`.
 
 ## Lote C — alert-engine (Commit 3)
 
