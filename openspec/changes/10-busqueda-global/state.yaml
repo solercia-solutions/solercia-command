@@ -9,7 +9,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -27,3 +27,18 @@ constraints:
   - frontend-frozen
   - strict-tdd
 last_updated: 2026-07-12
+apply_summary:
+  tests_before: 382
+  tests_after: 414
+  batches:
+    - commit: 7d5524c
+      name: "Lote A — migración 0008 pg_trgm + índices GIN"
+      tests_added: 2
+    - commit: 28a9e81
+      name: "Lote B — módulo search/ completo"
+      tests_added: 23
+    - commit: 8fbe409
+      name: "Lote C — filtros avanzados de tareas"
+      tests_added: 7
+  ruff: clean
+  mypy: clean
