@@ -5,8 +5,17 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.comments.models import TaskComment
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /tasks/{id}/comments``. First entry is
+# the default order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "created_at": TaskComment.created_at,
+    "body": TaskComment.body,
+}
 
 
 class CommentRepository:
@@ -19,19 +28,23 @@ class CommentRepository:
         self,
         organization_id: uuid.UUID,
         task_id: uuid.UUID,
-    ) -> Sequence[TaskComment]:
-        """Return active comments for a task, oldest first."""
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[TaskComment], int]:
+        """Return ``(comments, total)`` — active comments for a task, oldest first."""
 
-        result = await self.db.execute(
-            select(TaskComment)
-            .where(
-                TaskComment.task_id == task_id,
-                TaskComment.organization_id == organization_id,
-                TaskComment.is_active.is_(True),
-            )
-            .order_by(TaskComment.created_at.asc())
+        stmt = select(TaskComment).where(
+            TaskComment.task_id == task_id,
+            TaskComment.organization_id == organization_id,
+            TaskComment.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(TaskComment.created_at.asc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self,

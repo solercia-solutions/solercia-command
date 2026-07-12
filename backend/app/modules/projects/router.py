@@ -15,21 +15,29 @@ from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.schemas import ProjectCreate, ProjectRead
 from app.modules.projects.service import ProjectService
 from app.modules.sprints.service import SprintService
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @router.get("")
 async def list_projects(
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List the projects of the caller's organization."""
+    """List the projects of the caller's organization.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = ProjectService(db)
-    projects = await service.list_projects(membership.organization_id)
+    projects, total = await service.list_projects(
+        membership.organization_id, pagination
+    )
     data = [ProjectRead.model_validate(project) for project in projects]
-    return {"data": data, "meta": {"total": len(data)}}
+    return {"data": data, "meta": build_list_meta(pagination, total)}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

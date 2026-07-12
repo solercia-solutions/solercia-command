@@ -5,8 +5,18 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.dependencies.models import Dependency
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /admin/dependencies``. First entry is the
+# default order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "name": Dependency.name,
+    "code": Dependency.code,
+    "created_at": Dependency.created_at,
+}
 
 
 class DependencyRepository:
@@ -16,19 +26,24 @@ class DependencyRepository:
         self.db = db
 
     async def list_by_org(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[Dependency]:
-        """Return active dependencies for an organization, by name."""
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Dependency], int]:
+        """Return ``(dependencies, total)`` — active dependencies for an org."""
 
-        result = await self.db.execute(
-            select(Dependency)
-            .where(
-                Dependency.organization_id == organization_id,
-                Dependency.is_active.is_(True),
-            )
-            .order_by(Dependency.name.asc())
+        stmt = select(Dependency).where(
+            Dependency.organization_id == organization_id,
+            Dependency.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(Dependency.name.asc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self, organization_id: uuid.UUID, dependency_id: uuid.UUID

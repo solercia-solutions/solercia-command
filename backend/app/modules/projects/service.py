@@ -17,6 +17,7 @@ from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import ProjectCreate
 from app.shared.enums import ProjectStatus
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 _CODE_STRIP_RE = re.compile(r"[^A-Z0-9]")
 
@@ -46,13 +47,17 @@ class ProjectService:
     def __init__(self, db: AsyncSession) -> None:
         self.repo = ProjectRepository(db)
 
-    async def list_projects(self, organization_id: uuid.UUID) -> Sequence[Project]:
-        """Return the organization's projects with methodology info attached."""
+    async def list_projects(
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Project], int]:
+        """Return ``(projects, total)`` with methodology info attached."""
 
-        projects = await self.repo.list_by_org(organization_id)
+        projects, total = await self.repo.list_by_org(organization_id, pagination)
         for project in projects:
             self._attach_methodology_info(project)
-        return projects
+        return projects, total
 
     async def create_project(
         self, organization_id: uuid.UUID, data: ProjectCreate

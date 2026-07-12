@@ -13,6 +13,7 @@ from app.modules.dependencies.schemas import (
     DependencyUpdate,
 )
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 
 class DependencyService:
@@ -22,11 +23,13 @@ class DependencyService:
         self.repo = DependencyRepository(db)
 
     async def list_dependencies(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[Dependency]:
-        """Return the organization's active dependencies."""
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Dependency], int]:
+        """Return ``(dependencies, total)`` — the org's active dependencies."""
 
-        return await self.repo.list_by_org(organization_id)
+        return await self.repo.list_by_org(organization_id, pagination)
 
     async def get_dependency(
         self, organization_id: uuid.UUID, dependency_id: uuid.UUID

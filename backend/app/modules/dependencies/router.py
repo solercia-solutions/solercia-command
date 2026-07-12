@@ -19,6 +19,7 @@ from app.modules.dependencies.schemas import (
 )
 from app.modules.dependencies.service import DependencyService
 from app.modules.organizations.models import OrganizationMember
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(
     prefix="/admin/dependencies",
@@ -29,15 +30,22 @@ router = APIRouter(
 
 @router.get("")
 async def list_dependencies(
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List the dependencies of the caller's organization."""
+    """List the dependencies of the caller's organization.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = DependencyService(db)
-    items = await service.list_dependencies(membership.organization_id)
+    items, total = await service.list_dependencies(
+        membership.organization_id, pagination
+    )
     data = [DependencyRead.model_validate(item) for item in items]
-    return {"data": data, "meta": {"total": len(data)}}
+    return {"data": data, "meta": build_list_meta(pagination, total)}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

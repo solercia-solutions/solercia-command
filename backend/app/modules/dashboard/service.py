@@ -56,7 +56,8 @@ class DashboardService:
         """Build the full executive payload for the caller's organization."""
 
         now = datetime.now(UTC)
-        projects = list(await self.projects.list_by_org(organization_id))
+        projects, _ = await self.projects.list_by_org(organization_id)
+        projects = list(projects)
         tasks = list(await self.tasks.list_for_org(organization_id))
         members = await self.tasks.list_org_members(organization_id)
 
@@ -96,7 +97,8 @@ class DashboardService:
         """
 
         now = datetime.now(UTC)
-        projects = list(await self.projects.list_by_org(organization_id))
+        projects, _ = await self.projects.list_by_org(organization_id)
+        projects = list(projects)
         tasks = list(await self.tasks.list_for_org(organization_id))
         if sprint_id is not None:
             tasks = [task for task in tasks if task.sprint_id == sprint_id]

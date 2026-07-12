@@ -5,8 +5,20 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.attachments.models import Attachment
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /tasks/{id}/attachments``. First entry is
+# the default order when pagination is requested without an explicit ``sort``.
+# Only the task-scoped list is paginable in this change; the comment-scoped
+# list (``list_for_target(..., "comment", ...)``) is out of scope.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "created_at": Attachment.created_at,
+    "original_name": Attachment.original_name,
+    "size_bytes": Attachment.size_bytes,
+}
 
 
 class AttachmentRepository:
@@ -20,20 +32,24 @@ class AttachmentRepository:
         organization_id: uuid.UUID,
         target_type: str,
         target_id: uuid.UUID,
-    ) -> Sequence[Attachment]:
-        """Return active attachments for a target entity, newest first."""
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Attachment], int]:
+        """Return ``(attachments, total)`` for a target entity, newest first."""
 
-        result = await self.db.execute(
-            select(Attachment)
-            .where(
-                Attachment.organization_id == organization_id,
-                Attachment.target_type == target_type,
-                Attachment.target_id == target_id,
-                Attachment.is_active.is_(True),
-            )
-            .order_by(Attachment.created_at.desc())
+        stmt = select(Attachment).where(
+            Attachment.organization_id == organization_id,
+            Attachment.target_type == target_type,
+            Attachment.target_id == target_id,
+            Attachment.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(Attachment.created_at.desc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self,

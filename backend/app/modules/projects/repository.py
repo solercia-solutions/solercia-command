@@ -8,8 +8,18 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.projects.models import Project
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /projects``. First entry is the default
+# order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "created_at": Project.created_at,
+    "name": Project.name,
+    "code": Project.code,
+}
 
 
 class ProjectRepository:
@@ -18,18 +28,25 @@ class ProjectRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def list_by_org(self, organization_id: uuid.UUID) -> Sequence[Project]:
-        """Return active projects for an organization, newest first."""
+    async def list_by_org(
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Project], int]:
+        """Return ``(projects, total)`` — active projects, newest first."""
 
-        result = await self.db.execute(
-            select(Project)
-            .where(
-                Project.organization_id == organization_id,
-                Project.is_active.is_(True),
-            )
-            .order_by(Project.created_at.desc())
+        stmt = select(Project).where(
+            Project.organization_id == organization_id,
+            Project.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(Project.created_at.desc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self, organization_id: uuid.UUID, project_id: uuid.UUID

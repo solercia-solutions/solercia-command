@@ -8,10 +8,21 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.projects.models import Project
 from app.modules.sprints.models import Sprint
 from app.modules.tasks.models import Task
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /projects/{id}/sprints``. First entry is
+# the default order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "created_at": Sprint.created_at,
+    "name": Sprint.name,
+    "status": Sprint.status,
+    "start_date": Sprint.start_date,
+}
 
 
 class SprintRepository:
@@ -21,21 +32,26 @@ class SprintRepository:
         self.db = db
 
     async def list_for_project(
-        self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> Sequence[Sprint]:
-        """Return active sprints of a project, newest first."""
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Sprint], int]:
+        """Return ``(sprints, total)`` — active sprints of a project."""
 
-        result = await self.db.execute(
-            select(Sprint)
-            .join(Project, Project.id == Sprint.project_id)
-            .where(
-                Sprint.project_id == project_id,
-                Project.organization_id == organization_id,
-                Sprint.is_active.is_(True),
-            )
-            .order_by(Sprint.created_at.desc())
+        stmt = select(Sprint).join(Project, Project.id == Sprint.project_id).where(
+            Sprint.project_id == project_id,
+            Project.organization_id == organization_id,
+            Sprint.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(Sprint.created_at.desc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self, organization_id: uuid.UUID, sprint_id: uuid.UUID

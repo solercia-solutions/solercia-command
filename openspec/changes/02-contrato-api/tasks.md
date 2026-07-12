@@ -70,10 +70,10 @@ Chain strategy: stacked-to-main
 
 ## Batch B3 — dependencies, projects, sprints, comments, attachments, alert-rules
 
-- [ ] T15 RED — `backend/tests/test_catalog_pagination.py`: `GET /admin/dependencies`, `GET /projects`, `GET /projects/{id}/sprints` — compat, slice, sort inválido 422, sort/order válido. (R1, R2, R3)
-- [ ] T16 GREEN — Wire pagination en dependencies, projects, sprints (`router.py`+`repository.py`). (R1, R2, R3)
-- [ ] T17 RED — `backend/tests/test_nested_pagination.py`: `GET /tasks/{id}/comments`, `GET /tasks/{id}/attachments`, `GET /alert-rules` — mismos 4 escenarios. (R1, R2, R3)
-- [ ] T18 GREEN — Wire pagination en comments, attachments, alert_rules (`router.py`+`repository.py`). (R1, R2, R3)
+- [x] T15 RED — `backend/tests/test_catalog_pagination.py`: `GET /admin/dependencies`, `GET /projects`, `GET /projects/{id}/sprints` — compat, slice, sort inválido 422, sort/order válido. (R1, R2, R3)
+- [x] T16 GREEN — Wire pagination en dependencies, projects, sprints (`router.py`+`repository.py`). (R1, R2, R3)
+- [x] T17 RED — `backend/tests/test_nested_pagination.py`: `GET /tasks/{id}/comments`, `GET /tasks/{id}/attachments`, `GET /alert-rules` — mismos 4 escenarios. (R1, R2, R3)
+- [x] T18 GREEN — Wire pagination en comments, attachments, alert_rules (`router.py`+`repository.py`). (R1, R2, R3)
 
 ## Batch C — AuditMixin, migración, stamping y UPDATE masivo
 

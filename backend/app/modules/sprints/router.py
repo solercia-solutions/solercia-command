@@ -14,6 +14,7 @@ from app.dependencies import get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.sprints.schemas import SprintCloseBody, SprintCreate, SprintUpdate
 from app.modules.sprints.service import SprintService
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(tags=["sprints"])
 
@@ -21,16 +22,21 @@ router = APIRouter(tags=["sprints"])
 @router.get("/projects/{project_id}/sprints")
 async def list_sprints(
     project_id: uuid.UUID,
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List the sprints of a project."""
+    """List the sprints of a project.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = SprintService(db)
-    sprints = await service.list_sprints(
-        membership.organization_id, project_id
+    sprints, total = await service.list_sprints(
+        membership.organization_id, project_id, pagination
     )
-    return {"data": sprints, "meta": {"total": len(sprints)}}
+    return {"data": sprints, "meta": build_list_meta(pagination, total)}
 
 
 @router.post(

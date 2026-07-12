@@ -19,6 +19,7 @@ from app.modules.sprints.schemas import (
 )
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 # Lifecycle values a sprint may take.
 _ALLOWED_STATUSES = ("active", "closed")
@@ -32,13 +33,19 @@ class SprintService:
         self.projects = ProjectRepository(db)
 
     async def list_sprints(
-        self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> list[SprintRead]:
-        """Return the project's sprints."""
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[SprintRead], int]:
+        """Return ``(sprints, total)`` for the project."""
 
         await self._require_sprints_enabled(organization_id, project_id)
-        sprints = await self.repo.list_for_project(organization_id, project_id)
-        return [SprintRead.model_validate(sprint) for sprint in sprints]
+        sprints, total = await self.repo.list_for_project(
+            organization_id, project_id, pagination
+        )
+        reads = [SprintRead.model_validate(sprint) for sprint in sprints]
+        return reads, total
 
     async def create_sprint(
         self,

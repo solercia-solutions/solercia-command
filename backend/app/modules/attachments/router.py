@@ -15,6 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_membership
 from app.modules.attachments.service import AttachmentService
 from app.modules.organizations.models import OrganizationMember
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(tags=["attachments"])
 
@@ -22,14 +23,21 @@ router = APIRouter(tags=["attachments"])
 @router.get("/tasks/{task_id}/attachments")
 async def list_task_attachments(
     task_id: uuid.UUID,
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List metadata of all attachments on a task."""
+    """List metadata of all attachments on a task.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = AttachmentService(db)
-    items = await service.list_for_task(membership.organization_id, task_id)
-    return {"data": items, "meta": {"total": len(items)}}
+    items, total = await service.list_for_task(
+        membership.organization_id, task_id, pagination
+    )
+    return {"data": items, "meta": build_list_meta(pagination, total)}
 
 
 @router.post(

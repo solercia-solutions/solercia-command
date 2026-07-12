@@ -15,6 +15,7 @@ from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.users.models import User
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 # Matches standard UUID v4 strings embedded in comment bodies.
 # The frontend typically inlines mentioned user IDs as UUIDs within @-mention
@@ -40,13 +41,19 @@ class CommentService:
         self.tasks = TaskRepository(db)
 
     async def list_comments(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> list[CommentRead]:
-        """Return the active comments of a task, oldest first."""
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[CommentRead], int]:
+        """Return ``(comments, total)`` — the active comments of a task."""
 
         await self._require_task(organization_id, task_id)
-        comments = await self.repo.list_for_task(organization_id, task_id)
-        return [CommentRead.model_validate(c) for c in comments]
+        comments, total = await self.repo.list_for_task(
+            organization_id, task_id, pagination
+        )
+        reads = [CommentRead.model_validate(c) for c in comments]
+        return reads, total
 
     async def create_comment(
         self,

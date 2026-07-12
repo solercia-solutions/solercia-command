@@ -19,6 +19,7 @@ from app.modules.attachments.schemas import AttachmentRead
 from app.modules.comments.repository import CommentRepository
 from app.modules.tasks.repository import TaskRepository
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 # 10 MB maximum upload size.
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -63,21 +64,31 @@ class AttachmentService:
         self.comments = CommentRepository(db)
 
     async def list_for_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> list[AttachmentRead]:
-        """Return metadata for all active attachments on a task."""
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[AttachmentRead], int]:
+        """Return ``(attachments, total)`` for all active attachments on a task."""
 
         await self._require_task(organization_id, task_id)
-        items = await self.repo.list_for_target(organization_id, "task", task_id)
-        return [AttachmentRead.model_validate(a) for a in items]
+        items, total = await self.repo.list_for_target(
+            organization_id, "task", task_id, pagination
+        )
+        reads = [AttachmentRead.model_validate(a) for a in items]
+        return reads, total
 
     async def list_for_comment(
         self, organization_id: uuid.UUID, comment_id: uuid.UUID
     ) -> list[AttachmentRead]:
-        """Return metadata for all active attachments on a comment."""
+        """Return metadata for all active attachments on a comment.
+
+        Not paginable in this change (out of the 11-endpoint scope) — always
+        the full collection, matching the pre-existing behavior.
+        """
 
         await self._require_comment(organization_id, comment_id)
-        items = await self.repo.list_for_target(organization_id, "comment", comment_id)
+        items, _ = await self.repo.list_for_target(organization_id, "comment", comment_id)
         return [AttachmentRead.model_validate(a) for a in items]
 
     async def create_task_attachment(

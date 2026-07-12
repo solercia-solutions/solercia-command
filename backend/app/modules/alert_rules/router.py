@@ -10,22 +10,28 @@ from app.modules.alert_rules.schemas import AlertRuleRead, AlertRuleUpdate
 from app.modules.alert_rules.service import AlertRuleService
 from app.modules.organizations.models import OrganizationMember
 from app.modules.users.models import User
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
 
 
 @router.get("", response_model=dict)
 async def list_alert_rules(
+    pagination: PaginationParams = Depends(pagination_params),
     db: AsyncSession = Depends(get_db),
     membership: OrganizationMember = Depends(get_current_membership),
 ) -> dict:
-    """List active alert rules for the caller's organization."""
+    """List active alert rules for the caller's organization.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
     service = AlertRuleService(db)
-    rules = await service.list_rules(membership.organization_id)
+    rules, total = await service.list_rules(membership.organization_id, pagination)
     return {
         "data": [AlertRuleRead.model_validate(r).model_dump() for r in rules],
         "message": "Reglas de alerta obtenidas.",
-        "meta": {"total": len(rules)},
+        "meta": build_list_meta(pagination, total),
     }
 
 

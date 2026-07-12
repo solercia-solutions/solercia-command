@@ -14,6 +14,7 @@ from app.dependencies import get_current_membership
 from app.modules.comments.schemas import CommentCreate, CommentUpdate
 from app.modules.comments.service import CommentService
 from app.modules.organizations.models import OrganizationMember
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(tags=["comments"])
 
@@ -21,14 +22,21 @@ router = APIRouter(tags=["comments"])
 @router.get("/tasks/{task_id}/comments")
 async def list_comments(
     task_id: uuid.UUID,
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List the comments of a task, oldest first."""
+    """List the comments of a task, oldest first.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = CommentService(db)
-    comments = await service.list_comments(membership.organization_id, task_id)
-    return {"data": comments, "meta": {"total": len(comments)}}
+    comments, total = await service.list_comments(
+        membership.organization_id, task_id, pagination
+    )
+    return {"data": comments, "meta": build_list_meta(pagination, total)}
 
 
 @router.post(
