@@ -1,0 +1,32 @@
+change: 12-notification-hub
+artifact_store: hybrid
+depends_on:
+  - 02-contrato-api
+  - 08-email-notifications
+  - 09-websocket-realtime
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: false
+  design: true
+  tasks: false
+capabilities:
+  new:
+    - notification-hub
+  modified:
+    - notifications-inapp
+    - email-notifications
+    - realtime-notifications
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+  - rollback-required
+last_updated: 2026-07-12
