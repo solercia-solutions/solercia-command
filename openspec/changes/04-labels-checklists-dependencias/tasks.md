@@ -76,4 +76,4 @@ R12 estrategia en registry · R13 deduplicación · R14 seed idempotente
 
 ## Final
 
-- [ ] T25 Suite completa verde: `cd backend && pytest tests/ -v`; `ruff check .`; `mypy .`
+- [x] T25 Suite completa verde: `cd backend && pytest tests/ -v`; `ruff check .`; `mypy .` — 230 passed (179 baseline + 51 nuevos), ruff clean, mypy clean (132 archivos), `alembic check` sin diff sobre la cadena 0001→0006

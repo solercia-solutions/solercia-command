@@ -18,10 +18,9 @@ phases:
   spec: done                # openspec/changes/04-labels-checklists-dependencias/specs/{labels,checklists,task-dependencies,alert-blocked-task}.md
   design: done               # openspec/changes/04-labels-checklists-dependencias/design.md — módulo task_links/tabla task_dependencies, DFS de ciclos, seed idempotente blocked_task
   tasks: done                # openspec/changes/04-labels-checklists-dependencias/tasks.md — 25 tareas, 5 batches (A-E) + gate final, commits encadenados a main
-  apply: pending             # BLOQUEADO hasta apply de 02-contrato-api
+  apply: done                # 25/25 tareas — batches A-E + gate final, commits 307b9bd..HEAD en main; 230 passed, ruff/mypy clean, alembic check sin diff (0001→0006)
   verify: pending
   archive: pending
 next_recommended:
-  - sdd-spec y sdd-design (pueden correr en paralelo)
-  - "design DEBE fijar el nombre definitivo del módulo/tabla de dependencias (evitar colisión con dependencies/), el algoritmo de detección de ciclos y la idempotencia del seed de la regla blocked_task"
+  - sdd-verify
 updated: 2026-07-11
