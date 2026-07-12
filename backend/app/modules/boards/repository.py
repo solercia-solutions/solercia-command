@@ -9,10 +9,11 @@ module only through a deferred import inside its methods.
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boards.models import Board, BoardColumn
+from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 
 
@@ -124,11 +125,24 @@ class BoardRepository:
         )
         return list(result.scalars().all())
 
-    async def get_board_by_id(self, board_id: uuid.UUID) -> Board | None:
-        """Return the active board by its own id, or ``None``."""
+    async def get_board_scoped(
+        self, organization_id: uuid.UUID, board_id: uuid.UUID
+    ) -> Board | None:
+        """Return the active board by its own id, scoped to ``organization_id``.
+
+        Boards have no ``organization_id`` column of their own (tenant scope
+        is transitive through ``project``, same pattern as ``Task`` — see
+        ``TaskRepository.get``), hence the join to ``Project``.
+        """
 
         result = await self.db.execute(
-            select(Board).where(Board.id == board_id, Board.is_active.is_(True))
+            select(Board)
+            .join(Project, Project.id == Board.project_id)
+            .where(
+                Board.id == board_id,
+                Project.organization_id == organization_id,
+                Board.is_active.is_(True),
+            )
         )
         return result.scalar_one_or_none()
 
@@ -162,6 +176,33 @@ class BoardRepository:
             .where(Task.board_column_id == column_id, Task.is_active.is_(True))
         )
         return result.scalar_one() or 0
+
+    async def reassign_tasks(
+        self,
+        source_column_id: uuid.UUID,
+        target_column_id: uuid.UUID,
+        target_status_key: str,
+        actor_id: uuid.UUID | None,
+    ) -> int:
+        """Bulk-move every active task from ``source_column_id`` to the target.
+
+        A single ``UPDATE`` statement — intentionally bypasses WIP validation
+        (design.md D5/C5: "la reasignación masiva NO valida WIP", no
+        cross-column locking) and stamps ``updated_by`` on every affected row
+        per the `02` audit contract for mass UPDATEs on audited tables.
+        Returns the number of rows affected.
+        """
+
+        result = await self.db.execute(
+            update(Task)
+            .where(Task.board_column_id == source_column_id, Task.is_active.is_(True))
+            .values(
+                board_column_id=target_column_id,
+                status=target_status_key,
+                updated_by=actor_id,
+            )
+        )
+        return result.rowcount or 0
 
     async def get_column(
         self, board_id: uuid.UUID, column_id: uuid.UUID

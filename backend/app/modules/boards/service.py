@@ -7,7 +7,9 @@ rows become the runtime source of truth once a project is created (see
 ``app.methodology.board_aware.BoardAwareStrategy``).
 """
 
+import re
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +18,23 @@ from app.modules.boards.models import Board, BoardColumn
 from app.modules.boards.repository import BoardRepository
 from app.modules.tasks.models import Task
 from app.shared.exceptions import AppException
+
+# status_key column width (see BoardColumn.status_key).
+_STATUS_KEY_MAX_LEN = 60
+_SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(name: str) -> str:
+    """Turn a display name into a lowercase, underscore-separated slug.
+
+    The result becomes an immutable ``status_key`` once persisted — uniqueness
+    per board is enforced by :meth:`BoardService.add_column`, which appends a
+    numeric suffix on collision (design.md D5, "status_key derivado del name,
+    slug único por board").
+    """
+
+    slug = _SLUG_STRIP_RE.sub("_", name.strip().lower()).strip("_")
+    return slug or "column"
 
 
 class BoardService:
@@ -100,6 +119,203 @@ class BoardService:
             await self.repo.db.commit()
             await self.repo.db.refresh(task)
         return task
+
+    async def rename_column(
+        self,
+        organization_id: uuid.UUID,
+        board_id: uuid.UUID,
+        column_id: uuid.UUID,
+        name: str,
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> BoardColumn:
+        """Rename a column. ``status_key`` (and every assigned task) is untouched.
+
+        boards.md, "Renombrar columna no afecta tareas asignadas".
+        """
+
+        board = await self._require_board(organization_id, board_id)
+        column = await self.repo.get_column(board.id, column_id)
+        if column is None:
+            raise AppException(
+                "La columna no existe en este board.",
+                code="column_not_found",
+                status_code=404,
+            )
+
+        column.name = name
+        column.updated_by = actor_id
+        await self.repo.db.commit()
+        await self.repo.db.refresh(column)
+        return column
+
+    async def reorder_columns(
+        self,
+        organization_id: uuid.UUID,
+        board_id: uuid.UUID,
+        ordered_ids: list[uuid.UUID],
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> list[BoardColumn]:
+        """Persist a new column order. ``ordered_ids`` must match the board exactly.
+
+        boards.md, "Reordenar columnas".
+        """
+
+        board = await self._require_board(organization_id, board_id)
+        columns = await self.repo.list_columns(board.id)
+        columns_by_id = {column.id: column for column in columns}
+
+        if set(ordered_ids) != set(columns_by_id):
+            raise AppException(
+                "La lista de columnas no coincide con las columnas actuales del board.",
+                code="invalid_column_order",
+                status_code=422,
+            )
+
+        for index, column_id in enumerate(ordered_ids):
+            column = columns_by_id[column_id]
+            column.order = index
+            column.updated_by = actor_id
+
+        await self.repo.db.commit()
+        return await self.repo.list_columns(board.id)
+
+    async def add_column(
+        self,
+        organization_id: uuid.UUID,
+        board_id: uuid.UUID,
+        name: str,
+        wip_limit: int | None,
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> BoardColumn:
+        """Append a new column, deriving a unique ``status_key`` slug from ``name``.
+
+        Makes ``custom`` boards usable from a zero-column state (boards.md,
+        "Agregar columna a un board custom vacío").
+        """
+
+        board = await self._require_board(organization_id, board_id)
+        columns = await self.repo.list_columns(board.id)
+        existing_keys = {column.status_key for column in columns}
+
+        base_slug = _slugify(name)[:_STATUS_KEY_MAX_LEN]
+        status_key = base_slug
+        suffix = 2
+        while status_key in existing_keys:
+            status_key = f"{base_slug}_{suffix}"[:_STATUS_KEY_MAX_LEN]
+            suffix += 1
+
+        next_order = max((column.order for column in columns), default=-1) + 1
+        column = BoardColumn(
+            board_id=board.id,
+            name=name,
+            status_key=status_key,
+            order=next_order,
+            wip_limit=wip_limit,
+            created_by=actor_id,
+            updated_by=actor_id,
+        )
+        self.repo.db.add(column)
+        await self.repo.db.commit()
+        await self.repo.db.refresh(column)
+        return column
+
+    async def remove_column(
+        self,
+        organization_id: uuid.UUID,
+        board_id: uuid.UUID,
+        column_id: uuid.UUID,
+        target_column_id: uuid.UUID | None,
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> int:
+        """Remove a column: soft-delete if empty, or reassign-then-delete.
+
+        Rejects removing the LAST column of a board (**422**, it would leave
+        tasks with no status) and removing a column that has tasks without a
+        valid ``target_column_id`` (**409**). Returns the number of tasks
+        reassigned (``0`` when the column had none). boards.md, "Reglas de
+        eliminación de columnas con tareas".
+        """
+
+        board = await self._require_board(organization_id, board_id)
+        columns = await self.repo.list_columns(board.id)
+        column = next((c for c in columns if c.id == column_id), None)
+        if column is None:
+            raise AppException(
+                "La columna no existe en este board.",
+                code="column_not_found",
+                status_code=404,
+            )
+
+        if len(columns) == 1:
+            raise AppException(
+                "No puedes eliminar la última columna del board: dejaría "
+                "tareas sin estado.",
+                code="cannot_remove_last_column",
+                status_code=422,
+            )
+
+        reassigned = 0
+        task_count = await self.repo.count_active_tasks_in_column(column.id)
+        if task_count > 0:
+            if target_column_id is None:
+                raise AppException(
+                    "Esta columna tiene tareas asignadas. Indica una columna "
+                    "destino (target_column_id) para reasignarlas.",
+                    code="column_has_tasks",
+                    status_code=409,
+                )
+            target = next((c for c in columns if c.id == target_column_id), None)
+            if target is None:
+                raise AppException(
+                    "La columna destino no pertenece a este board.",
+                    code="invalid_board_column",
+                    status_code=422,
+                )
+            reassigned = await self.reassign_column_tasks(
+                column.id, target.id, target.status_key, actor_id=actor_id
+            )
+
+        column.is_active = False
+        column.deleted_at = datetime.now(UTC)
+        column.updated_by = actor_id
+        await self.repo.db.commit()
+        return reassigned
+
+    async def reassign_column_tasks(
+        self,
+        source_column_id: uuid.UUID,
+        target_column_id: uuid.UUID,
+        target_status_key: str,
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> int:
+        """Bulk-move every active task from ``source_column_id`` to the target.
+
+        Intentional WIP bypass, no cross-column locking (design.md D5/C5):
+        this is a column-deletion cleanup operation, not a user-initiated
+        move, so the target's ``wip_limit`` is never checked here. Stamps
+        ``updated_by = actor_id`` on every affected row.
+        """
+
+        return await self.repo.reassign_tasks(
+            source_column_id, target_column_id, target_status_key, actor_id
+        )
+
+    async def _require_board(
+        self, organization_id: uuid.UUID, board_id: uuid.UUID
+    ) -> Board:
+        board = await self.repo.get_board_scoped(organization_id, board_id)
+        if board is None:
+            raise AppException(
+                "El board no existe o no tienes acceso a él.",
+                code="board_not_found",
+                status_code=404,
+            )
+        return board
 
     async def ensure_board(
         self, project_id: uuid.UUID, strategy: MethodologyStrategy

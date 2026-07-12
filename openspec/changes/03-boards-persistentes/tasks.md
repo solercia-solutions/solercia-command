@@ -85,14 +85,14 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Batch D — configuración runtime de columnas
 
-- [ ] T26 [RED] Test: renombrar columna conserva `status_key` y `status` de las tareas asignadas. (R4)
-- [ ] T27 [GREEN] `PATCH /boards/{id}/columns/{col_id}` renombra `name` (status_key inmutable). (R4)
-- [ ] T28 [RED] Test: reordenar `[A,B,C]→[C,A,B]` persiste y un GET posterior refleja el nuevo orden. (R4)
-- [ ] T29 [GREEN] `PATCH /boards/{id}/columns/reorder {ordered_ids}` actualiza `column_order`. (R4)
-- [ ] T30 [RED] Test: agregar columna a board custom vacío habilita creación de tareas; `status_key` = slug único por board. (R3, R4)
-- [ ] T31 [GREEN] `POST /boards/{id}/columns {name, wip_limit?}`. (R4)
-- [ ] T32 [RED] Test: eliminar columna vacía OK; con tareas sin destino→409/422; con destino válido reasigna (`board_column_id`+`status`, `updated_by` estampado); eliminar última columna→422. (R5)
-- [ ] T33 [GREEN] `boards/service.py:reassign_column_tasks(source, target, *, actor_id)` (UPDATE masivo, bypass WIP documentado); `DELETE /boards/{id}/columns/{col_id}?target_column_id=`; guarda de última columna. (R5)
+- [x] T26 [RED] Test: renombrar columna conserva `status_key` y `status` de las tareas asignadas. (R4)
+- [x] T27 [GREEN] `PATCH /boards/{id}/columns/{col_id}` renombra `name` (status_key inmutable). (R4)
+- [x] T28 [RED] Test: reordenar `[A,B,C]→[C,A,B]` persiste y un GET posterior refleja el nuevo orden. (R4)
+- [x] T29 [GREEN] `PATCH /boards/{id}/columns/reorder {ordered_ids}` actualiza `column_order`. (R4)
+- [x] T30 [RED] Test: agregar columna a board custom vacío habilita creación de tareas; `status_key` = slug único por board. (R3, R4)
+- [x] T31 [GREEN] `POST /boards/{id}/columns {name, wip_limit?}`. (R4)
+- [x] T32 [RED] Test: eliminar columna vacía OK; con tareas sin destino→409/422; con destino válido reasigna (`board_column_id`+`status`, `updated_by` estampado); eliminar última columna→422. (R5)
+- [x] T33 [GREEN] `boards/service.py:reassign_column_tasks(source, target, *, actor_id)` (UPDATE masivo, bypass WIP documentado); `DELETE /boards/{id}/columns/{col_id}?target_column_id=`; guarda de última columna. (R5)
 
 ## Batch E — backfill migration
 
