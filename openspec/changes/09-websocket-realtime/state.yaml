@@ -8,7 +8,7 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
+  verify: done
   archive: pending
 artifacts:
   proposal: true
@@ -33,3 +33,12 @@ apply_summary:
     - "feat(realtime): agrega ConnectionManager y publisher del canal WebSocket"
     - "feat(realtime): agrega handshake autenticado y router WebSocket"
     - "feat(realtime): conecta creación de notificaciones al push WebSocket"
+verify_summary:
+  verdict: PASS
+  suite: 466 passed, 0 failed
+  lint: "ruff clean, mypy clean (168 files)"
+  migrations: "sin cambios (head 0009)"
+  blackbox: "ack + rechazo (403 pre-accept) + push mention.created en vivo vía websockets contra el contenedor reconstruido"
+  critical: 0
+  warning: 0
+  suggestion: 0
