@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.email.outbox import enqueue_immediate_email
-from app.modules.notifications.models import Notification
+from app.modules.notifications.models import Notification, NotificationPreference
 from app.realtime.publisher import buffer_notification
-from app.shared.enums import NotificationStatus
+from app.shared.enums import DigestFrequency, NotificationStatus
 from app.shared.pagination import PaginationParams, paginate
 
 # Whitelist for ``?sort=`` on ``GET /notifications``. First entry is the
@@ -119,3 +119,51 @@ class NotificationRepository:
         buffer_notification(self.db, notification)
         await enqueue_immediate_email(self.db, notification)
         return notification
+
+
+class NotificationPreferenceRepository:
+    """Repository for the caller's own digest preference — a singleton row
+    per ``(organization_id, user_id)`` (change 08, Fase C)."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def get_or_none(
+        self, org_id: uuid.UUID, user_id: uuid.UUID
+    ) -> NotificationPreference | None:
+        result = await self.db.execute(
+            select(NotificationPreference).where(
+                NotificationPreference.organization_id == org_id,
+                NotificationPreference.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert(
+        self,
+        org_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        frequency: DigestFrequency,
+        hour: int,
+        weekday: int | None,
+        actor_id: uuid.UUID | None = None,
+    ) -> NotificationPreference:
+        """Create the row if it does not exist yet, otherwise update it in place."""
+        existing = await self.get_or_none(org_id, user_id)
+        if existing is None:
+            existing = NotificationPreference(
+                organization_id=org_id,
+                user_id=user_id,
+                created_by=actor_id,
+            )
+            self.db.add(existing)
+
+        existing.digest_frequency = frequency
+        existing.digest_hour = hour
+        existing.digest_weekday = weekday
+        existing.updated_by = actor_id
+        self.db.add(existing)
+        await self.db.flush()
+        await self.db.refresh(existing)
+        return existing

@@ -5,14 +5,24 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
-from app.modules.notifications.schemas import NotificationRead, NotificationStatusUpdate
-from app.modules.notifications.service import NotificationService
+from app.dependencies import get_actor_id, get_current_membership
+from app.modules.notifications.schemas import (
+    NotificationPreferenceUpdate,
+    NotificationRead,
+    NotificationStatusUpdate,
+)
+from app.modules.notifications.service import NotificationPreferenceService, NotificationService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import NotificationStatus
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+# Deliberately NO shared prefix with `router` above: the contract is a flat
+# GET/PUT /notification-preferences (specs/email-notifications/spec.md),
+# not nested under /notifications (design.md D6 correction over the
+# proposal's suggested /notifications/preferences).
+preferences_router = APIRouter(tags=["notifications"])
 
 
 @router.get("", response_model=dict)
@@ -65,5 +75,40 @@ async def update_notification_status(
     return {
         "data": NotificationRead.model_validate(notification).model_dump(),
         "message": "Estado de notificación actualizado.",
+        "meta": {},
+    }
+
+
+@preferences_router.get("/notification-preferences", response_model=dict)
+async def get_notification_preference(
+    db: AsyncSession = Depends(get_db),
+    membership: OrganizationMember = Depends(get_current_membership),
+) -> dict:
+    """Return the caller's own digest preference (or virtual defaults)."""
+    service = NotificationPreferenceService(db)
+    preference = await service.get_preference(membership.organization_id, membership.user_id)
+    return {
+        "data": preference.model_dump(),
+        "message": "Preferencia de notificaciones obtenida.",
+        "meta": {},
+    }
+
+
+@preferences_router.put("/notification-preferences", response_model=dict)
+async def update_notification_preference(
+    data: NotificationPreferenceUpdate,
+    db: AsyncSession = Depends(get_db),
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+) -> dict:
+    """Create or update the caller's own digest preference."""
+    service = NotificationPreferenceService(db)
+    preference = await service.update_preference(
+        membership.organization_id, membership.user_id, data, actor_id=actor_id
+    )
+    await db.commit()
+    return {
+        "data": preference.model_dump(),
+        "message": "Preferencia de notificaciones actualizada.",
         "meta": {},
     }

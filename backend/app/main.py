@@ -26,6 +26,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
 from app.modules.labels.router import router as labels_router
 from app.modules.menus.router import router as menus_admin_router
+from app.modules.notifications.router import preferences_router as notifications_prefs_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.projects.router import router as projects_router
 from app.modules.reminders.router import router as reminders_router
@@ -155,6 +156,7 @@ app.include_router(users_admin_router, prefix=API_PREFIX)
 app.include_router(alerts_admin_router, prefix=API_PREFIX)
 app.include_router(alert_rules_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
+app.include_router(notifications_prefs_router, prefix=API_PREFIX)
 app.include_router(reminders_router, prefix=API_PREFIX)
 app.include_router(assets_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect

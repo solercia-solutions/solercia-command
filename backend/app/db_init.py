@@ -28,7 +28,10 @@ from app.modules.comments.models import TaskComment  # noqa: F401
 from app.modules.dependencies.models import Dependency  # noqa: F401
 from app.modules.labels.models import Label, TaskLabel  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
-from app.modules.notifications.models import Notification  # noqa: F401
+from app.modules.notifications.models import (  # noqa: F401
+    Notification,
+    NotificationPreference,
+)
 from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,

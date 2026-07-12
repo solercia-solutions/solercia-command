@@ -24,7 +24,18 @@ config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # ``disable_existing_loggers`` defaults to True in ``fileConfig``, which
+    # silently sets ``.disabled = True`` on every already-created logger NOT
+    # listed in alembic.ini's ``[loggers]`` (root/sqlalchemy/alembic only) —
+    # e.g. every ``solercia.*`` app logger. Harmless for the real ``alembic
+    # upgrade head`` CLI (its own short-lived process), but the test suite
+    # invokes ``alembic.command.upgrade``/``downgrade`` IN-PROCESS
+    # (test_migrations_baseline.py, test_boards_backfill_migration.py):
+    # without this flag, any app logger created before that point stays
+    # disabled for the rest of the pytest session, silently dropping
+    # ``caplog``-captured log records in unrelated later tests (discovered
+    # via change 08-email-notifications' outbox/digest exhaustion tests).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

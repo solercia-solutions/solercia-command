@@ -15,6 +15,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.database import AsyncSessionLocal
+from app.email.digest import dispatch_digest
 from app.email.outbox import dispatch_outbox
 
 logger = logging.getLogger("solercia.email.scheduler")
@@ -30,14 +31,40 @@ async def _run_dispatch() -> None:
             logger.exception("Scheduled email dispatch failed.")
 
 
+async def _run_digest() -> None:
+    """Scheduler job wrapper: opens its own DB session and runs the digest.
+
+    Isolated from ``_run_dispatch``'s session/try-except (own job, own
+    failure domain) — a digest failure never blocks the outbox dispatch job
+    or vice-versa.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            total = await dispatch_digest(db)
+            logger.info("Scheduled email digest complete: %d digest(s) dispatched.", total)
+        except Exception:  # noqa: BLE001
+            logger.exception("Scheduled email digest failed.")
+
+
 def register_email_jobs(scheduler: AsyncIOScheduler) -> None:
-    """Register the ``email_dispatch`` job onto an already-running scheduler."""
-    interval_minutes: int = getattr(settings, "EMAIL_DISPATCH_INTERVAL_MINUTES", 5)
+    """Register the ``email_dispatch`` and ``email_digest`` jobs onto an
+    already-running scheduler."""
+    dispatch_interval: int = getattr(settings, "EMAIL_DISPATCH_INTERVAL_MINUTES", 5)
     scheduler.add_job(
         _run_dispatch,
-        trigger=IntervalTrigger(minutes=interval_minutes),
+        trigger=IntervalTrigger(minutes=dispatch_interval),
         id="email_dispatch",
         name="Email Outbox Dispatch",
         replace_existing=True,
     )
-    logger.info("Email dispatch job registered (interval: %smin).", interval_minutes)
+    logger.info("Email dispatch job registered (interval: %smin).", dispatch_interval)
+
+    digest_interval: int = getattr(settings, "EMAIL_DIGEST_INTERVAL_MINUTES", 15)
+    scheduler.add_job(
+        _run_digest,
+        trigger=IntervalTrigger(minutes=digest_interval),
+        id="email_digest",
+        name="Email Digest",
+        replace_existing=True,
+    )
+    logger.info("Email digest job registered (interval: %smin).", digest_interval)
