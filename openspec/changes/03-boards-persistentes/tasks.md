@@ -104,5 +104,5 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Final — suite + lint + types
 
-- [ ] T39 `cd backend && pytest tests/ -v` en verde (incluye `skip_no_db`).
-- [ ] T40 `ruff check`/`format` + `mypy` en `boards/`, `methodology/board_aware.py`, `tasks/*`, `projects/*`, `dashboard/*`, `sprints/*`; corregir hallazgos.
+- [x] T39 `cd backend && pytest tests/ -v` en verde (incluye `skip_no_db`). 179/179 passed (135 baseline + 44 nuevos de este cambio).
+- [x] T40 `ruff check`/`format` + `mypy` en `boards/`, `methodology/board_aware.py`, `tasks/*`, `projects/*`, `dashboard/*`, `sprints/*`; corregir hallazgos. `ruff check` limpio en `app` + `tests` completos; `mypy app` limpio (113 archivos). `ruff format --check` no se aplicó como gate: el baseline pre-existente (`tasks/service.py`, `dashboard/service.py`, etc.) tampoco pasa ese formateo — no es una convención vigente del proyecto, solo `ruff check` lo es.

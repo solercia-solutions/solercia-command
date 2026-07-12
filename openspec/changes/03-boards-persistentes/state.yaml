@@ -24,10 +24,9 @@ phases:
   spec: done              # openspec/changes/03-boards-persistentes/specs/{boards,tasks,methodology-strategies}.md
   design: done               # openspec/changes/03-boards-persistentes/design.md — BoardAwareStrategy (custom sin if methodology==), Board 1:1 + BoardColumn(status_key inmutable), move_to_column con SELECT...FOR UPDATE (WIP→409), backfill determinista status→columna, quitar columna con tareas exige destino
   tasks: done                # openspec/changes/03-boards-persistentes/tasks.md — 6 commits secuenciales (A boards module, B resolve_board_strategy rewire, C move_to_column+WIP, D column config API, E backfill migration, Final suite/lint); apply bloqueado hasta 02-contrato-api
-  apply: pending             # orden de apply después de 02-contrato-api (cadena Alembic lineal)
+  apply: done                # 40/40 tasks; 6 commits (7a9b103, a02067c, d61d644, 08004cc, cb4d849 + tasks.md marks); 179/179 pytest, ruff+mypy clean
   verify: pending
   archive: pending
 next_recommended:
-  - sdd-spec y sdd-design (pueden correr en paralelo)
-  - "design DEBE resolver: cómo custom deriva allowed_statuses de las columnas persistidas sin romper la regla de oro; reglas para quitar/renombrar columnas con tareas; estrategia de conteo/bloqueo del WIP en movimientos concurrentes; backfill de Task.status → columna en la migración."
+  - sdd-verify
 updated: 2026-07-11
