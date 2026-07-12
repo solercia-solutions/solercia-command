@@ -251,7 +251,10 @@ def test_migration_0008_downgrade_removes_indexes_and_extension() -> None:
 
     Asserts the indexes/extension exist right after ``upgrade head`` first
     (precondition) so this test genuinely fails while migration 0008 does
-    not exist yet, instead of trivially passing on an empty schema.
+    not exist yet, instead of trivially passing on an empty schema. Upgrades
+    to ``"0008"`` explicitly (not ``"head"``): this test targets 0008's own
+    downgrade in isolation, so it stays correct regardless of how many later
+    migrations (e.g. 0009+) get chained on top of it.
     """
 
     test_database_url = os.environ["TEST_DATABASE_URL"]
@@ -264,7 +267,7 @@ def test_migration_0008_downgrade_removes_indexes_and_extension() -> None:
             "postgresql://", "postgresql+asyncpg://"
         )
         cfg = _run_against(migrations_url)
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0008")
 
         dsn = _migrations_db_dsn(test_database_url)
         gin_before = asyncio.run(_list_gin_indexes(dsn))

@@ -32,6 +32,7 @@ from app.modules.organizations.models import (  # noqa: F401
     OrganizationMember,
 )
 from app.modules.projects.models import Project  # noqa: F401
+from app.modules.reminders.models import Reminder, ReminderRule  # noqa: F401
 from app.modules.roles.models import (  # noqa: F401
     Role,
     RoleMenu,

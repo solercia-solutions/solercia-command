@@ -75,3 +75,12 @@ class NotificationStatus(str, Enum):
     read = "read"
     resolved = "resolved"
     silenced = "silenced"
+
+
+class ReminderStatus(str, Enum):
+    """Lifecycle status of a manual reminder."""
+
+    scheduled = "scheduled"
+    fired = "fired"
+    skipped = "skipped"
+    cancelled = "cancelled"

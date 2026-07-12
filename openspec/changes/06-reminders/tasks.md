@@ -29,15 +29,15 @@ Chain strategy: stacked-to-main
 
 ## Fase A — Migración + CRUD `Reminder`/`ReminderRule` (Commit 1)
 
-- [ ] T01 [Foundation] Migración `backend/alembic/versions/xxxx_add_reminders.py`: tablas `reminders` (Pk+Timestamp+SoftDelete+Audit+Tenant: `user_id` FK, `task_id` FK?, `remind_at`, `message`, `status`, `fired_at`) y `reminder_rules` (Pk+Timestamp+SoftDelete+Audit+Tenant: `user_id` FK, `rule_type`, `enabled`, `params` JSON default `{"lead_days":3}`); `down_revision`=head vigente al aplicar; `downgrade` elimina ambas.
-- [ ] T02 [Foundation] `app/shared/enums.py`: `ReminderStatus` (`scheduled/fired/skipped/cancelled`), `native_enum=False, length=20` (espejo `NotificationStatus`).
-- [ ] T03 [Foundation] `app/modules/reminders/models.py`: `Reminder` y `ReminderRule` (mismos mixins que T01) — registrados junto a T01 por precedente de `alembic check`.
-- [ ] T04 RED `backend/tests/test_reminders.py`: creación válida y `remind_at` pasado→422 (R1); listado propio paginado+`?status=`, 404 en recordatorio ajeno (R2); edición válida, edición en `fired`→422, `DELETE`→`cancelled` (R3); aislamiento entre organizaciones y admin sin ver ajenos (R4); crear/deshabilitar `ReminderRule` propia (R5). Todo fallando.
-- [ ] T05 GREEN `reminders/schemas.py`: `ReminderCreate/Update/Response`, `ReminderRuleCreate/Update/Response`; valida `remind_at` futuro y `lead_days` entero positivo. [R1,R5]
-- [ ] T06 GREEN `reminders/repository.py`: CRUD scoped por `user_id` propio, `SORTABLE_FIELDS`, filtro `?status=`. [R2,R5]
-- [ ] T07 GREEN `reminders/service.py`: alta vía `get_actor_id`; `get/update/delete` exigen `reminder.user_id == membership.user_id` (404 si ajeno/inexistente, nunca 403); `update/delete` solo si `status=scheduled` (422 en otro status); CRUD de `ReminderRule` solo-dueño. [R1–R5]
-- [ ] T08 GREEN `reminders/router.py`: 8 rutas (`POST/GET/GET{id}/PATCH/DELETE /reminders`, `GET/POST/PATCH /reminder-rules`), sin `/reminders/dispatch` (Fase B); registrar en `app/main.py`. [R1–R5]
-- [ ] T09 VERIFY `cd backend && pytest tests/test_reminders.py -v` en verde; confirmar los 404 de aislamiento y los 422 de T04.
+- [x] T01 [Foundation] Migración `backend/alembic/versions/0009_add_reminders.py`: tablas `reminders` (Pk+Timestamp+SoftDelete+Audit+Tenant: `user_id` FK, `task_id` FK?, `remind_at`, `message`, `status`, `fired_at`) y `reminder_rules` (Pk+Timestamp+SoftDelete+Audit+Tenant: `user_id` FK, `rule_type`, `enabled`, `params` JSON default `{"lead_days":3}`); `down_revision="0008"` (head vigente al aplicar); `downgrade` elimina ambas.
+- [x] T02 [Foundation] `app/shared/enums.py`: `ReminderStatus` (`scheduled/fired/skipped/cancelled`), `native_enum=False, length=20` (espejo `NotificationStatus`).
+- [x] T03 [Foundation] `app/modules/reminders/models.py`: `Reminder` y `ReminderRule` (mismos mixins que T01) — registrados junto a T01 por precedente de `alembic check`; registrados también en `app/db_init.py` para que `Base.metadata.create_all` (fixture de tests) y el seed los reconozcan.
+- [x] T04 RED `backend/tests/test_reminders.py`: creación válida y `remind_at` pasado→422 (R1); listado propio paginado+`?status=`, 404 en recordatorio ajeno (R2); edición válida, edición en `fired`→422, `DELETE`→`cancelled` (R3); aislamiento entre organizaciones y admin sin ver ajenos (R4); crear/deshabilitar `ReminderRule` propia (R5). Confirmado: 12/12 fallando (404, rutas inexistentes) antes de T05-T08.
+- [x] T05 GREEN `reminders/schemas.py`: `ReminderCreate/Update/Response`, `ReminderRuleCreate/Update/Response`; valida `remind_at` futuro y `lead_days` entero positivo. [R1,R5]
+- [x] T06 GREEN `reminders/repository.py`: CRUD scoped por `user_id` propio, `SORTABLE_FIELDS`, filtro `?status=`. [R2,R5]
+- [x] T07 GREEN `reminders/service.py`: alta vía `get_actor_id`; `get/update/delete` exigen `reminder.user_id == membership.user_id` (404 si ajeno/inexistente, nunca 403); `update/delete` solo si `status=scheduled` (422 en otro status); CRUD de `ReminderRule` solo-dueño. [R1–R5]
+- [x] T08 GREEN `reminders/router.py`: 8 rutas (`POST/GET/GET{id}/PATCH/DELETE /reminders`, `GET/POST/PATCH /reminder-rules`), sin `/reminders/dispatch` (Fase B); registrado en `app/main.py`. [R1–R5]
+- [x] T09 VERIFY `cd backend && pytest tests/test_reminders.py -v` en verde (12/12); confirmados los 404 de aislamiento y los 422 de T04. Corrección incidental: `tests/test_migrations_baseline.py::test_migration_0008_downgrade_removes_indexes_and_extension` usaba `upgrade(cfg, "head")` + `downgrade(cfg, "-1")` — al encadenar 0009 el `-1` deshacía mi migración en vez de la 0008. Cambiado a `upgrade(cfg, "0008")` para aislar la prueba de futuras migraciones adicionales (fix real, no cosmético — sin él el suite completo regresaba).
 
 ## Fase B — Motor de disparo + scheduler + endpoint admin (Commit 2)
 
