@@ -19,6 +19,7 @@ from app.modules.alert_rules.models import AlertRule  # noqa: F401
 
 # Import ALL models so they register on the shared metadata.
 from app.modules.attachments.models import Attachment  # noqa: F401
+from app.modules.boards.models import Board, BoardColumn  # noqa: F401
 from app.modules.comments.models import TaskComment  # noqa: F401
 from app.modules.dependencies.models import Dependency  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401

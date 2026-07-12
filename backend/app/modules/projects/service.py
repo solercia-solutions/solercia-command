@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.methodology.factory import get_strategy
+from app.modules.boards.service import BoardService
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import ProjectCreate
@@ -66,11 +67,17 @@ class ProjectService:
         *,
         actor_id: uuid.UUID | None = None,
     ) -> Project:
-        """Validate the methodology and persist a new project.
+        """Validate the methodology, persist a new project and seed its board.
 
         When ``data.code`` is omitted the service auto-generates one from the
         project name. A numeric suffix is appended (e.g. "PW2") when the
         derived code is already taken within the organization.
+
+        The board (and its columns, from ``strategy.default_columns()``) is
+        seeded in the SAME transaction as the project: the project is flushed
+        first to obtain its id, the board is added against that id, and both
+        are committed together — see boards.md, "Siembra del board al crear
+        el proyecto".
         """
 
         # Resolving the strategy validates the methodology (raises on invalid).
@@ -101,7 +108,12 @@ class ProjectService:
             created_by=actor_id,
             updated_by=actor_id,
         )
-        project = await self.repo.create(project)
+        self.repo.db.add(project)
+        await self.repo.db.flush()  # assign project.id for the board FK
+
+        await BoardService(self.repo.db).seed_board(project.id, strategy)
+
+        project = await self.repo.save(project)
         project.methodology_info = strategy.to_info()
         return project
 

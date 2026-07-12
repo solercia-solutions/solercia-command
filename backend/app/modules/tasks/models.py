@@ -57,6 +57,18 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
         ForeignKey("tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Board column the task currently sits in. Nullable: legacy rows keep
+    # working via `status` alone until backfilled, and `custom` boards with
+    # zero columns leave every task without one. `status` stays the single
+    # field validated against the strategy; `board_column_id` is the runtime
+    # source of `status` once a board is configured (see
+    # `app.methodology.board_aware` and `app.modules.boards.service`).
+    board_column_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("board_columns.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

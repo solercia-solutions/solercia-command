@@ -51,15 +51,15 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Batch A — Módulo boards
 
-- [ ] T01 [RED] `tests/test_boards.py`: Board único por proyecto (UNIQUE project_id); BoardColumn requiere name/status_key/order; UNIQUE(board_id, status_key). (R2)
-- [ ] T02 [GREEN] `boards/models.py`: `Board`(Pk/Timestamp/SoftDelete/Audit, project_id FK CASCADE UNIQUE) y `BoardColumn`(board_id FK CASCADE, status_key String(60) inmutable, column_order int, wip_limit int?). (R2)
-- [ ] T03 [GREEN] `alembic/versions/xxxx_add_boards_and_board_column_id.py`: `upgrade()` crea `boards`/`board_columns` + `tasks.board_column_id` nullable (SET NULL); encadena tras head de 02. Solo schema (backfill en Batch E). (R2)
-- [ ] T04 [RED] Test: crear proyecto kanban persiste Board con `[Backlog,Doing,Done]` en orden y `status_key`; proyecto custom persiste Board con 0 columnas. (R1)
-- [ ] T05 [GREEN] `boards/repository.py`: `create_for_project`, `get_board_with_columns` (orden por `column_order, created_at`). (R1, R2)
-- [ ] T06 [GREEN] `boards/service.py`: `seed_board(project, strategy)` desde `strategy.default_columns()`. (R1)
-- [ ] T07 [GREEN] `projects/service.py:create_project` siembra el board en la misma transacción (flush proyecto → id → add board/cols → commit). (R1)
-- [ ] T08 [GREEN] `boards/{schemas,router}.py`: `GET /projects/{id}/board` sin paginar (conjunto anidado acotado); registrar router en `main.py`. (R2)
-- [ ] T09 [P][RED→GREEN] Integration: `GET board` verbatim para planner/kanban/scrum/custom tras crear proyecto. (R1, R11)
+- [x] T01 [RED] `tests/test_boards.py`: Board único por proyecto (UNIQUE project_id); BoardColumn requiere name/status_key/order; UNIQUE(board_id, status_key). (R2)
+- [x] T02 [GREEN] `boards/models.py`: `Board`(Pk/Timestamp/SoftDelete/Audit, project_id FK CASCADE UNIQUE) y `BoardColumn`(board_id FK CASCADE, status_key String(60) inmutable, column_order int, wip_limit int?). (R2)
+- [x] T03 [GREEN] `alembic/versions/0003_add_boards_and_board_column_id.py`: `upgrade()` crea `boards`/`board_columns` + `tasks.board_column_id` nullable (SET NULL); encadena tras head de 02. Solo schema (backfill en Batch E). (R2)
+- [x] T04 [RED] Test: crear proyecto kanban persiste Board con `[Backlog,Doing,Done]` en orden y `status_key`; proyecto custom persiste Board con 0 columnas. (R1)
+- [x] T05 [GREEN] `boards/repository.py`: `create_for_project`, `get_board_with_columns` (orden por `column_order, created_at`). (R1, R2)
+- [x] T06 [GREEN] `boards/service.py`: `seed_board(project, strategy)` desde `strategy.default_columns()`. (R1)
+- [x] T07 [GREEN] `projects/service.py:create_project` siembra el board en la misma transacción (flush proyecto → id → add board/cols → commit). (R1)
+- [x] T08 [GREEN] `boards/{schemas,router}.py`: `GET /projects/{id}/board` sin paginar (conjunto anidado acotado); registrar router en `main.py`. (R2)
+- [x] T09 [P][RED→GREEN] Integration: `GET board` verbatim para planner/kanban/scrum/custom tras crear proyecto. (R1, R11)
 
 ## Batch B — resolve_board_strategy + rewire
 

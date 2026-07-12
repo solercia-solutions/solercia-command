@@ -16,6 +16,7 @@ from app.db_init import seed_default
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
+from app.modules.boards.router import router as boards_router
 from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
@@ -104,6 +105,7 @@ register_exception_handlers(app)
 
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(projects_router, prefix=API_PREFIX)
+app.include_router(boards_router, prefix=API_PREFIX)
 app.include_router(tasks_router, prefix=API_PREFIX)
 app.include_router(comments_router, prefix=API_PREFIX)
 app.include_router(attachments_router, prefix=API_PREFIX)
