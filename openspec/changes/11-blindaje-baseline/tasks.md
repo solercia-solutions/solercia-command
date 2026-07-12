@@ -60,13 +60,13 @@ Nota: `Chained PRs recommended: No` se refiere a la ausencia de cadena de Pull R
 
 ## Lote D — methodology-strategies + projects + tasks CRUD (Commit 4)
 
-- [ ] T20 RED `backend/tests/test_methodology_strategies.py` (unit, sin BD): `get_strategy("planner"|"kanban"|"scrum")` → `default_columns()`, `allowed_statuses()`, `sprints_enabled`, `estimation_mode`, `has_backlog`, forma de `to_info()` (R1,R4); `get_strategy("custom")` → solo la parte estática (`default_columns()==[]`, flags; su `allowed_statuses()` board-aware ya está en `test_board_aware_strategy.py`, no se duplica); `get_strategy("xp")` → 422 (R2); sprint rechazado si `sprints_enabled=False` en kanban (R3). (rojo: aserción invertida)
-- [ ] T21 VERIFY `pytest tests/test_methodology_strategies.py -v` → verde.
-- [ ] T22 RED `backend/tests/test_projects.py`: `POST /projects` con `methodology: "scrum"` → 201, tareas validan estados scrum (R1); `GET /{id}/velocity` puntos por sprint cerrado + promedio + proyección (R3). + aislamiento (`two_orgs`): listado `/projects` de A sin datos de B (R4); `GET`/`PATCH`/`DELETE /projects/{id}` de B desde A → 403/404. (rojo: aserción invertida)
-- [ ] T23 VERIFY `pytest tests/test_projects.py -v` → verde.
-- [ ] T24 RED `backend/tests/test_tasks_crud.py`: CRUD básico (create/get/update/delete/list); `PATCH` rechaza estado ajeno a la strategy planner, ej. `in_review` (R2 — camino sin board, no duplica `test_board_move_to_column.py`); progreso agregado 2/4 en `GET /tasks/{id}` con 4 subtareas y 2 completadas (R3); filtros combinables `sprint_id`+`status`+`assignee_id` (R4). + aislamiento (`two_orgs`). R1/R5/R6 YA cubiertos por `test_task_key.py`/`test_board_column_tasks.py`/`test_boards_backfill_migration.py` — no se duplican. (rojo: aserción invertida)
-- [ ] T25 VERIFY `pytest tests/test_tasks_crud.py -v` → verde.
-- [ ] T26 VERIFY checkpoint Lote D — suite completa verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar methodology-strategies, projects y tasks CRUD`.
+- [x] T20 RED `backend/tests/test_methodology_strategies.py` (unit, sin BD): `get_strategy("planner"|"kanban"|"scrum")` → `default_columns()`, `allowed_statuses()`, `sprints_enabled`, `estimation_mode`, `has_backlog`, forma de `to_info()` (R1,R4); `get_strategy("custom")` → solo la parte estática (`default_columns()==[]`, flags; su `allowed_statuses()` board-aware ya está en `test_board_aware_strategy.py`, no se duplica); `get_strategy("xp")` → 422 (R2); sprint rechazado si `sprints_enabled=False` en kanban (R3). (rojo: aserción invertida)
+- [x] T21 VERIFY `pytest tests/test_methodology_strategies.py -v` → verde.
+- [x] T22 RED `backend/tests/test_projects.py`: `POST /projects` con `methodology: "scrum"` → 201, tareas validan estados scrum (R1); `GET /{id}/velocity` puntos por sprint cerrado + promedio + proyección (R3). + aislamiento (`two_orgs`): listado `/projects` de A sin datos de B (R4); `GET`/`PATCH`/`DELETE /projects/{id}` de B desde A → 403/404. (rojo: aserción invertida) — DESVIACIÓN: el as-built NO expone `PATCH`/`DELETE /projects/{id}` (projects/spec.md, "Limitaciones y deuda conocida"); R4 se probó solo sobre `GET` (listado + acceso directo), la superficie real.
+- [x] T23 VERIFY `pytest tests/test_projects.py -v` → verde.
+- [x] T24 RED `backend/tests/test_tasks_crud.py`: CRUD básico (create/get/update/delete/list); `PATCH` rechaza estado ajeno a la strategy planner, ej. `in_review` (R2 — camino sin board, no duplica `test_board_move_to_column.py`); progreso agregado 2/4 en `GET /tasks/{id}` con 4 subtareas y 2 completadas (R3); filtros combinables `sprint_id`+`status`+`assignee_id` (R4). + aislamiento (`two_orgs`). R1/R5/R6 YA cubiertos por `test_task_key.py`/`test_board_column_tasks.py`/`test_boards_backfill_migration.py` — no se duplican. (rojo: aserción invertida)
+- [x] T25 VERIFY `pytest tests/test_tasks_crud.py -v` → verde.
+- [x] T26 VERIFY checkpoint Lote D — suite completa verde, `ruff check .`, `mypy app` limpios. Commit `test(baseline): blindar methodology-strategies, projects y tasks CRUD`.
 
 ## Lote E — notifications-inapp + dashboard-executive (Commit 5)
 
