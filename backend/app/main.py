@@ -13,6 +13,7 @@ from app.alerts.scheduler import start_scheduler, stop_scheduler
 from app.config import settings
 from app.database import engine
 from app.db_init import seed_default
+from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
@@ -118,6 +119,7 @@ app.include_router(labels_router, prefix=API_PREFIX)
 app.include_router(checklists_router, prefix=API_PREFIX)
 app.include_router(task_links_router, prefix=API_PREFIX)
 app.include_router(time_logs_router, prefix=API_PREFIX)
+app.include_router(activity_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 # Admin / RBAC management endpoints (require the ADMIN role).
 app.include_router(dependencies_admin_router, prefix=API_PREFIX)

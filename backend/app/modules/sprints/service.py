@@ -282,9 +282,28 @@ class SprintService:
         completed_points = await self.repo.sum_done_points_for_sprint(
             organization_id, sprint_id
         )
-        tasks_moved = await self.repo.count_and_move_incomplete_tasks(
+        moved_task_ids = await self.repo.count_and_move_incomplete_tasks(
             organization_id, sprint_id, target_sprint_id, actor_id
         )
+        tasks_moved = len(moved_task_ids)
+
+        if moved_task_ids:
+            from app.modules.activity.recorder import (
+                ACTOR_TYPE_SYSTEM,
+                record_task_history,
+            )
+
+            old_value = str(sprint_id)
+            new_value = str(target_sprint_id) if target_sprint_id is not None else None
+            for moved_task_id in moved_task_ids:
+                await record_task_history(
+                    self.repo.db,
+                    organization_id,
+                    moved_task_id,
+                    None,
+                    ACTOR_TYPE_SYSTEM,
+                    {"sprint_id": (old_value, new_value)},
+                )
 
         sprint.status = "closed"
         sprint.closed_at = datetime.now(UTC)

@@ -41,16 +41,16 @@ Dependencia dura: `sdd-apply` NO puede iniciar hasta que **02-contrato-api** est
 ## Fase B — Módulo `activity` + integración (Commit 2)
 
 - [x] T09 [Foundation] `app/modules/activity/models.py`: `TaskHistory` (Pk+Timestamp, sin soft delete, `actor_id` nullable, `actor_type`). Adelantado a Batch A: `alembic check` (test_migrations_baseline.py) exige que la migración compartida de T01 tenga su modelo ORM registrado de inmediato, así que el modelo se creó junto con la migración para mantener la suite en verde entre batches.
-- [ ] T10 GREEN `activity/recorder.py`: `record_task_history(db, task_id, actor_id, actor_type, changes)` (`add_all` sin commit).
-- [ ] T11 RED `backend/tests/test_activity.py`: cambio de `status` deja historial (R6); múltiples campos en un PATCH (R6); sin cambio→sin fila (R6); cierre de sprint deja historial de sistema (R7); historial por tarea paginado desc (R8); actividad por usuario/día (R9); sin ruta PATCH/DELETE en `/tasks/{id}/history/{id}`→404 (R10). Todo fallando.
-- [ ] T12 GREEN `activity/schemas.py`: `TaskHistoryResponse` con alias `changed_at`→`created_at`. [R8,R9]
-- [ ] T13 GREEN `activity/repository.py`: listado por tarea (desc) y por actor/día, `SORTABLE_FIELDS`. [R8,R9]
-- [ ] T14 GREEN `activity/service.py` + `router.py`: `GET /tasks/{id}/history`, `GET /users/{id}/activity`; registrar en `app/main.py`. [R8,R9,R10]
-- [ ] T15 GREEN Modificar `tasks/service.py::update_task`: snapshot pre-mutación de `{status, assignee_id, estimation_points, estimation_hours, sprint_id, priority}`, diff post-mutación, `record_task_history(actor_type=user)`. [R6]
-- [ ] T16 REFACTOR `sprints/repository.py::count_and_move_incomplete_tasks` → `list[uuid.UUID]` (ids movidos), misma lógica de query.
-- [ ] T17 GREEN Modificar `sprints/service.py::close_sprint`: `tasks_moved=len(ids)`; `record_task_history` por tarea movida (`field=sprint_id`, `actor_type=system`, `actor_id=None`) antes del `UPDATE` masivo. [R7]
-- [ ] T18 VERIFY `pytest backend/tests/test_sprint_close.py -v` en verde tras el refactor (contrato `SprintCloseResponse.tasks_moved` intacto).
-- [ ] T19 VERIFY `pytest backend/tests/test_activity.py -v` en verde.
+- [x] T10 GREEN `activity/recorder.py`: `record_task_history(db, task_id, actor_id, actor_type, changes)` (`add_all` sin commit). Firma real incluye `organization_id` (columna `NOT NULL` de `TenantMixin`, ausente en la firma abreviada del design.md).
+- [x] T11 RED `backend/tests/test_activity.py`: cambio de `status` deja historial (R6); múltiples campos en un PATCH (R6); sin cambio→sin fila (R6); cierre de sprint deja historial de sistema (R7); historial por tarea paginado desc (R8); actividad por usuario/día (R9); sin ruta PATCH/DELETE en `/tasks/{id}/history/{id}`→404 (R10). Todo fallando.
+- [x] T12 GREEN `activity/schemas.py`: `TaskHistoryResponse` con alias `changed_at`→`created_at`. [R8,R9]
+- [x] T13 GREEN `activity/repository.py`: listado por tarea (desc) y por actor/día, `SORTABLE_FIELDS`. [R8,R9]
+- [x] T14 GREEN `activity/service.py` + `router.py`: `GET /tasks/{id}/history`, `GET /users/{id}/activity`; registrar en `app/main.py`. [R8,R9,R10]
+- [x] T15 GREEN Modificar `tasks/service.py::update_task`: snapshot pre-mutación de `{status, assignee_id, estimation_points, estimation_hours, sprint_id, priority}`, diff post-mutación, `record_task_history(actor_type=user)`. [R6]
+- [x] T16 REFACTOR `sprints/repository.py::count_and_move_incomplete_tasks` → `list[uuid.UUID]` (ids movidos), misma lógica de query.
+- [x] T17 GREEN Modificar `sprints/service.py::close_sprint`: `tasks_moved=len(ids)`; `record_task_history` por tarea movida (`field=sprint_id`, `actor_type=system`, `actor_id=None`). [R7]
+- [x] T18 VERIFY `pytest backend/tests/test_sprint_close.py -v` en verde tras el refactor (contrato `SprintCloseResponse.tasks_moved` intacto).
+- [x] T19 VERIFY `pytest backend/tests/test_activity.py -v` en verde.
 
 ## Fase C — Dashboard: bloque `work_gap` (Commit 3)
 

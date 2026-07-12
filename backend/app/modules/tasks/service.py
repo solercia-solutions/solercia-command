@@ -263,6 +263,18 @@ class TaskService:
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
+    # Fields tracked for TaskHistory (activity-history.md, "Captura automática
+    # en mutaciones de usuario" — the exact set the spec requires; notably no
+    # ``due_date``, design.md gate correction #3).
+    _HISTORY_TRACKED_FIELDS = (
+        "status",
+        "assignee_id",
+        "estimation_points",
+        "estimation_hours",
+        "sprint_id",
+        "priority",
+    )
+
     async def update_task(
         self,
         organization_id: uuid.UUID,
@@ -271,11 +283,23 @@ class TaskService:
         *,
         actor_id: uuid.UUID | None = None,
     ) -> TaskRead:
-        """Apply a partial update, re-validating methodology-driven fields."""
+        """Apply a partial update, re-validating methodology-driven fields.
+
+        A pre-mutation snapshot of the tracked fields is diffed against their
+        post-mutation values and recorded via ``record_task_history`` (actor
+        type ``user``) BEFORE ``repo.save()`` — its single ``commit()`` seals
+        the task mutation and the new history rows in one transaction
+        (design.md, "Decisión: detección de cambios por snapshot
+        pre-mutación").
+        """
 
         task = await self._require_task(organization_id, task_id)
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
+
+        snapshot = {
+            field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS
+        }
 
         changes = data.model_dump(exclude_unset=True)
 
@@ -338,10 +362,49 @@ class TaskService:
             if field in changes:
                 setattr(task, field, changes[field])
 
+        await self._record_history_diff(
+            organization_id, task, snapshot, actor_id=actor_id
+        )
+
         task.updated_by = actor_id
         task = await self.repo.save(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
+
+    async def _record_history_diff(
+        self,
+        organization_id: uuid.UUID,
+        task: Task,
+        snapshot: dict[str, object],
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> None:
+        """Diff ``snapshot`` (pre-mutation) against the task's current in-memory
+        values and stage one TaskHistory row per field that actually changed.
+        """
+
+        from app.modules.activity.recorder import ACTOR_TYPE_USER, record_task_history
+
+        serialize = self._serialize_history_value
+        diff = {
+            field: (serialize(before), serialize(getattr(task, field)))
+            for field, before in snapshot.items()
+            if before != getattr(task, field)
+        }
+        if diff:
+            await record_task_history(
+                self.repo.db, organization_id, task.id, actor_id, ACTOR_TYPE_USER, diff
+            )
+
+    @staticmethod
+    def _serialize_history_value(value: object) -> str | None:
+        """Render a tracked field's value as the ``Text`` old/new_value TaskHistory expects."""
+
+        if value is None:
+            return None
+        if hasattr(value, "value"):  # Enum members (e.g. Priority)
+            return str(value.value)
+        return str(value)
 
     async def move_task_column(
         self,

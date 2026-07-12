@@ -151,13 +151,18 @@ class SprintRepository:
         sprint_id: uuid.UUID,
         target_sprint_id: uuid.UUID | None,
         actor_id: uuid.UUID | None = None,
-    ) -> int:
-        """Move incomplete tasks out of the sprint and return how many were moved.
+    ) -> list[uuid.UUID]:
+        """Move incomplete tasks out of the sprint and return the ids that were moved.
 
         Incomplete means ``completed_at IS NULL``. Tasks are moved to
         ``target_sprint_id`` (another sprint) or ``NULL`` (backlog) depending on
         the argument. The sprint was already validated to belong to the
         organization, so the bulk UPDATE does not need a project join.
+
+        Design.md gate correction #5: returns the moved ids (not just a count)
+        so the caller (``SprintService.close_sprint``) can record system
+        TaskHistory rows for each one; ``tasks_moved=len(ids)`` preserves the
+        existing ``SprintCloseResponse.tasks_moved: int`` contract.
 
         Gate #2 (design.md "Correcciones de gate"): a bulk ``UPDATE`` bypasses
         the ORM's per-instance audit line in the service, so ``actor_id`` MUST
@@ -165,10 +170,9 @@ class SprintRepository:
         every moved task to stay audited.
         """
 
-        # Count with org scoping via project join to be safe.
-        count_result = await self.db.execute(
-            select(func.count())
-            .select_from(Task)
+        # Select ids with org scoping via project join to be safe.
+        ids_result = await self.db.execute(
+            select(Task.id)
             .join(Project, Project.id == Task.project_id)
             .where(
                 Task.sprint_id == sprint_id,
@@ -177,20 +181,16 @@ class SprintRepository:
                 Task.is_active.is_(True),
             )
         )
-        count = int(count_result.scalar_one() or 0)
+        ids = list(ids_result.scalars().all())
 
-        if count > 0:
+        if ids:
             await self.db.execute(
                 update(Task)
-                .where(
-                    Task.sprint_id == sprint_id,
-                    Task.completed_at.is_(None),
-                    Task.is_active.is_(True),
-                )
+                .where(Task.id.in_(ids))
                 .values(sprint_id=target_sprint_id, updated_by=actor_id)
             )
 
-        return count
+        return ids
 
     async def count_backlog_points_for_project(
         self, organization_id: uuid.UUID, project_id: uuid.UUID
