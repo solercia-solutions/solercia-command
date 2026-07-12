@@ -93,7 +93,7 @@ Chain strategy: stacked-to-main
 
 ## Batch D — Documentación
 
-- [ ] T32 — Regenerar `docs/API.md` desde la superficie real de los 13 routers: documentar `page/size/sort/order` en los 11 endpoints paginables y el shape real de `meta` (con y sin params); eliminar cualquier `meta.page` documentado que no exista en código.
+- [x] T32 — Regenerar `docs/API.md` desde la superficie real de los 13 routers: documentar `page/size/sort/order` en los 11 endpoints paginables y el shape real de `meta` (con y sin params); eliminar cualquier `meta.page` documentado que no exista en código.
 
 ## Cierre
 

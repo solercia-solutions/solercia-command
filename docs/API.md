@@ -26,10 +26,58 @@ API REST del backend de **Solercia Project Manager**.
 
 ### Sobre de respuesta
 
-- Las colecciones devuelven `{ "data": [...], "meta": { "total": <int> } }`.
+- Las colecciones devuelven el sobre `{ "data": [...], "meta": {...} }` (la forma exacta de
+  `meta` depende de si el cliente pidió paginación — ver «Paginación» abajo).
 - Los recursos individuales devuelven `{ "data": { ... } }`.
-- Los errores devuelven `{ "detail": "<mensaje en español>" }` (formato estándar de
-  FastAPI), o un arreglo de errores de validación para el `422`.
+- Los errores devuelven `{ "detail": "<mensaje en español>", "code": "<string>", "status": <int> }`;
+  los `422` de validación de esquema añaden además `"errors": [...]` con el detalle
+  campo-por-campo.
+
+### Paginación (opt-in)
+
+Los **11 endpoints de lista** marcados con 📄 en «Resumen de endpoints» soportan paginación
+**opcional** por *query string*. El contrato es **retrocompatible a propósito**: si el
+cliente no envía ningún parámetro de paginación, la respuesta es **byte-idéntica** a la de
+antes de este cambio (colección completa + `meta.total`) — es un requisito duro para el
+frontend Angular congelado, no una preferencia de diseño.
+
+| Parámetro | Tipo   | Default | Notas                                                                                   |
+| --------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
+| `page`    | int    | —       | Página (base 1, `page >= 1`). Enviarlo **activa** la paginación. `page < 1` → `422`.     |
+| `size`    | int    | `20`    | Registros por página, `1..100`. Fuera de rango → `422`.                                  |
+| `sort`    | string | —       | Campo de orden. Cada endpoint define su propia whitelist (ver nota junto a cada `GET` de lista). Fuera de la whitelist → `422`. Enviarlo **activa** la paginación. |
+| `order`   | string | `desc`  | `asc` \| `desc`. Cualquier otro valor → `422`.                                            |
+
+**Sin `page` ni `sort`** — comportamiento heredado, byte-compatible:
+
+```json
+{ "data": [ /* colección completa */ ], "meta": { "total": 37 } }
+```
+
+**Con `page` o `sort`** — paginación activa:
+
+```json
+{ "data": [ /* slice de tamaño `size` */ ], "meta": { "page": 2, "size": 20, "total": 37 } }
+```
+
+> `size` y `order` siempre tienen un valor por defecto concreto (`20` / `desc`); por sí
+> solos **no** activan la paginación — el disparador es enviar `page` o `sort`. Así un
+> cliente que reenvía `size=20` (el mismo valor del default) no recibe, sin darse cuenta, un
+> `meta` con forma distinta.
+
+**`sort` fuera de la whitelist** — `422`:
+
+```json
+{
+  "detail": "El campo de orden 'password_hash' no es válido. Campos permitidos: title, created_at, priority.",
+  "code": "invalid_sort_field",
+  "status": 422
+}
+```
+
+**Caso especial — `GET /api/v1/admin/menus`**: `meta.tree` (el árbol completo de menús)
+**siempre** refleja el catálogo activo completo, con o sin paginación — paginar `data` nunca
+recorta el árbol de navegación.
 
 ### Códigos de estado
 
@@ -282,9 +330,10 @@ Todos los endpoints de proyectos son **protegidos**. El `organization_id` se der
 token; nunca se acepta desde el cuerpo de la petición. Las consultas se filtran por el
 tenant del usuario autenticado, de modo que solo se ven los proyectos de su organización.
 
-### GET `/api/v1/projects`
+### GET `/api/v1/projects` 📄
 
-Lista los proyectos de la organización del usuario.
+Lista los proyectos de la organización del usuario. Soporta paginación opcional (ver
+«Paginación»). Campos ordenables (`sort`): `created_at` (por defecto), `name`, `code`.
 
 **Request**
 
@@ -506,15 +555,20 @@ columna del tablero); el backend lo valida en la capa de service. El estado por 
 crear es la **primera** columna de `allowed_statuses`. Ver
 `docs/adr/0005-work-items-status-as-column.md`.
 
-### GET `/api/v1/projects/{project_id}/tasks`
+### GET `/api/v1/projects/{project_id}/tasks` 📄
 
-Lista las tareas de un proyecto, con filtros opcionales por *query string*.
+Lista las tareas de un proyecto, con filtros opcionales por *query string*. Soporta
+paginación opcional (ver «Paginación»). Campos ordenables (`sort`): `order` (por defecto,
+posición en el tablero), `title`, `status`, `priority`, `due_date`, `created_at`.
+**`assignee_name` NO es ordenable** (`422`): es un campo calculado en Python después de la
+consulta (resuelve el nombre desde el `assignee_id`), sin columna real que lo respalde.
 
 | Parámetro     | Tipo | Notas                                                           |
 | ------------- | ---- | --------------------------------------------------------------- |
 | `sprint_id`   | uuid | Filtra por sprint. Usa `sprint_id=null` para ver el backlog.    |
 | `status`      | text | Filtra por columna (un valor de `allowed_statuses`).            |
 | `assignee_id` | uuid | Filtra por persona asignada.                                    |
+| `page`, `size`, `sort`, `order` | — | Paginación opcional — ver «Paginación».         |
 
 **Request**
 
@@ -679,9 +733,13 @@ Elimina una tarea del tenant.
 Endpoints **protegidos**, disponibles cuando la metodología del proyecto tiene
 `sprints_enabled = true` (scrum). El `project_id` se valida contra el tenant del token.
 
-### GET `/api/v1/projects/{project_id}/sprints`
+### GET `/api/v1/projects/{project_id}/sprints` 📄
 
-**Response `200 OK`**
+Soporta paginación opcional (ver «Paginación»). Campos ordenables (`sort`): `created_at`
+(por defecto), `name`, `status`, `start_date`.
+
+**Response `200 OK`** — sin parámetros de paginación (`meta` completo con `total`; con
+`page`/`sort` la forma pasa a `{page, size, total}`, ver «Paginación»):
 
 ```json
 {
@@ -694,9 +752,14 @@ Endpoints **protegidos**, disponibles cuando la metodología del proyecto tiene
       "start_date": "2026-06-26",
       "end_date": "2026-07-10",
       "status": "active",
-      "created_at": "2026-06-26T14:50:00Z"
+      "completed_points": 0,
+      "closed_at": null,
+      "created_at": "2026-06-26T14:50:00Z",
+      "created_by": "uuid | null",
+      "updated_by": "uuid | null"
     }
-  ]
+  ],
+  "meta": { "total": 1 }
 }
 ```
 
@@ -831,6 +894,73 @@ Authorization: Bearer <access_token>
   "detail": "El sprint no existe o no tienes acceso a él."
 }
 ```
+
+---
+
+### POST `/api/v1/sprints/{sprint_id}/close`
+
+Cierra un sprint: calcula `completed_points` (suma de `estimation_points` de las tareas ya
+en la columna «done») y mueve las tareas **incompletas** a otro sprint (`target_sprint_id`)
+o al backlog (`sprint_id = null`) si se omite. Cerrar un sprint ya cerrado devuelve `409`.
+
+**Request**
+
+```json
+{
+  "target_sprint_id": "uuid | null"
+}
+```
+
+| Campo (opcional) | Tipo         | Notas                                                             |
+| ----------------- | ------------ | ------------------------------------------------------------------ |
+| `target_sprint_id` | uuid \| null | Sprint destino para las tareas incompletas. Omitido/`null` = backlog. |
+
+**Response `200 OK`**
+
+```json
+{
+  "data": {
+    "sprint": { "id": "uuid", "status": "closed", "completed_points": 13, "closed_at": "ISO-8601 timestamp", "...": "resto de campos de Sprint" },
+    "tasks_moved": 2
+  }
+}
+```
+
+**Response `409 Conflict`** — el sprint ya estaba cerrado
+
+```json
+{ "detail": "El sprint ya está cerrado.", "code": "sprint_already_closed", "status": 409 }
+```
+
+---
+
+### GET `/api/v1/projects/{project_id}/velocity`
+
+Reporte de velocity del proyecto: la serie de sprints cerrados, el promedio de puntos
+completados y una proyección de cuántos sprints más se necesitan para vaciar el backlog al
+ritmo actual.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": {
+    "series": [
+      { "sprint_id": "uuid", "name": "Sprint 1", "completed_points": 13, "closed_at": "ISO-8601 timestamp" }
+    ],
+    "average_velocity": 13.0,
+    "backlog_points": 30,
+    "projected_sprints": 3
+  }
+}
+```
+
+| Campo                | Tipo             | Notas                                                                       |
+| --------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `series[]`            | array            | Sprints cerrados, ordenados por `closed_at` ascendente.                     |
+| `average_velocity`    | number           | Promedio de `completed_points` de `series`. `0.0` si no hay sprints cerrados. |
+| `backlog_points`      | int              | Suma de `estimation_points` de tareas sin sprint y sin terminar.            |
+| `projected_sprints`   | int \| null      | `ceil(backlog_points / average_velocity)`. `null` si `average_velocity == 0`. |
 
 ---
 
@@ -999,6 +1129,222 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Comentarios
+
+Endpoints **protegidos**, anidados bajo una tarea. Solo el autor original puede editar o
+borrar su propio comentario (`403` en caso contrario). Los `@mention` en el cuerpo (UUID de
+usuario embebido) disparan una notificación in-app al usuario mencionado (si es miembro de
+la organización y no es el propio autor).
+
+### GET `/api/v1/tasks/{task_id}/comments` 📄
+
+Lista los comentarios de una tarea, del más antiguo al más reciente. Soporta paginación
+opcional (ver «Paginación»). Campos ordenables (`sort`): `created_at` (por defecto), `body`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "task_id": "uuid",
+      "author_id": "uuid",
+      "body": "Buen avance @b2d4f6a8-0c1e-4a3b-9d5f-7e8c9a0b1d2e, ¿lo revisamos mañana?",
+      "mentioned_user_ids": ["b2d4f6a8-0c1e-4a3b-9d5f-7e8c9a0b1d2e"],
+      "organization_id": "uuid",
+      "created_at": "ISO-8601 timestamp",
+      "updated_at": "ISO-8601 timestamp",
+      "created_by": "uuid | null",
+      "updated_by": "uuid | null"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/tasks/{task_id}/comments`
+
+```json
+{ "body": "Texto del comentario (puede incluir @uuid para mencionar)." }
+```
+
+**Response `201 Created`** — `{ "data": Comment }`.
+
+### PATCH `/api/v1/comments/{comment_id}`
+
+Edita el `body`. Solo el autor original. Las menciones **nuevas** respecto al texto anterior
+disparan notificación; las que ya estaban no se repiten.
+
+**Response `200 OK`** — `{ "data": Comment }`. **Response `403 Forbidden`** si no eres el autor.
+
+### DELETE `/api/v1/comments/{comment_id}`
+
+Borrado lógico. Solo el autor original. **Response `204 No Content`**.
+
+---
+
+## Adjuntos
+
+Endpoints **protegidos**, anidados bajo una tarea o un comentario. Suben archivos vía
+`multipart/form-data`; el máximo es **10 MB**. El nombre en disco es un UUID (previene
+*path traversal*); el nombre original se conserva para la descarga. Se rechazan tipos
+activos (HTML/JS/SVG/ejecutables) sin importar la extensión declarada.
+
+### GET `/api/v1/tasks/{task_id}/attachments` 📄
+
+Lista los adjuntos de una tarea, del más reciente al más antiguo. Soporta paginación
+opcional (ver «Paginación»). Campos ordenables (`sort`): `created_at` (por defecto),
+`original_name`, `size_bytes`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "target_type": "task",
+      "target_id": "uuid",
+      "original_name": "diseño-formulario.png",
+      "content_type": "image/png",
+      "size_bytes": 204800,
+      "uploaded_by": "uuid",
+      "organization_id": "uuid",
+      "created_at": "ISO-8601 timestamp",
+      "created_by": "uuid | null",
+      "updated_by": "uuid | null"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/tasks/{task_id}/attachments`
+
+`multipart/form-data` con un campo `file`. **Response `201 Created`** — `{ "data": Attachment }`.
+**Response `413`** si excede 10 MB; **`422`** si el archivo está vacío o el tipo no está permitido.
+
+### GET `/api/v1/comments/{comment_id}/attachments`
+
+Lista los adjuntos de un comentario. **No es paginable** en este contrato (fuera del alcance
+de los 11 endpoints con `page`/`size`/`sort`/`order`) — siempre devuelve la colección
+completa, `meta: { total }`.
+
+### POST `/api/v1/comments/{comment_id}/attachments`
+
+Igual que el de tarea, pero anidado bajo un comentario. **Response `201 Created`**.
+
+### GET `/api/v1/attachments/{attachment_id}/download`
+
+Descarga el archivo binario. Responde con `Content-Disposition: attachment` (fuerza la
+descarga, nunca renderiza inline) y `X-Content-Type-Options: nosniff`.
+
+---
+
+## Notificaciones
+
+Endpoints **protegidos**. Las notificaciones son generadas por el sistema (menciones,
+alertas); no existe un `POST` público para crearlas directamente.
+
+### GET `/api/v1/notifications` 📄
+
+Lista las notificaciones del usuario autenticado. Por defecto solo las **activas**
+(`status=active`); `?status=` permite pedir otro estado. Soporta paginación opcional (ver
+«Paginación»). Campos ordenables (`sort`): `created_at` (por defecto), `title`, `status`.
+
+| Parámetro | Tipo                                     | Notas                                    |
+| --------- | ----------------------------------------- | ----------------------------------------- |
+| `status`  | `active` \| `read` \| `resolved` \| `silenced` | Filtra por estado. Por defecto `active`. |
+| `page`, `size`, `sort`, `order` | —           | Paginación opcional — ver «Paginación».  |
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "organization_id": "uuid",
+      "recipient_user_id": "uuid",
+      "rule_type": "task_overdue",
+      "title": "Tarea vencida",
+      "body": "«Migrar el login a FastAPI» venció hace 2 días.",
+      "target_type": "task",
+      "target_id": "uuid",
+      "dedup_key": "task_overdue:uuid",
+      "status": "active",
+      "created_at": "ISO-8601 timestamp",
+      "updated_at": "ISO-8601 timestamp"
+    }
+  ],
+  "message": "Notificaciones obtenidas.",
+  "meta": { "total": 1 }
+}
+```
+
+### GET `/api/v1/notifications/unread-count`
+
+```json
+{ "data": { "count": 3 }, "message": "Conteo de notificaciones no leídas." }
+```
+
+### PATCH `/api/v1/notifications/{notification_id}`
+
+Cambia el estado de una notificación propia. Solo acepta transiciones a `read`, `resolved`
+o `silenced`.
+
+```json
+{ "status": "read" }
+```
+
+**Response `200 OK`** — `{ "data": Notification, "message": "...", "meta": {} }`.
+
+---
+
+## Reglas de alerta
+
+Reglas configurables del motor de alertas, org-scoped. **No hay `POST`**: las reglas se
+siembran por organización (una por `rule_type`); solo se activan/ajustan.
+
+### GET `/api/v1/alert-rules` 📄
+
+Endpoint **protegido** (cualquier miembro autenticado). Soporta paginación opcional (ver
+«Paginación»). Campos ordenables (`sort`): `rule_type` (por defecto), `enabled`, `created_at`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "organization_id": "uuid",
+      "rule_type": "task_overdue",
+      "enabled": true,
+      "threshold_params": { "days_before": 3 },
+      "is_active": true,
+      "created_at": "ISO-8601 timestamp",
+      "updated_at": "ISO-8601 timestamp"
+    }
+  ],
+  "message": "Reglas de alerta obtenidas.",
+  "meta": { "total": 1 }
+}
+```
+
+### PATCH `/api/v1/alert-rules/{rule_id}`
+
+Endpoint **protegido y admin** (`require_admin`). Ajusta `enabled` y/o `threshold_params`.
+
+```json
+{ "enabled": false }
+```
+
+**Response `200 OK`** — `{ "data": AlertRule, "message": "...", "meta": {} }`.
+
+---
+
 ## Administración (`/admin/*`)
 
 Endpoints **protegidos** por la dependencia `require_admin`: el llamante debe tener un rol de
@@ -1017,7 +1363,10 @@ global). Un llamante sin rol `ADMIN` recibe `403`.
 
 Áreas organizacionales («dependencia»), org-scoped.
 
-#### GET `/api/v1/admin/dependencies`
+#### GET `/api/v1/admin/dependencies` 📄
+
+Soporta paginación opcional (ver «Paginación»). Campos ordenables (`sort`): `name` (por
+defecto), `code`, `created_at`.
 
 **Response `200 OK`**
 
@@ -1066,7 +1415,10 @@ Borrado lógico (*soft-delete*). **Response `204 No Content`**.
 
 Roles de RBAC, org-scoped (`code` único por organización).
 
-#### GET `/api/v1/admin/roles`
+#### GET `/api/v1/admin/roles` 📄
+
+Soporta paginación opcional (ver «Paginación»). Campos ordenables (`sort`): `name` (por
+defecto), `code`, `created_at`.
 
 **Response `200 OK`**
 
@@ -1132,19 +1484,24 @@ la lista enviada).
 
 Actividades de navegación, **globales** (sin `organization_id`), jerárquicas vía `parent_id`.
 
-#### GET `/api/v1/admin/menus`
+#### GET `/api/v1/admin/menus` 📄
 
-Devuelve la lista **plana** (con `parent_id`) y además el **árbol** anidado.
+Devuelve la lista **plana** (con `parent_id`) en `data`, y además el **árbol** anidado en
+`meta.tree` — el árbol **no** vive dentro de `data`. Soporta paginación opcional sobre
+`data` (ver «Paginación»); `meta.tree` **siempre** refleja el catálogo activo completo, con
+o sin paginación (ver el caso especial en «Paginación»). Campos ordenables (`sort`): `order`
+(por defecto), `name`, `created_at`.
 
-**Response `200 OK`**
+**Response `200 OK`** — sin parámetros de paginación:
 
 ```json
 {
-  "data": {
-    "flat": [
-      { "id": "a4...", "name": "Administración", "icon": "settings", "path": null, "parent_id": null, "order": 3, "is_active": true },
-      { "id": "b1...", "name": "Usuarios", "icon": "users", "path": "/admin/users", "parent_id": "a4...", "order": 0, "is_active": true }
-    ],
+  "data": [
+    { "id": "a4...", "name": "Administración", "icon": "settings", "path": null, "parent_id": null, "order": 3, "is_active": true, "created_at": "2026-06-27T14:00:00Z", "created_by": null, "updated_by": null },
+    { "id": "b1...", "name": "Usuarios", "icon": "users", "path": "/admin/users", "parent_id": "a4...", "order": 0, "is_active": true, "created_at": "2026-06-27T14:00:00Z", "created_by": null, "updated_by": null }
+  ],
+  "meta": {
+    "total": 8,
     "tree": [
       {
         "id": "a4...", "name": "Administración", "icon": "settings", "path": null, "order": 3,
@@ -1153,8 +1510,7 @@ Devuelve la lista **plana** (con `parent_id`) y además el **árbol** anidado.
         ]
       }
     ]
-  },
-  "meta": { "total": 8 }
+  }
 }
 ```
 
@@ -1200,7 +1556,10 @@ Borrado lógico del menú. **Response `204 No Content`**.
 Gestión de usuarios del tenant. Las contraseñas se *hashean* con bcrypt y **nunca** se
 devuelven; `full_name` es derivado.
 
-#### GET `/api/v1/admin/users`
+#### GET `/api/v1/admin/users` 📄
+
+Soporta paginación opcional (ver «Paginación»). Campos ordenables (`sort`):
+`primer_apellido` (por defecto), `primer_nombre`, `email`, `created_at`.
 
 **Response `200 OK`**
 
@@ -1294,58 +1653,88 @@ enviada).
 
 ## Resumen de endpoints
 
-| Método | Ruta                                       | Auth | Descripción                                  |
-| ------ | ------------------------------------------ | ---- | -------------------------------------------- |
-| POST   | `/api/v1/auth/login`                       | No   | Inicia sesión: token en el cuerpo + cookie de refresco. |
-| POST   | `/api/v1/auth/refresh`                      | Cookie | Emite un nuevo token de acceso y rota el refresco. |
-| POST   | `/api/v1/auth/logout`                       | Cookie | Cierra sesión: borra la cookie de refresco. |
-| GET    | `/api/v1/auth/me`                          | Sí   | Devuelve el usuario autenticado (con roles).  |
-| GET    | `/api/v1/auth/me/menus`                     | Sí   | Árbol de menús que el usuario puede ver.     |
-| GET    | `/api/v1/projects`                         | Sí   | Lista los proyectos del tenant.              |
-| POST   | `/api/v1/projects`                         | Sí   | Crea un proyecto.                            |
-| GET    | `/api/v1/projects/{id}`                    | Sí   | Devuelve un proyecto por id.                 |
-| GET    | `/api/v1/projects/{id}/members`            | Sí   | Lista los miembros asignables del proyecto.  |
-| GET    | `/api/v1/projects/{id}/tasks`              | Sí   | Lista las tareas (filtros opcionales).       |
-| POST   | `/api/v1/projects/{id}/tasks`              | Sí   | Crea una tarea.                              |
-| GET    | `/api/v1/tasks/{id}`                       | Sí   | Devuelve una tarea por id.                   |
-| PATCH  | `/api/v1/tasks/{id}`                       | Sí   | Actualiza parcialmente una tarea.            |
-| DELETE | `/api/v1/tasks/{id}`                       | Sí   | Elimina una tarea.                           |
-| GET    | `/api/v1/projects/{id}/sprints`            | Sí   | Lista los sprints del proyecto (scrum).      |
-| POST   | `/api/v1/projects/{id}/sprints`            | Sí   | Crea un sprint (scrum).                      |
-| PATCH  | `/api/v1/sprints/{id}`                     | Sí   | Actualiza un sprint (p. ej. cerrarlo).       |
-| GET    | `/api/v1/projects/{id}/sprints/{sid}/burndown` | Sí | Datos del burndown del sprint (ideal vs. real). |
-| GET    | `/api/v1/dashboard/executive`              | Sí   | Panel ejecutivo agregado del tenant.         |
-| GET    | `/api/v1/dashboard/performance`            | Sí   | Rendimiento por colaborador (opcional `sprint_id`). |
-| GET    | `/api/v1/admin/dependencies`               | Admin | Lista las dependencias del tenant.          |
-| POST   | `/api/v1/admin/dependencies`               | Admin | Crea una dependencia.                       |
-| GET    | `/api/v1/admin/dependencies/{id}`          | Admin | Devuelve una dependencia por id.            |
-| PATCH  | `/api/v1/admin/dependencies/{id}`          | Admin | Actualiza una dependencia.                  |
-| DELETE | `/api/v1/admin/dependencies/{id}`          | Admin | Elimina (lógico) una dependencia.           |
-| GET    | `/api/v1/admin/roles`                      | Admin | Lista los roles de RBAC del tenant.         |
-| POST   | `/api/v1/admin/roles`                      | Admin | Crea un rol.                                |
-| GET    | `/api/v1/admin/roles/{id}`                 | Admin | Devuelve un rol por id.                     |
-| PATCH  | `/api/v1/admin/roles/{id}`                 | Admin | Actualiza un rol.                           |
-| DELETE | `/api/v1/admin/roles/{id}`                 | Admin | Elimina (lógico) un rol.                    |
-| PUT    | `/api/v1/admin/roles/{id}/menus`           | Admin | Reemplaza el conjunto de menús del rol.     |
-| GET    | `/api/v1/admin/menus`                      | Admin | Lista de menús (plana + árbol).             |
-| POST   | `/api/v1/admin/menus`                      | Admin | Crea un menú (actividad).                   |
-| GET    | `/api/v1/admin/menus/{id}`                 | Admin | Devuelve un menú por id.                    |
-| PATCH  | `/api/v1/admin/menus/{id}`                 | Admin | Actualiza un menú.                          |
-| DELETE | `/api/v1/admin/menus/{id}`                 | Admin | Elimina (lógico) un menú.                   |
-| GET    | `/api/v1/admin/users`                      | Admin | Lista los usuarios del tenant.              |
-| POST   | `/api/v1/admin/users`                      | Admin | Crea un usuario (nombre desglosado + roles). |
-| GET    | `/api/v1/admin/users/{id}`                 | Admin | Devuelve un usuario por id.                 |
-| PATCH  | `/api/v1/admin/users/{id}`                 | Admin | Actualiza un usuario.                       |
-| DELETE | `/api/v1/admin/users/{id}`                 | Admin | Elimina (lógico) un usuario.                |
-| PUT    | `/api/v1/admin/users/{id}/roles`           | Admin | Reemplaza el conjunto de roles del usuario. |
+Regenerada desde la superficie real de los **13 routers** del backend. 📄 = soporta
+paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **11**
+endpoints en el alcance de ese contrato.
+
+| Método | Ruta                                       | Auth | 📄 | Descripción                                  |
+| ------ | ------------------------------------------ | ---- | -- | -------------------------------------------- |
+| POST   | `/api/v1/auth/login`                       | No   |    | Inicia sesión: token en el cuerpo + cookie de refresco. |
+| POST   | `/api/v1/auth/refresh`                     | Cookie |  | Emite un nuevo token de acceso y rota el refresco. |
+| POST   | `/api/v1/auth/logout`                      | Cookie |  | Cierra sesión: borra la cookie de refresco. |
+| GET    | `/api/v1/auth/me`                          | Sí   |    | Devuelve el usuario autenticado (con roles).  |
+| GET    | `/api/v1/auth/me/menus`                    | Sí   |    | Árbol de menús que el usuario puede ver.     |
+| GET    | `/api/v1/projects`                         | Sí   | 📄 | Lista los proyectos del tenant.              |
+| POST   | `/api/v1/projects`                         | Sí   |    | Crea un proyecto.                            |
+| GET    | `/api/v1/projects/{id}`                    | Sí   |    | Devuelve un proyecto por id.                 |
+| GET    | `/api/v1/projects/{id}/velocity`           | Sí   |    | Reporte de velocity del proyecto.            |
+| GET    | `/api/v1/projects/{id}/members`            | Sí   |    | Lista los miembros asignables del proyecto.  |
+| GET    | `/api/v1/projects/{id}/tasks`              | Sí   | 📄 | Lista las tareas (filtros + paginación opcionales). |
+| POST   | `/api/v1/projects/{id}/tasks`              | Sí   |    | Crea una tarea.                              |
+| GET    | `/api/v1/tasks/by-key/{key}`               | Sí   |    | Resuelve una tarea por su clave (`SDM-7`).   |
+| GET    | `/api/v1/tasks/{id}`                       | Sí   |    | Devuelve una tarea por id.                   |
+| PATCH  | `/api/v1/tasks/{id}`                       | Sí   |    | Actualiza parcialmente una tarea.            |
+| DELETE | `/api/v1/tasks/{id}`                       | Sí   |    | Elimina una tarea.                           |
+| GET    | `/api/v1/tasks/{id}/subtasks`              | Sí   |    | Lista las subtareas directas de una tarea.   |
+| GET    | `/api/v1/projects/{id}/sprints`            | Sí   | 📄 | Lista los sprints del proyecto (scrum).      |
+| POST   | `/api/v1/projects/{id}/sprints`            | Sí   |    | Crea un sprint (scrum).                      |
+| PATCH  | `/api/v1/sprints/{id}`                     | Sí   |    | Actualiza un sprint (p. ej. cerrarlo).       |
+| POST   | `/api/v1/sprints/{id}/close`               | Sí   |    | Cierra un sprint y mueve tareas incompletas. |
+| GET    | `/api/v1/projects/{id}/sprints/{sid}/burndown` | Sí |  | Datos del burndown del sprint (ideal vs. real). |
+| GET    | `/api/v1/tasks/{id}/comments`              | Sí   | 📄 | Lista los comentarios de una tarea.          |
+| POST   | `/api/v1/tasks/{id}/comments`              | Sí   |    | Publica un comentario en una tarea.          |
+| PATCH  | `/api/v1/comments/{id}`                    | Sí   |    | Edita un comentario propio.                  |
+| DELETE | `/api/v1/comments/{id}`                    | Sí   |    | Elimina (lógico) un comentario propio.       |
+| GET    | `/api/v1/tasks/{id}/attachments`           | Sí   | 📄 | Lista los adjuntos de una tarea.             |
+| POST   | `/api/v1/tasks/{id}/attachments`           | Sí   |    | Sube un adjunto a una tarea.                 |
+| GET    | `/api/v1/comments/{id}/attachments`        | Sí   |    | Lista los adjuntos de un comentario (no paginable). |
+| POST   | `/api/v1/comments/{id}/attachments`        | Sí   |    | Sube un adjunto a un comentario.             |
+| GET    | `/api/v1/attachments/{id}/download`        | Sí   |    | Descarga el archivo binario de un adjunto.   |
+| GET    | `/api/v1/dashboard/executive`              | Sí   |    | Panel ejecutivo agregado del tenant.         |
+| GET    | `/api/v1/dashboard/performance`            | Sí   |    | Rendimiento por colaborador (opcional `sprint_id`). |
+| GET    | `/api/v1/notifications`                    | Sí   | 📄 | Lista las notificaciones del usuario.        |
+| GET    | `/api/v1/notifications/unread-count`       | Sí   |    | Conteo de notificaciones activas.            |
+| PATCH  | `/api/v1/notifications/{id}`               | Sí   |    | Cambia el estado de una notificación propia. |
+| GET    | `/api/v1/alert-rules`                      | Sí   | 📄 | Lista las reglas de alerta del tenant.       |
+| PATCH  | `/api/v1/alert-rules/{id}`                 | Admin |   | Ajusta `enabled`/`threshold_params` de una regla. |
+| GET    | `/api/v1/admin/dependencies`               | Admin | 📄 | Lista las dependencias del tenant.          |
+| POST   | `/api/v1/admin/dependencies`               | Admin |   | Crea una dependencia.                       |
+| GET    | `/api/v1/admin/dependencies/{id}`          | Admin |   | Devuelve una dependencia por id.            |
+| PATCH  | `/api/v1/admin/dependencies/{id}`          | Admin |   | Actualiza una dependencia.                  |
+| DELETE | `/api/v1/admin/dependencies/{id}`          | Admin |   | Elimina (lógico) una dependencia.           |
+| GET    | `/api/v1/admin/roles`                      | Admin | 📄 | Lista los roles de RBAC del tenant.         |
+| POST   | `/api/v1/admin/roles`                      | Admin |   | Crea un rol.                                |
+| GET    | `/api/v1/admin/roles/{id}`                 | Admin |   | Devuelve un rol por id.                     |
+| PATCH  | `/api/v1/admin/roles/{id}`                 | Admin |   | Actualiza un rol.                           |
+| DELETE | `/api/v1/admin/roles/{id}`                 | Admin |   | Elimina (lógico) un rol.                    |
+| PUT    | `/api/v1/admin/roles/{id}/menus`           | Admin |   | Reemplaza el conjunto de menús del rol.     |
+| GET    | `/api/v1/admin/menus`                      | Admin | 📄 | Lista de menús: `data` plana + `meta.tree` (siempre completo). |
+| POST   | `/api/v1/admin/menus`                      | Admin |   | Crea un menú (actividad).                   |
+| GET    | `/api/v1/admin/menus/{id}`                 | Admin |   | Devuelve un menú por id.                    |
+| PATCH  | `/api/v1/admin/menus/{id}`                 | Admin |   | Actualiza un menú.                          |
+| DELETE | `/api/v1/admin/menus/{id}`                 | Admin |   | Elimina (lógico) un menú.                   |
+| GET    | `/api/v1/admin/users`                      | Admin | 📄 | Lista los usuarios del tenant.              |
+| POST   | `/api/v1/admin/users`                      | Admin |   | Crea un usuario (nombre desglosado + roles). |
+| GET    | `/api/v1/admin/users/{id}`                 | Admin |   | Devuelve un usuario por id.                 |
+| PATCH  | `/api/v1/admin/users/{id}`                 | Admin |   | Actualiza un usuario.                       |
+| DELETE | `/api/v1/admin/users/{id}`                 | Admin |   | Elimina (lógico) un usuario.                |
+| PUT    | `/api/v1/admin/users/{id}/roles`           | Admin |   | Reemplaza el conjunto de roles del usuario. |
 
 > «Admin» en la columna *Auth* significa: bearer válido **y** rol de RBAC con `code = "ADMIN"`
 > (`require_admin`). «Cookie» significa que el endpoint se autentica con la cookie de
-> refresco, no con el header `Authorization`.
+> refresco, no con el header `Authorization`. El `PATCH` de `/alert-rules/{id}` es el único
+> endpoint de esta lista con auth mixta: requiere membresía (`Sí`) **y** además `require_admin`.
 
 ---
 
 ## Modelos de datos del contrato
+
+> **Auditoría (`created_by`/`updated_by`)**: `User`, `Dependency`, `Role`, `Menu`,
+> `Project`, `Task`, `Sprint`, `Comment`, `Attachment` y `AlertRule` exponen `created_by` y
+> `updated_by` (`uuid | null`) — quién creó/modificó por última vez el registro, resuelto
+> del usuario autenticado (nunca aceptado como input del cliente). Son `null` en filas
+> creadas antes de esta migración o sembradas por el arranque del sistema (`db_init.py`),
+> de forma **permanente** — no hay *backfill* histórico.
 
 ### `TokenResponse`
 
@@ -1376,7 +1765,9 @@ enviada).
   "created_at": "ISO-8601 timestamp",
   "roles": [
     { "id": "uuid", "code": "string", "name": "string" }
-  ]
+  ],
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
 
@@ -1391,10 +1782,13 @@ enviada).
 ```json
 {
   "id": "uuid",
+  "organization_id": "uuid",
   "name": "string",
   "code": "string | null",
   "is_active": true,
-  "created_at": "ISO-8601 timestamp"
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
 
@@ -1403,10 +1797,14 @@ enviada).
 ```json
 {
   "id": "uuid",
+  "organization_id": "uuid",
   "code": "string",
   "name": "string",
   "is_active": true,
-  "created_at": "ISO-8601 timestamp"
+  "created_at": "ISO-8601 timestamp",
+  "menu_ids": ["uuid"],
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
 
@@ -1421,13 +1819,18 @@ enviada).
   "parent_id": "uuid | null",
   "order": "int",
   "is_active": true,
-  "children": ["Menu"]
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
 
-> En las respuestas en **árbol** (`/auth/me/menus`, el `tree` de `/admin/menus`) cada `Menu`
-> incluye `children[]`. En la respuesta **plana** (`flat` de `/admin/menus`) se usa
-> `parent_id` y no hay `children`.
+> `Menu` es un catálogo **global** (sin `organization_id`), pero SÍ lleva auditoría
+> (`created_by`/`updated_by`) — el criterio de qué se audita es "tiene borrado lógico"
+> (`SoftDeleteMixin`), no "está aislado por tenant". En las respuestas en **árbol**
+> (`/auth/me/menus`, `meta.tree` de `GET /admin/menus`) cada nodo usa una forma reducida con
+> `children[]` (sin `is_active`/auditoría); en la lista **plana** (`data` de
+> `GET /admin/menus`) se usa el `Menu` completo de arriba, con `parent_id` y sin `children`.
 
 ### `Project`
 
@@ -1439,6 +1842,7 @@ enviada).
   "methodology": "planner | kanban | scrum | custom",
   "status": "string",
   "organization_id": "uuid",
+  "code": "string | null",
   "created_at": "ISO-8601 timestamp",
   "methodology_info": {
     "methodology": "string",
@@ -1447,7 +1851,9 @@ enviada).
     "sprints_enabled": "boolean",
     "estimation_mode": "none | points | hours | both",
     "has_backlog": "boolean"
-  }
+  },
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
 
@@ -1473,9 +1879,19 @@ enviada).
   "risk_flag": "boolean",
   "risk_reason": "string | null",
   "created_at": "ISO-8601 timestamp",
-  "completed_at": "ISO-8601 timestamp | null"
+  "completed_at": "ISO-8601 timestamp | null",
+  "task_number": "int | null",
+  "task_key": "string | null",
+  "subtask_progress": "number | null",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
+
+> `task_key` es la clave legible (`SDM-7` = `{código del proyecto}-{task_number}`),
+> asignada de forma atómica y secuencial por proyecto. `subtask_progress` (`0.0..1.0`) solo
+> se calcula en el detalle de una tarea individual (`GET /tasks/{id}`); es `null` en listas
+> y en tareas sin subtareas.
 
 > `status` es texto libre validado contra los `allowed_statuses` de la metodología del
 > proyecto (el rótulo de una columna del tablero), no un enum global.
@@ -1496,6 +1912,90 @@ enviada).
   "start_date": "date (YYYY-MM-DD) | null",
   "end_date": "date (YYYY-MM-DD) | null",
   "status": "active | closed",
-  "created_at": "ISO-8601 timestamp"
+  "completed_points": "int",
+  "closed_at": "ISO-8601 timestamp | null",
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+### `Comment`
+
+```json
+{
+  "id": "uuid",
+  "task_id": "uuid",
+  "author_id": "uuid",
+  "body": "string",
+  "mentioned_user_ids": ["uuid-as-string"],
+  "organization_id": "uuid",
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+> `author_id` (quién escribió el comentario, campo de negocio) y `created_by` (auditoría
+> genérica) suelen coincidir pero son conceptualmente distintos — `author_id` gobierna el
+> permiso de editar/borrar (`403` si no coincide con el caller); `created_by`/`updated_by`
+> son el rastro de auditoría transversal a los 11 modelos.
+
+### `Attachment`
+
+```json
+{
+  "id": "uuid",
+  "target_type": "task | comment",
+  "target_id": "uuid",
+  "original_name": "string",
+  "content_type": "string",
+  "size_bytes": "int",
+  "uploaded_by": "uuid",
+  "organization_id": "uuid",
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+### `Notification`
+
+```json
+{
+  "id": "uuid",
+  "organization_id": "uuid",
+  "recipient_user_id": "uuid",
+  "rule_type": "string",
+  "title": "string",
+  "body": "string",
+  "target_type": "string | null",
+  "target_id": "uuid | null",
+  "dedup_key": "string",
+  "status": "active | read | resolved | silenced",
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp"
+}
+```
+
+> `Notification` **no** lleva auditoría (`created_by`/`updated_by`): no tiene
+> `SoftDeleteMixin` (se generan siempre por el sistema, nunca por un `POST` de cliente), así
+> que queda fuera del criterio de los 11 modelos auditados.
+
+### `AlertRule`
+
+```json
+{
+  "id": "uuid",
+  "organization_id": "uuid",
+  "rule_type": "string",
+  "enabled": "boolean",
+  "threshold_params": { "...": "objeto libre, depende de rule_type" },
+  "is_active": true,
+  "created_at": "ISO-8601 timestamp",
+  "updated_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
 }
 ```
