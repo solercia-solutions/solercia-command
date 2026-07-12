@@ -8,8 +8,9 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 
 | Capacidad | Spec | Cambio(s) de origen |
 |-----------|------|---------------------|
+| Activos de información | [assets](assets/spec.md) | [07-assets-sdmujer](../changes/archive/2026-07-12-07-assets-sdmujer/) |
 | Historial de actividad | [activity-history](activity-history/spec.md) | [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) |
-| Motor de alertas | [alert-engine](alert-engine/spec.md) | baseline + [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
+| Motor de alertas | [alert-engine](alert-engine/spec.md) | baseline + [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) + [07-assets-sdmujer](../changes/archive/2026-07-12-07-assets-sdmujer/) |
 | Convenciones de API | [api-conventions](api-conventions/spec.md) | baseline + [01-fundacion-tdd](../changes/archive/2026-07-11-01-fundacion-tdd/) + [02-contrato-api](../changes/archive/2026-07-11-02-contrato-api/) |
 | Archivos adjuntos | [attachments](attachments/spec.md) | baseline |
 | Autenticación | [auth](auth/spec.md) | baseline |
@@ -52,6 +53,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) | `global-search/spec.md` (nueva), `tasks/spec.md` (MODIFIED + ADDED) | `global-search` (creada: endpoint GET /search con scope estricto multi-tenant), `tasks` (modificada: filtros avanzados combinables en GET /projects/{id}/tasks) |
 | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) | `test-coverage-baseline/spec.md` (nueva) | `test-coverage-baseline` (creada: contrato de cobertura de tests as-built) |
 | [06-reminders](../changes/archive/2026-07-12-06-reminders/) | `reminders/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `reminders` (creada: recordatorios manuales y por regla), `notifications-inapp` (modificada: origen `rule_type="reminder"`) |
+| [07-assets-sdmujer](../changes/archive/2026-07-12-07-assets-sdmujer/) | `assets/spec.md` (nueva), `alert-engine/spec.md` (ADDED) | `assets` (creada: inventario de activos, licencias y vínculos con tareas), `alert-engine` (modificada: estrategias `license_expiring` y `license_expired`) |
 | [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) | `realtime-notifications/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `realtime-notifications` (creada: canal WS push en tiempo real), `notifications-inapp` (modificada: publicación best-effort al conectar) |
 
 ## Inconsistencias detectadas

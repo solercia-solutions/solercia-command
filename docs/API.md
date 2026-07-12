@@ -2402,6 +2402,309 @@ ws.onclose = () => {
 
 ---
 
+## Activos de información (assets)
+
+Endpoints **protegidos**. Los activos de información son recursos de la organización (hardware, software, licencias, etc.) con vencimientos de licencia y vínculos a tareas. Lectura permitida a cualquier miembro; escritura (`POST`, `PATCH`, `DELETE`) exige `require_admin`. Todos los activos, licencias y vínculos respetan el aislamiento multi-tenant del usuario autenticado.
+
+### GET `/api/v1/assets` 📄
+
+Lista los activos activos de la organización. Soporta paginación opcional (ver «Paginación»). Campos ordenables (`sort`): `name`, `created_at` (por defecto). Filtros combinables: `asset_type`, `status`, `criticality`, `responsible_id`, `category`, `q` (búsqueda por nombre).
+
+**Request**
+
+```http
+GET /api/v1/assets?asset_type=hardware&status=active&page=1&size=20 HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <access_token>
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Servidor principal",
+      "description": "Servidor de producción en datacenter.",
+      "asset_type": "hardware",
+      "category": "servidor",
+      "status": "active",
+      "criticality": "critical",
+      "responsible_id": "u1234567-abcd-ef01-2345-6789abcdef01",
+      "acquisition_date": "2024-01-15",
+      "location": "Datacenter 1",
+      "vendor": "Dell",
+      "organization_id": "org-uuid",
+      "created_at": "2026-06-27T10:30:00Z",
+      "created_by": "admin-uuid",
+      "updated_by": "admin-uuid"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "size": 20,
+    "total": 5
+  }
+}
+```
+
+**Parámetros de filtro**
+
+| Parámetro | Tipo | Notas |
+|-----------|------|-------|
+| `asset_type` | string | `hardware` \| `software` \| `saas_subscription` \| `information` \| `service` \| `certificate` |
+| `status` | string | `active` \| `inactive` \| `retired` \| `under_review` |
+| `criticality` | string | `critical` \| `high` \| `medium` \| `low` |
+| `responsible_id` | uuid | Filtra activos cuyo responsable es este usuario. |
+| `category` | string | Búsqueda exacta del subtipo (p. ej. `"servidor"` dentro de `asset_type=hardware`). |
+| `q` | string | Búsqueda por subcadena en el nombre (`ILIKE`), case-insensitive. |
+
+### POST `/api/v1/assets`
+
+Crea un activo. Requiere `require_admin`. `name` y `asset_type` son obligatorios.
+
+**Request**
+
+```json
+{
+  "name": "Servidor principal",
+  "description": "Servidor de producción.",
+  "asset_type": "hardware",
+  "category": "servidor",
+  "status": "active",
+  "criticality": "critical",
+  "responsible_id": "u1234567-abcd-ef01-2345-6789abcdef01",
+  "acquisition_date": "2024-01-15",
+  "location": "Datacenter 1",
+  "vendor": "Dell"
+}
+```
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `name` | string | Sí | Nombre del activo. |
+| `asset_type` | enum | Sí | Tipo de activo (ver filtro arriba). |
+| `category` | string | No | Subtipo libre (hasta 80 caracteres). |
+| `status` | enum | No | Por defecto `"active"`. |
+| `criticality` | enum | No | Por defecto `"medium"`. |
+| `responsible_id` | uuid | No | Usuario responsable del activo (puede ser `null`). |
+| `description`, `acquisition_date`, `location`, `vendor` | varios | No | Campos opcionales. |
+
+**Response `201 Created`** — `{ "data": Asset }`.
+
+**Response `403 Forbidden`** — usuario no es admin.
+
+**Response `422 Unprocessable Entity`** — falta campo obligatorio o `asset_type` no válido.
+
+### GET `/api/v1/assets/{id}`
+
+Obtiene un activo específico.
+
+**Response `200 OK`** — `{ "data": Asset }`.
+
+**Response `404 Not Found`** — activo no existe o pertenece a otra organización.
+
+### PATCH `/api/v1/assets/{id}`
+
+Edita un activo (campos opcionales). Requiere `require_admin`.
+
+**Request**
+
+```json
+{
+  "status": "inactive",
+  "criticality": "high"
+}
+```
+
+**Response `200 OK`** — `{ "data": Asset }`.
+
+**Response `403 Forbidden`** — usuario no es admin.
+
+**Response `404 Not Found`** — activo no existe o pertenece a otra organización.
+
+### DELETE `/api/v1/assets/{id}`
+
+Borrado lógico (`soft delete`). Requiere `require_admin`. Sus licencias también quedan marcadas como borradas, y sus vínculos con tareas se eliminan.
+
+**Response `204 No Content`**.
+
+**Response `403 Forbidden`** — usuario no es admin.
+
+**Response `404 Not Found`** — activo no existe o pertenece a otra organización.
+
+---
+
+### Licencias de activos (anidadas)
+
+#### GET `/api/v1/assets/{asset_id}/licenses` 📄
+
+Lista las licencias activas de un activo. Soporta paginación opcional. Campos ordenables: `expiration_date`, `created_at` (por defecto).
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "lic-uuid",
+      "asset_id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      "license_key": "XXXXX-XXXXX-XXXXX",
+      "license_type": "subscription",
+      "start_date": "2026-01-01",
+      "expiration_date": "2027-01-01",
+      "seats": 10,
+      "cost": 1500.00,
+      "auto_renew": true,
+      "organization_id": "org-uuid",
+      "created_at": "2026-06-27T10:30:00Z",
+      "created_by": "admin-uuid"
+    }
+  ],
+  "meta": { "page": 1, "size": 20, "total": 2 }
+}
+```
+
+#### POST `/api/v1/assets/{asset_id}/licenses`
+
+Crea una licencia para el activo. Requiere `require_admin`. `expiration_date` debe ser posterior a `start_date`.
+
+**Request**
+
+```json
+{
+  "license_key": "XXXXX-XXXXX-XXXXX",
+  "license_type": "subscription",
+  "start_date": "2026-01-01",
+  "expiration_date": "2027-01-01",
+  "seats": 10,
+  "cost": 1500.00,
+  "auto_renew": true
+}
+```
+
+| Campo | Tipo | Obligatorio | Notas |
+|-------|------|-------------|-------|
+| `start_date` | date | Sí | Formato `YYYY-MM-DD`. |
+| `expiration_date` | date | Sí | Debe ser `> start_date`. |
+| `license_type` | enum | Sí | `perpetual` \| `subscription` \| `trial`. |
+| `license_key`, `seats`, `cost`, `auto_renew` | varios | No | `auto_renew` por defecto `false`. |
+
+**Response `201 Created`** — `{ "data": AssetLicense }`.
+
+**Response `422 Unprocessable Entity`** — `expiration_date <= start_date` o fecha inválida.
+
+#### PATCH `/api/v1/asset-licenses/{license_id}`
+
+Edita una licencia (campos opcionales). Requiere `require_admin`.
+
+**Response `200 OK`** — `{ "data": AssetLicense }`.
+
+**Response `404 Not Found`** — licencia no existe o activo está borrado.
+
+#### DELETE `/api/v1/asset-licenses/{license_id}`
+
+Borrado lógico. Requiere `require_admin`.
+
+**Response `204 No Content`**.
+
+**Response `404 Not Found`** — licencia no existe o activo está borrado.
+
+---
+
+### Vínculos activo↔tarea
+
+#### GET `/api/v1/assets/{asset_id}/tasks` 📄
+
+Lista las tareas vinculadas a un activo. Soporta paginación opcional. Campos ordenables: `created_at` (por defecto).
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "id": "task-uuid",
+      "title": "Renovar licencia de software",
+      "project_id": "proj-uuid",
+      "status": "To Do",
+      "due_date": "2027-01-01"
+    }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+#### POST `/api/v1/assets/{asset_id}/tasks`
+
+Vincula una tarea EXISTENTE de la misma organización al activo. No crea tareas.
+
+**Request**
+
+```json
+{ "task_id": "task-uuid" }
+```
+
+**Response `201 Created`** — `{ "data": { "asset_id": "...", "task_id": "..." } }`.
+
+**Response `404 Not Found`** — tarea no existe, pertenece a otra organización, o el activo está borrado.
+
+#### DELETE `/api/v1/assets/{asset_id}/tasks/{task_id}`
+
+Desvincula una tarea del activo.
+
+**Response `204 No Content`**.
+
+**Response `404 Not Found`** — vínculo no existe o activo está borrado.
+
+---
+
+## Alertas de licencia
+
+Las estrategias `license_expiring` y `license_expired` son evaluadas automáticamente por el scheduler de alertas (cada hora por defecto). Ambas generan notificaciones in-app.
+
+### `license_expiring` — Alerta escalonada de próximo vencimiento
+
+Condición: una licencia activa (`is_active = true`, `auto_renew = false`) con un número de días restantes hasta `expiration_date` que entra en una de las bandas configuradas (por defecto `30`, `7`, `1` días). Una sola notificación por banda (`dedup_key = license_expiring:{license_id}:{band}`).
+
+**Semilla predeterminada**
+
+```
+rule_type: "license_expiring"
+enabled: true
+threshold_params: { "lead_days": [30, 7, 1] }
+```
+
+**Destinatario**: `responsible_id` del activo (`null` = sin notificación).
+
+**Escenarios**
+
+- Licencia a 30, 7 o 1 día de vencer: notificación con la banda correspondiente.
+- Re-corrida sin cruzar el siguiente umbral: sin duplicado.
+- Licencia con `auto_renew = true`: nunca notifica.
+- Licencia o activo borrados (`is_active = false`): nunca notifican.
+
+### `license_expired` — Alerta de licencia vencida
+
+Condición: una licencia activa (`is_active = true`) cuya `expiration_date` ya pasó. Una sola notificación por `(license_id, recipient)` (`dedup_key = license_expired:{license_id}:{recipient_id}`).
+
+**Semilla predeterminada**
+
+```
+rule_type: "license_expired"
+enabled: true
+threshold_params: {}
+```
+
+**Destinatarios**:
+- `responsible_id` del activo (si no es `null`).
+- Cada usuario con rol `admin` en la organización (independiente del responsable; si hay varios admins, cada uno recibe su notificación).
+
+Ausencia de admins no suprime la notificación al responsable.
+
+---
+
 ## Modelos de datos del contrato
 
 > **Auditoría (`created_by`/`updated_by`)**: `User`, `Dependency`, `Role`, `Menu`,
@@ -2800,3 +3103,74 @@ ws.onclose = () => {
 > rastreados: `status`, `assignee_id`, `estimation_points`, `estimation_hours`, `sprint_id`,
 > `priority` (no incluye `due_date`). `actor_id` es `null` cuando `actor_type == "system"`
 > (p. ej. `POST /sprints/{id}/close` moviendo tareas incompletas al backlog).
+
+### `Asset`
+
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "description": "string | null",
+  "asset_type": "hardware | software | saas_subscription | information | service | certificate",
+  "category": "string | null",
+  "status": "active | inactive | retired | under_review",
+  "criticality": "critical | high | medium | low",
+  "responsible_id": "uuid | null",
+  "acquisition_date": "date (YYYY-MM-DD) | null",
+  "location": "string | null",
+  "vendor": "string | null",
+  "organization_id": "uuid",
+  "is_active": true,
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+> `asset_type` está anclado a estándares ITAM (ISO/IEC 27005, ISO/IEC 19770-1/-3, ITIL 4).
+> `category` es un subtipo libre (hasta 80 caracteres, sin validación) para granularidad sin
+> migración — ejemplos: en `hardware` puede ser `"servidor"`, `"endpoint"`; en `software`,
+> `"SO"`, `"app_negocio"`. `responsible_id` es el usuario responsable del activo (puede ser `null`).
+
+### `AssetLicense`
+
+```json
+{
+  "id": "uuid",
+  "asset_id": "uuid",
+  "license_key": "string | null",
+  "license_type": "perpetual | subscription | trial",
+  "start_date": "date (YYYY-MM-DD)",
+  "expiration_date": "date (YYYY-MM-DD)",
+  "seats": "int | null",
+  "cost": "decimal (12,2) | null",
+  "auto_renew": "boolean",
+  "organization_id": "uuid",
+  "is_active": true,
+  "created_at": "ISO-8601 timestamp",
+  "created_by": "uuid | null",
+  "updated_by": "uuid | null"
+}
+```
+
+> Composición 1:N bajo `Asset`: `asset_id` con FK `CASCADE`. Si el activo padre se borra
+> lógicamente (`is_active = false`), sus licencias también — nunca quedan huérfanas.
+> `auto_renew = true` excluye la licencia del alerta `license_expiring` (pero sigue
+> alertando en `license_expired` si llega a pasar la fecha).
+
+### `AssetTask`
+
+```json
+{
+  "asset_id": "uuid",
+  "task_id": "uuid",
+  "organization_id": "uuid",
+  "created_at": "ISO-8601 timestamp"
+}
+```
+
+> Tabla de unión M:N (patrón `TaskLabel`). PK es `(asset_id, task_id)` — no hay `id` propio.
+> Sin `SoftDeleteMixin` — es **hard delete** al desvincular (permite re-vinculación sin
+> activación de filas blandas). Lleva `TenantMixin` (divergencia deliberada de `TaskLabel`)
+> para scoping directo por `organization_id` sin join contra `Asset`/`Task`. FK ambas con
+> `CASCADE`.

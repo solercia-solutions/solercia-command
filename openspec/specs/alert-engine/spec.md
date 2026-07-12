@@ -1,8 +1,8 @@
 # Spec — Motor de alertas (alert-engine)
 
-> **Origen**: línea base as-built (2026-07-11) + cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/)
+> **Origen**: línea base as-built (2026-07-11) + cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/) + cambio [07-assets-sdmujer](../../changes/archive/2026-07-12-07-assets-sdmujer/)
 
-> Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
+> Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro. Modificado en cambio 07 para integrar estrategias de alertas de vencimiento de licencia.
 
 ## Propósito
 
@@ -29,6 +29,8 @@ Estrategias implementadas:
 | sprint_at_risk | ≥75% del tiempo transcurrido con <50% de puntos | Admins |
 | workload_imbalance | >8 tareas activas por usuario | Admins |
 | blocked_task | Tarea bloqueada > threshold_params.days | Assignee |
+| license_expiring | Licencia a ≤X días de vencer (bandas 30/7/1) | Responsable del activo |
+| license_expired | Licencia vencida | Responsable del activo + Admins |
 
 Scheduler: APScheduler `AsyncIOScheduler` con `IntervalTrigger` cada `ALERT_SCHEDULER_INTERVAL_HOURS` (1 h) en el lifespan; si el arranque del scheduler falla, la app sigue operando.
 
@@ -66,18 +68,28 @@ Scheduler: APScheduler `AsyncIOScheduler` con `IntervalTrigger` cada `ALERT_SCHE
 - Cuando el evaluador corre nuevamente sin que cambie la condición de bloqueo
 - Entonces no se crea una segunda notificación para el mismo `dedup_key`.
 
-**R7 — Seed idempotente de la regla blocked_task por defecto**
+**R7 — Seed idempotente de reglas de alerta por defecto**
 - Dado una organización sin reglas de alerta
 - Cuando corre el seed de reglas por defecto
-- Entonces la organización queda con 5 reglas activas, incluida blocked_task.
+- Entonces la organización queda con 7 reglas activas (task_overdue, task_at_risk, sprint_at_risk, workload_imbalance, blocked_task, license_expiring, license_expired).
 - Y si el seed se ejecuta nuevamente, sigue habiendo exactamente una regla activa por cada `rule_type`, sin duplicados.
+
+**R8 — Alerta escalonada license_expiring con bandas de umbral**
+- Dado una licencia activa a X días de vencer con `auto_renew=false`, configurada con `license_expiring` habilitada con bandas de días `[30, 7, 1]`
+- Cuando corre el evaluador
+- Entonces identifica la banda vigente (la MENOR banda tal que `días_restantes <= banda`) y genera UNA sola notificación con dedup_key que incluye esa banda
+- Y la licencia SIN auto_renew, SIN borrado de activo/licencia no genera notificación
+
+**R9 — Alerta license_expired al vencer la licencia**
+- Dado una licencia activa cuya `expiration_date` ya pasó, con `license_expired` habilitada
+- Cuando corre el evaluador
+- Entonces genera UNA sola notificación al `responsible_id` del activo Y una notificación independiente a cada miembro admin de la organización (sin duplicar, dedup_key que incluye recipient)
+- Y en ausencia de admins, solo genera al responsable del activo
 
 ## Limitaciones y deuda conocida
 
 - Lock distribuido Redis: TODO documentado en el evaluador — Redis está declarado en config y NO se usa (riesgo de doble evaluación con múltiples réplicas).
-- Estrategias NO implementadas del CLAUDE.md: license_expiring, license_expired.
-- Canales faltantes: sin email, sin WebSocket (solo notificación in-app).
-- CERO tests del motor completo (estrategias, evaluador, scheduler, endpoints de alert-rules).
+- Canales faltantes: sin email, sin WebSocket (solo notificación in-app, integrados en cambios 08 y 09).
 
 ## Referencias
 

@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-12 (cambios 01-05, 06, 09, 10 y 11 completados; 06-reminders archivado — recordatorios manuales y automáticos por regla; `Reminder` + `ReminderRule` con disparo idempotente vía scheduler; origen `rule_type="reminder"` integrado a la bandeja compartida; 21 escenarios verificados, 439/439 tests verdes, ruff/mypy limpios; 10-busqueda-global archivado — búsqueda global multi-entidad (GET /api/v1/search) + filtros avanzados de tareas con pg_trgm + índices GIN; 17 escenarios verificados, 414/414 tests verdes, ruff/mypy limpios; 11-blindaje-baseline archivado — backfill de tests as-built con TDD estricto de 10 capacidades críticas: auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive; matriz de permisos y aislamiento multi-tenant; suite crece de 258 a 382 a 414 tests; 09-websocket-realtime archivado — canal WebSocket que empuja notificaciones in-app en tiempo real, best-effort, complementa polling REST; `realtime-notifications` (nueva capacidad) + `notifications-inapp` (delta ADDED sobre publicación); 13 escenarios verificados, 466/466 tests verdes, ruff/mypy limpios; push real black-box end-to-end confirmado contra contenedor; 2 cambios backend pendientes (07-assets-sdmujer y 08-email-notifications); frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-12 (cambios 01-07, 09, 10 y 11 completados; 06-reminders archivado — recordatorios manuales y automáticos por regla; `Reminder` + `ReminderRule` con disparo idempotente vía scheduler; origen `rule_type="reminder"` integrado a la bandeja compartida; 21 escenarios verificados, 439/439 tests verdes, ruff/mypy limpios; 10-busqueda-global archivado — búsqueda global multi-entidad (GET /api/v1/search) + filtros avanzados de tareas con pg_trgm + índices GIN; 17 escenarios verificados, 414/414 tests verdes, ruff/mypy limpios; 11-blindaje-baseline archivado — backfill de tests as-built con TDD estricto de 10 capacidades críticas: auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive; matriz de permisos y aislamiento multi-tenant; suite crece de 258 a 382 a 414 tests; 09-websocket-realtime archivado — canal WebSocket que empuja notificaciones in-app en tiempo real, best-effort, complementa polling REST; `realtime-notifications` (nueva capacidad) + `notifications-inapp` (delta ADDED sobre publicación); 13 escenarios verificados, 466/466 tests verdes, ruff/mypy limpios; push real black-box end-to-end confirmado contra contenedor; 07-assets-sdmujer archivado — módulo de inventario de activos (`assets`, `asset_licenses`, `asset_tasks`) + alertas de vencimiento de licencia (`license_expiring`, `license_expired`); 16 escenarios verificados (28 totales), 498/498 tests verdes, ruff/mypy limpios, migración 0010 limpia con ciclo downgrade/upgrade probado; solo 08-email-notifications pendiente del roadmap backend; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -43,11 +43,12 @@ flowchart TD
     class C04 done
     class C05 done
     class C06 done
+    class C07 done
     class C09 done
     class C10 done
     class C11 done
     class FE inprogress
-    class C07,C08 pending
+    class C08 pending
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
     classDef inprogress fill:#eab308,stroke:#854d0e,color:#000000
@@ -79,7 +80,7 @@ Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna 
 | Vista ejecutiva | [specs/dashboard-executive/spec.md](specs/dashboard-executive/spec.md) | CERO tests |
 | Convenciones de API | [specs/api-conventions/spec.md](specs/api-conventions/spec.md) | Sin tests transversales |
 
-Total tras cambio 09: **466 tests en 27 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 = 466; crecimiento con TDD estricto en cada ciclo).
+Total tras cambio 07: **498 tests en 30 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 25 en cambio 06 + 32 en cambio 10 + 43 en cambio 11 + 27 en cambio 09 + 32 en cambio 07 = 498; crecimiento con TDD estricto en cada ciclo).
 
 ---
 
@@ -96,7 +97,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 | 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | 🟩 Completado | [time-logs](specs/time-logs/spec.md), [activity-history](specs/activity-history/spec.md) (nuevas) · [dashboard-executive](specs/dashboard-executive/spec.md) (modificada) |
 | 11 | `11-blindaje-baseline` | Blindaje de la línea base: backfill de TDD de las 10 capacidades as-built sin tests (auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive) + matriz de permisos + aislamiento multi-tenant + 1 bugfix real (usuarios soft-borrados en listado). | 🟩 Completado | [test-coverage-baseline](specs/test-coverage-baseline/spec.md) (nueva) |
 | 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | 🟩 Completado | [reminders](specs/reminders/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
-| 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | ⬜ Pendiente | — |
+| 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | 🟩 Completado | [assets](specs/assets/spec.md) (nueva) · [alert-engine](specs/alert-engine/spec.md) (modificada) |
 | 08 | `08-email-notifications` | Canal email con digest configurable. | ⬜ Pendiente | — |
 | 09 | `09-websocket-realtime` | Push in-app en tiempo real. | 🟩 Completado | [realtime-notifications](specs/realtime-notifications/spec.md) (nueva) · [notifications-inapp](specs/notifications-inapp/spec.md) (modificada) |
 | 10 | `10-busqueda-global` | Búsqueda global + filtros avanzados. | 🟩 Completado | [global-search](specs/global-search/spec.md) (nueva) · [tasks](specs/tasks/spec.md) (modificada) |
