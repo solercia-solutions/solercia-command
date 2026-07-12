@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_admin
+from app.dependencies import get_actor_id, require_admin
 from app.modules.menus.schemas import (
     MenuCreate,
     MenuNode,
@@ -51,12 +51,13 @@ async def list_menus(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_menu(
     payload: MenuCreate,
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a menu (activity)."""
 
     service = MenuService(db)
-    menu = await service.create_menu(payload)
+    menu = await service.create_menu(payload, actor_id=actor_id)
     return {"data": MenuRead.model_validate(menu)}
 
 
@@ -76,12 +77,13 @@ async def get_menu(
 async def update_menu(
     menu_id: uuid.UUID,
     payload: MenuUpdate,
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Apply a partial update to a menu."""
 
     service = MenuService(db)
-    menu = await service.update_menu(menu_id, payload)
+    menu = await service.update_menu(menu_id, payload, actor_id=actor_id)
     return {"data": MenuRead.model_validate(menu)}
 
 

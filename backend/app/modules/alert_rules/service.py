@@ -20,7 +20,11 @@ class AlertRuleService:
         return await self.repo.list_by_org(org_id, pagination)
 
     async def update_rule(
-        self, org_id: uuid.UUID, rule_id: uuid.UUID, data: AlertRuleUpdate
+        self,
+        org_id: uuid.UUID,
+        rule_id: uuid.UUID,
+        data: AlertRuleUpdate,
+        actor_id: uuid.UUID | None = None,
     ) -> AlertRule:
         rule = await self.repo.get(org_id, rule_id)
         if rule is None:
@@ -29,4 +33,4 @@ class AlertRuleService:
                 code="ALERT_RULE_NOT_FOUND",
                 status_code=404,
             )
-        return await self.repo.update(rule, data)
+        return await self.repo.update(rule, data, actor_id)

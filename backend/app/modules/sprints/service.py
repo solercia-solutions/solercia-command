@@ -52,6 +52,8 @@ class SprintService:
         organization_id: uuid.UUID,
         project_id: uuid.UUID,
         data: SprintCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> SprintRead:
         """Create a sprint within a sprint-enabled project."""
 
@@ -63,6 +65,8 @@ class SprintService:
             start_date=data.start_date,
             end_date=data.end_date,
             status="active",
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         sprint = await self.repo.create(sprint)
         return SprintRead.model_validate(sprint)
@@ -72,6 +76,8 @@ class SprintService:
         organization_id: uuid.UUID,
         sprint_id: uuid.UUID,
         data: SprintUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> SprintRead:
         """Apply a partial update to a sprint."""
 
@@ -98,6 +104,7 @@ class SprintService:
             if field in changes:
                 setattr(sprint, field, changes[field])
 
+        sprint.updated_by = actor_id
         sprint = await self.repo.save(sprint)
         return SprintRead.model_validate(sprint)
 
@@ -227,6 +234,8 @@ class SprintService:
         organization_id: uuid.UUID,
         sprint_id: uuid.UUID,
         target_sprint_id: uuid.UUID | None = None,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> dict:
         """Close a sprint: tally completed points and move incomplete tasks.
 
@@ -273,12 +282,13 @@ class SprintService:
             organization_id, sprint_id
         )
         tasks_moved = await self.repo.count_and_move_incomplete_tasks(
-            organization_id, sprint_id, target_sprint_id
+            organization_id, sprint_id, target_sprint_id, actor_id
         )
 
         sprint.status = "closed"
         sprint.closed_at = datetime.now(UTC)
         sprint.completed_points = completed_points
+        sprint.updated_by = actor_id
         sprint = await self.repo.save(sprint)
 
         return {

@@ -115,6 +115,10 @@ class TaskRead(BaseModel):
     # Ratio of done subtasks to total subtasks [0.0, 1.0].
     # None when the task has no subtasks; only populated on single-task reads.
     subtask_progress: float | None = None
+    # Audit trail (R4/R5): who created/last-updated the row. NULL for rows
+    # written before the audit migration or outside a request context.
+    created_by: uuid.UUID | None = None
+    updated_by: uuid.UUID | None = None
 
 
 class MemberRead(BaseModel):

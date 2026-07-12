@@ -48,3 +48,7 @@ class CommentRead(BaseModel):
     organization_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Audit trail (R4/R5): who created/last-updated the row. NULL for rows
+    # written before the audit migration or outside a request context.
+    created_by: uuid.UUID | None = None
+    updated_by: uuid.UUID | None = None

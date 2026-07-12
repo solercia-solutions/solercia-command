@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
+from app.dependencies import get_actor_id, get_current_membership
 from app.modules.comments.schemas import CommentCreate, CommentUpdate
 from app.modules.comments.service import CommentService
 from app.modules.organizations.models import OrganizationMember
@@ -46,6 +46,7 @@ async def create_comment(
     task_id: uuid.UUID,
     payload: CommentCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Post a comment on a task. Mentions are parsed from the body and stored."""
@@ -56,6 +57,7 @@ async def create_comment(
         task_id,
         membership.user_id,
         payload,
+        actor_id=actor_id,
     )
     return {"data": comment}
 
@@ -65,6 +67,7 @@ async def update_comment(
     comment_id: uuid.UUID,
     payload: CommentUpdate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Edit a comment body. Only the original author may edit their own comment."""
@@ -75,6 +78,7 @@ async def update_comment(
         comment_id,
         membership.user_id,
         payload,
+        actor_id=actor_id,
     )
     return {"data": comment}
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.shared.base_model import (
+    AuditMixin,
     PkMixin,
     SoftDeleteMixin,
     TenantMixin,
@@ -15,7 +16,7 @@ from app.shared.base_model import (
 )
 
 
-class Dependency(PkMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, Base):
+class Dependency(PkMixin, TenantMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """An org-scoped area/department ("dependencia")."""
 
     __tablename__ = "dependencies"

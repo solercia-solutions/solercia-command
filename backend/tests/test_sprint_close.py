@@ -9,12 +9,20 @@ Integration tests (require TEST_DATABASE_URL + API_BASE_URL + TEST_AUTH_TOKEN):
   - POST /sprints/{id}/close moves incomplete tasks to backlog
   - POST /sprints/{id}/close is idempotent (409 on re-close)
   - GET /projects/{id}/velocity averages closed sprints
+
+Integration tests (shared fixtures, R4/gate #2):
+  - POST /sprints/{id}/close stamps updated_by=actor_id on every moved task
+    (bulk UPDATE — design.md "Correcciones de gate", gate #2)
 """
 
 import math
 
 import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.organizations.models import Organization
+from app.modules.users.models import User
 from tests.conftest import skip_no_db
 
 # ---------------------------------------------------------------------------
@@ -256,3 +264,91 @@ async def test_velocity_averages_closed_sprints() -> None:
         if series:
             computed_avg = sum(s["completed_points"] for s in series) / len(series)
             assert abs(report["average_velocity"] - computed_avg) < 0.001
+
+
+# ---------------------------------------------------------------------------
+# Audit stamping on the bulk UPDATE (R4, gate #2) — shared fixtures
+# ---------------------------------------------------------------------------
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_close_sprint_stamps_updated_by_on_moved_tasks(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+) -> None:
+    """Closing a sprint stamps updated_by=actor_id on every task the bulk UPDATE moves.
+
+    ``close_sprint`` moves incomplete tasks via ``update(Task).values(...)`` —
+    a bulk UPDATE that bypasses the ORM's per-instance ``updated_by`` line in
+    the service. Gate #2 requires ``actor_id`` to be threaded all the way to
+    ``.values(sprint_id=..., updated_by=actor_id)``.
+
+    A DIFFERENT user closes the sprint than the one who created the task, so
+    the final assertion only passes if the bulk UPDATE genuinely re-stamps
+    ``updated_by`` — reusing the same actor for both steps couldn't
+    distinguish "gate #2 fixed" from "never threaded at all".
+    """
+
+    from app.modules.organizations.models import OrganizationMember
+    from app.shared.enums import MemberRole
+    from app.shared.security import create_access_token, hash_password
+
+    author, author_token = user
+
+    closer = User(
+        email="closer-audit-gate2@example.com",
+        primer_nombre="Closer",
+        primer_apellido="Gate2",
+        hashed_password=hash_password("Closer123*"),
+    )
+    session.add(closer)
+    await session.flush()
+    session.add(
+        OrganizationMember(
+            organization_id=tenant.id, user_id=closer.id, role=MemberRole.member
+        )
+    )
+    await session.flush()
+    closer_token = create_access_token(str(closer.id))
+
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Audit Close Sprint", "methodology": "scrum"},
+        headers=_auth(author_token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["data"]["id"]
+
+    sprint_response = await client.post(
+        f"/projects/{project_id}/sprints",
+        json={"name": "Audited Sprint"},
+        headers=_auth(author_token),
+    )
+    assert sprint_response.status_code == 201
+    sprint_id = sprint_response.json()["data"]["id"]
+
+    task_response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Incomplete audited task", "sprint_id": sprint_id},
+        headers=_auth(author_token),
+    )
+    assert task_response.status_code == 201
+    task_id = task_response.json()["data"]["id"]
+    assert task_response.json()["data"]["updated_by"] == str(author.id)
+
+    close_response = await client.post(
+        f"/sprints/{sprint_id}/close", headers=_auth(closer_token)
+    )
+    assert close_response.status_code == 200, close_response.text
+
+    task_after = await client.get(f"/tasks/{task_id}", headers=_auth(author_token))
+    assert task_after.status_code == 200
+    assert task_after.json()["data"]["updated_by"] == str(closer.id)
+    assert task_after.json()["data"]["sprint_id"] is None

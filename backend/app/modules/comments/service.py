@@ -61,6 +61,8 @@ class CommentService:
         task_id: uuid.UUID,
         author_id: uuid.UUID,
         data: CommentCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> CommentRead:
         """Persist a comment and dispatch in-app notifications for @-mentions.
 
@@ -79,6 +81,8 @@ class CommentService:
             author_id=author_id,
             body=data.body,
             mentioned_user_ids=_parse_mentioned_ids(data.body),
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         comment = await self.repo.create(comment)
 
@@ -99,6 +103,8 @@ class CommentService:
         comment_id: uuid.UUID,
         author_id: uuid.UUID,
         data: CommentUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> CommentRead:
         """Edit a comment body. Only the original author may edit.
 
@@ -126,6 +132,7 @@ class CommentService:
         task = await self.tasks.get(organization_id, comment_task_id)
         task_title = task.title if task is not None else ""
 
+        comment.updated_by = actor_id
         comment = await self.repo.save(comment)
 
         if newly_added:

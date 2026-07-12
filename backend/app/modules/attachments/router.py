@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
+from app.dependencies import get_actor_id, get_current_membership
 from app.modules.attachments.service import AttachmentService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
@@ -48,6 +48,7 @@ async def upload_task_attachment(
     task_id: uuid.UUID,
     file: UploadFile = File(...),
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Upload a file and attach it to a task.
@@ -63,6 +64,7 @@ async def upload_task_attachment(
         task_id=task_id,
         uploader_id=membership.user_id,
         file=file,
+        actor_id=actor_id,
     )
     return {"data": attachment}
 
@@ -88,6 +90,7 @@ async def upload_comment_attachment(
     comment_id: uuid.UUID,
     file: UploadFile = File(...),
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Upload a file and attach it to a comment.
@@ -103,6 +106,7 @@ async def upload_comment_attachment(
         comment_id=comment_id,
         uploader_id=membership.user_id,
         file=file,
+        actor_id=actor_id,
     )
     return {"data": attachment}
 

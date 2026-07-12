@@ -66,3 +66,7 @@ class ProjectRead(BaseModel):
     created_at: datetime
     # Populated by the service from the methodology Strategy before serialization.
     methodology_info: dict = Field(default_factory=dict)
+    # Audit trail (R4/R5): who created/last-updated the row. NULL for rows
+    # written before the audit migration or outside a request context.
+    created_by: uuid.UUID | None = None
+    updated_by: uuid.UUID | None = None

@@ -39,7 +39,11 @@ class DependencyService:
         return await self._require(organization_id, dependency_id)
 
     async def create_dependency(
-        self, organization_id: uuid.UUID, data: DependencyCreate
+        self,
+        organization_id: uuid.UUID,
+        data: DependencyCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> Dependency:
         """Persist a new dependency within the organization."""
 
@@ -47,6 +51,8 @@ class DependencyService:
             organization_id=organization_id,
             name=data.name,
             code=data.code,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         return await self.repo.create(dependency)
 
@@ -55,6 +61,8 @@ class DependencyService:
         organization_id: uuid.UUID,
         dependency_id: uuid.UUID,
         data: DependencyUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> Dependency:
         """Apply a partial update to a dependency."""
 
@@ -63,6 +71,7 @@ class DependencyService:
         for field in ("name", "code", "is_active"):
             if field in changes:
                 setattr(dependency, field, changes[field])
+        dependency.updated_by = actor_id
         return await self.repo.save(dependency)
 
     async def delete_dependency(

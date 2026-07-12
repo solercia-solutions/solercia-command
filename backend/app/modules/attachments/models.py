@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.shared.base_model import (
+    AuditMixin,
     PkMixin,
     SoftDeleteMixin,
     TenantMixin,
@@ -19,7 +20,7 @@ from app.shared.base_model import (
 )
 
 
-class Attachment(PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
+class Attachment(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):
     """A file attached to a task or comment."""
 
     __tablename__ = "attachments"

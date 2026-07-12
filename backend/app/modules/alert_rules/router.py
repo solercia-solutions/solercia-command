@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership, require_admin
+from app.dependencies import get_actor_id, get_current_membership, require_admin
 from app.modules.alert_rules.schemas import AlertRuleRead, AlertRuleUpdate
 from app.modules.alert_rules.service import AlertRuleService
 from app.modules.organizations.models import OrganizationMember
@@ -41,11 +41,14 @@ async def update_alert_rule(
     data: AlertRuleUpdate,
     db: AsyncSession = Depends(get_db),
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     _: User = Depends(require_admin),
 ) -> dict:
     """Update an alert rule's enabled status or threshold parameters (admin only)."""
     service = AlertRuleService(db)
-    rule = await service.update_rule(membership.organization_id, rule_id, data)
+    rule = await service.update_rule(
+        membership.organization_id, rule_id, data, actor_id
+    )
     await db.commit()
     return {
         "data": AlertRuleRead.model_validate(rule).model_dump(),

@@ -56,3 +56,28 @@ class TenantMixin:
         nullable=False,
         index=True,
     )
+
+
+class AuditMixin:
+    """Tracks which user created/last-updated a row.
+
+    Both columns are nullable UUID foreign keys to ``users.id`` with
+    ``ON DELETE SET NULL`` — deleting the actor user never blocks or cascades
+    into the audited row, it just clears the reference. Populated explicitly
+    by the service layer from the authenticated actor (see
+    ``app/dependencies.py::get_actor_id``); NEVER accepted as direct client
+    input. Rows written outside a request context (e.g. the startup seed in
+    ``db_init.py``) or created before this column existed keep both fields
+    ``NULL`` permanently — no backfill.
+    """
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )

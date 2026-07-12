@@ -79,6 +79,38 @@ async def get_current_user(
     return user
 
 
+async def get_actor_id(request: Request) -> uuid.UUID | None:
+    """Resolve the authenticated actor's id for audit stamping, or ``None``.
+
+    Unlike :func:`get_current_user`, this NEVER raises ``401``: routes that
+    require authentication already enforce it via
+    :func:`get_current_membership`. This dependency exists so
+    ``created_by``/``updated_by`` stamping degrades gracefully to ``NULL``
+    for writes with no authenticated context — e.g. the alert scheduler
+    (``app/alerts/evaluator.py``), which calls services directly with no
+    HTTP request at all, passes ``actor_id=None`` explicitly.
+    """
+
+    header = request.headers.get("Authorization")
+    if not header or not header.lower().startswith("bearer "):
+        return None
+
+    token = header.split(" ", 1)[1].strip()
+    try:
+        payload = decode_token(token, expected_type=ACCESS_TOKEN_TYPE)
+    except Exception:  # noqa: BLE001 - any JWT error means "no attributable actor"
+        return None
+
+    subject = payload.get("sub")
+    if not subject:
+        return None
+
+    try:
+        return uuid.UUID(str(subject))
+    except ValueError:
+        return None
+
+
 async def get_current_membership(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.shared.base_model import (
+    AuditMixin,
     PkMixin,
     SoftDeleteMixin,
     TenantMixin,
@@ -14,7 +15,7 @@ from app.shared.base_model import (
 )
 
 
-class TaskComment(PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
+class TaskComment(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):
     """A comment posted on a task, with optional @-mention tracking."""
 
     __tablename__ = "task_comments"

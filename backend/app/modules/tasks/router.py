@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
+from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.tasks.schemas import TaskCreate, TaskUpdate
 from app.modules.tasks.service import TaskService
@@ -67,13 +67,14 @@ async def create_task(
     project_id: uuid.UUID,
     payload: TaskCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a task (or subtask when ``parent_task_id`` is set) within a project."""
 
     service = TaskService(db)
     task = await service.create_task(
-        membership.organization_id, project_id, payload
+        membership.organization_id, project_id, payload, actor_id=actor_id
     )
     return {"data": task}
 
@@ -115,13 +116,14 @@ async def update_task(
     task_id: uuid.UUID,
     payload: TaskUpdate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Apply a partial update to a task (move column, reassign, estimate, etc.)."""
 
     service = TaskService(db)
     task = await service.update_task(
-        membership.organization_id, task_id, payload
+        membership.organization_id, task_id, payload, actor_id=actor_id
     )
     return {"data": task}
 

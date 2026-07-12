@@ -53,11 +53,17 @@ class AlertRuleRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update(self, rule: AlertRule, data: AlertRuleUpdate) -> AlertRule:
+    async def update(
+        self,
+        rule: AlertRule,
+        data: AlertRuleUpdate,
+        actor_id: uuid.UUID | None = None,
+    ) -> AlertRule:
         if data.enabled is not None:
             rule.enabled = data.enabled
         if data.threshold_params is not None:
             rule.threshold_params = data.threshold_params
+        rule.updated_by = actor_id
         self.db.add(rule)
         await self.db.flush()
         await self.db.refresh(rule)

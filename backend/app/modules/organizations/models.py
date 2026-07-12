@@ -7,11 +7,11 @@ from sqlalchemy import ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.shared.base_model import PkMixin, SoftDeleteMixin, TimestampMixin
+from app.shared.base_model import AuditMixin, PkMixin, SoftDeleteMixin, TimestampMixin
 from app.shared.enums import MemberRole
 
 
-class Organization(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
+class Organization(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """A tenant that owns projects and members."""
 
     __tablename__ = "organizations"

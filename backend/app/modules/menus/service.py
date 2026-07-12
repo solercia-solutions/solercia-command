@@ -80,7 +80,9 @@ class MenuService:
 
         return await self._require(menu_id)
 
-    async def create_menu(self, data: MenuCreate) -> Menu:
+    async def create_menu(
+        self, data: MenuCreate, *, actor_id: uuid.UUID | None = None
+    ) -> Menu:
         """Persist a new menu, validating the optional parent."""
 
         await self._verify_parent(data.parent_id)
@@ -90,11 +92,17 @@ class MenuService:
             path=data.path,
             parent_id=data.parent_id,
             order=data.order,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         return await self.repo.create(menu)
 
     async def update_menu(
-        self, menu_id: uuid.UUID, data: MenuUpdate
+        self,
+        menu_id: uuid.UUID,
+        data: MenuUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> Menu:
         """Apply a partial update to a menu."""
 
@@ -113,6 +121,7 @@ class MenuService:
         for field in ("name", "icon", "path", "parent_id", "order", "is_active"):
             if field in changes:
                 setattr(menu, field, changes[field])
+        menu.updated_by = actor_id
         return await self.repo.save(menu)
 
     async def delete_menu(self, menu_id: uuid.UUID) -> None:

@@ -71,4 +71,6 @@ async def build_user_read(
         is_active=user.is_active,
         created_at=user.created_at,
         roles=roles,
+        created_by=user.created_by,
+        updated_by=user.updated_by,
     )

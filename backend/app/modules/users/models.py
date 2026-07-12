@@ -8,7 +8,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.shared.base_model import PkMixin, SoftDeleteMixin, TimestampMixin
+from app.shared.base_model import AuditMixin, PkMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
     # Import-time cycle guard: roles.models imports users only under
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.modules.roles.models import Role
 
 
-class User(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
+class User(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """An authenticatable user.
 
     ``is_active`` is provided by :class:`SoftDeleteMixin` and doubles as the

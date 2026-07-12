@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
+from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.sprints.schemas import SprintCloseBody, SprintCreate, SprintUpdate
 from app.modules.sprints.service import SprintService
@@ -46,13 +46,14 @@ async def create_sprint(
     project_id: uuid.UUID,
     payload: SprintCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a sprint within a project."""
 
     service = SprintService(db)
     sprint = await service.create_sprint(
-        membership.organization_id, project_id, payload
+        membership.organization_id, project_id, payload, actor_id=actor_id
     )
     return {"data": sprint}
 
@@ -78,13 +79,14 @@ async def update_sprint(
     sprint_id: uuid.UUID,
     payload: SprintUpdate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Apply a partial update to a sprint (e.g. rename or adjust dates)."""
 
     service = SprintService(db)
     sprint = await service.update_sprint(
-        membership.organization_id, sprint_id, payload
+        membership.organization_id, sprint_id, payload, actor_id=actor_id
     )
     return {"data": sprint}
 
@@ -94,6 +96,7 @@ async def close_sprint(
     sprint_id: uuid.UUID,
     payload: SprintCloseBody | None = Body(default=None),
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Close a sprint, compute completed story points and move incomplete tasks.
@@ -111,6 +114,9 @@ async def close_sprint(
     body = payload or SprintCloseBody()
     service = SprintService(db)
     result = await service.close_sprint(
-        membership.organization_id, sprint_id, body.target_sprint_id
+        membership.organization_id,
+        sprint_id,
+        body.target_sprint_id,
+        actor_id=actor_id,
     )
     return {"data": result}

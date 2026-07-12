@@ -58,7 +58,11 @@ class UserService:
         return await build_user_read(self.db, user, organization_id)
 
     async def create_user(
-        self, organization_id: uuid.UUID, data: AdminUserCreate
+        self,
+        organization_id: uuid.UUID,
+        data: AdminUserCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> UserRead:
         """Create a user, attach it to the org and assign its roles."""
 
@@ -82,6 +86,8 @@ class UserService:
             dependency_id=data.dependency_id,
             is_active=data.is_active,
             hashed_password=hash_password(data.password),
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         user = await self.repo.create(user)
 
@@ -100,6 +106,8 @@ class UserService:
         organization_id: uuid.UUID,
         user_id: uuid.UUID,
         data: AdminUserUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> UserRead:
         """Apply a partial update to a user."""
 
@@ -137,6 +145,7 @@ class UserService:
             if field in changes:
                 setattr(user, field, changes[field])
 
+        user.updated_by = actor_id
         user = await self.repo.save(user)
         return await build_user_read(self.db, user, organization_id)
 

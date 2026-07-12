@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership, require_admin
+from app.dependencies import get_actor_id, get_current_membership, require_admin
 from app.modules.dependencies.schemas import (
     DependencyCreate,
     DependencyRead,
@@ -52,12 +52,15 @@ async def list_dependencies(
 async def create_dependency(
     payload: DependencyCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a dependency within the caller's organization."""
 
     service = DependencyService(db)
-    item = await service.create_dependency(membership.organization_id, payload)
+    item = await service.create_dependency(
+        membership.organization_id, payload, actor_id=actor_id
+    )
     return {"data": DependencyRead.model_validate(item)}
 
 
@@ -79,13 +82,14 @@ async def update_dependency(
     dependency_id: uuid.UUID,
     payload: DependencyUpdate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Apply a partial update to a dependency."""
 
     service = DependencyService(db)
     item = await service.update_dependency(
-        membership.organization_id, dependency_id, payload
+        membership.organization_id, dependency_id, payload, actor_id=actor_id
     )
     return {"data": DependencyRead.model_validate(item)}
 

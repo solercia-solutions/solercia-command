@@ -3,10 +3,16 @@ from sqlalchemy import JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.shared.base_model import PkMixin, SoftDeleteMixin, TenantMixin, TimestampMixin
+from app.shared.base_model import (
+    AuditMixin,
+    PkMixin,
+    SoftDeleteMixin,
+    TenantMixin,
+    TimestampMixin,
+)
 
 
-class AlertRule(PkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
+class AlertRule(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):
     __tablename__ = "alert_rules"
 
     rule_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)

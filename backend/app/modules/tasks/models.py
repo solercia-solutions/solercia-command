@@ -27,6 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.shared.base_model import (
+    AuditMixin,
     PkMixin,
     SoftDeleteMixin,
     TimestampMixin,
@@ -34,7 +35,7 @@ from app.shared.base_model import (
 from app.shared.enums import Priority
 
 
-class Task(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
+class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """A work item belonging to a project, optionally tied to a sprint."""
 
     __tablename__ = "tasks"

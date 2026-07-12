@@ -97,6 +97,8 @@ class AttachmentService:
         task_id: uuid.UUID,
         uploader_id: uuid.UUID,
         file: UploadFile,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> AttachmentRead:
         """Upload and persist a file attachment for a task."""
 
@@ -107,6 +109,7 @@ class AttachmentService:
             target_id=task_id,
             uploader_id=uploader_id,
             file=file,
+            actor_id=actor_id,
         )
 
     async def create_comment_attachment(
@@ -115,6 +118,8 @@ class AttachmentService:
         comment_id: uuid.UUID,
         uploader_id: uuid.UUID,
         file: UploadFile,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> AttachmentRead:
         """Upload and persist a file attachment for a comment."""
 
@@ -125,6 +130,7 @@ class AttachmentService:
             target_id=comment_id,
             uploader_id=uploader_id,
             file=file,
+            actor_id=actor_id,
         )
 
     async def get_attachment_for_download(
@@ -161,6 +167,8 @@ class AttachmentService:
         target_id: uuid.UUID,
         uploader_id: uuid.UUID,
         file: UploadFile,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> AttachmentRead:
         """Read, validate, store to disk and persist the Attachment record."""
 
@@ -207,6 +215,8 @@ class AttachmentService:
             content_type=content_type,
             size_bytes=len(content),
             uploaded_by=uploader_id,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         try:
             attachment = await self.repo.create(attachment)

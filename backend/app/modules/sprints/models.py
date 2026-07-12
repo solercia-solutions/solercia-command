@@ -11,10 +11,10 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.shared.base_model import PkMixin, SoftDeleteMixin, TimestampMixin
+from app.shared.base_model import AuditMixin, PkMixin, SoftDeleteMixin, TimestampMixin
 
 
-class Sprint(PkMixin, TimestampMixin, SoftDeleteMixin, Base):
+class Sprint(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """A time-boxed iteration owned by a project."""
 
     __tablename__ = "sprints"

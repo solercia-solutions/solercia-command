@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership, require_admin
+from app.dependencies import get_actor_id, get_current_membership, require_admin
 from app.modules.organizations.models import OrganizationMember
 from app.modules.roles.schemas import (
     RoleCreate,
@@ -49,12 +49,15 @@ async def list_roles(
 async def create_role(
     payload: RoleCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a role within the caller's organization."""
 
     service = RoleService(db)
-    data = await service.create_role(membership.organization_id, payload)
+    data = await service.create_role(
+        membership.organization_id, payload, actor_id=actor_id
+    )
     return {"data": data}
 
 
@@ -76,13 +79,14 @@ async def update_role(
     role_id: uuid.UUID,
     payload: RoleUpdate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Apply a partial update to a role."""
 
     service = RoleService(db)
     data = await service.update_role(
-        membership.organization_id, role_id, payload
+        membership.organization_id, role_id, payload, actor_id=actor_id
     )
     return {"data": data}
 

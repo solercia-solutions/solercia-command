@@ -77,19 +77,19 @@ Chain strategy: stacked-to-main
 
 ## Batch C — AuditMixin, migración, stamping y UPDATE masivo
 
-- [ ] T19 RED — `backend/tests/test_audit_mixin.py`: `AuditMixin` declara `created_by`/`updated_by` UUID nullable, FK→`users.id` `ON DELETE SET NULL`. (R4)
-- [ ] T20 GREEN — Añadir `AuditMixin` en `backend/app/shared/base_model.py`. (R4)
-- [ ] T21 GREEN — Mezclar `AuditMixin` en los 11 modelos con `SoftDeleteMixin` (`alert_rules`, `attachments`, `comments`, `dependencies`, `menus`, `organizations`, `projects`, `roles`, `sprints`, `tasks`, `users` — `models.py`). (R4, G4)
-- [ ] T22 RED — `backend/tests/test_actor_id_dependency.py`: `get_actor_id` devuelve `UUID` con JWT válido, `None` sin contexto autenticado. (R4)
-- [ ] T23 GREEN — Añadir `get_actor_id` en `backend/app/dependencies.py`. (R4)
-- [ ] T24 RED — `backend/tests/test_audit_stamping.py`: `POST` en tasks estampa `created_by=updated_by=actor.id`; `PATCH` estampa `updated_by` y conserva `created_by` original. (R4)
-- [ ] T25 GREEN — Enhebrar `actor_id` router→service→repository en create/update de tasks, projects, sprints, comments, attachments, roles, menus, dependencies, alert_rules, users (10 módulos; `organizations` excluido — solo seed, sin service). (R4, G5)
-- [ ] T26 RED — Extender `backend/tests/test_sprint_close.py`: `close_sprint` (UPDATE masivo) estampa `updated_by=actor_id` en cada tarea movida. (G2)
-- [ ] T27 GREEN — Enhebrar `actor_id` en `sprints/repository.py::close_sprint` — `.values(sprint_id=..., updated_by=actor_id)`. (G2)
-- [ ] T28 RED — `backend/tests/test_audit_exposure.py`: detalle y lista de los 11 modelos exponen `created_by`/`updated_by`; `null` en filas preexistentes/seed. (R5, G5)
-- [ ] T29 GREEN — Añadir `created_by`/`updated_by` opcionales a los `Read` schemas de los 11 módulos. (R5)
-- [ ] T30 — Crear migración Alembic `backend/alembic/versions/xxxx_add_audit_fields.py`: columnas nullable aditivas en las 11 tablas, `down_revision`=head de 01, `downgrade` reversible sin pérdida de datos. (R4)
-- [ ] T31 — Verificar que `test_migrations_baseline.py` (`alembic check`, de 01) cubre la nueva revisión; declarar explícitamente que no hay test local contra el artefacto de migración más allá de esa guardia. (G6)
+- [x] T19 RED — `backend/tests/test_audit_mixin.py`: `AuditMixin` declara `created_by`/`updated_by` UUID nullable, FK→`users.id` `ON DELETE SET NULL`. (R4)
+- [x] T20 GREEN — Añadir `AuditMixin` en `backend/app/shared/base_model.py`. (R4)
+- [x] T21 GREEN — Mezclar `AuditMixin` en los 11 modelos con `SoftDeleteMixin` (`alert_rules`, `attachments`, `comments`, `dependencies`, `menus`, `organizations`, `projects`, `roles`, `sprints`, `tasks`, `users` — `models.py`). (R4, G4)
+- [x] T22 RED — `backend/tests/test_actor_id_dependency.py`: `get_actor_id` devuelve `UUID` con JWT válido, `None` sin contexto autenticado. (R4)
+- [x] T23 GREEN — Añadir `get_actor_id` en `backend/app/dependencies.py`. (R4)
+- [x] T24 RED — `backend/tests/test_audit_stamping.py`: `POST` en tasks estampa `created_by=updated_by=actor.id`; `PATCH` estampa `updated_by` y conserva `created_by` original. (R4)
+- [x] T25 GREEN — Enhebrar `actor_id` router→service→repository en create/update de tasks, projects, sprints, comments, attachments, roles, menus, dependencies, alert_rules, users (10 módulos; `organizations` excluido — solo seed, sin service). (R4, G5)
+- [x] T26 RED — Extender `backend/tests/test_sprint_close.py`: `close_sprint` (UPDATE masivo) estampa `updated_by=actor_id` en cada tarea movida. (G2)
+- [x] T27 GREEN — Enhebrar `actor_id` en `sprints/repository.py::close_sprint` — `.values(sprint_id=..., updated_by=actor_id)`. (G2)
+- [x] T28 RED — `backend/tests/test_audit_exposure.py`: detalle y lista de los 11 modelos exponen `created_by`/`updated_by`; `null` en filas preexistentes/seed. (R5, G5)
+- [x] T29 GREEN — Añadir `created_by`/`updated_by` opcionales a los `Read` schemas de los 11 módulos. (R5)
+- [x] T30 — Crear migración Alembic `backend/alembic/versions/xxxx_add_audit_fields.py`: columnas nullable aditivas en las 11 tablas, `down_revision`=head de 01, `downgrade` reversible sin pérdida de datos. (R4)
+- [x] T31 — Verificar que `test_migrations_baseline.py` (`alembic check`, de 01) cubre la nueva revisión; declarar explícitamente que no hay test local contra el artefacto de migración más allá de esa guardia. (G6)
 
 ## Batch D — Documentación
 

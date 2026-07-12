@@ -49,7 +49,11 @@ class RoleService:
         return self._to_read(role, menu_ids)
 
     async def create_role(
-        self, organization_id: uuid.UUID, data: RoleCreate
+        self,
+        organization_id: uuid.UUID,
+        data: RoleCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> RoleRead:
         """Persist a new role, enforcing the org-unique code."""
 
@@ -64,6 +68,8 @@ class RoleService:
             organization_id=organization_id,
             code=data.code,
             name=data.name,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         role = await self.repo.create(role)
         return self._to_read(role, [])
@@ -73,6 +79,8 @@ class RoleService:
         organization_id: uuid.UUID,
         role_id: uuid.UUID,
         data: RoleUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> RoleRead:
         """Apply a partial update to a role."""
 
@@ -93,6 +101,7 @@ class RoleService:
         for field in ("code", "name", "is_active"):
             if field in changes:
                 setattr(role, field, changes[field])
+        role.updated_by = actor_id
         role = await self.repo.save(role)
         menu_ids = await self.repo.menu_ids_for(role.id)
         return self._to_read(role, menu_ids)
@@ -150,4 +159,6 @@ class RoleService:
             is_active=role.is_active,
             created_at=role.created_at,
             menu_ids=menu_ids,
+            created_by=role.created_by,
+            updated_by=role.updated_by,
         )

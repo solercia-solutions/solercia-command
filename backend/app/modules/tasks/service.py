@@ -176,6 +176,8 @@ class TaskService:
         organization_id: uuid.UUID,
         project_id: uuid.UUID,
         data: TaskCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> TaskRead:
         """Validate against the methodology Strategy and persist a new task.
 
@@ -242,6 +244,8 @@ class TaskService:
             start_date=data.start_date,
             completed_at=self._resolve_completed_at(strategy, status, None),
             task_number=task_number,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         task = await self.repo.create(task)
         name_map = await self._assignee_name_map(organization_id)
@@ -252,6 +256,8 @@ class TaskService:
         organization_id: uuid.UUID,
         task_id: uuid.UUID,
         data: TaskUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> TaskRead:
         """Apply a partial update, re-validating methodology-driven fields."""
 
@@ -308,6 +314,7 @@ class TaskService:
             if field in changes:
                 setattr(task, field, changes[field])
 
+        task.updated_by = actor_id
         task = await self.repo.save(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)

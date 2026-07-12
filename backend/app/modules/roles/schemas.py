@@ -75,3 +75,7 @@ class RoleRead(BaseModel):
     is_active: bool
     created_at: datetime
     menu_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Audit trail (R4/R5): who created/last-updated the row. NULL for rows
+    # written before the audit migration or outside a request context.
+    created_by: uuid.UUID | None = None
+    updated_by: uuid.UUID | None = None

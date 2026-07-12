@@ -150,6 +150,7 @@ class SprintRepository:
         organization_id: uuid.UUID,
         sprint_id: uuid.UUID,
         target_sprint_id: uuid.UUID | None,
+        actor_id: uuid.UUID | None = None,
     ) -> int:
         """Move incomplete tasks out of the sprint and return how many were moved.
 
@@ -157,6 +158,11 @@ class SprintRepository:
         ``target_sprint_id`` (another sprint) or ``NULL`` (backlog) depending on
         the argument. The sprint was already validated to belong to the
         organization, so the bulk UPDATE does not need a project join.
+
+        Gate #2 (design.md "Correcciones de gate"): a bulk ``UPDATE`` bypasses
+        the ORM's per-instance audit line in the service, so ``actor_id`` MUST
+        be threaded all the way to ``.values(..., updated_by=actor_id)`` for
+        every moved task to stay audited.
         """
 
         # Count with org scoping via project join to be safe.
@@ -181,7 +187,7 @@ class SprintRepository:
                     Task.completed_at.is_(None),
                     Task.is_active.is_(True),
                 )
-                .values(sprint_id=target_sprint_id)
+                .values(sprint_id=target_sprint_id, updated_by=actor_id)
             )
 
         return count

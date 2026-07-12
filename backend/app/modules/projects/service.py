@@ -60,7 +60,11 @@ class ProjectService:
         return projects, total
 
     async def create_project(
-        self, organization_id: uuid.UUID, data: ProjectCreate
+        self,
+        organization_id: uuid.UUID,
+        data: ProjectCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
     ) -> Project:
         """Validate the methodology and persist a new project.
 
@@ -94,6 +98,8 @@ class ProjectService:
             organization_id=organization_id,
             code=code,
             task_counter=0,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
         project = await self.repo.create(project)
         project.methodology_info = strategy.to_info()

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_membership
+from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.schemas import ProjectCreate, ProjectRead
 from app.modules.projects.service import ProjectService
@@ -44,12 +44,15 @@ async def list_projects(
 async def create_project(
     payload: ProjectCreate,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a project within the caller's organization."""
 
     service = ProjectService(db)
-    project = await service.create_project(membership.organization_id, payload)
+    project = await service.create_project(
+        membership.organization_id, payload, actor_id=actor_id
+    )
     return {"data": ProjectRead.model_validate(project)}
 
 
