@@ -29,12 +29,12 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | Tareas | [tasks](tasks/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) |
 | Registro de tiempo | [time-logs](time-logs/spec.md) | [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) |
 | Administración de usuarios | [users-admin](users-admin/spec.md) | baseline |
+| Cobertura de línea base | [test-coverage-baseline](test-coverage-baseline/spec.md) | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) |
 
 **Leyenda**: `baseline` = línea base as-built (2026-07-11). Cuando aparece `baseline + NN`, la capacidad nació en la línea base y el/los cambio(s) archivados le fusionaron requisitos nuevos o modificados.
 
 ## Cambios en curso (sin archivar)
 
-- **11-blindaje-baseline** — EN CURSO. Su delta spec `test-coverage-baseline` está pendiente de archivar; cuando se archive, la capacidad `test-coverage-baseline` se fusionará aquí y esta tabla deberá actualizarse. No se enlaza al archive todavía.
 - **cycle2-design-system** — ON-HOLD (frontend). No aporta deltas de specs backend (su carpeta no tiene `specs/`).
 
 ## Detalle del mapeo por cambio archivado
@@ -46,6 +46,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) | `boards.md` (nueva), `methodology-strategies.md` (MODIFIED), `tasks.md` (MODIFIED) | `boards` (creada), `methodology-strategies` y `tasks` (modificadas) |
 | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) | `labels.md`, `checklists.md`, `task-dependencies.md` (nuevas), `alert-blocked-task.md` (delta de alert-engine) | `labels`, `checklists`, `task-dependencies` (creadas), `alert-engine` (modificada: estrategia `blocked_task`) |
 | [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) | `time-logs/spec.md`, `activity-history/spec.md` (nuevas), `dashboard-executive/spec.md` (ADDED) | `time-logs`, `activity-history` (creadas), `dashboard-executive` (modificada: bloque `work_gap`) |
+| [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) | `test-coverage-baseline/spec.md` (nueva) | `test-coverage-baseline` (creada: contrato de cobertura de tests as-built) |
 
 ## Inconsistencias detectadas
 

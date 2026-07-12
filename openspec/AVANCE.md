@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-12 (cambios 01-04 completados; 05-trabajo-realizado archivado — TaskTimeLog, TaskHistory, work_gap en dashboard ejecutivo implementados con TDD estricto (258 tests, ruff/mypy limpios); 5 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-12 (cambios 01-05 y 11 completados; 11-blindaje-baseline archivado — backfill de tests as-built con TDD estricto de 10 capacidades críticas: auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive; matriz de permisos y aislamiento multi-tenant; suite crece de 258 a 382 tests, ruff/mypy limpios; 5 cambios backend pendientes; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -15,6 +15,7 @@ flowchart TD
     C03["03 · Boards persistentes<br/>Board/BoardColumn + WIP + custom"]
     C04["04 · Labels, checklists<br/>y dependencias tarea-tarea"]
     C05["05 · Trabajo realizado<br/>TimeLog + ActivityLog + cruce"]
+    C11["11 · Blindaje baseline<br/>backfill TDD + permisos + aislamiento"]
     C06["06 · Reminders<br/>manuales y por regla"]
     C07["07 · Assets SDMujer<br/>activos + licencias + alertas"]
     C08["08 · Email notifications<br/>digest configurable"]
@@ -25,6 +26,7 @@ flowchart TD
 
     B0 --> C01
     C01 --> C02
+    C01 --> C11
     C02 --> C03 --> C04
     C02 --> C05
     C02 --> C06 --> C07 --> C08
@@ -40,6 +42,7 @@ flowchart TD
     class C03 done
     class C04 done
     class C05 done
+    class C11 done
     class FE inprogress
     class C06,C07,C08,C09,C10 pending
 
@@ -73,7 +76,7 @@ Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna 
 | Vista ejecutiva | [specs/dashboard-executive/spec.md](specs/dashboard-executive/spec.md) | CERO tests |
 | Convenciones de API | [specs/api-conventions/spec.md](specs/api-conventions/spec.md) | Sin tests transversales |
 
-Total actual: **43 tests en 6 archivos** (`backend/tests/`).
+Total tras cambio 11: **382 tests en 24 archivos** (`backend/tests/`; 43 en baseline + 296 en cambios 01-05 + 43 en cambio 11 = 382; crecimiento con TDD estricto en cada ciclo).
 
 ---
 
@@ -88,6 +91,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 | 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | 🟩 Completado | [boards](specs/boards/spec.md) (nueva) · [methodology-strategies](specs/methodology-strategies/spec.md) y [tasks](specs/tasks/spec.md) (modificadas) |
 | 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | 🟩 Completado | [labels](specs/labels/spec.md), [checklists](specs/checklists/spec.md), [task-dependencies](specs/task-dependencies/spec.md) (nuevas) · [alert-engine](specs/alert-engine/spec.md) (modificada) |
 | 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | 🟩 Completado | [time-logs](specs/time-logs/spec.md), [activity-history](specs/activity-history/spec.md) (nuevas) · [dashboard-executive](specs/dashboard-executive/spec.md) (modificada) |
+| 11 | `11-blindaje-baseline` | Blindaje de la línea base: backfill de TDD de las 10 capacidades as-built sin tests (auth, users-admin, rbac-catalog, multi-tenancy, projects, tasks, methodology-strategies, alert-engine, notifications-inapp, dashboard-executive) + matriz de permisos + aislamiento multi-tenant + 1 bugfix real (usuarios soft-borrados en listado). | 🟩 Completado | [test-coverage-baseline](specs/test-coverage-baseline/spec.md) (nueva) |
 | 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | ⬜ Pendiente | — |
 | 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | ⬜ Pendiente | — |
 | 08 | `08-email-notifications` | Canal email con digest configurable. | ⬜ Pendiente | — |
@@ -122,8 +126,11 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 - ✅ **Integración transversal**: TaskHistory capturada automática en PATCH de tareas y cierre de sprints; `record_task_history` integrado en tasks/service.py y sprints/service.py.
 - ✅ **Cobertura TDD**: 258 tests (43 nuevos: time_logs, activity, dashboard work_gap); 3 suites nuevas todas verdes; ruff/mypy limpios.
 
-### Aún pendiente
-- **178 tests en ~27 archivos** (tras 05; crecimiento neto de 43 tests en 3 suites nuevas: time_logs, activity, dashboard work_gap). Módulos con CERO tests aún: auth, organizations, roles, menus, motor de alertas completo, estrategias de metodología (backfill en cambios posteriores).
+### Aún pendiente (tras cambio 11)
+- **Deuda documentada del código**:
+  - `UserRepository.get_in_org` sin filtro `is_active` (pre-existente, prior a cambio 11; bug identificado y corregido en commit `40631fa`).
+  - `get_current_membership`: tie-break por `created_at` (comportamiento determinista correcto, pero no documentado con la razón de la ordenación por timestamp).
+  - `viewer` sin gate de rol en el dominio (acceso de lectura concedido a todos los miembros; no aplica `require_role()` granular).
+  - `mypy` configurado para excluir `backend/tests/` (decisión preexistente; después del crecimiento de ~150 tests nuevos tipados con dataclasses en cambio 11, podría valer la pena evaluar tipar tests también en cambios futuros, fuera de alcance).
 - **Documentación desactualizada**: docs/METHODOLOGY-FEATURES.md no refleja el código actual.
-- **Permisos granulares por endpoint (viewer/manager/member) mayormente no aplicados**; conviven dos sistemas de roles paralelos (MemberRole vs catálogo RBAC).
 - **TODO de lock distribuido Redis** en el evaluador de alertas (REDIS_URL declarado y sin uso).
