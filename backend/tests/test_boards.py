@@ -223,3 +223,28 @@ async def test_get_project_board_verbatim_by_methodology(
     assert body["project_id"] == project_id
     assert [c["name"] for c in body["columns"]] == expected_columns
     assert [c["status_key"] for c in body["columns"]] == expected_columns
+
+
+# ---------------------------------------------------------------------------
+# T37 — ensure_board self-heals legacy projects with no board (GET endpoint)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_project_board_self_heals_legacy_project_without_board(
+    client: AsyncClient, session: AsyncSession, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """A project created without going through ProjectService (no board seeded)
+    still returns 200 from GET /projects/{id}/board — ensure_board lazily
+    seeds it from the project's methodology instead of 404ing (design.md D4).
+    """
+
+    _, token = user
+    project = await _create_project_row(session, tenant, "kanban", "LEGACY")
+
+    response = await client.get(f"/projects/{project.id}/board", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    body = response.json()["data"]
+    assert [c["status_key"] for c in body["columns"]] == ["Backlog", "Doing", "Done"]

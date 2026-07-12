@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership
+from app.methodology.factory import get_strategy
 from app.modules.boards.schemas import (
     BoardColumnCreate,
     BoardColumnRead,
@@ -34,8 +35,12 @@ async def get_project_board(
 ) -> dict:
     """Return the project's board with its columns.
 
-    The column set is a bounded, nested collection — never paginated (see
-    design.md, "Exención documentada del contrato de paginación de 02").
+    Self-heals legacy projects created without a board (e.g. rows written
+    outside ``ProjectService.create_project``, such as the startup demo
+    seed): ``ensure_board`` lazily seeds one from the project's methodology
+    instead of 404ing (design.md D4). The column set is a bounded, nested
+    collection — never paginated (see design.md, "Exención documentada del
+    contrato de paginación de 02").
     """
 
     projects = ProjectRepository(db)
@@ -48,13 +53,7 @@ async def get_project_board(
         )
 
     service = BoardService(db)
-    board = await service.get_board(project_id)
-    if board is None:
-        raise AppException(
-            "El proyecto no tiene un board configurado.",
-            code="board_not_found",
-            status_code=404,
-        )
+    board = await service.ensure_board(project_id, get_strategy(project.methodology))
 
     return {"data": BoardRead.model_validate(board)}
 

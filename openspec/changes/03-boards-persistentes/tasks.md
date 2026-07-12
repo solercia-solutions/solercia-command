@@ -96,11 +96,11 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Batch E — backfill migration
 
-- [ ] T34 [RED] Test de migración: fixtures pre-migración (proyectos sin board, tareas con status variado) contra esquema descartable; asertar estado post-`upgrade`. (R9)
-- [ ] T35 [GREEN] Extender `upgrade()` de la migración de Batch A: snapshot VERBATIM inline (planner `["Sin iniciar","En curso","Completada"]`, kanban `["Backlog","Doing","Done"]`, scrum `["To Do","In Progress","In Review","Done"]`, custom `[]`) sin importar la strategy; por proyecto crea board+columnas (custom→0); por tarea `board_column_id` = columna con `status_key` igual a `status`, si no hay match → primera columna por `order` (log de revisión); board sin columnas (custom) → NULL. (R9)
-- [ ] T36 [RED] Test: tarea con `status="archived"` sin match → primera columna por `order`, caso registrado para revisión. (R9)
-- [ ] T37 [GREEN] `boards/service.py`: `ensure_board` defensivo (lazy) para filas legacy entre el paso de schema y el de backfill.
-- [ ] T38 [GREEN] Verificar `downgrade()` revierte `board_column_id`/`board_columns`/`boards` limpiamente.
+- [x] T34 [RED] Test de migración: fixtures pre-migración (proyectos sin board, tareas con status variado) contra esquema descartable; asertar estado post-`upgrade`. (R9)
+- [x] T35 [GREEN] Extender `upgrade()` de la migración de Batch A: snapshot VERBATIM inline (planner `["Sin iniciar","En curso","Completada"]`, kanban `["Backlog","Doing","Done"]`, scrum `["To Do","In Progress","In Review","Done"]`, custom `[]`) sin importar la strategy; por proyecto crea board+columnas (custom→0); por tarea `board_column_id` = columna con `status_key` igual a `status`, si no hay match → primera columna por `order` (log de revisión); board sin columnas (custom) → NULL. (R9)
+- [x] T36 [RED] Test: tarea con `status="archived"` sin match → primera columna por `order`, caso registrado para revisión. (R9)
+- [x] T37 [GREEN] `boards/service.py`: `ensure_board` defensivo (lazy) para filas legacy entre el paso de schema y el de backfill. Ahora wireado en `GET /projects/{id}/board` (antes era código muerto sin caller).
+- [x] T38 [GREEN] Verificar `downgrade()` revierte `board_column_id`/`board_columns`/`boards` limpiamente.
 
 ## Final — suite + lint + types
 
