@@ -59,6 +59,29 @@ async def unread_count(
     return {"data": {"count": count}, "message": "Conteo de notificaciones no leídas."}
 
 
+@router.get("/{notification_id}/deliveries", response_model=dict)
+async def list_notification_deliveries(
+    notification_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    membership: OrganizationMember = Depends(get_current_membership),
+) -> dict:
+    """Audit a notification's per-channel delivery attempts.
+
+    Restricted to ``admin``/``manager`` of the notification's organization
+    (change 12-notification-hub, design.md D6) — even the notification's own
+    owner gets ``403`` if not also a supervisor.
+    """
+    service = NotificationService(db)
+    result = await service.list_deliveries(
+        membership.organization_id, notification_id, membership.role
+    )
+    return {
+        "data": result.model_dump(),
+        "message": "Entregas de la notificación obtenidas.",
+        "meta": {},
+    }
+
+
 @router.patch("/{notification_id}", response_model=dict)
 async def update_notification_status(
     notification_id: uuid.UUID,

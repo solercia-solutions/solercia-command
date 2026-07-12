@@ -10,11 +10,13 @@ from app.modules.notifications.repository import (
     NotificationRepository,
 )
 from app.modules.notifications.schemas import (
+    NotificationDeliveriesRead,
+    NotificationDeliveryRead,
     NotificationPreferenceRead,
     NotificationPreferenceUpdate,
     NotificationStatusUpdate,
 )
-from app.shared.enums import DigestFrequency, NotificationStatus
+from app.shared.enums import DigestFrequency, MemberRole, NotificationStatus
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
@@ -22,6 +24,12 @@ from app.shared.pagination import PaginationParams
 # "opt-in, no sorprender") — mirrored by the ORM column defaults so a freshly
 # upserted row and the virtual default read the same values.
 _DEFAULT_DIGEST_HOUR = 8
+
+# Roles allowed to audit another notification's per-channel delivery
+# attempts (change 12-notification-hub, design.md D6) — SIN excepción de
+# dueño: it is an operational audit endpoint whose payload exposes
+# recipient_email/last_error, the owner already has GET /notifications.
+_SUPERVISOR_ROLES = (MemberRole.admin, MemberRole.manager)
 
 
 class NotificationService:
@@ -58,6 +66,44 @@ class NotificationService:
                 status_code=404,
             )
         return await self.repo.update_status(notification, data.status)
+
+    async def list_deliveries(
+        self,
+        org_id: uuid.UUID,
+        notification_id: uuid.UUID,
+        requester_role: MemberRole,
+    ) -> NotificationDeliveriesRead:
+        """Audit a notification's per-channel delivery attempts (change
+        12-notification-hub, design.md D6). ``admin``/``manager`` ONLY, no
+        owner exemption; ``404`` if the notification is not in ``org_id``.
+        """
+
+        if requester_role not in _SUPERVISOR_ROLES:
+            raise AppException(
+                detail="No tienes permisos para consultar las entregas de "
+                "esta notificación.",
+                code="notification_deliveries_forbidden",
+                status_code=403,
+            )
+
+        notification = await self.repo.get_for_org(org_id, notification_id)
+        if notification is None:
+            raise AppException(
+                detail="Notificación no encontrada.",
+                code="NOTIFICATION_NOT_FOUND",
+                status_code=404,
+            )
+
+        deliveries = await self.repo.list_deliveries(notification.id)
+        # D6, "opción (b)": emailed_at set but NO immediate row -> the
+        # digest covered it with an aggregated (not 1:1) delivery row.
+        digested = notification.emailed_at is not None and not deliveries
+        return NotificationDeliveriesRead(
+            deliveries=[
+                NotificationDeliveryRead.model_validate(row) for row in deliveries
+            ],
+            digested=digested,
+        )
 
 
 class NotificationPreferenceService:

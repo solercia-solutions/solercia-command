@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.notifications.models import Notification, NotificationPreference
+from app.notify.models import NotificationDelivery
 from app.notify.ports import DeliveryPolicy
 from app.notify.registry import get_channels
 from app.shared.enums import DigestFrequency, NotificationStatus
@@ -80,6 +81,35 @@ class NotificationRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_for_org(
+        self, org_id: uuid.UUID, notification_id: uuid.UUID
+    ) -> Notification | None:
+        """Fetch a notification scoped ONLY by organization — no recipient
+        filter. Used by the admin/manager delivery-audit endpoint (change
+        12-notification-hub, design.md D6): unlike ``get()``, a supervisor
+        may audit a notification they do not own.
+        """
+        result = await self.db.execute(
+            select(Notification).where(
+                Notification.organization_id == org_id,
+                Notification.id == notification_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_deliveries(
+        self, notification_id: uuid.UUID
+    ) -> Sequence[NotificationDelivery]:
+        """Return the immediate (1:1 attributed) delivery rows for a
+        notification — a digest's aggregated row is deliberately excluded
+        (``notification_id IS NULL`` on that row, design.md D6)."""
+        result = await self.db.execute(
+            select(NotificationDelivery).where(
+                NotificationDelivery.notification_id == notification_id
+            )
+        )
+        return result.scalars().all()
 
     async def update_status(
         self, notification: Notification, status: NotificationStatus
