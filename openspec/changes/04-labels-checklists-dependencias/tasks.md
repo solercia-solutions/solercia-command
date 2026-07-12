@@ -71,8 +71,8 @@ R12 estrategia en registry · R13 deduplicación · R14 seed idempotente
 
 ## Batch E — Integración detalle de tarea + docs
 
-- [ ] T23 RED+GREEN: `TaskRead` += `labels[]` + `checklist_progress`; `get_task`/`get_task_by_key` agregan las 3 consultas acotadas (labels, progreso, bloqueadores) sin N+1
-- [ ] T24 Integración: `GET /tasks/{id}` expone `labels[]`+`checklist_progress`+`is_blocked`+`blockers[]` simultáneamente (test único); actualizar `docs/API.md` con los endpoints nuevos si el contrato de docs lo exige
+- [x] T23 RED+GREEN: `TaskRead` += `labels[]` + `checklist_progress`; `get_task`/`get_task_by_key` agregan las 3 consultas acotadas (labels, progreso, bloqueadores) sin N+1
+- [x] T24 Integración: `GET /tasks/{id}` expone `labels[]`+`checklist_progress`+`is_blocked`+`blockers[]` simultáneamente (test único); actualizado `docs/API.md` — nuevas secciones Etiquetas/Checklists/Dependencias entre tareas, modelo `Task` extendido, resumen de endpoints y modelos nuevos (`Label`, `TaskChecklist`, `ChecklistItem`, `TaskDependencyRead`)
 
 ## Final
 

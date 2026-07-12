@@ -1129,6 +1129,224 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Etiquetas (labels)
+
+Endpoints **protegidos**. Las etiquetas son de **scope de proyecto** (`name` único entre las
+etiquetas **activas** de un mismo proyecto; el mismo nombre puede repetirse en proyectos
+distintos) y se vinculan a tareas mediante `TaskLabel` (M:N). Eliminar una etiqueta la
+desvincula de todas sus tareas — las tareas mismas nunca se modifican.
+
+### GET `/api/v1/projects/{project_id}/labels` 📄
+
+Lista las etiquetas activas de un proyecto. Soporta paginación opcional (ver «Paginación»).
+Campos ordenables (`sort`): `name` (por defecto), `created_at`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    { "id": "uuid", "project_id": "uuid", "name": "Urgente", "color": "#FF0000", "created_at": "ISO-8601 timestamp" }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/projects/{project_id}/labels`
+
+```json
+{ "name": "Urgente", "color": "#FF0000" }
+```
+
+| Campo   | Tipo   | Obligatorio | Notas                                                            |
+| ------- | ------ | ----------- | ------------------------------------------------------------------ |
+| `name`  | string | Sí          | Único entre las etiquetas activas del proyecto.                   |
+| `color` | string | Sí          | Color libre (p. ej. hex `#RRGGBB`); el backend no valida el formato. |
+
+**Response `201 Created`** — `{ "data": Label }`.
+
+**Response `422 Unprocessable Entity`** — nombre duplicado entre etiquetas activas del proyecto
+
+```json
+{ "detail": "Ya existe una etiqueta activa llamada 'Urgente' en este proyecto.", "code": "duplicate_label_name", "status": 422 }
+```
+
+### PATCH `/api/v1/labels/{label_id}`
+
+Renombra y/o recolorea. `name` se revalida contra el resto de etiquetas activas del proyecto.
+
+**Response `200 OK`** — `{ "data": Label }`.
+
+### DELETE `/api/v1/labels/{label_id}`
+
+Borrado lógico: desvincula la etiqueta de todas sus tareas (las tareas quedan intactas).
+**Response `204 No Content`**.
+
+### POST `/api/v1/tasks/{task_id}/labels`
+
+Asigna una etiqueta a una tarea. Ambas deben pertenecer al mismo proyecto.
+
+```json
+{ "label_id": "uuid" }
+```
+
+**Response `201 Created`** — `{ "data": [Label], "meta": { "total": int } }` (las etiquetas
+activas de la tarea tras la asignación).
+
+**Response `422 Unprocessable Entity`** — la etiqueta es de otro proyecto
+
+```json
+{ "detail": "La etiqueta no pertenece al mismo proyecto de la tarea.", "code": "label_project_mismatch", "status": 422 }
+```
+
+### DELETE `/api/v1/tasks/{task_id}/labels/{label_id}`
+
+Desasigna una etiqueta de una tarea (sin efecto si no estaba asignada). **Response `204 No Content`**.
+
+---
+
+## Checklists
+
+Endpoints **protegidos**, anidados bajo una tarea. Desglosan el «cómo» ejecutar una tarea sin
+crear subtareas formales. Cada `TaskChecklist` tiene ítems (`ChecklistItem`) marcables; el
+progreso (`done`/`total`) se calcula en el backend, nunca se envía desde el cliente.
+
+### GET `/api/v1/tasks/{task_id}/checklists`
+
+Lista los checklists activos de una tarea, cada uno con su progreso embebido. **No es
+paginable** en este contrato (colección acotada por tarea, mismo criterio que
+`GET /projects/{id}/board`) — siempre devuelve la colección completa, `meta: { total }`.
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    { "id": "uuid", "task_id": "uuid", "title": "Antes de publicar", "order": 0, "created_at": "ISO-8601 timestamp", "done": 2, "total": 5 }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/tasks/{task_id}/checklists`
+
+```json
+{ "title": "Antes de publicar", "order": 0 }
+```
+
+**Response `201 Created`** — `{ "data": TaskChecklist }` (`done`/`total` en `0` — sin ítems aún).
+
+### PATCH `/api/v1/checklists/{checklist_id}`
+
+Renombra y/o reordena (`title`, `order`, ambos opcionales). **Response `200 OK`** — `{ "data": TaskChecklist }`.
+
+### DELETE `/api/v1/checklists/{checklist_id}`
+
+Borrado lógico. Sus ítems dejan de contar en el progreso agregado. **Response `204 No Content`**.
+
+### GET `/api/v1/checklists/{checklist_id}/items`
+
+Lista los ítems activos de un checklist, ordenados. **No es paginable** (mismo criterio que
+la lista de checklists).
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    { "id": "uuid", "checklist_id": "uuid", "text": "Revisar textos", "is_done": false, "order": 0, "created_at": "ISO-8601 timestamp" }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/checklists/{checklist_id}/items`
+
+```json
+{ "text": "Revisar textos", "order": 0 }
+```
+
+**Response `201 Created`** — `{ "data": ChecklistItem }`.
+
+### PATCH `/api/v1/checklist-items/{item_id}`
+
+Edita el texto y/o reordena (`text`, `order`, ambos opcionales). `is_done` **no** se cambia
+aquí — usa el endpoint de toggle. **Response `200 OK`** — `{ "data": ChecklistItem }`.
+
+### PATCH `/api/v1/checklist-items/{item_id}/toggle`
+
+Invierte `is_done` (sin cuerpo). **Response `200 OK`** — `{ "data": ChecklistItem }`.
+
+### DELETE `/api/v1/checklist-items/{item_id}`
+
+Borrado lógico. **Response `204 No Content`**.
+
+---
+
+## Dependencias entre tareas
+
+Endpoints **protegidos**, anidados bajo `/tasks/{task_id}/dependencies` — **nunca** un
+prefijo plano `/dependencies` (ese ya lo usa `/api/v1/admin/dependencies`, las áreas
+organizacionales; ver «Administración» más abajo — son conceptos distintos sin relación
+entre sí). Modelan bloqueos dirigidos entre tareas del **mismo proyecto**
+(`blocker` bloquea a `blocked`) con prevención de ciclos (directos y transitivos).
+
+### GET `/api/v1/tasks/{task_id}/dependencies` 📄
+
+Lista, desde la perspectiva de la tarea del path, sus enlaces activos en **ambas
+direcciones** (`direction: "blocks"` — esta tarea bloquea a `related_task_id` — o
+`direction: "is_blocked_by"` — `related_task_id` bloquea a esta tarea). Soporta paginación
+opcional (ver «Paginación»). Campo ordenable (`sort`): `created_at` (único, por defecto).
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    { "id": "uuid", "related_task_id": "uuid", "direction": "is_blocked_by", "created_at": "ISO-8601 timestamp" }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+### POST `/api/v1/tasks/{task_id}/dependencies`
+
+Enlaza la tarea del path con `related_task_id`. `type` decide la dirección: con
+`"blocks"` (por defecto) la tarea del path bloquea a `related_task_id`; con
+`"is_blocked_by"` es al revés — el backend **invierte** el par antes de persistir al par
+canónico `blocker -> blocked` (una sola fila dirigida por relación; no hay una fila
+`is_blocked_by` separada).
+
+```json
+{ "related_task_id": "uuid", "type": "is_blocked_by" }
+```
+
+| Campo             | Tipo                          | Obligatorio | Notas                                             |
+| ------------------ | ------------------------------ | ----------- | -------------------------------------------------- |
+| `related_task_id`  | uuid                           | Sí          | La otra tarea del enlace.                          |
+| `type`             | `"blocks"` \| `"is_blocked_by"` | No          | Por defecto `"blocks"`.                            |
+
+**Response `201 Created`** — `{ "data": TaskDependencyRead }` (misma forma que el listado).
+
+**Response `422 Unprocessable Entity`** — casos rechazados:
+
+```json
+{ "detail": "Una tarea no puede depender de sí misma.", "code": "dependency_self_loop", "status": 422 }
+```
+```json
+{ "detail": "Solo puedes enlazar tareas del mismo proyecto.", "code": "dependency_project_mismatch", "status": 422 }
+```
+```json
+{ "detail": "Este enlace introduciría un ciclo de dependencias entre tareas.", "code": "dependency_cycle", "status": 422 }
+```
+
+### DELETE `/api/v1/tasks/{task_id}/dependencies/{dependency_id}`
+
+Desenlaza (borrado **lógico** — nunca físico; `dependency_id` debe pertenecer a un enlace que
+toque la tarea del path). **Response `204 No Content`**.
+
+---
+
 ## Comentarios
 
 Endpoints **protegidos**, anidados bajo una tarea. Solo el autor original puede editar o
@@ -1305,7 +1523,11 @@ o `silenced`.
 ## Reglas de alerta
 
 Reglas configurables del motor de alertas, org-scoped. **No hay `POST`**: las reglas se
-siembran por organización (una por `rule_type`); solo se activan/ajustan.
+siembran por organización (una por `rule_type`); solo se activan/ajustan. El seed por
+defecto crea **5** reglas: `task_overdue`, `task_at_risk`, `sprint_at_risk`,
+`workload_imbalance` y `blocked_task` (esta última notifica al `assignee` de una tarea
+bloqueada por más de `threshold_params.blocked_days` días — por defecto `3` — cuando el
+bloqueador sigue sin completar; ver «Dependencias entre tareas»).
 
 ### GET `/api/v1/alert-rules` 📄
 
@@ -1653,8 +1875,8 @@ enviada).
 
 ## Resumen de endpoints
 
-Regenerada desde la superficie real de los **13 routers** del backend. 📄 = soporta
-paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **11**
+Regenerada desde la superficie real de los **18 routers** del backend. 📄 = soporta
+paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **13**
 endpoints en el alcance de ese contrato.
 
 | Método | Ruta                                       | Auth | 📄 | Descripción                                  |
@@ -1692,6 +1914,24 @@ endpoints en el alcance de ese contrato.
 | GET    | `/api/v1/attachments/{id}/download`        | Sí   |    | Descarga el archivo binario de un adjunto.   |
 | GET    | `/api/v1/dashboard/executive`              | Sí   |    | Panel ejecutivo agregado del tenant.         |
 | GET    | `/api/v1/dashboard/performance`            | Sí   |    | Rendimiento por colaborador (opcional `sprint_id`). |
+| GET    | `/api/v1/projects/{id}/labels`             | Sí   | 📄 | Lista las etiquetas activas del proyecto.    |
+| POST   | `/api/v1/projects/{id}/labels`             | Sí   |    | Crea una etiqueta.                           |
+| PATCH  | `/api/v1/labels/{id}`                      | Sí   |    | Renombra/recolorea una etiqueta.             |
+| DELETE | `/api/v1/labels/{id}`                      | Sí   |    | Elimina (lógico) una etiqueta y la desvincula de sus tareas. |
+| POST   | `/api/v1/tasks/{id}/labels`                | Sí   |    | Asigna una etiqueta a una tarea.             |
+| DELETE | `/api/v1/tasks/{id}/labels/{label_id}`     | Sí   |    | Desasigna una etiqueta de una tarea.         |
+| GET    | `/api/v1/tasks/{id}/checklists`            | Sí   |    | Lista los checklists de una tarea, con progreso embebido (no paginable). |
+| POST   | `/api/v1/tasks/{id}/checklists`            | Sí   |    | Crea un checklist en una tarea.              |
+| PATCH  | `/api/v1/checklists/{id}`                  | Sí   |    | Renombra/reordena un checklist.              |
+| DELETE | `/api/v1/checklists/{id}`                  | Sí   |    | Elimina (lógico) un checklist.               |
+| GET    | `/api/v1/checklists/{id}/items`            | Sí   |    | Lista los ítems de un checklist (no paginable). |
+| POST   | `/api/v1/checklists/{id}/items`            | Sí   |    | Crea un ítem en un checklist.                |
+| PATCH  | `/api/v1/checklist-items/{id}`             | Sí   |    | Edita el texto y/o reordena un ítem.         |
+| PATCH  | `/api/v1/checklist-items/{id}/toggle`      | Sí   |    | Invierte `is_done` de un ítem.               |
+| DELETE | `/api/v1/checklist-items/{id}`             | Sí   |    | Elimina (lógico) un ítem.                    |
+| GET    | `/api/v1/tasks/{id}/dependencies`          | Sí   | 📄 | Lista los enlaces de dependencia de una tarea (ambas direcciones). |
+| POST   | `/api/v1/tasks/{id}/dependencies`          | Sí   |    | Enlaza la tarea con otra (rechaza ciclos, 422). |
+| DELETE | `/api/v1/tasks/{id}/dependencies/{dep_id}` | Sí   |    | Desenlaza (borrado lógico, nunca físico).    |
 | GET    | `/api/v1/notifications`                    | Sí   | 📄 | Lista las notificaciones del usuario.        |
 | GET    | `/api/v1/notifications/unread-count`       | Sí   |    | Conteo de notificaciones activas.            |
 | PATCH  | `/api/v1/notifications/{id}`               | Sí   |    | Cambia el estado de una notificación propia. |
@@ -1884,7 +2124,11 @@ endpoints en el alcance de ese contrato.
   "task_key": "string | null",
   "subtask_progress": "number | null",
   "created_by": "uuid | null",
-  "updated_by": "uuid | null"
+  "updated_by": "uuid | null",
+  "is_blocked": "boolean",
+  "blockers": [ { "task_id": "uuid", "title": "string" } ],
+  "labels": [ { "id": "uuid", "project_id": "uuid", "name": "string", "color": "string", "created_at": "ISO-8601 timestamp" } ],
+  "checklist_progress": "number | null"
 }
 ```
 
@@ -1900,6 +2144,15 @@ endpoints en el alcance de ese contrato.
 > columna «done» (`allowed_statuses[-1]`) y vuelve a `null` cuando sale de ella. Es de
 > **solo lectura** en el contrato (no se acepta en `POST` ni en `PATCH`); alimenta el
 > burndown del sprint y la vista de rendimiento.
+
+> `is_blocked`/`blockers[]`, `labels[]` y `checklist_progress` (`0.0..1.0` \| `null`) siguen
+> el mismo criterio que `subtask_progress`: **solo** se calculan en el detalle de una tarea
+> individual (`GET /tasks/{id}` o `GET /tasks/by-key/{key}`) para evitar N+1 sobre el
+> listado; en `GET /projects/{id}/tasks` estos cuatro campos no se recalculan (quedan en su
+> valor por defecto: `false`, `[]`, `[]`, `null`). `blockers[]` solo incluye bloqueadores
+> **activos e incompletos** (`completed_at IS NULL`); se vacía automáticamente cuando el
+> bloqueador se completa. `checklist_progress` es `null` cuando la tarea no tiene ítems de
+> checklist (ni checklists, ni checklists vacíos).
 
 ### `Sprint`
 
@@ -1999,3 +2252,72 @@ endpoints en el alcance de ese contrato.
   "updated_by": "uuid | null"
 }
 ```
+
+### `Label`
+
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "string",
+  "color": "string",
+  "created_at": "ISO-8601 timestamp"
+}
+```
+
+> Scope de **proyecto**: `name` es único entre las etiquetas **activas** de un mismo
+> proyecto (el mismo nombre puede repetirse en proyectos distintos). El vínculo M:N con
+> `Task` (`TaskLabel`) no expone un modelo propio en el contrato — se lee siempre como
+> `labels[]` embebido en `Task`, o como la lista `{ data: [Label], meta: { total } }` que
+> devuelve `POST /tasks/{id}/labels` tras asignar.
+
+### `TaskChecklist`
+
+```json
+{
+  "id": "uuid",
+  "task_id": "uuid",
+  "title": "string",
+  "order": "int",
+  "created_at": "ISO-8601 timestamp",
+  "done": "int",
+  "total": "int"
+}
+```
+
+> `done`/`total` los calcula el backend a partir de los `ChecklistItem` activos del
+> checklist (nunca se envían desde el cliente). Un checklist recién creado empieza en
+> `done: 0, total: 0`.
+
+### `ChecklistItem`
+
+```json
+{
+  "id": "uuid",
+  "checklist_id": "uuid",
+  "text": "string",
+  "is_done": "boolean",
+  "order": "int",
+  "created_at": "ISO-8601 timestamp"
+}
+```
+
+### `TaskDependencyRead`
+
+```json
+{
+  "id": "uuid",
+  "related_task_id": "uuid",
+  "direction": "blocks | is_blocked_by",
+  "created_at": "ISO-8601 timestamp"
+}
+```
+
+> Forma devuelta tanto por `GET /tasks/{id}/dependencies` (cada fila) como por
+> `POST /tasks/{id}/dependencies` (el enlace recién creado). `direction` se calcula **desde
+> la perspectiva de la tarea del path**: `"blocks"` = esta tarea bloquea a
+> `related_task_id`; `"is_blocked_by"` = `related_task_id` bloquea a esta tarea. Internamente
+> se persiste una única fila dirigida por relación (`blocker_task_id`/`blocked_task_id`,
+> clase `TaskDependency`, tabla `task_dependencies`, módulo `task_links` — deliberadamente
+> distinto del módulo/tabla/clase `Dependency` de «Administración», que son áreas
+> organizacionales sin relación alguna con este concepto).

@@ -5,6 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.labels.schemas import LabelRead
 from app.modules.task_links.schemas import BlockerRef
 from app.shared.enums import Priority
 
@@ -133,6 +134,15 @@ class TaskRead(BaseModel):
     # populated on single-task reads (same pattern as subtask_progress).
     is_blocked: bool = False
     blockers: list[BlockerRef] = []
+    # Active labels assigned to the task (labels.md). Only populated on
+    # single-task reads (same pattern as subtask_progress) — design.md
+    # explicitly reserves batched `selectinload` for a future change if the
+    # LIST endpoint ever needs to embed labels; this change does not.
+    labels: list[LabelRead] = []
+    # Aggregate done/total ratio [0.0, 1.0] across every active checklist of
+    # the task (checklists.md R7). None when the task has no checklist items.
+    # Only populated on single-task reads (same pattern as subtask_progress).
+    checklist_progress: float | None = None
 
 
 class TaskColumnMove(BaseModel):

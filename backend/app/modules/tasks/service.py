@@ -25,10 +25,11 @@ from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
 if TYPE_CHECKING:
-    # Type-only: `tasks` never imports `boards`/`task_links` at module level
-    # (design.md C4). Every runtime use is a deferred import inside the
-    # method that needs it.
+    # Type-only: `tasks` never imports `boards`/`task_links`/`checklists` at
+    # module level (design.md C4). Every runtime use is a deferred import
+    # inside the method that needs it.
     from app.modules.boards.models import BoardColumn
+    from app.modules.labels.schemas import LabelRead
     from app.modules.task_links.schemas import BlockerRef
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
@@ -107,10 +108,12 @@ class TaskService:
         name_map = await self._assignee_name_map(organization_id)
         read = self._to_read(task, name_map, project_code=project.code)
 
-        # Populate subtask progress and blocking state only on single-task
-        # reads to avoid N+1.
+        # Populate subtask progress, blocking state, labels and checklist
+        # progress only on single-task reads to avoid N+1.
         read.subtask_progress = await self._subtask_progress(task.id, strategy)
         read.is_blocked, read.blockers = await self._blocking_state(task.id)
+        read.labels = await self._labels_for_task(task.id)
+        read.checklist_progress = await self._checklist_progress(task.id)
 
         return read
 
@@ -157,6 +160,8 @@ class TaskService:
 
         read.subtask_progress = await self._subtask_progress(task.id, strategy)
         read.is_blocked, read.blockers = await self._blocking_state(task.id)
+        read.labels = await self._labels_for_task(task.id)
+        read.checklist_progress = await self._checklist_progress(task.id)
 
         return read
 
@@ -526,6 +531,37 @@ class TaskService:
         )
         blockers = [BlockerRef(task_id=tid, title=title) for tid, title in rows]
         return (len(blockers) > 0, blockers)
+
+    async def _labels_for_task(self, task_id: uuid.UUID) -> list["LabelRead"]:
+        """Return the task's active labels for a single-task read (labels.md).
+
+        Deferred import: `tasks` never depends on `labels`' repository at
+        module level (design.md C4) — `LabelRead` is imported directly in
+        `tasks.schemas` since it composes `TaskRead`, a lighter, deliberate
+        exception documented there.
+        """
+
+        from app.modules.labels.repository import LabelRepository
+        from app.modules.labels.schemas import LabelRead
+
+        labels = await LabelRepository(self.repo.db).list_labels_for_task(task_id)
+        return [LabelRead.model_validate(label) for label in labels]
+
+    async def _checklist_progress(self, task_id: uuid.UUID) -> float | None:
+        """Return the done/total ratio across every active checklist of a task.
+
+        ``None`` when the task has no checklist items (checklists.md R7,
+        design.md Interfaces/Contracts — same shape as ``subtask_progress``).
+        Deferred import: `tasks` never depends on `checklists` at module
+        level (design.md C4).
+        """
+
+        from app.modules.checklists.service import ChecklistService
+
+        done, total = await ChecklistService(self.repo.db).get_checklist_progress(
+            task_id
+        )
+        return (done / total) if total > 0 else None
 
     @staticmethod
     def _resolve_status(
