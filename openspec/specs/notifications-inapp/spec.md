@@ -1,6 +1,6 @@
 # Spec — Notificaciones in-app (notifications-inapp)
 
-> **Origen**: línea base as-built (2026-07-11) + [06-reminders](../../changes/archive/2026-07-12-06-reminders/)
+> **Origen**: línea base as-built (2026-07-11) + [06-reminders](../../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../../changes/archive/2026-07-12-09-websocket-realtime/)
 
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
@@ -64,6 +64,22 @@ El sistema MUST aceptar `rule_type="reminder"` como origen válido de `Notificat
 - GIVEN una `Notification` activa con `dedup_key="reminder_due_soon:T1:U1:2026-07-15"`
 - WHEN la regla `task_due_soon` vuelve a evaluar la misma condición
 - THEN no se crea una segunda notificación para ese `dedup_key`
+
+### Requirement: Publicación al canal realtime en la creación
+
+Cuando el sistema crea una notificación (por mención o por el motor de alertas), MUST invocar, desde el punto único de creación, la publicación best-effort hacia el canal realtime (`realtime-notifications`) del `recipient_user_id`, sin alterar el modelo `Notification` ni el contrato de los endpoints REST existentes (`GET /notifications`, `GET /notifications/unread-count`, `PATCH /notifications/{id}`). Esto levanta la limitación de "canal único polling" documentada en la línea base.
+
+#### Scenario: Creación dispara publicación
+
+- GIVEN el punto único de creación de `Notification` (`NotificationRepository.create()`, usado por el evaluador de alertas y por las menciones — el service NO tiene `create()`)
+- WHEN se persiste una notificación nueva y su transacción hace commit
+- THEN el sistema publica (drenaje post-commit best-effort) hacia el canal realtime del destinatario además de persistir el registro
+
+#### Scenario: REST sigue siendo autoritativo
+
+- GIVEN el canal realtime deshabilitado o el publicador no disponible
+- WHEN se crea una notificación
+- THEN la notificación se persiste igual y sigue siendo recuperable vía `GET /notifications`
 
 ## Limitaciones y deuda conocida
 

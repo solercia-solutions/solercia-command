@@ -2161,8 +2161,8 @@ enviada).
 
 ## Resumen de endpoints
 
-Regenerada desde la superficie real de los **21 routers** del backend. 📄 = soporta
-paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **19**
+Regenerada desde la superficie real de los **22 routers** del backend. 📄 = soporta
+paginación opcional (`page`/`size`/`sort`/`order`, ver «Paginación») — son los **20**
 endpoints en el alcance de ese contrato.
 
 | Método | Ruta                                       | Auth | 📄 | Descripción                                  |
@@ -2262,11 +2262,143 @@ endpoints en el alcance de ese contrato.
 | PATCH  | `/api/v1/admin/users/{id}`                 | Admin |   | Actualiza un usuario.                       |
 | DELETE | `/api/v1/admin/users/{id}`                 | Admin |   | Elimina (lógico) un usuario.                |
 | PUT    | `/api/v1/admin/users/{id}/roles`           | Admin |   | Reemplaza el conjunto de roles del usuario. |
+| WS     | `/api/v1/ws/notifications`                 | Sí   |    | Canal WebSocket: push de notificaciones en tiempo real (best-effort). |
+| GET    | `/api/v1/search`                           | Sí   | 📄 | Búsqueda global multi-entidad + filtros avanzados. |
 
 > «Admin» en la columna *Auth* significa: bearer válido **y** rol de RBAC con `code = "ADMIN"`
 > (`require_admin`). «Cookie» significa que el endpoint se autentica con la cookie de
 > refresco, no con el header `Authorization`. El `PATCH` de `/alert-rules/{id}` es el único
 > endpoint de esta lista con auth mixta: requiere membresía (`Sí`) **y** además `require_admin`.
+
+---
+
+## WebSocket: Notificaciones en tiempo real
+
+Canal WebSocket que empuja notificaciones in-app en el instante de su creación, complementando (no reemplazando) el polling REST de `GET /api/v1/notifications`. **Best-effort**: REST sigue siendo la fuente de verdad. Si el usuario desconecta, la notificación se persiste igual y se recupera al reconectar vía REST.
+
+### GET `/api/v1/ws/notifications` (WebSocket)
+
+Handshake autenticado. El servidor acepta la conexión solo si el token es válido y resuelve a un usuario activo en la organización del token. Con token ausente o inválido, la conexión se rechaza sin handshake.
+
+**Autenticación**
+
+El token se pasa en el **subprotocolo bearer** durante el handshake (`Sec-WebSocket-Protocol: bearer, <access_token>`). El backend extrae el token, valida su firma e identidad, y resuelve `(organization_id, user_id)`. Fallback opcional documentado: query param `?token=<access_token>` (riesgo de fuga en logs de proxy — usar con cuidado).
+
+**Handshake válido → `connection.ack`**
+
+```json
+{
+  "v": 1,
+  "type": "connection.ack",
+  "data": {}
+}
+```
+
+**Handshake inválido → cierre HTTP 403 sin ack**
+
+- Token ausente, expirado o con firma inválida.
+- Usuario no encontrado o inactivo.
+- Organización resuelta no coincide (multi-tenancy).
+
+**Push: `notification.created`**
+
+Cuando se crea una notificación (por mención en un comentario o por el motor de alertas), el servidor intenta publicarla a todos los sockets abiertos del destinatario. El push llega como:
+
+```json
+{
+  "v": 1,
+  "type": "notification.created",
+  "data": {
+    "id": "uuid",
+    "recipient_user_id": "uuid",
+    "rule_type": "mention | alert_task_overdue | alert_blocked_task | reminder | ...",
+    "title": "string",
+    "body": "string",
+    "target_type": "task | comment | ... | null",
+    "target_id": "uuid | null",
+    "dedup_key": "string",
+    "status": "active",
+    "created_at": "ISO-8601 timestamp"
+  }
+}
+```
+
+**Heartbeat: `ping` / `pong`**
+
+El servidor envía `ping` periódicamente (intervalo configurable, por defecto 30 segundos). El cliente **debe** responder con `pong` dentro del intervalo de inactividad (por defecto 60 segundos). Si no hay respuesta, el servidor cierra la conexión.
+
+`ping`:
+```json
+{
+  "v": 1,
+  "type": "ping",
+  "data": {}
+}
+```
+
+`pong` (desde el cliente):
+```json
+{
+  "v": 1,
+  "type": "pong",
+  "data": {}
+}
+```
+
+**Scoping: aislamiento tenant/usuario**
+
+Cada conexión se asocia a `(organization_id, user_id)` resuelto del token. El servidor **nunca** entrega un mensaje de otra organización o de otro usuario al socket. El socket se cierra automáticamente si:
+- El usuario se desconecta de la organización (soft delete).
+- El token expira (reconexión con nuevo token requerida).
+- El cliente no responde a `pong` a tiempo.
+
+**Casos especiales**
+
+| Caso | Comportamiento |
+| ---- | --- |
+| Usuario desconectado (sin socket WS abierto) | Notificación se persiste igual, recuperable vía REST. |
+| Publicador no disponible / fallo de envío | Notificación se persiste igual — REST es la fuente de verdad. |
+| Múltiples sockets del mismo usuario | Todos reciben el push (broadcast a todos los sockets del `recipient_user_id`). |
+| Deshabilitación: `WS_ENABLED=false` | Endpoint retorna `503` Service Unavailable; REST sigue funcional. |
+
+**Ejemplo de cliente (JavaScript)**
+
+```javascript
+const token = "<access_token>";
+const ws = new WebSocket(`ws://localhost:8000/api/v1/ws/notifications`, `bearer, ${token}`);
+
+ws.onopen = () => {
+  console.log("Conectado");
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === "connection.ack") {
+    console.log("Handshake aceptado");
+  } else if (msg.type === "notification.created") {
+    console.log("Notificación:", msg.data);
+  } else if (msg.type === "ping") {
+    // Responder automáticamente si la librería no lo hace
+    ws.send(JSON.stringify({ v: 1, type: "pong", data: {} }));
+  }
+};
+
+ws.onerror = (error) => {
+  console.error("Error WS:", error);
+};
+
+ws.onclose = () => {
+  console.log("Conexión cerrada. Reconectar via REST polling.");
+};
+```
+
+**Configuración**
+
+| Variable | Default | Descripción |
+| ---- | --- | --- |
+| `WS_ENABLED` | `true` | Habilita/deshabilita el endpoint WS. Si `false`, retorna `503` (endpoint no disponible). |
+| `WS_HEARTBEAT_SECONDS` | `30` | Intervalo en segundos para enviar `ping` al cliente. |
+| `WS_IDLE_TIMEOUT_SECONDS` | `60` | Tiempo máximo en segundos sin recibir `pong` antes de cerrar la conexión. |
 
 ---
 

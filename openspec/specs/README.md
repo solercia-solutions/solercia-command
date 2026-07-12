@@ -22,7 +22,8 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | Labels (etiquetas de tarea) | [labels](labels/spec.md) | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
 | Estrategias de metodología | [methodology-strategies](methodology-strategies/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) |
 | Multi-tenancy | [multi-tenancy](multi-tenancy/spec.md) | baseline |
-| Notificaciones in-app | [notifications-inapp](notifications-inapp/spec.md) | baseline + [06-reminders](../changes/archive/2026-07-12-06-reminders/) |
+| Notificaciones en tiempo real | [realtime-notifications](realtime-notifications/spec.md) | [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) |
+| Notificaciones in-app | [notifications-inapp](notifications-inapp/spec.md) | baseline + [06-reminders](../changes/archive/2026-07-12-06-reminders/) + [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) |
 | Recordatorios (manuales y por regla) | [reminders](reminders/spec.md) | [06-reminders](../changes/archive/2026-07-12-06-reminders/) |
 | Proyectos | [projects](projects/spec.md) | baseline |
 | Catálogo RBAC | [rbac-catalog](rbac-catalog/spec.md) | baseline |
@@ -51,6 +52,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) | `global-search/spec.md` (nueva), `tasks/spec.md` (MODIFIED + ADDED) | `global-search` (creada: endpoint GET /search con scope estricto multi-tenant), `tasks` (modificada: filtros avanzados combinables en GET /projects/{id}/tasks) |
 | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) | `test-coverage-baseline/spec.md` (nueva) | `test-coverage-baseline` (creada: contrato de cobertura de tests as-built) |
 | [06-reminders](../changes/archive/2026-07-12-06-reminders/) | `reminders/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `reminders` (creada: recordatorios manuales y por regla), `notifications-inapp` (modificada: origen `rule_type="reminder"`) |
+| [09-websocket-realtime](../changes/archive/2026-07-12-09-websocket-realtime/) | `realtime-notifications/spec.md` (nueva), `notifications-inapp/spec.md` (ADDED) | `realtime-notifications` (creada: canal WS push en tiempo real), `notifications-inapp` (modificada: publicación best-effort al conectar) |
 
 ## Inconsistencias detectadas
 
