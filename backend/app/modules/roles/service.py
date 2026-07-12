@@ -15,6 +15,7 @@ from app.modules.roles.schemas import (
     RoleUpdate,
 )
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 
 class RoleService:
@@ -24,14 +25,19 @@ class RoleService:
         self.repo = RoleRepository(db)
         self.menus = MenuRepository(db)
 
-    async def list_roles(self, organization_id: uuid.UUID) -> list[RoleRead]:
-        """Return the organization's roles with their menu ids attached."""
+    async def list_roles(
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[RoleRead], int]:
+        """Return ``(roles, total)`` — the org's roles with their menu ids."""
 
-        roles = list(await self.repo.list_by_org(organization_id))
+        roles, total = await self.repo.list_by_org(organization_id, pagination)
         menu_map = await self.repo.menu_ids_for_many([role.id for role in roles])
-        return [
+        reads = [
             self._to_read(role, menu_map.get(role.id, [])) for role in roles
         ]
+        return reads, total
 
     async def get_role(
         self, organization_id: uuid.UUID, role_id: uuid.UUID

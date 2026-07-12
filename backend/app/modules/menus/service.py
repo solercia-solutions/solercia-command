@@ -10,6 +10,7 @@ from app.modules.menus.models import Menu
 from app.modules.menus.repository import MenuRepository
 from app.modules.menus.schemas import MenuCreate, MenuUpdate
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 
 
 def build_menu_tree(menus: Sequence[Menu]) -> list[dict]:
@@ -57,15 +58,22 @@ class MenuService:
     def __init__(self, db: AsyncSession) -> None:
         self.repo = MenuRepository(db)
 
-    async def list_menus(self) -> Sequence[Menu]:
-        """Return every active menu (flat)."""
+    async def list_menus(
+        self, pagination: PaginationParams | None = None
+    ) -> tuple[Sequence[Menu], int]:
+        """Return ``(menus, total)`` — every active menu (flat)."""
 
-        return await self.repo.list_active()
+        return await self.repo.list_active(pagination)
 
     async def tree(self) -> list[dict]:
-        """Return the full active menu tree."""
+        """Return the full active menu tree — NEVER paginated (gate #1).
 
-        return build_menu_tree(await self.repo.list_active())
+        ``meta.tree`` must reflect the complete catalog regardless of any
+        ``page``/``size`` slice applied to ``data``.
+        """
+
+        menus, _ = await self.repo.list_active()
+        return build_menu_tree(menus)
 
     async def get_menu(self, menu_id: uuid.UUID) -> Menu:
         """Return a single menu or raise a 404 ``AppException``."""

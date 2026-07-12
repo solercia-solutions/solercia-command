@@ -19,6 +19,7 @@ from app.modules.users.schemas import (
     UserRolesUpdate,
 )
 from app.modules.users.service import UserService
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(
     prefix="/admin/users",
@@ -29,14 +30,19 @@ router = APIRouter(
 
 @router.get("")
 async def list_users(
+    pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List the users of the caller's organization."""
+    """List the users of the caller's organization.
+
+    Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
+    those params the full collection is returned unchanged.
+    """
 
     service = UserService(db)
-    data = await service.list_users(membership.organization_id)
-    return {"data": data, "meta": {"total": len(data)}}
+    data, total = await service.list_users(membership.organization_id, pagination)
+    return {"data": data, "meta": build_list_meta(pagination, total)}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

@@ -17,6 +17,7 @@ from app.modules.users.schemas import (
 )
 from app.shared.enums import MemberRole
 from app.shared.exceptions import AppException
+from app.shared.pagination import PaginationParams
 from app.shared.security import hash_password
 
 # Map an RBAC role code to the tenant membership role, so the legacy
@@ -35,14 +36,18 @@ class UserService:
         self.repo = UserRepository(db)
         self.roles = RoleRepository(db)
 
-    async def list_users(self, organization_id: uuid.UUID) -> list[UserRead]:
-        """Return the organization's users with their roles."""
+    async def list_users(
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[UserRead], int]:
+        """Return ``(users, total)`` — the organization's users with their roles."""
 
-        users = list(await self.repo.list_by_org(organization_id))
-        return [
-            await build_user_read(self.db, user, organization_id)
-            for user in users
+        users, total = await self.repo.list_by_org(organization_id, pagination)
+        reads = [
+            await build_user_read(self.db, user, organization_id) for user in users
         ]
+        return reads, total
 
     async def get_user(
         self, organization_id: uuid.UUID, user_id: uuid.UUID

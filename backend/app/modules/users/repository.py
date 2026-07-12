@@ -9,11 +9,22 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.dependencies.models import Dependency
 from app.modules.organizations.models import OrganizationMember
 from app.modules.users.models import User
 from app.shared.enums import MemberRole
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /admin/users``. First entry is the
+# default order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "primer_apellido": User.primer_apellido,
+    "primer_nombre": User.primer_nombre,
+    "email": User.email,
+    "created_at": User.created_at,
+}
 
 
 class UserRepository:
@@ -23,17 +34,23 @@ class UserRepository:
         self.db = db
 
     async def list_by_org(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[User]:
-        """Return every user (active or not) belonging to the organization."""
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[User], int]:
+        """Return ``(users, total)`` — every user belonging to the organization."""
 
-        result = await self.db.execute(
-            select(User)
-            .join(OrganizationMember, OrganizationMember.user_id == User.id)
-            .where(OrganizationMember.organization_id == organization_id)
-            .order_by(User.primer_apellido.asc(), User.primer_nombre.asc())
-        )
-        return result.scalars().all()
+        stmt = select(User).join(
+            OrganizationMember, OrganizationMember.user_id == User.id
+        ).where(OrganizationMember.organization_id == organization_id)
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(User.primer_apellido.asc(), User.primer_nombre.asc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get_in_org(
         self, organization_id: uuid.UUID, user_id: uuid.UUID

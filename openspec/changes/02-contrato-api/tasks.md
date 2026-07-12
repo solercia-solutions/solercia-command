@@ -63,10 +63,10 @@ Chain strategy: stacked-to-main
 
 ## Batch B2 — catálogos admin (users, roles, menus)
 
-- [ ] T11 RED — `backend/tests/test_users_roles_pagination.py`: `GET /admin/users` y `GET /admin/roles` — compat, slice, sort inválido 422, sort/order válido. (R1, R2, R3)
-- [ ] T12 GREEN — Wire pagination en `users/{router,repository}.py` y `roles/{router,repository}.py`. (R1, R2, R3)
-- [ ] T13 RED — `backend/tests/test_menus_pagination.py`: `GET /admin/menus` — compat + slice; assert explícito `meta.tree` presente e inalterado CON y SIN parámetros de paginación. (R1, G1)
-- [ ] T14 GREEN — Wire pagination en `menus/router.py` + `menus/repository.py` usando `build_list_meta()` sobre el dict `{total, tree}` existente sin perder `tree`. (R1, R3, G1)
+- [x] T11 RED — `backend/tests/test_users_roles_pagination.py`: `GET /admin/users` y `GET /admin/roles` — compat, slice, sort inválido 422, sort/order válido. (R1, R2, R3)
+- [x] T12 GREEN — Wire pagination en `users/{router,repository}.py` y `roles/{router,repository}.py`. (R1, R2, R3)
+- [x] T13 RED — `backend/tests/test_menus_pagination.py`: `GET /admin/menus` — compat + slice; assert explícito `meta.tree` presente e inalterado CON y SIN parámetros de paginación. (R1, G1)
+- [x] T14 GREEN — Wire pagination en `menus/router.py` + `menus/repository.py` usando `build_list_meta()` sobre el dict `{total, tree}` existente sin perder `tree`. (R1, R3, G1)
 
 ## Batch B3 — dependencies, projects, sprints, comments, attachments, alert-rules
 

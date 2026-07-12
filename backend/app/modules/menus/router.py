@@ -19,7 +19,8 @@ from app.modules.menus.schemas import (
     MenuRead,
     MenuUpdate,
 )
-from app.modules.menus.service import MenuService, build_menu_tree
+from app.modules.menus.service import MenuService
+from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(
     prefix="/admin/menus",
@@ -29,14 +30,22 @@ router = APIRouter(
 
 
 @router.get("")
-async def list_menus(db: AsyncSession = Depends(get_db)) -> dict:
-    """Return the flat menu list (with ``parent_id``) and the nested tree."""
+async def list_menus(
+    pagination: PaginationParams = Depends(pagination_params),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the flat menu list (with ``parent_id``) and the nested tree.
+
+    ``data`` supports opt-in pagination; ``meta.tree`` always reflects the
+    FULL active catalog regardless of any ``page``/``size`` slice (gate #1).
+    """
 
     service = MenuService(db)
-    menus = await service.list_menus()
+    menus, total = await service.list_menus(pagination)
     data = [MenuRead.model_validate(menu) for menu in menus]
-    tree = [MenuNode.model_validate(node) for node in build_menu_tree(menus)]
-    return {"data": data, "meta": {"total": len(data), "tree": tree}}
+    tree = [MenuNode.model_validate(node) for node in await service.tree()]
+    meta = build_list_meta(pagination, total, base={"tree": tree})
+    return {"data": data, "meta": meta}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

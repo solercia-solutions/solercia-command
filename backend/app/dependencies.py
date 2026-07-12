@@ -162,7 +162,7 @@ async def load_accessible_menus(
 
     menu_repo = MenuRepository(db)
     if await _has_admin_role(db, user.id, organization_id):
-        menus = await menu_repo.list_active()
+        menus, _ = await menu_repo.list_active()
     else:
         role_ids = await RoleRepository(db).role_ids_for_user(
             user.id, organization_id

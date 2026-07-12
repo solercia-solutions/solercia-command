@@ -5,8 +5,18 @@ from collections.abc import Sequence
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.modules.roles.models import Role, RoleMenu, UserRole
+from app.shared.pagination import PaginationParams, paginate
+
+# Whitelist for ``?sort=`` on ``GET /admin/roles``. First entry is the
+# default order when pagination is requested without an explicit ``sort``.
+SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
+    "name": Role.name,
+    "code": Role.code,
+    "created_at": Role.created_at,
+}
 
 
 class RoleRepository:
@@ -15,18 +25,25 @@ class RoleRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def list_by_org(self, organization_id: uuid.UUID) -> Sequence[Role]:
-        """Return active roles for an organization, by name."""
+    async def list_by_org(
+        self,
+        organization_id: uuid.UUID,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[Sequence[Role], int]:
+        """Return ``(roles, total)`` — active roles for an organization."""
 
-        result = await self.db.execute(
-            select(Role)
-            .where(
-                Role.organization_id == organization_id,
-                Role.is_active.is_(True),
-            )
-            .order_by(Role.name.asc())
+        stmt = select(Role).where(
+            Role.organization_id == organization_id,
+            Role.is_active.is_(True),
         )
-        return result.scalars().all()
+
+        if pagination is not None and pagination.requested:
+            return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
+
+        stmt = stmt.order_by(Role.name.asc())
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return rows, len(rows)
 
     async def get(
         self, organization_id: uuid.UUID, role_id: uuid.UUID
