@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.methodology.base import MethodologyStrategy
-from app.methodology.factory import get_strategy
+from app.methodology.board_aware import resolve_board_strategy
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
@@ -21,10 +21,6 @@ from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpda
 from app.shared.enums import EstimationMode
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
-
-# Fallback default status for blank-slate (custom) methodologies that expose no
-# predefined columns.
-_CUSTOM_DEFAULT_STATUS = "todo"
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
 _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
@@ -96,15 +92,12 @@ class TaskService:
 
         task = await self._require_task(organization_id, task_id)
         project = await self._require_project(organization_id, task.project_id)
-        strategy = get_strategy(project.methodology)
+        strategy = await resolve_board_strategy(project, self.repo.db)
         name_map = await self._assignee_name_map(organization_id)
         read = self._to_read(task, name_map, project_code=project.code)
 
         # Populate subtask progress only on single-task reads to avoid N+1.
-        allowed = strategy.allowed_statuses()
-        done_status = allowed[-1] if allowed else _CUSTOM_DEFAULT_STATUS
-        total, done = await self.repo.get_subtask_counts(task.id, done_status)
-        read.subtask_progress = (done / total) if total > 0 else None
+        read.subtask_progress = await self._subtask_progress(task.id, strategy)
 
         return read
 
@@ -145,14 +138,11 @@ class TaskService:
                 status_code=404,
             )
 
-        strategy = get_strategy(project.methodology)
+        strategy = await resolve_board_strategy(project, self.repo.db)
         name_map = await self._assignee_name_map(organization_id)
         read = self._to_read(task, name_map, project_code=project.code)
 
-        allowed = strategy.allowed_statuses()
-        done_status = allowed[-1] if allowed else _CUSTOM_DEFAULT_STATUS
-        total, done = await self.repo.get_subtask_counts(task.id, done_status)
-        read.subtask_progress = (done / total) if total > 0 else None
+        read.subtask_progress = await self._subtask_progress(task.id, strategy)
 
         return read
 
@@ -187,7 +177,7 @@ class TaskService:
         """
 
         project = await self._require_project(organization_id, project_id)
-        strategy = get_strategy(project.methodology)
+        strategy = await resolve_board_strategy(project, self.repo.db)
 
         # -- Subtask validation -------------------------------------------
         is_subtask = data.parent_task_id is not None
@@ -217,7 +207,9 @@ class TaskService:
 
         task_type = "subtask" if is_subtask else (data.task_type or "task")
 
-        status = self._resolve_status(strategy, data.status)
+        status, board_column_id = await self._resolve_create_status_and_column(
+            project_id, strategy, data.status, data.board_column_id
+        )
         if not is_subtask:
             self._validate_estimation(
                 strategy, data.estimation_points, data.estimation_hours
@@ -236,6 +228,7 @@ class TaskService:
             description=data.description,
             task_type=task_type,
             status=status,
+            board_column_id=board_column_id,
             priority=data.priority,
             assignee_id=data.assignee_id,
             estimation_points=None if is_subtask else data.estimation_points,
@@ -263,7 +256,7 @@ class TaskService:
 
         task = await self._require_task(organization_id, task_id)
         project = await self._require_project(organization_id, task.project_id)
-        strategy = get_strategy(project.methodology)
+        strategy = await resolve_board_strategy(project, self.repo.db)
 
         changes = data.model_dump(exclude_unset=True)
 
@@ -355,6 +348,63 @@ class TaskService:
             )
         return task
 
+    async def _resolve_create_status_and_column(
+        self,
+        project_id: uuid.UUID,
+        strategy: MethodologyStrategy,
+        status: str | None,
+        board_column_id: uuid.UUID | None,
+    ) -> tuple[str, uuid.UUID | None]:
+        """Resolve ``(status, board_column_id)`` for a new task.
+
+        An explicit ``board_column_id`` wins: the resulting ``status`` is that
+        column's ``status_key`` (validated to belong to this project's
+        board). Otherwise falls back to the existing ``status`` string
+        resolution (``_resolve_status``, defaulting to the first allowed
+        status — which is the first column by ``order``), and looks up the
+        matching column for it (tasks.md delta, "Campo board_column_id").
+
+        `boards` is reached via a deferred import per design.md C4: `tasks`
+        never imports `boards.service`/`boards.router` at module level.
+        """
+
+        from app.modules.boards.repository import BoardRepository
+
+        board = await BoardRepository(self.repo.db).get_board_with_columns(
+            project_id
+        )
+        columns = board.columns if board is not None else []
+
+        if board_column_id is not None:
+            column = next((c for c in columns if c.id == board_column_id), None)
+            if column is None:
+                raise AppException(
+                    "La columna indicada no pertenece al board de este proyecto.",
+                    code="invalid_board_column",
+                    status_code=422,
+                )
+            return column.status_key, column.id
+
+        resolved_status = self._resolve_status(strategy, status)
+        matched = next((c for c in columns if c.status_key == resolved_status), None)
+        return resolved_status, matched.id if matched else None
+
+    async def _subtask_progress(
+        self, task_id: uuid.UUID, strategy: MethodologyStrategy
+    ) -> float | None:
+        """Return the done/total subtask ratio, or ``None`` when not computable.
+
+        Only reachable when the project's board has at least one column — a
+        task can only exist under a columnless board's project if it predates
+        removal of the last column, which design.md D5 forbids at runtime.
+        """
+
+        allowed = strategy.allowed_statuses()
+        if not allowed:
+            return None
+        total, done = await self.repo.get_subtask_counts(task_id, allowed[-1])
+        return (done / total) if total > 0 else None
+
     @staticmethod
     def _resolve_status(
         strategy: MethodologyStrategy,
@@ -362,19 +412,21 @@ class TaskService:
         *,
         allow_default: bool = True,
     ) -> str:
-        """Validate a status against the methodology or pick a sensible default."""
+        """Validate a status against the methodology or pick a sensible default.
+
+        Raises a 422 ``board_has_no_columns`` when the board has zero columns
+        configured — there is no permissive fallback (design.md C2): a
+        methodology (including ``custom``) with no columns blocks both
+        creation and movement of tasks until at least one column exists.
+        """
 
         allowed = strategy.allowed_statuses()
 
         if not allowed:
-            cleaned = (status or "").strip()
-            if cleaned:
-                return cleaned
-            if allow_default:
-                return _CUSTOM_DEFAULT_STATUS
             raise AppException(
-                "Debes indicar un estado válido para la tarea.",
-                code="invalid_status",
+                "El board de este proyecto no tiene columnas configuradas. "
+                "Agrega al menos una columna antes de crear o mover tareas.",
+                code="board_has_no_columns",
                 status_code=422,
             )
 

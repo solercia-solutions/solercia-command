@@ -11,7 +11,9 @@ from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.methodology.board_aware import build_board_aware_strategy, resolve_board_strategy
 from app.methodology.factory import get_strategy
+from app.modules.boards.repository import BoardRepository
 from app.modules.boards.service import BoardService
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
@@ -53,11 +55,26 @@ class ProjectService:
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
     ) -> tuple[Sequence[Project], int]:
-        """Return ``(projects, total)`` with methodology info attached."""
+        """Return ``(projects, total)`` with methodology info attached.
+
+        Columns for every project's board are batch-preloaded in ONE call
+        (two queries total, never N+1) instead of resolving each project's
+        strategy individually — see
+        ``BoardRepository.list_boards_with_columns_for_projects`` and
+        design.md C1.
+        """
 
         projects, total = await self.repo.list_by_org(organization_id, pagination)
+        columns_by_project = await BoardRepository(
+            self.repo.db
+        ).list_boards_with_columns_for_projects([project.id for project in projects])
         for project in projects:
-            self._attach_methodology_info(project)
+            status_keys = [
+                column.status_key for column in columns_by_project.get(project.id, [])
+            ]
+            project.methodology_info = build_board_aware_strategy(
+                project, status_keys
+            ).to_info()
         return projects, total
 
     async def create_project(
@@ -129,7 +146,7 @@ class ProjectService:
                 code="project_not_found",
                 status_code=404,
             )
-        self._attach_methodology_info(project)
+        await self._attach_methodology_info(project)
         return project
 
     # -- helpers -----------------------------------------------------------
@@ -146,8 +163,13 @@ class ProjectService:
             suffix += 1
         return candidate
 
-    @staticmethod
-    def _attach_methodology_info(project: Project) -> None:
-        """Attach the transient ``methodology_info`` payload for serialization."""
+    async def _attach_methodology_info(self, project: Project) -> None:
+        """Attach the transient ``methodology_info`` payload for serialization.
 
-        project.methodology_info = get_strategy(project.methodology).to_info()
+        Uses ``resolve_board_strategy`` (design.md C1) so a project fetched
+        individually after its board was reconfigured reflects the CURRENT
+        columns, not the stale hardcoded base strategy.
+        """
+
+        strategy = await resolve_board_strategy(project, self.repo.db)
+        project.methodology_info = strategy.to_info()

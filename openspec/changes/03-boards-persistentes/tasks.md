@@ -63,15 +63,15 @@ Batches secuenciales (comparten archivos/migración encadenada). Dentro de cada 
 
 ## Batch B — resolve_board_strategy + rewire
 
-- [ ] T10 [RED] `methodology/board_aware.py` unit test: `allowed_statuses()` = status_keys si no vacío, si no delega en base; flags delegan siempre. (R10)
-- [ ] T11 [GREEN] `board_aware.py`: `BoardAwareStrategy` + `async resolve_board_strategy(project)`. (R10)
-- [ ] T12 [RED] Test: custom con 0 columnas → `allowed_statuses()==[]` y creación de tarea rechazada (422 explícito). (R3, R10)
-- [ ] T13 [GREEN] `tasks/service.py`: eliminar `_CUSTOM_DEFAULT_STATUS` y rama permisiva de `_resolve_status`; usar `resolve_board_strategy`. (R3)
-- [ ] T14 [RED] Test: `create_task` sin `board_column_id` asigna la primera columna por `order` y deriva `status` de su `status_key`. (R8)
-- [ ] T15 [GREEN] `tasks/{service,schemas}.py`: `create_task` board-aware (default primera columna); exponer `board_column_id` en `TaskRead`. (R8)
-- [ ] T16 [P][RED] Regression: `dashboard._bounds_for`, `sprints.done_status`, `projects._attach_methodology_info` reflejan columnas custom renombradas (no la strategy base obsoleta). (R10)
-- [ ] T17 [GREEN] Rewire `dashboard/service.py`, `sprints/service.py`, `projects/service.py` de `get_strategy` crudo a `resolve_board_strategy`. (R10)
-- [ ] T18 [GREEN] `projects/repository.py` + `list_projects`: precarga por lotes de columnas (una query, sin N+1); test de conteo de queries. (R10)
+- [x] T10 [RED] `methodology/board_aware.py` unit test: `allowed_statuses()` = status_keys si no vacío, si no delega en base; flags delegan siempre. (R10)
+- [x] T11 [GREEN] `board_aware.py`: `BoardAwareStrategy` + `async resolve_board_strategy(project)`. (R10)
+- [x] T12 [RED] Test: custom con 0 columnas → `allowed_statuses()==[]` y creación de tarea rechazada (422 explícito). (R3, R10)
+- [x] T13 [GREEN] `tasks/service.py`: eliminar `_CUSTOM_DEFAULT_STATUS` y rama permisiva de `_resolve_status`; usar `resolve_board_strategy`. (R3)
+- [x] T14 [RED] Test: `create_task` sin `board_column_id` asigna la primera columna por `order` y deriva `status` de su `status_key`. (R8)
+- [x] T15 [GREEN] `tasks/{service,schemas}.py`: `create_task` board-aware (default primera columna); exponer `board_column_id` en `TaskRead`. (R8)
+- [x] T16 [P][RED] Regression: `dashboard._bounds_for`, `sprints.done_status`, `projects._attach_methodology_info` reflejan columnas custom renombradas (no la strategy base obsoleta). (R10)
+- [x] T17 [GREEN] Rewire `dashboard/service.py`, `sprints/service.py`, `projects/service.py` de `get_strategy` crudo a `resolve_board_strategy`. (R10)
+- [x] T18 [GREEN] `projects/repository.py` + `list_projects`: precarga por lotes de columnas (una query, sin N+1); test de conteo de queries. (R10)
 
 ## Batch C — move semantics
 

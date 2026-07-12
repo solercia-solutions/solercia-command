@@ -49,6 +49,50 @@ class BoardRepository:
         await self.db.flush()
         return board
 
+    async def list_boards_with_columns_for_projects(
+        self, project_ids: Sequence[uuid.UUID]
+    ) -> dict[uuid.UUID, list[BoardColumn]]:
+        """Return ``{project_id: [active columns...]}`` for every id in ``project_ids``.
+
+        Exactly two queries total (one for boards, one for their columns),
+        REGARDLESS of how many ``project_ids`` are given — never N+1. Used by
+        ``ProjectService.list_projects`` to batch-resolve ``BoardAwareStrategy``
+        for every row of a listing in one shot (design.md C1).
+        """
+
+        if not project_ids:
+            return {}
+
+        boards_result = await self.db.execute(
+            select(Board).where(
+                Board.project_id.in_(project_ids), Board.is_active.is_(True)
+            )
+        )
+        boards = list(boards_result.scalars().all())
+        if not boards:
+            return {}
+
+        board_id_to_project_id = {board.id: board.project_id for board in boards}
+        columns_by_board: dict[uuid.UUID, list[BoardColumn]] = {
+            board.id: [] for board in boards
+        }
+
+        columns_result = await self.db.execute(
+            select(BoardColumn)
+            .where(
+                BoardColumn.board_id.in_(board_id_to_project_id),
+                BoardColumn.is_active.is_(True),
+            )
+            .order_by(BoardColumn.order.asc(), BoardColumn.created_at.asc())
+        )
+        for column in columns_result.scalars().all():
+            columns_by_board[column.board_id].append(column)
+
+        return {
+            board_id_to_project_id[board_id]: columns
+            for board_id, columns in columns_by_board.items()
+        }
+
     async def get_board_with_columns(self, project_id: uuid.UUID) -> Board | None:
         """Return the active board for ``project_id`` with its active columns loaded.
 

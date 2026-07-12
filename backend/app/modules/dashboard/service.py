@@ -16,7 +16,7 @@ from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.methodology.factory import get_strategy
+from app.methodology.board_aware import resolve_board_strategy
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
@@ -49,6 +49,7 @@ class DashboardService:
     """Computes the executive dashboard for an organization."""
 
     def __init__(self, db: AsyncSession) -> None:
+        self.db = db
         self.projects = ProjectRepository(db)
         self.tasks = TaskRepository(db)
 
@@ -62,9 +63,7 @@ class DashboardService:
         members = await self.tasks.list_org_members(organization_id)
 
         name_map = {user.id: user.full_name for user, _ in members}
-        bounds = {
-            project.id: self._bounds_for(project) for project in projects
-        }
+        bounds = await self._bounds_for_all(projects)
 
         by_assignee = self._build_by_assignee(tasks, bounds, name_map, members)
         at_risk = self._build_at_risk(tasks, bounds, name_map, now)
@@ -104,9 +103,7 @@ class DashboardService:
             tasks = [task for task in tasks if task.sprint_id == sprint_id]
         members = await self.tasks.list_org_members(organization_id)
 
-        bounds = {
-            project.id: self._bounds_for(project) for project in projects
-        }
+        bounds = await self._bounds_for_all(projects)
 
         # Per-user accumulators; private "_ontime_*" keys are stripped at the end.
         stats: dict[uuid.UUID, dict] = {
@@ -312,12 +309,35 @@ class DashboardService:
 
     # -- helpers -----------------------------------------------------------
 
-    @staticmethod
-    def _bounds_for(project: Project) -> _StatusBounds:
-        allowed = get_strategy(project.methodology).allowed_statuses()
+    async def _bounds_for(self, project: Project) -> _StatusBounds:
+        """First/last allowed status for ``project``, from its LIVE board.
+
+        Uses ``resolve_board_strategy`` (design.md C1) instead of the raw
+        base strategy, so a reordered/reconfigured board is reflected
+        immediately — the base strategy alone would keep returning the
+        original ``default_columns()`` forever.
+        """
+
+        strategy = await resolve_board_strategy(project, self.db)
+        allowed = strategy.allowed_statuses()
         first = allowed[0] if allowed else None
         last = allowed[-1] if allowed else None
         return _StatusBounds(first, last)
+
+    async def _bounds_for_all(
+        self, projects: list[Project]
+    ) -> dict[uuid.UUID, _StatusBounds]:
+        """Resolve ``_bounds_for`` for every project.
+
+        Sequential by necessity: ``AsyncSession`` is not safe for concurrent
+        use across coroutines sharing the same session, so this cannot be
+        parallelized with ``asyncio.gather``. The batched, N+1-free path
+        (single query for many projects) is reserved for
+        ``ProjectRepository.list_boards_with_columns_for_projects``, used by
+        ``ProjectService.list_projects`` (design.md C1).
+        """
+
+        return {project.id: await self._bounds_for(project) for project in projects}
 
     @staticmethod
     def _to_read(task: Task, name_map: dict[uuid.UUID, str]) -> TaskRead:

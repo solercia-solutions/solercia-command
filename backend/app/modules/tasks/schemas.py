@@ -31,6 +31,11 @@ class TaskCreate(BaseModel):
     start_date: datetime | None = None
     sprint_id: uuid.UUID | None = None
     parent_task_id: uuid.UUID | None = None
+    # Explicit target column. When omitted, the service assigns the first
+    # column of the project's board by `order` and derives `status` from it;
+    # when given, `status` is derived from THIS column's `status_key` instead
+    # (see tasks.md delta, "Campo board_column_id").
+    board_column_id: uuid.UUID | None = None
 
     @field_validator("title")
     @classmethod
@@ -96,6 +101,9 @@ class TaskRead(BaseModel):
     task_type: str
     status: str
     priority: Priority
+    # The board column this task currently sits in. NULL for legacy rows not
+    # yet backfilled, or when the project's board has no columns (custom).
+    board_column_id: uuid.UUID | None = None
     assignee_id: uuid.UUID | None = None
     # Resolved by the service from the assignee User; transient on the ORM row.
     assignee_name: str | None = None

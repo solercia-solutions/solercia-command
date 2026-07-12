@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.methodology.board_aware import resolve_board_strategy
 from app.methodology.factory import get_strategy
 from app.modules.projects.repository import ProjectRepository
 from app.modules.sprints.models import Sprint
@@ -142,7 +143,7 @@ class SprintService:
                 status_code=404,
             )
 
-        strategy = get_strategy(project.methodology)
+        strategy = await resolve_board_strategy(project, self.projects.db)
         unit = (
             "points"
             if strategy.estimation_mode
