@@ -29,6 +29,7 @@ from app.modules.roles.router import router as roles_admin_router
 from app.modules.sprints.router import router as sprints_router
 from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
+from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
 from app.shared.exceptions import register_exception_handlers
 
@@ -116,6 +117,7 @@ app.include_router(sprints_router, prefix=API_PREFIX)
 app.include_router(labels_router, prefix=API_PREFIX)
 app.include_router(checklists_router, prefix=API_PREFIX)
 app.include_router(task_links_router, prefix=API_PREFIX)
+app.include_router(time_logs_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 # Admin / RBAC management endpoints (require the ADMIN role).
 app.include_router(dependencies_admin_router, prefix=API_PREFIX)

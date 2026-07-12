@@ -29,18 +29,18 @@ Dependencia dura: `sdd-apply` NO puede iniciar hasta que **02-contrato-api** est
 
 ## Fase A — Módulo `time_logs` (Commit 1)
 
-- [ ] T01 [Foundation] Migración Alembic `xxxx_add_time_logs_and_task_history.py`: crea `task_time_logs` y `task_history` (`down_revision`=head al aplicar).
-- [ ] T02 [Foundation] `app/modules/time_logs/models.py`: `TaskTimeLog` (Pk+Timestamp+SoftDelete+AuditMixin).
-- [ ] T03 RED `backend/tests/test_time_logs.py`: registro válido/horas inválidas (R1); edición/borrado propio y ajeno→403 incl. `manager`/`admin` (R2); visibilidad `member` vs. `manager` (R3); paginación+`date_from/date_to` (R4); agregación diaria/semanal (R5). Todo fallando.
-- [ ] T04 GREEN `time_logs/schemas.py`: `TimeLogCreate/Update/Response`, alias `date`→`work_date`, `hours>0`. [R1]
-- [ ] T05 GREEN `time_logs/repository.py`: CRUD + `SORTABLE_FIELDS` + queries de agregación diaria/semanal. [R4,R5]
-- [ ] T06 GREEN `time_logs/service.py`: alta propia vía `get_actor_id`; edición/borrado exige `log.user_id == membership.user_id` sin excepción de rol; lectura ajena vía `require_role(admin, manager)`. [R2,R3]
-- [ ] T07 GREEN `time_logs/router.py` con las 6 rutas del alcance propuesto; registrar en `app/main.py`. [R1–R5]
-- [ ] T08 VERIFY `pytest backend/tests/test_time_logs.py -v` en verde; confirmar los 403 explícitos de T03.
+- [x] T01 [Foundation] Migración Alembic `xxxx_add_time_logs_and_task_history.py`: crea `task_time_logs` y `task_history` (`down_revision`=head al aplicar).
+- [x] T02 [Foundation] `app/modules/time_logs/models.py`: `TaskTimeLog` (Pk+Timestamp+SoftDelete+AuditMixin).
+- [x] T03 RED `backend/tests/test_time_logs.py`: registro válido/horas inválidas (R1); edición/borrado propio y ajeno→403 incl. `manager`/`admin` (R2); visibilidad `member` vs. `manager` (R3); paginación+`date_from/date_to` (R4); agregación diaria/semanal (R5). Todo fallando.
+- [x] T04 GREEN `time_logs/schemas.py`: `TimeLogCreate/Update/Response`, alias `date`→`work_date`, `hours>0`. [R1]
+- [x] T05 GREEN `time_logs/repository.py`: CRUD + `SORTABLE_FIELDS` + queries de agregación diaria/semanal. [R4,R5]
+- [x] T06 GREEN `time_logs/service.py`: alta propia vía `get_actor_id`; edición/borrado exige `log.user_id == membership.user_id` sin excepción de rol; lectura ajena vía `require_role(admin, manager)`. [R2,R3]
+- [x] T07 GREEN `time_logs/router.py` con las 6 rutas del alcance propuesto; registrar en `app/main.py`. [R1–R5]
+- [x] T08 VERIFY `pytest backend/tests/test_time_logs.py -v` en verde; confirmar los 403 explícitos de T03.
 
 ## Fase B — Módulo `activity` + integración (Commit 2)
 
-- [ ] T09 [Foundation] `app/modules/activity/models.py`: `TaskHistory` (Pk+Timestamp, sin soft delete, `actor_id` nullable, `actor_type`).
+- [x] T09 [Foundation] `app/modules/activity/models.py`: `TaskHistory` (Pk+Timestamp, sin soft delete, `actor_id` nullable, `actor_type`). Adelantado a Batch A: `alembic check` (test_migrations_baseline.py) exige que la migración compartida de T01 tenga su modelo ORM registrado de inmediato, así que el modelo se creó junto con la migración para mantener la suite en verde entre batches.
 - [ ] T10 GREEN `activity/recorder.py`: `record_task_history(db, task_id, actor_id, actor_type, changes)` (`add_all` sin commit).
 - [ ] T11 RED `backend/tests/test_activity.py`: cambio de `status` deja historial (R6); múltiples campos en un PATCH (R6); sin cambio→sin fila (R6); cierre de sprint deja historial de sistema (R7); historial por tarea paginado desc (R8); actividad por usuario/día (R9); sin ruta PATCH/DELETE en `/tasks/{id}/history/{id}`→404 (R10). Todo fallando.
 - [ ] T12 GREEN `activity/schemas.py`: `TaskHistoryResponse` con alias `changed_at`→`created_at`. [R8,R9]

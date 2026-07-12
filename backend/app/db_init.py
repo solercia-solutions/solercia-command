@@ -15,9 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, Base, engine
 from app.methodology.factory import get_strategy
-from app.modules.alert_rules.models import AlertRule  # noqa: F401
 
 # Import ALL models so they register on the shared metadata.
+from app.modules.activity.models import TaskHistory  # noqa: F401
+from app.modules.alert_rules.models import AlertRule  # noqa: F401
 from app.modules.attachments.models import Attachment  # noqa: F401
 from app.modules.boards.models import Board, BoardColumn  # noqa: F401
 from app.modules.checklists.models import ChecklistItem, TaskChecklist  # noqa: F401
@@ -39,6 +40,7 @@ from app.modules.roles.models import (  # noqa: F401
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
+from app.modules.time_logs.models import TaskTimeLog  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 from app.shared.enums import MemberRole, Methodology, Priority, ProjectStatus
 from app.shared.security import hash_password
