@@ -42,16 +42,16 @@ Nota: `Chained PRs recommended: No` refiere a la ausencia de cadena de Pull Requ
 
 ## Lote B — Módulo `search/` completo (Commit 2)
 
-- [ ] T06 RED `backend/tests/test_search.py` (unit, sin BD): escape de comodines LIKE (`%`, `_`, `\`) en `q` antes de envolver en `ILIKE`; parseo de `types` (csv → set, default los tres, vacío inválido). Rojo (módulo `search` no existe).
-- [ ] T07 GREEN `backend/app/modules/search/schemas.py`: `SearchResult` (`entity_type`, `id`, `title`, `snippet`, `project_id`, `project_name`, `task_key`, `task_id`) + util de escape LIKE y parseo de `types`.
-- [ ] T08 RED `backend/tests/test_search.py` (integración): happy por cada entidad (task/project/comment, con `snippet` y `task_id` solo en `comment`); `types=` filtra ramas; orden por `similarity()` DESC con tiebreak determinista; `meta` incondicional `{page,size,total}` incluso sin `page`/`size` en la query. Rojo (repository/service/router aún no existen).
-- [ ] T09 GREEN `backend/app/modules/search/repository.py`: `search()` — `UNION ALL` de las 3 ramas habilitadas, `ILIKE` con bind param + `similarity()` para orden, tiebreak `rank DESC, entity_type ASC, created_at DESC, id ASC`, `count()` + `limit/offset`.
-- [ ] T10 GREEN `backend/app/modules/search/service.py`: valida `q` (trim, longitud < 2 → 422), valida `types` (fuera de catálogo → 422), arma `PaginationParams` SIEMPRE (page=1/size=20 default, tope 100 — excepción explícita al opt-in de 02, exclusiva de este endpoint).
-- [ ] T11 GREEN `backend/app/modules/search/router.py`: `GET /search` con envelope `{data,message,meta}`; registrar `search.router` en `app/main.py`.
-- [ ] T12 VERIFY parcial `pytest backend/tests/test_search.py -k "not aislamiento and not soft_delete" -v` en verde (happy + validaciones + orden + meta).
-- [ ] T13 RED `backend/tests/test_search.py`: aislamiento de tenant por CADA tipo de entidad (task/project/comment) con fixture `two_orgs` (de 11-blindaje-baseline); borrado suave excluido en las 3 ramas (tarea, proyecto, comentario); cualquier rol (`member` incl.) puede buscar sin restricción adicional.
-- [ ] T14 GREEN Confirmar/ajustar scope por rama en `search/repository.py`: `tasks` vía join a `Project.organization_id` (Task no lleva `organization_id`); `projects`/`comments` por `organization_id` directo (`TenantMixin`); excluir `is_active=false` en las 3 ramas (+ Task/Project activos para el contexto de `comment`).
-- [ ] T15 VERIFY `pytest backend/tests/test_search.py -v` completo en verde; `pytest backend/tests/ -v` sin regresiones; `ruff check .`, `mypy app`. Commit `feat(search): endpoint GET /search multi-entidad`.
+- [x] T06 RED `backend/tests/test_search.py` (unit, sin BD): escape de comodines LIKE (`%`, `_`, `\`) en `q` antes de envolver en `ILIKE`; parseo de `types` (csv → set, default los tres, vacío inválido). Rojo (módulo `search` no existe).
+- [x] T07 GREEN `backend/app/modules/search/schemas.py`: `SearchResult` (`entity_type`, `id`, `title`, `snippet`, `project_id`, `project_name`, `task_key`, `task_id`) + util de escape LIKE y parseo de `types`.
+- [x] T08 RED `backend/tests/test_search.py` (integración): happy por cada entidad (task/project/comment, con `snippet` y `task_id` solo en `comment`); `types=` filtra ramas; orden por `similarity()` DESC con tiebreak determinista; `meta` incondicional `{page,size,total}` incluso sin `page`/`size` en la query. Rojo (repository/service/router aún no existen).
+- [x] T09 GREEN `backend/app/modules/search/repository.py`: `search()` — `UNION ALL` de las 3 ramas habilitadas, `ILIKE` con bind param + `similarity()` para orden, tiebreak `rank DESC, entity_type ASC, created_at DESC, id ASC`, `count()` + `limit/offset`.
+- [x] T10 GREEN `backend/app/modules/search/service.py`: valida `q` (trim, longitud < 2 → 422), valida `types` (fuera de catálogo → 422), arma `PaginationParams` SIEMPRE (page=1/size=20 default, tope 100 — excepción explícita al opt-in de 02, exclusiva de este endpoint).
+- [x] T11 GREEN `backend/app/modules/search/router.py`: `GET /search` con envelope `{data,message,meta}`; registrar `search.router` en `app/main.py`.
+- [x] T12 VERIFY parcial `pytest backend/tests/test_search.py -k "not aislamiento and not soft_delete" -v` en verde (happy + validaciones + orden + meta).
+- [x] T13 RED `backend/tests/test_search.py`: aislamiento de tenant por CADA tipo de entidad (task/project/comment) con fixture `two_orgs` (de 11-blindaje-baseline); borrado suave excluido en las 3 ramas (tarea, proyecto, comentario); cualquier rol (`member` incl.) puede buscar sin restricción adicional.
+- [x] T14 GREEN Confirmar/ajustar scope por rama en `search/repository.py`: `tasks` vía join a `Project.organization_id` (Task no lleva `organization_id`); `projects`/`comments` por `organization_id` directo (`TenantMixin`); excluir `is_active=false` en las 3 ramas (+ Task/Project activos para el contexto de `comment`).
+- [x] T15 VERIFY `pytest backend/tests/test_search.py -v` completo en verde; `pytest backend/tests/ -v` sin regresiones; `ruff check .`, `mypy app`. Commit `feat(search): endpoint GET /search multi-entidad`.
 
 ## Lote C — Filtros avanzados de tareas (Commit 3)
 
