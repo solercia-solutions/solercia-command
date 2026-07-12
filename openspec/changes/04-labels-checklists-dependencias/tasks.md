@@ -64,10 +64,10 @@ R8 enlazar mismo proyecto · R9 prevención de ciclos · R10 desenlazar/listar �
 ## Batch D — Alerta blocked_task
 R12 estrategia en registry · R13 deduplicación · R14 seed idempotente
 
-- [ ] T19 RED+GREEN: `BlockedTaskStrategy.evaluate` notifica al `assignee` de la tarea bloqueada tras `threshold_params.blocked_days` (default 3) (R12)
-- [ ] T20 RED+GREEN: sin notificación si el bloqueo es reciente (< `blocked_days`) (R12)
-- [ ] T21 RED+GREEN: `dedup_key=f"blocked_task:{blocked_task_id}"` evita duplicados en corridas repetidas (R13)
-- [ ] T22 GREEN: registrar `blocked_task` en `alerts/registry.py`; `db_init.py` — 5.ª regla en `_DEFAULT_ALERT_RULES`, idempotente por `rule_type` (R14)
+- [x] T19 RED+GREEN: `BlockedTaskStrategy.evaluate` notifica al `assignee` de la tarea bloqueada tras `threshold_params.blocked_days` (default 3) (R12)
+- [x] T20 RED+GREEN: sin notificación si el bloqueo es reciente (< `blocked_days`) (R12)
+- [x] T21 RED+GREEN: `dedup_key=f"blocked_task:{blocked_task_id}"` evita duplicados en corridas repetidas (R13)
+- [x] T22 GREEN: registrar `blocked_task` en `alerts/registry.py`; `db_init.py` — 5.ª regla en `_DEFAULT_ALERT_RULES`, idempotente por `rule_type` (R14)
 
 ## Batch E — Integración detalle de tarea + docs
 

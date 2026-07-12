@@ -232,6 +232,7 @@ _DEFAULT_ALERT_RULES: list[tuple[str, bool, dict]] = [
     ("task_at_risk", True, {"days_before": 3, "inactive_days": 3}),
     ("sprint_at_risk", True, {}),
     ("workload_imbalance", True, {"max_active_tasks": 8}),
+    ("blocked_task", True, {"blocked_days": 3}),
 ]
 
 
