@@ -48,6 +48,7 @@ from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
 from app.modules.time_logs.models import TaskTimeLog  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
+from app.notify.models import NotificationDelivery  # noqa: F401
 from app.shared.enums import MemberRole, Methodology, Priority, ProjectStatus
 from app.shared.security import hash_password
 

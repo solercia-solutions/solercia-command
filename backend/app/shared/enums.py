@@ -128,13 +128,27 @@ class LicenseType(str, Enum):
     trial = "trial"
 
 
-class EmailOutboxStatus(str, Enum):
-    """Lifecycle status of a transactional outbox row (``app.email``, D2/D3)."""
+class DeliveryStatus(str, Enum):
+    """Lifecycle status of a channel delivery attempt (``app.notify``, D3).
+
+    Generalizes the former ``EmailOutboxStatus`` (change 08) to be
+    channel-agnostic (change 12, ``notification_deliveries``). The CHECK
+    constraint name (``email_outbox_status``) and every persisted value are
+    kept unchanged on purpose (design.md Open Questions, "CHECK
+    email_outbox_status — RESUELTO").
+    """
 
     pending = "pending"
     sending = "sending"
     sent = "sent"
     failed = "failed"
+
+
+#: Python-only alias so existing imports (``app/email/*``, tests) keep
+#: working unchanged after the D3 rename — ratified in design.md, "alias
+#: Python EmailOutboxStatus = DeliveryStatus para no editar imports de
+#: status en tests".
+EmailOutboxStatus = DeliveryStatus
 
 
 class DigestFrequency(str, Enum):
