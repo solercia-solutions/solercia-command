@@ -1,0 +1,37 @@
+change: 11-blindaje-baseline
+artifact_store: hybrid
+depends_on:
+  - 01-fundacion-tdd
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: false
+  design: false
+  tasks: false
+capabilities:
+  new: []
+  modified: []
+target_capabilities:
+  - auth
+  - users-admin
+  - rbac-catalog
+  - multi-tenancy
+  - projects
+  - tasks
+  - methodology-strategies
+  - alert-engine
+  - notifications-inapp
+  - dashboard-executive
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+  - test-only-baseline
+last_updated: 2026-07-12
