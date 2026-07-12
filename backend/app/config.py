@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     # (both run on the same AsyncIOScheduler instance, see app/reminders/scheduler.py).
     REMINDER_SCHEDULER_INTERVAL_MINUTES: int = 5
 
+    # Realtime engine (WebSocket push) — best-effort channel, off does not
+    # affect REST (see openspec/changes/09-websocket-realtime/design.md).
+    # Default True: the frozen frontend does not consume it yet, so there is
+    # no client-facing risk in shipping it enabled.
+    WS_ENABLED: bool = True
+    WS_HEARTBEAT_SECONDS: int = 30
+    WS_IDLE_TIMEOUT_SECONDS: int = 90
+
 
 @lru_cache
 def get_settings() -> Settings:

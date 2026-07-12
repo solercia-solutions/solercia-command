@@ -28,13 +28,13 @@ Apply de 09 corre al final de la serialización vigente (orden 11→10→06→09
 
 ## Fase A — Infraestructura realtime (Commit 1)
 
-- [ ] A1 `backend/app/realtime/__init__.py`: paquete nuevo.
-- [ ] A2 `backend/app/realtime/schemas.py`: `Envelope{v,type,ts,data}` (`type` Literal del catálogo); `make_envelope()`.
-- [ ] A3 RED `backend/tests/test_realtime_manager.py`: register/unregister; aislamiento — publish a (orgA,userX) nunca llega a (orgB,userY); multi-pestaña (2 sockets mismo user, ambos reciben); best-effort (1 `send_json` que lanza no bloquea al otro). Todo fallando.
-- [ ] A4 GREEN `backend/app/realtime/manager.py`: `ConnectionManager` (`dict[(org_id,user_id), set[WebSocket]]`, sin lock); `register`/`unregister`/`publish` sobre snapshot `list(sockets)`, try/except+log por socket.
-- [ ] A5 GREEN `backend/app/realtime/publisher.py`: `NotificationPublisher` Protocol; `buffer_notification(db,n)` serializa `NotificationRead` en `db.info["realtime_pending"]`; `flush_pending(db)` hace **pop atómico** (`db.info.pop("realtime_pending", [])`) ANTES de publicar, try/except+log por envío.
-- [ ] A6 GREEN `backend/app/config.py`: `WS_ENABLED: bool = True`, `WS_HEARTBEAT_SECONDS: int = 30`, `WS_IDLE_TIMEOUT_SECONDS: int = 90`.
-- [ ] A7 VERIFY `pytest tests/test_realtime_manager.py -v`; `ruff check app/realtime`; `mypy app/realtime`.
+- [x] A1 `backend/app/realtime/__init__.py`: paquete nuevo.
+- [x] A2 `backend/app/realtime/schemas.py`: `Envelope{v,type,ts,data}` (`type` Literal del catálogo); `make_envelope()`.
+- [x] A3 RED `backend/tests/test_realtime_manager.py`: register/unregister; aislamiento — publish a (orgA,userX) nunca llega a (orgB,userY); multi-pestaña (2 sockets mismo user, ambos reciben); best-effort (1 `send_json` que lanza no bloquea al otro). Todo fallando.
+- [x] A4 GREEN `backend/app/realtime/manager.py`: `ConnectionManager` (`dict[(org_id,user_id), set[WebSocket]]`, sin lock); `register`/`unregister`/`publish` sobre snapshot `list(sockets)`, try/except+log por socket.
+- [x] A5 GREEN `backend/app/realtime/publisher.py`: `NotificationPublisher` Protocol; `buffer_notification(db,n)` serializa `NotificationRead` en `db.info["realtime_pending"]`; `flush_pending(db)` hace **pop atómico** (`db.info.pop("realtime_pending", [])`) ANTES de publicar, try/except+log por envío.
+- [x] A6 GREEN `backend/app/config.py`: `WS_ENABLED: bool = True`, `WS_HEARTBEAT_SECONDS: int = 30`, `WS_IDLE_TIMEOUT_SECONDS: int = 90`.
+- [x] A7 VERIFY `pytest tests/test_realtime_manager.py -v`; `ruff check app/realtime`; `mypy app/realtime`.
 
 ## Fase B — Auth WS + router (Commit 2)
 
