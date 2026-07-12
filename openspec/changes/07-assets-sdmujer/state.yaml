@@ -1,0 +1,27 @@
+change: 07-assets-sdmujer
+artifact_store: hybrid
+depends_on:
+  - 02-contrato-api
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: false
+  design: true
+  tasks: false
+capabilities:
+  new:
+    - assets
+  modified:
+    - alert-engine
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+last_updated: 2026-07-12
