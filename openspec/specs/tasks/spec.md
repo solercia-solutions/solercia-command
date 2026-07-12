@@ -30,6 +30,10 @@ Modelo `Task` (Pk + Timestamp + SoftDelete; scope de tenant vía join a Project)
 | estimation_points?, estimation_hours? (Decimal) | Estimación dual |
 | due_date?, start_date?, completed_at? | Fechas |
 | order, risk_flag, risk_reason?, task_number? | Orden, riesgo y numeración por proyecto |
+| labels[] | Etiquetas asignadas (vía TaskLabel) |
+| checklist_progress | Progreso agregado de checklists (done/total) |
+| is_blocked | Booleano indicando bloqueo activo |
+| blockers[] | Tareas que bloquean a esta tarea |
 
 ## Requisitos
 
@@ -102,9 +106,13 @@ Al aplicar la migración de este cambio, toda tarea existente DEBE quedar asigna
 ## Limitaciones y deuda conocida
 
 - Boards y columnas persistidas (introducidas en 03-boards-persistentes); board_column_id en Task es nullable para compatibilidad con custom sin columnas.
-- NO existen Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency, TaskTimeLog ni TaskHistory (previstos en CLAUDE.md).
+- Existen Label/TaskLabel (04-labels-checklists-dependencias), TaskChecklist/ChecklistItem (04-labels-checklists-dependencias), TaskDependency (04-labels-checklists-dependencias).
+- NO existen TaskTimeLog ni TaskHistory (previstos en CLAUDE.md para cambio 05-trabajo-realizado).
+- Estado `cancelled` en Task aún no implementado; requiere enriquecimiento en desbloqueo de TaskDependency (deuda trazada en 04).
 - Sin validación Fibonacci de puntos; sin paginación en listas.
 - Tests: cobertura de clave legible (test_task_key, 13) y subtareas (test_subtasks, 4); el CRUD/PATCH general y los filtros tienen CERO tests directos. Sin tests de permisos.
+- (SUGGESTION 04-verify) Formalizar tabla TDD Cycle Evidence en apply-progress para batches futuros (mejora de proceso, no defecto).
+- (SUGGESTION 04-verify) Desbloqueo al completar tarea bloqueante requiere criterio preciso: completado (completed_at NOT NULL) vs. estado=done, comportamiento futuro a definir con UX.
 
 ## Referencias
 

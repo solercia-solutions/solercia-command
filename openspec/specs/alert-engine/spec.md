@@ -26,6 +26,7 @@ Estrategias implementadas:
 | task_at_risk | A ≤3 días de vencer + 3 días sin actividad | Assignee |
 | sprint_at_risk | ≥75% del tiempo transcurrido con <50% de puntos | Admins |
 | workload_imbalance | >8 tareas activas por usuario | Admins |
+| blocked_task | Tarea bloqueada > threshold_params.days | Assignee |
 
 Scheduler: APScheduler `AsyncIOScheduler` con `IntervalTrigger` cada `ALERT_SCHEDULER_INTERVAL_HOURS` (1 h) en el lifespan; si el arranque del scheduler falla, la app sigue operando.
 
@@ -53,10 +54,26 @@ Scheduler: APScheduler `AsyncIOScheduler` con `IntervalTrigger` cada `ALERT_SCHE
 - Cuando llama `POST /alerts/evaluate`
 - Entonces la petición es rechazada.
 
+**R5 — Estrategia blocked_task registrada en el registry**
+- Dado una tarea bloqueada por otra tarea activa desde hace más de `threshold_params.days=3` días, con la regla blocked_task habilitada
+- Cuando corre el evaluador
+- Entonces el assignee de la tarea bloqueada recibe una notificación in-app.
+
+**R6 — Deduplicación de la notificación blocked_task**
+- Dado una tarea bloqueada que ya generó una notificación blocked_task activa
+- Cuando el evaluador corre nuevamente sin que cambie la condición de bloqueo
+- Entonces no se crea una segunda notificación para el mismo `dedup_key`.
+
+**R7 — Seed idempotente de la regla blocked_task por defecto**
+- Dado una organización sin reglas de alerta
+- Cuando corre el seed de reglas por defecto
+- Entonces la organización queda con 5 reglas activas, incluida blocked_task.
+- Y si el seed se ejecuta nuevamente, sigue habiendo exactamente una regla activa por cada `rule_type`, sin duplicados.
+
 ## Limitaciones y deuda conocida
 
 - Lock distribuido Redis: TODO documentado en el evaluador — Redis está declarado en config y NO se usa (riesgo de doble evaluación con múltiples réplicas).
-- Estrategias NO implementadas del CLAUDE.md: license_expiring, license_expired, blocked_task.
+- Estrategias NO implementadas del CLAUDE.md: license_expiring, license_expired.
 - Canales faltantes: sin email, sin WebSocket (solo notificación in-app).
 - CERO tests del motor completo (estrategias, evaluador, scheduler, endpoints de alert-rules).
 

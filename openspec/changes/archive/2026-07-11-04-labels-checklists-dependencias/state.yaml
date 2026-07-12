@@ -19,8 +19,7 @@ phases:
   design: done               # openspec/changes/04-labels-checklists-dependencias/design.md — módulo task_links/tabla task_dependencies, DFS de ciclos, seed idempotente blocked_task
   tasks: done                # openspec/changes/04-labels-checklists-dependencias/tasks.md — 25 tareas, 5 batches (A-E) + gate final, commits encadenados a main
   apply: done                # 25/25 tareas — batches A-E + gate final, commits 307b9bd..HEAD en main; 230 passed, ruff/mypy clean, alembic check sin diff (0001→0006)
-  verify: pending
-  archive: pending
-next_recommended:
-  - sdd-verify
-updated: 2026-07-11
+  verify: done               # 230 passed, ruff/mypy clean, 0 CRITICAL/0 WARNING/2 SUGGESTION — openspec/changes/04-labels-checklists-dependencias/verify-report.md
+  archive: done              # Archivado en openspec/changes/archive/2026-07-11-04-labels-checklists-dependencias/. Specs fusionadas en openspec/specs/{labels,checklists,task-dependencies,alert-engine,tasks}.
+next_recommended: none
+updated: 2026-07-12
