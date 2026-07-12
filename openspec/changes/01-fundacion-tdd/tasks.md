@@ -43,11 +43,11 @@ Riesgo a señalar: la Fase 3 es código generado (autogenerate), no lógica manu
 - [x] 3.6 Verificar: `docker compose up --build backend` migra antes de uvicorn; `GET /api/v1/health` → 200.
 
 ## Fase 4 — Fixtures compartidos (commit 4, R2, R3)
-- [ ] 4.1 [RED] Crear `backend/tests/test_conftest_fixtures.py` (usa `engine`/`session`/`client`/`tenant`/`user`): falla, fixtures no existen.
-- [ ] 4.2 [GREEN] `backend/tests/conftest.py`: `engine` (scope=session, `NullPool`, `create_all`), `session` (SAVEPOINT + rollback), `client` (`ASGITransport` + override `get_db`), factories `tenant`/`user` con JWT; conservar `skip_no_db`.
-- [ ] 4.3 Verificar 4.1 en verde.
-- [ ] 4.4 Verificar: `pytest tests/ -v` con `TEST_DATABASE_URL` — 43 tests existentes + nuevos, cero skips.
-- [ ] 4.5 Verificar: sin `TEST_DATABASE_URL` — integración se salta con razón explícita (R1, caso borde).
+- [x] 4.1 [RED] Crear `backend/tests/test_conftest_fixtures.py` (usa `engine`/`session`/`client`/`tenant`/`user`): falla, fixtures no existen.
+- [x] 4.2 [GREEN] `backend/tests/conftest.py`: `engine` (scope=session, `NullPool`, `create_all`), `session` (SAVEPOINT + rollback), `client` (`ASGITransport` + override `get_db`), factories `tenant`/`user` con JWT; conservar `skip_no_db`.
+- [x] 4.3 Verificar 4.1 en verde.
+- [x] 4.4 Verificar: `pytest tests/ -v` con `TEST_DATABASE_URL` — 43 tests existentes + nuevos, cero skips.
+- [x] 4.5 Verificar: sin `TEST_DATABASE_URL` — integración se salta con razón explícita (R1, caso borde).
 
 ## Fase 5 — README (commit 5, R5, R7)
 - [ ] 5.1 Documentar venv + `pip install -r requirements.txt -r requirements-dev.txt`.
