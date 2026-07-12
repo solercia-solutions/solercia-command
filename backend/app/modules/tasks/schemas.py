@@ -5,6 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.task_links.schemas import BlockerRef
 from app.shared.enums import Priority
 
 
@@ -127,6 +128,11 @@ class TaskRead(BaseModel):
     # written before the audit migration or outside a request context.
     created_by: uuid.UUID | None = None
     updated_by: uuid.UUID | None = None
+    # Whether at least one active `is_blocked_by` edge points to a blocker
+    # whose `completed_at` is still NULL (task-dependencies.md R11). Only
+    # populated on single-task reads (same pattern as subtask_progress).
+    is_blocked: bool = False
+    blockers: list[BlockerRef] = []
 
 
 class TaskColumnMove(BaseModel):

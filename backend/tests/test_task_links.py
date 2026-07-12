@@ -373,6 +373,78 @@ async def test_unlink_is_soft_delete_row_still_exists_in_db(
 
 
 # ---------------------------------------------------------------------------
+# T17 — RED+GREEN: is_blocked + blockers[] en TaskRead (R11)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_task_detail_reports_blocked_state(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """A blocked task's detail reports is_blocked=True with the blocker listed."""
+
+    _, token = user
+    project_id = await _create_project(client, token)
+    task_a = await _create_task(client, token, project_id, "A")
+    task_b = await _create_task(client, token, project_id, "B")
+
+    await _link(client, token, task_a, task_b, "is_blocked_by")
+
+    response = await client.get(f"/tasks/{task_a}", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    body = response.json()["data"]
+    assert body["is_blocked"] is True
+    assert [b["task_id"] for b in body["blockers"]] == [task_b]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_task_detail_unblocks_when_blocker_completes(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Once B completes, A's detail no longer reports the block (R11 escenario 2)."""
+
+    _, token = user
+    project_id = await _create_project(client, token)
+    task_a = await _create_task(client, token, project_id, "A")
+    task_b = await _create_task(client, token, project_id, "B")
+
+    await _link(client, token, task_a, task_b, "is_blocked_by")
+
+    still_blocked = await client.get(f"/tasks/{task_a}", headers=_auth(token))
+    assert still_blocked.json()["data"]["is_blocked"] is True
+
+    # Move B to "Done" (kanban's last allowed status) — stamps completed_at.
+    await client.patch(
+        f"/tasks/{task_b}", json={"status": "Done"}, headers=_auth(token)
+    )
+
+    unblocked = await client.get(f"/tasks/{task_a}", headers=_auth(token))
+    assert unblocked.json()["data"]["is_blocked"] is False
+    assert unblocked.json()["data"]["blockers"] == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_task_detail_not_blocked_has_empty_blockers(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """A task with no incoming edges reports is_blocked=False, blockers=[]."""
+
+    _, token = user
+    project_id = await _create_project(client, token)
+    task_id = await _create_task(client, token, project_id, "Standalone")
+
+    response = await client.get(f"/tasks/{task_id}", headers=_auth(token))
+
+    body = response.json()["data"]
+    assert body["is_blocked"] is False
+    assert body["blockers"] == []
+
+
+# ---------------------------------------------------------------------------
 # T18 — GREEN: router pagination contract
 # ---------------------------------------------------------------------------
 

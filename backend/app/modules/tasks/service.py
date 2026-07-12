@@ -25,10 +25,11 @@ from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
 if TYPE_CHECKING:
-    # Type-only: `tasks` never imports `boards` at module level (design.md
-    # C4). Every runtime use is a deferred import inside the method that
-    # needs it.
+    # Type-only: `tasks` never imports `boards`/`task_links` at module level
+    # (design.md C4). Every runtime use is a deferred import inside the
+    # method that needs it.
     from app.modules.boards.models import BoardColumn
+    from app.modules.task_links.schemas import BlockerRef
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
 _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
@@ -106,8 +107,10 @@ class TaskService:
         name_map = await self._assignee_name_map(organization_id)
         read = self._to_read(task, name_map, project_code=project.code)
 
-        # Populate subtask progress only on single-task reads to avoid N+1.
+        # Populate subtask progress and blocking state only on single-task
+        # reads to avoid N+1.
         read.subtask_progress = await self._subtask_progress(task.id, strategy)
+        read.is_blocked, read.blockers = await self._blocking_state(task.id)
 
         return read
 
@@ -153,6 +156,7 @@ class TaskService:
         read = self._to_read(task, name_map, project_code=project.code)
 
         read.subtask_progress = await self._subtask_progress(task.id, strategy)
+        read.is_blocked, read.blockers = await self._blocking_state(task.id)
 
         return read
 
@@ -505,6 +509,23 @@ class TaskService:
             return None
         total, done = await self.repo.get_subtask_counts(task_id, allowed[-1])
         return (done / total) if total > 0 else None
+
+    async def _blocking_state(
+        self, task_id: uuid.UUID
+    ) -> tuple[bool, list["BlockerRef"]]:
+        """Return ``(is_blocked, blockers)`` for a single-task read (design.md,
+        "Enriquecer el detalle sin N+1"). Deferred import: `tasks` never
+        depends on `task_links` at module level (design.md C4).
+        """
+
+        from app.modules.task_links.repository import TaskDependencyRepository
+        from app.modules.task_links.schemas import BlockerRef
+
+        rows = await TaskDependencyRepository(self.repo.db).get_incomplete_blockers(
+            task_id
+        )
+        blockers = [BlockerRef(task_id=tid, title=title) for tid, title in rows]
+        return (len(blockers) > 0, blockers)
 
     @staticmethod
     def _resolve_status(
