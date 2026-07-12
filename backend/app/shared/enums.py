@@ -84,3 +84,45 @@ class ReminderStatus(str, Enum):
     fired = "fired"
     skipped = "skipped"
     cancelled = "cancelled"
+
+
+class AssetType(str, Enum):
+    """Category of an information asset (first axis of its taxonomy)."""
+
+    hardware = "hardware"
+    software = "software"
+    saas_subscription = "saas_subscription"
+    information = "information"
+    service = "service"
+    certificate = "certificate"
+
+
+class AssetStatus(str, Enum):
+    """Lifecycle status of an information asset."""
+
+    active = "active"
+    inactive = "inactive"
+    retired = "retired"
+    under_review = "under_review"
+
+
+class AssetCriticality(str, Enum):
+    """Criticality of an information asset.
+
+    A dedicated enum, deliberately NOT reusing ``Priority`` (design.md,
+    "Enums native_enum=False") — assets and tasks are separate domains even
+    though the value sets happen to overlap.
+    """
+
+    critical = "critical"
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+
+class LicenseType(str, Enum):
+    """Commercial type of an ``AssetLicense``."""
+
+    perpetual = "perpetual"
+    subscription = "subscription"
+    trial = "trial"

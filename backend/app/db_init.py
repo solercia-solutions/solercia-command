@@ -19,6 +19,7 @@ from app.methodology.factory import get_strategy
 # Import ALL models so they register on the shared metadata.
 from app.modules.activity.models import TaskHistory  # noqa: F401
 from app.modules.alert_rules.models import AlertRule  # noqa: F401
+from app.modules.assets.models import Asset, AssetLicense, AssetTask  # noqa: F401
 from app.modules.attachments.models import Attachment  # noqa: F401
 from app.modules.boards.models import Board, BoardColumn  # noqa: F401
 from app.modules.checklists.models import ChecklistItem, TaskChecklist  # noqa: F401

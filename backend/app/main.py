@@ -15,6 +15,7 @@ from app.database import engine
 from app.db_init import seed_default
 from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
+from app.modules.assets.router import router as assets_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.boards.router import router as boards_router
@@ -145,6 +146,7 @@ app.include_router(alerts_admin_router, prefix=API_PREFIX)
 app.include_router(alert_rules_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(reminders_router, prefix=API_PREFIX)
+app.include_router(assets_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:
