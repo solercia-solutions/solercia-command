@@ -17,6 +17,7 @@ from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.boards.router import router as boards_router
+from app.modules.checklists.router import router as checklists_router
 from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
@@ -112,6 +113,7 @@ app.include_router(comments_router, prefix=API_PREFIX)
 app.include_router(attachments_router, prefix=API_PREFIX)
 app.include_router(sprints_router, prefix=API_PREFIX)
 app.include_router(labels_router, prefix=API_PREFIX)
+app.include_router(checklists_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 # Admin / RBAC management endpoints (require the ADMIN role).
 app.include_router(dependencies_admin_router, prefix=API_PREFIX)

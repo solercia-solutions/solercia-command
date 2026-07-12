@@ -43,10 +43,10 @@ R1 nombre único por proyecto · R2 asignar/desasignar · R3 filtro `label_id` �
 ## Batch B — Checklists
 R5 CRUD checklist · R6 CRUD/toggle/reorder ítems · R7 progreso agregado
 
-- [ ] T06 RED+GREEN: `TaskChecklist` (Pk+Timestamp+Soft+Audit+Tenant) + migración (down=A) + CRUD repo/service/router; montar `checklists_router` (R5)
-- [ ] T07 RED+GREEN: `ChecklistItem` CRUD + reorder por `order` (R6)
-- [ ] T08 RED+GREEN: endpoint toggle `is_done` (R6)
-- [ ] T09 RED+GREEN: `get_checklist_progress` (done/total por checklist + agregado, espejo de `get_subtask_counts`) (R7)
+- [x] T06 RED+GREEN: `TaskChecklist` (Pk+Timestamp+Soft+Audit+Tenant) + migración (down=A) + CRUD repo/service/router; montar `checklists_router` (R5)
+- [x] T07 RED+GREEN: `ChecklistItem` CRUD + reorder por `order` (R6)
+- [x] T08 RED+GREEN: endpoint toggle `is_done` (R6)
+- [x] T09 RED+GREEN: `get_checklist_progress` (done/total por checklist + agregado, espejo de `get_subtask_counts`) (R7)
 
 ## Batch C — task_links (TaskDependency)
 R8 enlazar mismo proyecto · R9 prevención de ciclos · R10 desenlazar/listar · R11 estado de bloqueo en detalle
