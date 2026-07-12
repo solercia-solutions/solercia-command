@@ -1,0 +1,27 @@
+change: 02-contrato-api
+title: Contrato de API — paginación estándar, auditoría created_by/updated_by y refresco de docs/API.md
+artifact_store: hybrid
+strict_tdd: true
+status: archived
+depends_on: 01-fundacion-tdd
+depends_on_note: "El apply NO puede iniciar hasta que 01-fundacion-tdd esté aplicado (Alembic adoptado + fixtures + BD solercia_test). La migración de auditoría y el TDD estricto dependen de esa base."
+hard_rule: "backend únicamente — frontend/ congelado (constraint frontend-frozen). No proponer ni tocar interfaz."
+scope:
+  - "Paginación estándar (?page&size&sort&order + meta {page,size,total}) en listas: tasks, notifications, users, roles, menus, dependencies, projects, sprints, comments, attachments, alert-rules."
+  - "Auditoría automática created_by/updated_by en modelos de dominio, poblada desde el usuario autenticado + migración Alembic."
+  - "Refresco de docs/API.md a la superficie real tras aterrizar paginación y auditoría."
+phases:
+  explore: skipped           # alcance ya definido por el roadmap (openspec/AVANCE.md, fila 02)
+  proposal: done             # openspec/changes/archive/2026-07-11-02-contrato-api/proposal.md
+  spec: done               # openspec/changes/archive/2026-07-11-02-contrato-api/specs/api-pagination.md, specs/audit-fields.md
+  design: done               # openspec/changes/archive/2026-07-11-02-contrato-api/design.md — paginación opt-in + auditoría explícita en servicio + AuditMixin sobre modelos con SoftDelete
+  tasks: done               # openspec/changes/archive/2026-07-11-02-contrato-api/tasks.md — 33 tasks, 6 commit batches (A-D), TDD RED/GREEN pairs
+  apply: done                # 33/33 tareas + 1 preliminar (fix rutas test_sprint_close). 8 commits directos a main (stacked-to-main). Suite completa (135 tests) + ruff + mypy limpios.
+  verify: done               # openspec/changes/archive/2026-07-11-02-contrato-api/verify-report.md — PASS. 33/33 tareas, 135/135 tests reales (rebuild Docker + JWT fresco), 17/17 escenarios/gates compliant, ruff+mypy limpios, sin scope creep. 0 CRITICAL, 0 WARNING, 3 SUGGESTION.
+  archive: done
+next_recommended: none
+archive_notes:
+  - "SUGGESTION 1 (verify-report): No existe una prueba negativa explícita que confirme que `Notification` NO lleva `AuditMixin` — solo inspección de código. Recomendado para cambios futuros: test negativo dedicado."
+  - "SUGGESTION 2 (verify-report): La evidencia TDD de apply-progress no sigue formato literal de tabla 'TDD Cycle Evidence' — se aceptó `tasks.md` (etiquetas RED/GREEN por tarea) como equivalente, mismo criterio en 01-fundacion-tdd."
+  - "SUGGESTION 3 (verify-report): Artefacto real de migración (`0002_add_audit_fields.py`) solo cubierto por `alembic check` (guardia genérica de 01), no por test explícito de las 22 FKs nombradas — brecha aceptada, no bloqueante."
+updated: 2026-07-11

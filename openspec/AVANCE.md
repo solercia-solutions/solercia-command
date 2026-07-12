@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; cambio 01-fundacion-tdd completado y archivado; 9 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-11 (línea base as-built registrada: 14 specs; cambios 01-fundacion-tdd y 02-contrato-api completados y archivados; 8 cambios restantes; frontend EN PAUSA por la migración a @solercia/ui).
 
 ## Mapa visual del plan
 
@@ -36,8 +36,9 @@ flowchart TD
 
     class B0 done
     class C01 done
+    class C02 done
     class FE inprogress
-    class C02,C03,C04,C05,C06,C07,C08,C09,C10 pending
+    class C03,C04,C05,C06,C07,C08,C09,C10 pending
 
     classDef done fill:#22c55e,stroke:#166534,color:#ffffff
     classDef inprogress fill:#eab308,stroke:#854d0e,color:#000000
@@ -80,7 +81,7 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 | # | Cambio | Alcance | Estado |
 |---|--------|---------|--------|
 | 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | 🟩 Completado |
-| 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | ⬜ Pendiente |
+| 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | 🟩 Completado |
 | 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | ⬜ Pendiente |
 | 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | ⬜ Pendiente |
 | 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | ⬜ Pendiente |
@@ -107,10 +108,13 @@ Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/chan
 - ✅ **Tests de integración**: BD `solercia_test` provisionada en docker-compose; fixtures compartidos en conftest; 43 tests existentes + nuevos pasan sin regresiones.
 - ✅ **Linting y type-checking**: ruff + mypy adoptados con línea base limpia (cero hallazgos); comandos documentados.
 
+### Resuelto en cambio 02-contrato-api
+- ✅ **Paginación estándar**: 11 endpoints paginables (`?page&size&sort&order`), validación de límites, whitelist de campos ordenables, opt-in (sin params = comportamiento actual).
+- ✅ **Auditoría automática**: `created_by`/`updated_by` en 11 modelos SoftDeleteMixin, pobladasautomáticamente desde usuario autenticado, exposición en respuestas.
+- ✅ **Documentación API refrescada**: docs/API.md actualizado con paginación, auditoría y 4 módulos antes no documentados (comments, attachments, notifications, alert-rules).
+
 ### Aún pendiente
-- **Sin paginación**: todas las listas devuelven todo; `meta.total = len` (cambio 02).
-- **Sin auditoría `created_by`/`updated_by`** en ningún modelo (cambio 02).
-- **Solo 43 tests en 6 archivos**. Módulos con CERO tests: auth, users, organizations, projects (CRUD), roles, menus, dependencies, dashboard, endpoints de alert_rules y notifications, motor de alertas completo, estrategias de metodología (backfill en cambios posteriores).
-- **Documentación desactualizada**: docs/API.md y docs/METHODOLOGY-FEATURES.md no reflejan el código actual.
+- **Solo 135 tests en ~24 archivos** (tras 02; crecimiento neto de 92 tests en 12+ archivos nuevos/extendidos). Módulos con CERO tests aún: auth, organizations, roles, menus, dashboard, motor de alertas completo, estrategias de metodología (backfill en cambios posteriores).
+- **Documentación desactualizada**: docs/METHODOLOGY-FEATURES.md no refleja el código actual.
 - **Permisos granulares por endpoint (viewer/manager/member) mayormente no aplicados**; conviven dos sistemas de roles paralelos (MemberRole vs catálogo RBAC).
 - **TODO de lock distribuido Redis** en el evaluador de alertas (REDIS_URL declarado y sin uso).
