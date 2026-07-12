@@ -1,5 +1,7 @@
 # Spec — Tableros persistentes (boards)
 
+> **Origen**: cambio [03-boards-persistentes](../../changes/archive/2026-07-11-03-boards-persistentes/)
+
 > Introducido en cambio 03-boards-persistentes (2026-07-11). Especifica Board/BoardColumn con siembra desde strategy, WIP y configuración runtime.
 
 ## Propósito

@@ -54,7 +54,7 @@ flowchart TD
 
 ## Lo construido (línea base as-built, 2026-07-11)
 
-Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna nació con ciclo SDD (son pre-SDD); sus escenarios Given/When/Then servirán para el backfill de tests.
+Las 14 capacidades existentes están documentadas en `openspec/specs/`. Ninguna nació con ciclo SDD (son pre-SDD); sus escenarios Given/When/Then servirán para el backfill de tests. La trazabilidad completa capacidad → cambio de origen (línea base y ciclos SDD archivados) está en [specs/README.md](specs/README.md).
 
 | Capacidad | Spec | Estado de tests |
 |-----------|------|-----------------|
@@ -81,18 +81,18 @@ Total actual: **43 tests en 6 archivos** (`backend/tests/`).
 
 Todos pendientes. Cada uno se ejecutará como ciclo SDD completo (`openspec/changes/NN-nombre/`) con TDD estricto.
 
-| # | Cambio | Alcance | Estado |
-|---|--------|---------|--------|
-| 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | 🟩 Completado |
-| 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | 🟩 Completado |
-| 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | 🟩 Completado |
-| 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | 🟩 Completado |
-| 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | 🟩 Completado |
-| 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | ⬜ Pendiente |
-| 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | ⬜ Pendiente |
-| 08 | `08-email-notifications` | Canal email con digest configurable. | ⬜ Pendiente |
-| 09 | `09-websocket-realtime` | Push in-app en tiempo real. | ⬜ Pendiente |
-| 10 | `10-busqueda-global` | Búsqueda global + filtros avanzados. | ⬜ Pendiente |
+| # | Cambio | Alcance | Estado | Specs producidas/modificadas |
+|---|--------|---------|--------|------------------------------|
+| 01 | `01-fundacion-tdd` | Infraestructura de pruebas (BD `solercia_test` en docker-compose, fixtures compartidos en conftest, venv documentado); migración Alembic inicial descriptiva + adopción de Alembic como flujo (hoy el esquema se crea con `create_all`); ruff + mypy. **PRIORIDAD 1: desbloquea el TDD estricto de todo lo demás.** | 🟩 Completado | [dev-tooling](specs/dev-tooling/spec.md) (nueva) · [api-conventions](specs/api-conventions/spec.md) (modificada) |
+| 02 | `02-contrato-api` | Paginación estándar (`?page&size&sort&order` + meta), auditoría `created_by`/`updated_by` automática, refresco del contrato (docs/API.md desactualizado: no lista comments, attachments, notifications, alert-rules, by-key, subtasks, velocity, close). | 🟩 Completado | [api-conventions](specs/api-conventions/spec.md) (modificada: paginación + auditoría) |
+| 03 | `03-boards-persistentes` | Entidades Board/BoardColumn persistidas, `board_column_id` en Task, límites WIP (kanban), configuración de columnas en runtime (hoy la metodología custom es inutilizable: devuelve columnas vacías sin API para configurarlas). | 🟩 Completado | [boards](specs/boards/spec.md) (nueva) · [methodology-strategies](specs/methodology-strategies/spec.md) y [tasks](specs/tasks/spec.md) (modificadas) |
+| 04 | `04-labels-checklists-dependencias` | Label/TaskLabel, TaskChecklist/ChecklistItem, TaskDependency (blocks/is_blocked_by) + estrategia de alerta `blocked_task`. | 🟩 Completado | [labels](specs/labels/spec.md), [checklists](specs/checklists/spec.md), [task-dependencies](specs/task-dependencies/spec.md) (nuevas) · [alert-engine](specs/alert-engine/spec.md) (modificada) |
+| 05 | `05-trabajo-realizado` | TaskTimeLog + ActivityLog/TaskHistory + cruce "trabajo asignado vs realizado" en el dashboard ejecutivo (capacidad transversal clave del producto). | 🟩 Completado | [time-logs](specs/time-logs/spec.md), [activity-history](specs/activity-history/spec.md) (nuevas) · [dashboard-executive](specs/dashboard-executive/spec.md) (modificada) |
+| 06 | `06-reminders` | Recordatorios manuales y automáticos por regla. | ⬜ Pendiente | — |
+| 07 | `07-assets-sdmujer` | Asset + AssetLicense + AssetTask + estrategias de alerta `license_expiring`/`license_expired` (Fase 3 completa del CLAUDE.md). | ⬜ Pendiente | — |
+| 08 | `08-email-notifications` | Canal email con digest configurable. | ⬜ Pendiente | — |
+| 09 | `09-websocket-realtime` | Push in-app en tiempo real. | ⬜ Pendiente | — |
+| 10 | `10-busqueda-global` | Búsqueda global + filtros avanzados. | ⬜ Pendiente | — |
 
 ---
 

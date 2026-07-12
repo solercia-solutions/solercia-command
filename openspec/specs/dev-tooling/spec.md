@@ -1,5 +1,7 @@
 # Spec — Fundación de herramientas de desarrollo backend (dev-tooling)
 
+> **Origen**: cambio [01-fundacion-tdd](../../changes/archive/2026-07-11-01-fundacion-tdd/)
+
 > Nueva capacidad introducida por el cambio `01-fundacion-tdd`. Describe el comportamiento que DEBE existir después de aplicar el cambio.
 
 ## Propósito

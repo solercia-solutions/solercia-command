@@ -1,5 +1,7 @@
 # activity-history Specification
 
+> **Origen**: cambio [05-trabajo-realizado](../../changes/archive/2026-07-11-05-trabajo-realizado/)
+
 ## Purpose
 
 Changelog automático de mutaciones de tarea: quién cambió qué, cuándo y de qué valor a qué valor. Alimenta el historial por tarea y la actividad por usuario/día que usa el cruce "asignado vs realizado" en el dashboard. Es de solo lectura para los clientes: nadie edita ni borra el historial.

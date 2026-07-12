@@ -1,5 +1,7 @@
 # Especificación: Checklists de tarea
 
+> **Origen**: cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/)
+
 ## Propósito
 
 Desglose interno del "cómo" ejecutar una tarea sin crear subtareas formales, mediante checklists con ítems marcables y progreso agregado visible en el detalle de la tarea.

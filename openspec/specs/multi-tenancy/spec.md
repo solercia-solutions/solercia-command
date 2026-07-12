@@ -1,5 +1,7 @@
 # Spec — Multi-tenancy (organizations + membership + filtrado row-level)
 
+> **Origen**: línea base as-built (2026-07-11)
+
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
 ## Propósito

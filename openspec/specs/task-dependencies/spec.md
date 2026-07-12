@@ -1,5 +1,7 @@
 # Especificación: Dependencias tarea-tarea (task-dependencies)
 
+> **Origen**: cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/)
+
 ## Propósito
 
 Modelar bloqueos entre tareas del mismo proyecto (`blocks` / `is_blocked_by`) sin permitir ciclos, exponiendo el estado de bloqueo en el detalle de la tarea para alimentar la vista ejecutiva de riesgos.

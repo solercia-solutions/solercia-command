@@ -1,5 +1,7 @@
 # time-logs Specification
 
+> **Origen**: cambio [05-trabajo-realizado](../../changes/archive/2026-07-11-05-trabajo-realizado/)
+
 ## Purpose
 
 Registro de horas trabajadas por tarea y usuario ("trabajo realizado"). Es la fuente de datos que compara lo asignado con lo efectivamente ejecutado en la vista ejecutiva. Cada colaborador registra su propio tiempo; los roles de supervisión (`admin`, `manager` en `OrganizationMember`) consultan el de cualquier persona de su organización.

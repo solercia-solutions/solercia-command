@@ -1,5 +1,7 @@
 # Spec — Catálogo RBAC (roles, menús y áreas organizacionales)
 
+> **Origen**: línea base as-built (2026-07-11)
+
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
 ## Propósito

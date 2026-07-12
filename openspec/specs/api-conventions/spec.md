@@ -1,5 +1,7 @@
 # Spec — Convenciones de API y plataforma (api-conventions)
 
+> **Origen**: línea base as-built (2026-07-11) + cambios [01-fundacion-tdd](../../changes/archive/2026-07-11-01-fundacion-tdd/), [02-contrato-api](../../changes/archive/2026-07-11-02-contrato-api/)
+
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
 ## Propósito

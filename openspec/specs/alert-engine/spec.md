@@ -1,5 +1,7 @@
 # Spec — Motor de alertas (alert-engine)
 
+> **Origen**: línea base as-built (2026-07-11) + cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/)
+
 > Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código; no es un diseño futuro.
 
 ## Propósito

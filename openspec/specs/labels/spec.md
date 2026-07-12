@@ -1,5 +1,7 @@
 # Especificación: Labels (etiquetas de tarea)
 
+> **Origen**: cambio [04-labels-checklists-dependencias](../../changes/archive/2026-07-11-04-labels-checklists-dependencias/)
+
 ## Propósito
 
 Etiquetas configurables por proyecto para clasificar y filtrar tareas, con un vínculo M:N reversible que no afecta la tarea cuando la etiqueta se elimina.
