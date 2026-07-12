@@ -547,6 +547,95 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Búsqueda global
+
+Endpoint **protegido** y filtrado por el tenant del token. Busca simultáneamente en tareas, proyectos y comentarios de la organización del usuario autenticado.
+
+### GET `/api/v1/search` 📄
+
+Búsqueda multi-entidad con paginación **incondicional** (siempre se devuelve `meta` con `page`, `size`, `total`).
+
+| Parámetro | Tipo | Notas |
+|-----------|------|-------|
+| `q` | string | Consulta (obligatoria). Mínimo 2 caracteres tras trim; consultas más cortas devuelven `422`. |
+| `types` | string | Opcional, separado por comas. Valores válidos: `task`, `project`, `comment`. Por defecto todos. Valores inválidos → `422`. |
+| `page`, `size`, `sort`, `order` | — | Paginación estándar (ver «Paginación»). `size` por defecto 20, máximo 100. |
+
+**Request**
+
+```http
+GET /api/v1/search?q=factura&types=task,project&page=1&size=10 HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <access_token>
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "data": [
+    {
+      "entity_type": "task",
+      "id": "7a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "title": "Generar factura de junio",
+      "snippet": "...Generar **factura** de junio para el cliente XYZ.",
+      "project_id": "3c9a1f20-7b88-4e2a-9f10-6d5c4b3a2e1f",
+      "project_name": "Gestión de pagos",
+      "task_id": null,
+      "task_key": "GES-42"
+    },
+    {
+      "entity_type": "project",
+      "id": "5f6e7d8c-9a0b-1c2d-3e4f-5a6b7c8d9e0f",
+      "title": "Plataforma de facturación",
+      "snippet": "...La **facturación** automatizada para medianos negocios.",
+      "project_id": "5f6e7d8c-9a0b-1c2d-3e4f-5a6b7c8d9e0f",
+      "project_name": "Plataforma de facturación",
+      "task_id": null,
+      "task_key": null
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "size": 10,
+    "total": 2
+  }
+}
+```
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `entity_type` | `task` \| `project` \| `comment` | Tipo de resultado. |
+| `id` | uuid | Identificador del resultado. |
+| `title` | string | Título o nombre (campo principal de búsqueda). |
+| `snippet` | string | Fragmento con la coincidencia resaltada. |
+| `project_id` | uuid | Proyecto al que pertenece (o el proyecto mismo si `entity_type=project`). |
+| `project_name` | string | Nombre del proyecto. |
+| `task_id` | uuid \| null | Solo presente en `entity_type=comment`; identificador de la tarea que contiene el comentario. |
+| `task_key` | string \| null | Solo presente en `entity_type=task` o `entity_type=comment`; clave legible de la tarea (ej. `SDM-7`). |
+
+**Response `422 Unprocessable Entity`** — consulta vacía o muy corta
+
+```json
+{
+  "detail": "La consulta debe tener al menos 2 caracteres.",
+  "code": "query_too_short",
+  "status": 422
+}
+```
+
+**Response `422 Unprocessable Entity`** — tipo inválido
+
+```json
+{
+  "detail": "Tipo de entidad inválido. Valores permitidos: task, project, comment.",
+  "code": "invalid_search_type",
+  "status": 422
+}
+```
+
+---
+
 ## Tareas
 
 Endpoints **protegidos** y filtrados por el tenant del token. El `status` de una tarea es
@@ -567,7 +656,12 @@ consulta (resuelve el nombre desde el `assignee_id`), sin columna real que lo re
 | ------------- | ---- | --------------------------------------------------------------- |
 | `sprint_id`   | uuid | Filtra por sprint. Usa `sprint_id=null` para ver el backlog.    |
 | `status`      | text | Filtra por columna (un valor de `allowed_statuses`).            |
+| `priority`    | text | Filtra por prioridad (`critical`, `high`, `medium`, `low`). Valor inválido → `422`. |
 | `assignee_id` | uuid | Filtra por persona asignada.                                    |
+| `label_id`    | uuid | Filtra por etiqueta (repetible: `?label_id=X&label_id=Y` = unión, cualquiera de las dos). |
+| `due_from`    | date | Filtra tareas con `due_date >= due_from` (formato `YYYY-MM-DD`). |
+| `due_to`      | date | Filtra tareas con `due_date <= due_to` (formato `YYYY-MM-DD`). Si `due_from > due_to` → `422`. |
+| `q`           | text | Filtra por texto libre en título y descripción (mínimo 1 carácter). |
 | `page`, `size`, `sort`, `order` | — | Paginación opcional — ver «Paginación».         |
 
 **Request**

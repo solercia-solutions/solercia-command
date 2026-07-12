@@ -18,6 +18,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | Comentarios y menciones | [comments-mentions](comments-mentions/spec.md) | baseline |
 | Vista ejecutiva | [dashboard-executive](dashboard-executive/spec.md) | baseline + [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) |
 | Herramientas de desarrollo | [dev-tooling](dev-tooling/spec.md) | [01-fundacion-tdd](../changes/archive/2026-07-11-01-fundacion-tdd/) |
+| Búsqueda global | [global-search](global-search/spec.md) | [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) |
 | Labels (etiquetas de tarea) | [labels](labels/spec.md) | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
 | Estrategias de metodología | [methodology-strategies](methodology-strategies/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) |
 | Multi-tenancy | [multi-tenancy](multi-tenancy/spec.md) | baseline |
@@ -26,7 +27,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | Catálogo RBAC | [rbac-catalog](rbac-catalog/spec.md) | baseline |
 | Sprints | [sprints](sprints/spec.md) | baseline |
 | Dependencias tarea-tarea | [task-dependencies](task-dependencies/spec.md) | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) |
-| Tareas | [tasks](tasks/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) |
+| Tareas | [tasks](tasks/spec.md) | baseline + [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) + [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) |
 | Registro de tiempo | [time-logs](time-logs/spec.md) | [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) |
 | Administración de usuarios | [users-admin](users-admin/spec.md) | baseline |
 | Cobertura de línea base | [test-coverage-baseline](test-coverage-baseline/spec.md) | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) |
@@ -46,6 +47,7 @@ La **línea base as-built** (2026-07-11) documenta las 14 capacidades que exist�
 | [03-boards-persistentes](../changes/archive/2026-07-11-03-boards-persistentes/) | `boards.md` (nueva), `methodology-strategies.md` (MODIFIED), `tasks.md` (MODIFIED) | `boards` (creada), `methodology-strategies` y `tasks` (modificadas) |
 | [04-labels-checklists-dependencias](../changes/archive/2026-07-11-04-labels-checklists-dependencias/) | `labels.md`, `checklists.md`, `task-dependencies.md` (nuevas), `alert-blocked-task.md` (delta de alert-engine) | `labels`, `checklists`, `task-dependencies` (creadas), `alert-engine` (modificada: estrategia `blocked_task`) |
 | [05-trabajo-realizado](../changes/archive/2026-07-11-05-trabajo-realizado/) | `time-logs/spec.md`, `activity-history/spec.md` (nuevas), `dashboard-executive/spec.md` (ADDED) | `time-logs`, `activity-history` (creadas), `dashboard-executive` (modificada: bloque `work_gap`) |
+| [10-busqueda-global](../changes/archive/2026-07-12-10-busqueda-global/) | `global-search/spec.md` (nueva), `tasks/spec.md` (MODIFIED + ADDED) | `global-search` (creada: endpoint GET /search con scope estricto multi-tenant), `tasks` (modificada: filtros avanzados combinables en GET /projects/{id}/tasks) |
 | [11-blindaje-baseline](../changes/archive/2026-07-12-11-blindaje-baseline/) | `test-coverage-baseline/spec.md` (nueva) | `test-coverage-baseline` (creada: contrato de cobertura de tests as-built) |
 
 ## Inconsistencias detectadas
