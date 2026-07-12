@@ -40,11 +40,12 @@ async def list_tasks(
     sprint_id: uuid.UUID | None = Query(default=None),
     status: str | None = Query(default=None),
     assignee_id: uuid.UUID | None = Query(default=None),
+    label_id: uuid.UUID | None = Query(default=None),
     pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """List a project's top-level tasks, optionally filtered by sprint, status or assignee.
+    """List a project's top-level tasks, optionally filtered by sprint, status, assignee or label.
 
     Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
     those params the full collection is returned unchanged.
@@ -57,6 +58,7 @@ async def list_tasks(
         sprint_id=sprint_id,
         status=status,
         assignee_id=assignee_id,
+        label_id=label_id,
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}

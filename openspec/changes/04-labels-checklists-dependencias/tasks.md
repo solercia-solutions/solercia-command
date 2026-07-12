@@ -34,11 +34,11 @@ Bloqueo: apply NO puede iniciar hasta que `02-contrato-api` esté aplicado (`Aud
 ## Batch A — Labels
 R1 nombre único por proyecto · R2 asignar/desasignar · R3 filtro `label_id` · R4 borrado sin afectar tareas
 
-- [ ] T01 RED: nombre duplicado activo en mismo proyecto → 422 (R1)
-- [ ] T02 GREEN: `modules/labels/models.py` `Label` (Pk+Timestamp+Soft+Audit+Tenant) + migración (down=head 02) + repo/service/router CRUD; montar `labels_router` en `main.py`
-- [ ] T03 RED+GREEN: `TaskLabel` (Pk+Timestamp) link/unlink; 422 si etiqueta y tarea son de proyectos distintos (R2)
-- [ ] T04 RED+GREEN: filtro `label_id` en `list_for_project` + query param del router (R3)
-- [ ] T05 RED+GREEN: soft-delete de `Label` desvincula (soft-delete) sus `TaskLabel`; tareas intactas (R4)
+- [x] T01 RED: nombre duplicado activo en mismo proyecto → 422 (R1)
+- [x] T02 GREEN: `modules/labels/models.py` `Label` (Pk+Timestamp+Soft+Audit+Tenant) + migración (down=head 02) + repo/service/router CRUD; montar `labels_router` en `main.py`
+- [x] T03 RED+GREEN: `TaskLabel` (Pk+Timestamp) link/unlink; 422 si etiqueta y tarea son de proyectos distintos (R2)
+- [x] T04 RED+GREEN: filtro `label_id` en `list_for_project` + query param del router (R3)
+- [x] T05 RED+GREEN: soft-delete de `Label` desvincula (soft-delete) sus `TaskLabel`; tareas intactas (R4)
 
 ## Batch B — Checklists
 R5 CRUD checklist · R6 CRUD/toggle/reorder ítems · R7 progreso agregado

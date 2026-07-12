@@ -47,6 +47,7 @@ class TaskRepository:
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
         parent_task_id: uuid.UUID | None = None,
+        label_id: uuid.UUID | None = None,
         subtasks_only: bool = False,
         top_level_only: bool = False,
         pagination: PaginationParams | None = None,
@@ -80,6 +81,15 @@ class TaskRepository:
             stmt = stmt.where(Task.parent_task_id.isnot(None))
         if top_level_only:
             stmt = stmt.where(Task.parent_task_id.is_(None))
+        if label_id is not None:
+            # Deferred import: `tasks` never depends on `labels` at module
+            # level (mirrors the `boards` deferred-import pattern, design.md
+            # C4) — `labels` is the module that depends on `tasks`.
+            from app.modules.labels.models import TaskLabel
+
+            stmt = stmt.join(TaskLabel, TaskLabel.task_id == Task.id).where(
+                TaskLabel.label_id == label_id
+            )
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)

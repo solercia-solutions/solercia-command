@@ -70,6 +70,7 @@ class TaskService:
         sprint_id: uuid.UUID | None = None,
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
+        label_id: uuid.UUID | None = None,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
@@ -84,6 +85,7 @@ class TaskService:
             sprint_id=sprint_id,
             status=status,
             assignee_id=assignee_id,
+            label_id=label_id,
             top_level_only=True,
             pagination=pagination,
         )

@@ -20,6 +20,7 @@ from app.modules.boards.router import router as boards_router
 from app.modules.comments.router import router as comments_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
+from app.modules.labels.router import router as labels_router
 from app.modules.menus.router import router as menus_admin_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.projects.router import router as projects_router
@@ -110,6 +111,7 @@ app.include_router(tasks_router, prefix=API_PREFIX)
 app.include_router(comments_router, prefix=API_PREFIX)
 app.include_router(attachments_router, prefix=API_PREFIX)
 app.include_router(sprints_router, prefix=API_PREFIX)
+app.include_router(labels_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 # Admin / RBAC management endpoints (require the ADMIN role).
 app.include_router(dependencies_admin_router, prefix=API_PREFIX)
