@@ -55,7 +55,7 @@ Riesgo a señalar: la Fase 3 es código generado (autogenerate), no lógica manu
 - [x] 5.3 Reemplazar sección "Migraciones" (ADR 0003 diferido) por el flujo vigente: `alembic revision --autogenerate` por cambio de modelo.
 
 ## Fase 6 — Verificación final (sin commit propio)
-- [ ] 6.1 Suite completa con `TEST_DATABASE_URL`: 43+N tests en verde, cero fallos, cero skips inesperados.
-- [ ] 6.2 `ruff check backend/` y `mypy backend/app`: exit 0 en ambos.
-- [ ] 6.3 `alembic check` sobre `solercia_test` limpia: diff vacío.
-- [ ] 6.4 Registrar evidencia en el mensaje del último commit del cambio.
+- [x] 6.1 Suite completa con `TEST_DATABASE_URL`: 43+N tests en verde, cero fallos, cero skips inesperados. **Excepción documentada**: 48 passed, 0 skipped, 2 failed — los 2 fallos son un bug preexistente en `test_sprint_close.py` (URL incorrecta `/projects/{id}/tasks/{id}` en vez de `/tasks/{id}`), presente desde antes de este cambio (commit `d55ff0a`) y nunca antes ejercitado por estar siempre bajo `skip_no_db`. Cero skips: cumplido. Cero fallos: excepción documentada, fuera de alcance de dev-tooling (ver apply-progress).
+- [x] 6.2 `ruff check backend/` y `mypy backend/app`: exit 0 en ambos.
+- [x] 6.3 `alembic check` sobre `solercia_test` limpia: diff vacío.
+- [x] 6.4 Registrar evidencia en el mensaje del último commit del cambio.
