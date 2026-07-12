@@ -13,7 +13,7 @@ from app.alerts.scheduler import start_scheduler, stop_scheduler
 from app.config import settings
 from app.database import engine
 from app.db_init import seed_default
-from app.email.scheduler import register_email_jobs
+from app.email.scheduler import register_delivery_jobs
 from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.assets.router import router as assets_router
@@ -37,6 +37,7 @@ from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
+from app.notify.dispatcher import has_active_durable_channel
 from app.realtime.router import router as realtime_router
 from app.reminders.scheduler import register_reminders_job
 from app.shared.exceptions import register_exception_handlers
@@ -99,15 +100,17 @@ async def lifespan(app: FastAPI):
             register_reminders_job(scheduler)
         except Exception:  # noqa: BLE001
             logger.exception("Failed to register the reminders job; continuing without it.")
-    # The email jobs are registered onto the SAME scheduler instance, gated by
-    # the master switch (design.md, "aditivo tras EMAIL_ENABLED"). Isolated
-    # try/except: a failure here never rolls back the alert/reminders jobs
-    # already registered (dependency direction: main -> email, never alerts -> email).
-    if scheduler is not None and settings.EMAIL_ENABLED:
+    # The delivery jobs are registered onto the SAME scheduler instance, gated
+    # by whether any durable channel is active (design.md D4, "sin flag
+    # nuevo" — today identical to EMAIL_ENABLED, the only durable channel).
+    # Isolated try/except: a failure here never rolls back the
+    # alert/reminders jobs already registered (dependency direction:
+    # main -> email, never alerts -> email).
+    if scheduler is not None and has_active_durable_channel():
         try:
-            register_email_jobs(scheduler)
+            register_delivery_jobs(scheduler)
         except Exception:  # noqa: BLE001
-            logger.exception("Failed to register the email jobs; continuing without them.")
+            logger.exception("Failed to register the delivery jobs; continuing without them.")
     yield
     try:
         stop_scheduler()

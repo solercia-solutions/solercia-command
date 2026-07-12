@@ -1,4 +1,5 @@
 """Notification repository — database access for Notification model."""
+import logging
 import uuid
 from collections.abc import Sequence
 
@@ -6,11 +7,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from app.email.outbox import enqueue_immediate_email
 from app.modules.notifications.models import Notification, NotificationPreference
-from app.realtime.publisher import buffer_notification
+from app.notify.ports import DeliveryPolicy
+from app.notify.registry import get_channels
 from app.shared.enums import DigestFrequency, NotificationStatus
 from app.shared.pagination import PaginationParams, paginate
+
+logger = logging.getLogger("solercia.notifications.repository")
 
 # Whitelist for ``?sort=`` on ``GET /notifications``. First entry is the
 # default order when pagination is requested without an explicit ``sort``.
@@ -101,23 +104,37 @@ class NotificationRepository:
     async def create(self, **kwargs) -> Notification:
         """Persist a notification — the single point where one is born.
 
-        Also buffers it for realtime push (``buffer_notification``) and, if
-        urgent, enqueues it for immediate email delivery in the SAME
-        transaction (``enqueue_immediate_email`` — change 08, design.md D2):
-        the evaluator and comment mentions both call this method directly
-        (the service layer has no ``create()`` of its own), so this is the
-        ONE place that needs to know about either channel. The realtime push
-        happens later, when the transaction owner drains the buffer with
-        ``flush_pending(db)`` right after ``commit()``; the email is drained
-        later still by the ``email_dispatch`` job (D3) — neither channel
-        blocks or can fail this write.
+        Fans out to EVERY channel registered in the hub (change
+        12-notification-hub, design.md D2/R2): the evaluator and comment
+        mentions both call this method directly (the service layer has no
+        ``create()`` of its own), so this is the ONE place that needs to
+        know about the channel registry. A ``durable`` channel's
+        ``enqueue(db, n)`` runs in the SAME transaction (e.g. email); a
+        ``best_effort`` channel's ``buffer(db, n)`` queues for a later,
+        external post-commit flush (e.g. realtime). A channel that raises
+        is logged and skipped — it MUST NOT break notification persistence
+        NOR any other channel's delivery (gate correction, R2 "aislamiento
+        de fallos").
         """
         notification = Notification(**kwargs)
         self.db.add(notification)
         await self.db.flush()
         await self.db.refresh(notification)
-        buffer_notification(self.db, notification)
-        await enqueue_immediate_email(self.db, notification)
+
+        for channel in get_channels():
+            try:
+                if channel.policy == DeliveryPolicy.durable:
+                    await channel.enqueue(self.db, notification)  # type: ignore[attr-defined]
+                else:
+                    channel.buffer(self.db, notification)  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001 - one channel's failure must never break create() or the others
+                logger.exception(
+                    "Canal de entrega %s falló durante el fan-out de la "
+                    "notificación %s.",
+                    channel.name,
+                    notification.id,
+                )
+
         return notification
 
 

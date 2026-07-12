@@ -2,13 +2,20 @@
 
 Frontera de imports: this module — like every other module under
 ``app/email/`` — may import ``app.modules.notifications.models`` but NEVER
-``app.modules.notifications.repository`` (the repository is the caller of
-``app.email.outbox``, importing it back here would close a cycle).
+``app.modules.notifications.repository`` (the repository is the caller that
+reaches ``app.email`` through the hub's channel registry, importing it back
+here would close a cycle).
 
 Double idempotency (D4/R6): (1) a period gate (``_digest_due``) skips a
 preference already digested for the current day/week; (2) even if that gate
 were somehow bypassed, the ``emailed_at IS NULL`` filter finds nothing to
-resend, and the outbox ``dedup_key`` is UNIQUE per ``(user_id, period)``.
+resend, and the delivery ``dedup_key`` is UNIQUE per ``(user_id, period)``.
+
+Digest attribution (change 12, design.md D6, "opción (b)"): the delivery row
+this job enqueues keeps ``notification_id=NULL`` (it aggregates several
+notifications, not one) — ``emailed_at`` on each individual notification is
+the per-notification marker the ``GET /{id}/deliveries`` endpoint reads to
+derive ``digested=true``.
 """
 
 import logging
@@ -19,11 +26,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.email.models import EmailOutbox
 from app.email.templates import render_digest
 from app.modules.notifications.models import Notification, NotificationPreference
 from app.modules.users.models import User
-from app.shared.enums import DigestFrequency, EmailOutboxStatus, NotificationStatus
+from app.notify.store import enqueue_delivery
+from app.shared.enums import DigestFrequency, NotificationStatus
 
 logger = logging.getLogger("solercia.email.digest")
 
@@ -112,17 +119,18 @@ async def dispatch_digest(db: AsyncSession) -> int:
         subject, text_body, html_body = render_digest(recipient, notifications)
         period = _period_key(pref, now_local)
 
-        db.add(
-            EmailOutbox(
-                organization_id=pref.organization_id,
-                notification_id=None,
-                recipient_email=recipient.email,
-                subject=subject,
-                text_body=text_body,
-                html_body=html_body,
-                dedup_key=f"digest:{pref.user_id}:{period}",
-                status=EmailOutboxStatus.pending,
-            )
+        await enqueue_delivery(
+            db,
+            channel="email",
+            notification_id=None,
+            organization_id=pref.organization_id,
+            dedup_key=f"digest:{pref.user_id}:{period}",
+            payload={
+                "recipient_email": recipient.email,
+                "subject": subject,
+                "text_body": text_body,
+                "html_body": html_body,
+            },
         )
         for notification in notifications:
             notification.emailed_at = now_utc

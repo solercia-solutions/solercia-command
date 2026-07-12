@@ -1,14 +1,18 @@
-"""Tests for the ``email_digest`` job (change 08, Fase C).
+"""Tests for the ``email_digest`` job (change 08, Fase C; adapted for change
+12-notification-hub, Fase 2 — the digest now enqueues via the hub's store
+port (``app.notify.store.enqueue_delivery``) onto ``notification_deliveries``
+instead of instantiating ``EmailOutbox`` directly, with NO change to the
+emailed_at/idempotency/dedup_key assertions below).
 
 R4 Preferencia de digest por usuario · R5 Alcance y marcado del digest · R6
 Idempotencia del envío · R8 Aislamiento multi-tenant · R9 Plantillas en
 español colombiano formal (specs/email-notifications/spec.md).
 
-Every test invokes ``dispatch_digest``/``dispatch_outbox`` directly — never
-waits for the scheduler (pattern of ``test_reminder_dispatch.py``). Digest
-preferences are seeded with ``digest_hour=0`` and ``last_digest_at=None`` so
-the "hour reached" gate is always satisfied regardless of wall-clock time
-when the suite runs.
+Every test invokes ``dispatch_digest``/``dispatch_deliveries`` directly —
+never waits for the scheduler (pattern of ``test_reminder_dispatch.py``).
+Digest preferences are seeded with ``digest_hour=0`` and
+``last_digest_at=None`` so the "hour reached" gate is always satisfied
+regardless of wall-clock time when the suite runs.
 """
 
 import logging
@@ -96,8 +100,8 @@ async def test_digest_groups_unread_notifications_and_marks_emailed_at(
     session: AsyncSession, tenant: Organization, user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.email.digest import dispatch_digest
-    from app.email.models import EmailOutbox
     from app.modules.notifications.models import Notification, NotificationPreference
+    from app.notify.models import NotificationDelivery
 
     owner, _ = user
     pref = await _seed_preference(session, tenant, owner.id, frequency="daily", hour=0)
@@ -115,14 +119,16 @@ async def test_digest_groups_unread_notifications_and_marks_emailed_at(
     assert dispatched == 1
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.organization_id == tenant.id)
+        select(NotificationDelivery).where(NotificationDelivery.organization_id == tenant.id)
     )
     outbox_row = result.scalar_one()
-    assert outbox_row.recipient_email == owner.email
+    assert outbox_row.channel == "email"
+    assert outbox_row.notification_id is None
+    assert outbox_row.payload["recipient_email"] == owner.email
     assert outbox_row.dedup_key.startswith(f"digest:{owner.id}:")
     for notif in (n1, n2, n3):
-        assert notif.title in outbox_row.text_body
-        assert notif.body in outbox_row.text_body
+        assert notif.title in outbox_row.payload["text_body"]
+        assert notif.body in outbox_row.payload["text_body"]
 
     for notif_id in (n1.id, n2.id, n3.id):
         refreshed = (
@@ -155,8 +161,8 @@ async def test_digest_rerun_after_marking_finds_nothing_to_send(
     from sqlalchemy import update
 
     from app.email.digest import dispatch_digest
-    from app.email.models import EmailOutbox
     from app.modules.notifications.models import NotificationPreference
+    from app.notify.models import NotificationDelivery
 
     owner, _ = user
     await _seed_preference(session, tenant, owner.id, frequency="daily", hour=0)
@@ -179,7 +185,7 @@ async def test_digest_rerun_after_marking_finds_nothing_to_send(
     assert second == 0
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.organization_id == tenant.id)
+        select(NotificationDelivery).where(NotificationDelivery.organization_id == tenant.id)
     )
     rows = result.scalars().all()
     assert len(rows) == 1  # still exactly the one row from the first run
@@ -196,7 +202,7 @@ async def test_none_preference_never_generates_a_digest(
     session: AsyncSession, tenant: Organization, user
 ) -> None:
     from app.email.digest import dispatch_digest
-    from app.email.models import EmailOutbox
+    from app.notify.models import NotificationDelivery
 
     owner, _ = user
     await _seed_preference(session, tenant, owner.id, frequency="none")
@@ -208,7 +214,7 @@ async def test_none_preference_never_generates_a_digest(
     assert dispatched == 0
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.organization_id == tenant.id)
+        select(NotificationDelivery).where(NotificationDelivery.organization_id == tenant.id)
     )
     assert result.scalar_one_or_none() is None
 
@@ -224,7 +230,7 @@ async def test_digest_isolated_between_two_organizations(
     session: AsyncSession, two_orgs: TwoOrgs
 ) -> None:
     from app.email.digest import dispatch_digest
-    from app.email.models import EmailOutbox
+    from app.notify.models import NotificationDelivery
 
     await _seed_preference(session, two_orgs.a.organization, two_orgs.a.user.id, hour=0)
     await _seed_preference(session, two_orgs.b.organization, two_orgs.b.user.id, hour=0)
@@ -247,14 +253,14 @@ async def test_digest_isolated_between_two_organizations(
     dispatched = await dispatch_digest(session)
     assert dispatched == 2
 
-    result = await session.execute(select(EmailOutbox))
+    result = await session.execute(select(NotificationDelivery))
     rows = {row.organization_id: row for row in result.scalars().all()}
 
-    assert "Solo de Org A" in rows[two_orgs.a.organization.id].text_body
-    assert "Solo de Org B" not in rows[two_orgs.a.organization.id].text_body
+    assert "Solo de Org A" in rows[two_orgs.a.organization.id].payload["text_body"]
+    assert "Solo de Org B" not in rows[two_orgs.a.organization.id].payload["text_body"]
 
-    assert "Solo de Org B" in rows[two_orgs.b.organization.id].text_body
-    assert "Solo de Org A" not in rows[two_orgs.b.organization.id].text_body
+    assert "Solo de Org B" in rows[two_orgs.b.organization.id].payload["text_body"]
+    assert "Solo de Org A" not in rows[two_orgs.b.organization.id].payload["text_body"]
 
 
 # ---------------------------------------------------------------------------
@@ -274,8 +280,8 @@ async def test_digest_outbox_exhausted_retries_notifications_stay_visible(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     from app.email.digest import dispatch_digest
-    from app.email.models import EmailOutbox
-    from app.email.outbox import dispatch_outbox
+    from app.notify.dispatcher import dispatch_deliveries
+    from app.notify.models import NotificationDelivery
     from app.shared.enums import EmailOutboxStatus
 
     owner, token = user
@@ -290,11 +296,11 @@ async def test_digest_outbox_exhausted_retries_notifications_stay_visible(
     monkeypatch.setattr(settings, "EMAIL_MAX_ATTEMPTS", 1)
     monkeypatch.setattr("app.email.outbox.get_email_sender", lambda: _FailingSender())
 
-    with caplog.at_level(logging.ERROR, logger="solercia.email.outbox"):
-        await dispatch_outbox(session)
+    with caplog.at_level(logging.ERROR, logger="solercia.notify.dispatcher"):
+        await dispatch_deliveries(session)
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.organization_id == tenant.id)
+        select(NotificationDelivery).where(NotificationDelivery.organization_id == tenant.id)
     )
     outbox_row = result.scalar_one()
     assert outbox_row.status == EmailOutboxStatus.failed

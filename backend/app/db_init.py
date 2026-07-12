@@ -1,7 +1,14 @@
 """Database bootstrap: schema creation and default seed data.
 
 Importing this module pulls in every ORM model so ``Base.metadata`` is fully
-populated before ``create_all`` runs (also used by Alembic's env).
+populated before ``create_all`` runs (also used by Alembic's env). It also
+pulls in every delivery channel adapter (``app.email.outbox``,
+``app.realtime.publisher``) so each registers itself in the hub's channel
+registry (change 12-notification-hub, design.md D1/D6) — this is the ONE
+guaranteed bootstrap point (used by ``app.main``'s lifespan, Alembic's
+``env.py`` AND the test suite's session-scoped ``engine`` fixture), so
+``NotificationRepository.create()``'s fan-out never runs against an empty
+registry regardless of which entry point imports it first.
 """
 
 import logging
@@ -13,10 +20,12 @@ from decimal import Decimal
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Import every channel adapter so it registers itself in the hub (change 12).
+import app.email.outbox  # noqa: F401,E402
+import app.realtime.publisher  # noqa: F401,E402
 from app.database import AsyncSessionLocal, Base, engine
 
 # Import ALL models so they register on the shared metadata.
-from app.email.models import EmailOutbox  # noqa: F401
 from app.methodology.factory import get_strategy
 from app.modules.activity.models import TaskHistory  # noqa: F401
 from app.modules.alert_rules.models import AlertRule  # noqa: F401

@@ -4,8 +4,14 @@ Registers its own job(s) onto the SAME ``AsyncIOScheduler`` instance returned
 by ``app.alerts.scheduler.start_scheduler()``: one scheduler loop, isolated
 jobs. Each job opens its own DB session and swallows its own exceptions — an
 email failure never takes down the alert/reminder jobs or vice-versa.
-Dependency direction is ``main -> email``, NEVER ``alerts -> email`` (D3, gate
-correction — ``email_dispatch`` is the ONLY outbox dispatcher in the system).
+Dependency direction is ``main -> email``, NEVER ``alerts -> email``.
+
+``delivery_dispatch`` (renamed from ``email_dispatch``, change 12,
+design.md D3/D4) drains ``notification_deliveries`` across EVERY registered
+``durable`` channel via the GENERIC dispatcher
+(``app.notify.dispatcher.dispatch_deliveries``) — it is the ONLY dispatcher
+job in the system, no longer email-only. ``email_digest`` stays a
+dedicated email-domain job (D4, "sigue siendo job de dominio email").
 """
 
 import logging
@@ -16,19 +22,19 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.email.digest import dispatch_digest
-from app.email.outbox import dispatch_outbox
+from app.notify.dispatcher import dispatch_deliveries
 
 logger = logging.getLogger("solercia.email.scheduler")
 
 
 async def _run_dispatch() -> None:
-    """Scheduler job wrapper: opens its own DB session and drains the outbox."""
+    """Scheduler job wrapper: opens its own DB session and drains deliveries."""
     async with AsyncSessionLocal() as db:
         try:
-            total = await dispatch_outbox(db)
-            logger.info("Scheduled email dispatch complete: %d row(s) processed.", total)
+            total = await dispatch_deliveries(db)
+            logger.info("Scheduled delivery dispatch complete: %d row(s) processed.", total)
         except Exception:  # noqa: BLE001
-            logger.exception("Scheduled email dispatch failed.")
+            logger.exception("Scheduled delivery dispatch failed.")
 
 
 async def _run_digest() -> None:
@@ -46,18 +52,18 @@ async def _run_digest() -> None:
             logger.exception("Scheduled email digest failed.")
 
 
-def register_email_jobs(scheduler: AsyncIOScheduler) -> None:
-    """Register the ``email_dispatch`` and ``email_digest`` jobs onto an
+def register_delivery_jobs(scheduler: AsyncIOScheduler) -> None:
+    """Register the ``delivery_dispatch`` and ``email_digest`` jobs onto an
     already-running scheduler."""
     dispatch_interval: int = getattr(settings, "EMAIL_DISPATCH_INTERVAL_MINUTES", 5)
     scheduler.add_job(
         _run_dispatch,
         trigger=IntervalTrigger(minutes=dispatch_interval),
-        id="email_dispatch",
-        name="Email Outbox Dispatch",
+        id="delivery_dispatch",
+        name="Notification Delivery Dispatch",
         replace_existing=True,
     )
-    logger.info("Email dispatch job registered (interval: %smin).", dispatch_interval)
+    logger.info("Delivery dispatch job registered (interval: %smin).", dispatch_interval)
 
     digest_interval: int = getattr(settings, "EMAIL_DIGEST_INTERVAL_MINUTES", 15)
     scheduler.add_job(

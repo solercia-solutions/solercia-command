@@ -1,5 +1,8 @@
-"""Tests for the email outbox hook at ``NotificationRepository.create()``
-(change 08, Fase B).
+"""Tests for the email delivery hook at ``NotificationRepository.create()``
+(change 08, Fase B; adapted for change 12-notification-hub, Fase 2 — the
+email channel now runs through the hub's fan-out onto
+``notification_deliveries`` instead of a hardcoded call onto a dedicated
+``email_outbox`` table, with NO change to the assertions below).
 
 R2 Interruptor maestro `EMAIL_ENABLED` · R3 Envío inmediato de tipos urgentes ·
 R5 Alcance y marcado del digest · R10 Encolado de entrega email en la
@@ -25,11 +28,12 @@ from tests.conftest import skip_no_db
 async def test_urgent_notification_enqueues_outbox_row_and_marks_emailed_at(
     session: AsyncSession, tenant: Organization, user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """license_expired -> a pending email_outbox row + notification.emailed_at,
-    both written in the SAME transaction as the notification itself."""
+    """license_expired -> a pending notification_deliveries row (channel
+    "email") + notification.emailed_at, both written in the SAME
+    transaction as the notification itself."""
 
-    from app.email.models import EmailOutbox
     from app.modules.notifications.repository import NotificationRepository
+    from app.notify.models import NotificationDelivery
     from app.shared.enums import EmailOutboxStatus
 
     monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
@@ -48,15 +52,18 @@ async def test_urgent_notification_enqueues_outbox_row_and_marks_emailed_at(
     assert notification.emailed_at is not None
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.notification_id == notification.id)
+        select(NotificationDelivery).where(
+            NotificationDelivery.notification_id == notification.id
+        )
     )
     outbox_row = result.scalar_one()
+    assert outbox_row.channel == "email"
     assert outbox_row.status == EmailOutboxStatus.pending
-    assert outbox_row.recipient_email == owner.email
+    assert outbox_row.payload["recipient_email"] == owner.email
     assert outbox_row.dedup_key == f"immediate:{notification.id}"
     assert outbox_row.organization_id == tenant.id
-    assert outbox_row.subject
-    assert notification.body in outbox_row.text_body
+    assert outbox_row.payload["subject"]
+    assert notification.body in outbox_row.payload["text_body"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -67,8 +74,8 @@ async def test_two_urgent_notifications_get_two_distinct_outbox_rows(
     """Triangulation: a SECOND urgent notification enqueues a SECOND row with a
     DIFFERENT dedup_key — proves the key is derived per-notification, not hardcoded."""
 
-    from app.email.models import EmailOutbox
     from app.modules.notifications.repository import NotificationRepository
+    from app.notify.models import NotificationDelivery
 
     monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
 
@@ -92,8 +99,8 @@ async def test_two_urgent_notifications_get_two_distinct_outbox_rows(
     )
 
     result = await session.execute(
-        select(EmailOutbox.dedup_key).where(
-            EmailOutbox.notification_id.in_([first.id, second.id])
+        select(NotificationDelivery.dedup_key).where(
+            NotificationDelivery.notification_id.in_([first.id, second.id])
         )
     )
     dedup_keys = {row[0] for row in result.all()}
@@ -108,8 +115,8 @@ async def test_non_urgent_notification_does_not_enqueue_outbox_row(
     """A non-urgent rule_type (e.g. task_overdue) waits for the digest: no
     outbox row, emailed_at stays NULL."""
 
-    from app.email.models import EmailOutbox
     from app.modules.notifications.repository import NotificationRepository
+    from app.notify.models import NotificationDelivery
 
     monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
 
@@ -127,7 +134,9 @@ async def test_non_urgent_notification_does_not_enqueue_outbox_row(
     assert notification.emailed_at is None
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.notification_id == notification.id)
+        select(NotificationDelivery).where(
+            NotificationDelivery.notification_id == notification.id
+        )
     )
     assert result.scalar_one_or_none() is None
 
@@ -140,8 +149,8 @@ async def test_email_disabled_urgent_notification_persists_without_outbox_row(
     """EMAIL_ENABLED=false: the notification still persists normally, but the
     interruptor maestro prevents any outbox row or emailed_at mark."""
 
-    from app.email.models import EmailOutbox
     from app.modules.notifications.repository import NotificationRepository
+    from app.notify.models import NotificationDelivery
 
     monkeypatch.setattr(settings, "EMAIL_ENABLED", False)
 
@@ -159,6 +168,8 @@ async def test_email_disabled_urgent_notification_persists_without_outbox_row(
     assert notification.emailed_at is None
 
     result = await session.execute(
-        select(EmailOutbox).where(EmailOutbox.notification_id == notification.id)
+        select(NotificationDelivery).where(
+            NotificationDelivery.notification_id == notification.id
+        )
     )
     assert result.scalar_one_or_none() is None
