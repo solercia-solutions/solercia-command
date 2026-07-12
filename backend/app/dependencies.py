@@ -34,13 +34,17 @@ def _extract_bearer_token(request: Request) -> str:
     return header.split(" ", 1)[1].strip()
 
 
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Resolve the authenticated user from the bearer (access) token."""
+async def authenticate_access_token(db: AsyncSession, token: str) -> User:
+    """Decode ``token`` and resolve the active user it names.
 
-    token = _extract_bearer_token(request)
+    Extracted from :func:`get_current_user` so the realtime WS handshake
+    (``app/realtime/router.py``) can reuse the EXACT same validation and
+    error codes as REST — raises the same ``AppException`` REST relies on
+    (``invalid_token`` for a malformed/expired/wrong-type token or an
+    unparsable subject; ``user_not_found`` for a subject that does not
+    resolve to an active user), never ``None`` (a nullable return would
+    collapse codes that REST callers distinguish).
+    """
 
     try:
         payload = decode_token(token, expected_type=ACCESS_TOKEN_TYPE)
@@ -77,6 +81,16 @@ async def get_current_user(
             status_code=401,
         )
     return user
+
+
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Resolve the authenticated user from the bearer (access) token."""
+
+    token = _extract_bearer_token(request)
+    return await authenticate_access_token(db, token)
 
 
 async def get_actor_id(request: Request) -> uuid.UUID | None:

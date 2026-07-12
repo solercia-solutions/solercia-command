@@ -38,11 +38,11 @@ Apply de 09 corre al final de la serialización vigente (orden 11→10→06→09
 
 ## Fase B — Auth WS + router (Commit 2)
 
-- [ ] B1 RED `backend/tests/test_realtime_ws_auth.py`: token válido→accept+`connection.ack` primer mensaje (`v=1`); token ausente/inválido/expirado/usuario inactivo→close ANTES de accept (sin upgrade). Todo fallando.
-- [ ] B2 GREEN `backend/app/dependencies.py`: extraer `authenticate_access_token(db, token) -> User` con la misma lógica/`AppException` (`invalid_token`/`user_not_found`) hoy inline en `get_current_user`; `get_current_user` delega sin cambiar código ni mensaje.
-- [ ] B3 GREEN `backend/app/realtime/router.py`: `@router.websocket("/ws/notifications")`; token de `Sec-WebSocket-Protocol` (`"bearer, <token>"`) o `?token=` fallback; `AppException`→`close()` antes de `accept()`; válido→`accept(subprotocol="bearer")`→`connection.ack`→`manager.register`. Org = primera membresía (igual que REST).
-- [ ] B4 GREEN Heartbeat en `router.py`: `ping` cada `WS_HEARTBEAT_SECONDS`; sin `pong` en `WS_IDLE_TIMEOUT_SECONDS`→close; `finally: manager.unregister(...)`.
-- [ ] B5 VERIFY `pytest tests/test_realtime_ws_auth.py tests/test_auth.py -v` — sin regresión REST.
+- [x] B1 RED `backend/tests/test_realtime_ws_auth.py`: token válido→accept+`connection.ack` primer mensaje (`v=1`); token ausente/inválido/expirado/usuario inactivo→close ANTES de accept (sin upgrade). Todo fallando.
+- [x] B2 GREEN `backend/app/dependencies.py`: extraer `authenticate_access_token(db, token) -> User` con la misma lógica/`AppException` (`invalid_token`/`user_not_found`) hoy inline en `get_current_user`; `get_current_user` delega sin cambiar código ni mensaje.
+- [x] B3 GREEN `backend/app/realtime/router.py`: `@router.websocket("/ws/notifications")`; token de `Sec-WebSocket-Protocol` (`"bearer, <token>"`) o `?token=` fallback; `AppException`→`close()` antes de `accept()`; válido→`accept(subprotocol="bearer")`→`connection.ack`→`manager.register`. Org = primera membresía (igual que REST).
+- [x] B4 GREEN Heartbeat en `router.py`: `ping` cada `WS_HEARTBEAT_SECONDS`; sin `pong` en `WS_IDLE_TIMEOUT_SECONDS`→close; `finally: manager.unregister(...)`.
+- [x] B5 VERIFY `pytest tests/test_realtime_ws_auth.py tests/test_auth.py -v` — sin regresión REST.
 
 ## Fase C — Integración push (Commit 3)
 

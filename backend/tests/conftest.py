@@ -25,7 +25,7 @@ from dataclasses import dataclass
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -265,6 +265,64 @@ def rbac_admin():
         await session.flush()
 
     return _rbac_admin
+
+
+@pytest_asyncio.fixture
+async def real_org_user(engine: AsyncEngine):
+    """A REALLY committed ``(organization, user, token)`` triple.
+
+    For tests that drive the app through Starlette's ``TestClient``
+    (``tests/test_realtime_ws_auth.py``, ``tests/test_realtime_push.py``):
+    that client runs the ASGI app on its OWN portal/event loop, never the
+    pytest-asyncio loop the SAVEPOINT ``session``/``user`` fixtures are bound
+    to (design.md gotcha — "NO mezclar con la fixture async SAVEPOINT"). Data
+    must be committed for real so a connection on a different loop can see
+    it, and cleaned up explicitly since there is no outer rollback here.
+    Reuses the shared ``engine`` fixture (``NullPool``): safe across loops,
+    per its own docstring.
+    """
+
+    from app.modules.organizations.models import Organization, OrganizationMember
+    from app.modules.users.models import User
+    from app.shared.enums import MemberRole
+    from app.shared.security import create_access_token, hash_password
+
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        organization = Organization(
+            name="Realtime Org", slug=f"rt-org-{uuid.uuid4().hex[:12]}"
+        )
+        db.add(organization)
+        await db.flush()
+
+        new_user = User(
+            email=f"rt-{uuid.uuid4().hex[:12]}@example.com",
+            primer_nombre="Realtime",
+            primer_apellido="User",
+            hashed_password=hash_password("Test123*"),
+        )
+        db.add(new_user)
+        await db.flush()
+
+        db.add(
+            OrganizationMember(
+                organization_id=organization.id,
+                user_id=new_user.id,
+                role=MemberRole.member,
+            )
+        )
+        await db.commit()
+
+        token = create_access_token(str(new_user.id))
+        try:
+            yield organization, new_user, token
+        finally:
+            # ondelete=CASCADE on OrganizationMember.user_id/organization_id
+            # takes care of the membership row for both deletes below.
+            await db.execute(delete(User).where(User.id == new_user.id))
+            await db.execute(
+                delete(Organization).where(Organization.id == organization.id)
+            )
+            await db.commit()
 
 
 @dataclass
