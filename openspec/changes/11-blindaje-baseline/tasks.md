@@ -70,11 +70,11 @@ Nota: `Chained PRs recommended: No` se refiere a la ausencia de cadena de Pull R
 
 ## Lote E — notifications-inapp + dashboard-executive (Commit 5)
 
-- [ ] T27 RED `backend/tests/test_notifications_inapp.py`: R1 `GET /notifications` solo trae las del usuario; R2 dedup — `dedup_key` activo no se duplica al reintentar el mismo candidato; R3 `unread-count` solo cuenta `active`; R4 `PATCH /notifications/{id}` cambia `status` (read/resolved/silenced) sin borrado, `unread-count` baja. + aislamiento (`two_orgs`). (rojo: aserción invertida)
-- [ ] T28 VERIFY `pytest tests/test_notifications_inapp.py -v` → verde.
-- [ ] T29 RED `backend/tests/test_dashboard_executive.py`: R1 `by_assignee` agrupa tareas en curso por persona; R2 `at_risk` incluye `risk_flag`/próximas a vencer; R3 `workload`+`projects_progress`+totales; R4 `GET /dashboard/performance` con `sprint_id` opcional. Matriz de permisos: los 4 `MemberRole` reciben 2xx (sin gate de rol). + aislamiento (`two_orgs`). `work_gap` YA cubierto por `test_dashboard_work_gap.py` (cambio 05) — no se duplica. (rojo: aserción invertida)
-- [ ] T30 VERIFY `pytest tests/test_dashboard_executive.py -v` → verde.
-- [ ] T31 VERIFY checkpoint final — `cd backend && pytest tests/ -v` (258+~100-110 nuevos) verde, `ruff check .`, `mypy app` limpios en toda la suite; sin regresiones en las 258 suites previas. Commit `test(baseline): blindar notifications-inapp, dashboard-executive y cierre del blindaje 11`.
+- [x] T27 RED `backend/tests/test_notifications_inapp.py`: R1 `GET /notifications` solo trae las del usuario; R2 dedup — `dedup_key` activo no se duplica al reintentar el mismo candidato; R3 `unread-count` solo cuenta `active`; R4 `PATCH /notifications/{id}` cambia `status` (read/resolved/silenced) sin borrado, `unread-count` baja. + aislamiento (`two_orgs`). (rojo: aserción invertida)
+- [x] T28 VERIFY `pytest tests/test_notifications_inapp.py -v` → verde.
+- [x] T29 RED `backend/tests/test_dashboard_executive.py`: R1 `by_assignee` agrupa tareas en curso por persona; R2 `at_risk` incluye `risk_flag`/próximas a vencer; R3 `workload`+`projects_progress`+totales; R4 `GET /dashboard/performance` con `sprint_id` opcional. Matriz de permisos: los 4 `MemberRole` reciben 2xx (sin gate de rol). + aislamiento (`two_orgs`). `work_gap` YA cubierto por `test_dashboard_work_gap.py` (cambio 05) — no se duplica. (rojo: aserción invertida)
+- [x] T30 VERIFY `pytest tests/test_dashboard_executive.py -v` → verde.
+- [x] T31 VERIFY checkpoint final — `cd backend && pytest tests/ -v` (258+~100-110 nuevos) verde, `ruff check .`, `mypy app` limpios en toda la suite; sin regresiones en las 258 suites previas. Commit `test(baseline): blindar notifications-inapp, dashboard-executive y cierre del blindaje 11`. — Resultado real: 364 tests (258+106 nuevos), 2 corridas consecutivas estables, ruff/mypy limpios.
 
 ## Trazabilidad de requisitos
 
