@@ -10,7 +10,7 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
+  verify: done
   archive: pending
 artifacts:
   proposal: true
@@ -42,3 +42,16 @@ apply_summary:
       tests_added: 7
   ruff: clean
   mypy: clean
+verify_summary:
+  verdict: PASS
+  tasks_complete: 21/21
+  tests: 414/414
+  requirements: 8/8
+  scenarios: 17/17
+  ruff: clean
+  mypy: clean
+  alembic_check: no diff
+  critical: 0
+  warning: 0
+  suggestion: 3
+  next_recommended: sdd-archive
