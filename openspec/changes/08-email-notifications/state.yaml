@@ -1,0 +1,29 @@
+change: 08-email-notifications
+artifact_store: hybrid
+depends_on:
+  - 02-contrato-api
+  - 07-assets-sdmujer
+  - 09-websocket-realtime
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: false
+  design: false
+  tasks: true
+capabilities:
+  new:
+    - email-notifications
+  modified:
+    - notifications-inapp
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+last_updated: 2026-07-12
