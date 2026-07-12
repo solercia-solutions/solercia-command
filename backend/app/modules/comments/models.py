@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import JSON, ForeignKey, Text, Uuid
+from sqlalchemy import JSON, ForeignKey, Index, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -19,6 +19,16 @@ class TaskComment(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMi
     """A comment posted on a task, with optional @-mention tracking."""
 
     __tablename__ = "task_comments"
+    __table_args__ = (
+        # Trigram GIN index backing GET /search (change 10-busqueda-global,
+        # design.md "Índices GIN"); accelerates ILIKE '%q%' + similarity().
+        Index(
+            "ix_task_comments_body_trgm",
+            "body",
+            postgresql_using="gin",
+            postgresql_ops={"body": "gin_trgm_ops"},
+        ),
+    )
 
     task_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

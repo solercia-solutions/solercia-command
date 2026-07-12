@@ -16,6 +16,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -39,6 +40,22 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """A work item belonging to a project, optionally tied to a sprint."""
 
     __tablename__ = "tasks"
+    __table_args__ = (
+        # Trigram GIN indexes backing GET /search (change 10-busqueda-global,
+        # design.md "Índices GIN"); accelerate ILIKE '%q%' + similarity().
+        Index(
+            "ix_tasks_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_tasks_description_trgm",
+            "description",
+            postgresql_using="gin",
+            postgresql_ops={"description": "gin_trgm_ops"},
+        ),
+    )
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

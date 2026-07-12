@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Integer, String, Text, UniqueConstraint
+from sqlalchemy import Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -24,6 +24,20 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
     __table_args__ = (
         # Each organization uses unique project codes (e.g. "SDM", "PLT").
         UniqueConstraint("organization_id", "code", name="uq_project_code_per_org"),
+        # Trigram GIN indexes backing GET /search (change 10-busqueda-global,
+        # design.md "Índices GIN"); accelerate ILIKE '%q%' + similarity().
+        Index(
+            "ix_projects_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_projects_description_trgm",
+            "description",
+            postgresql_using="gin",
+            postgresql_ops={"description": "gin_trgm_ops"},
+        ),
     )
 
     name: Mapped[str] = mapped_column(String(160), nullable=False)

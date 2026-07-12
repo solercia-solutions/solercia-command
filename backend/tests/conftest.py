@@ -25,6 +25,7 @@ from dataclasses import dataclass
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -71,6 +72,11 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
         TEST_DATABASE_URL, poolclass=NullPool, future=True
     )
     async with test_engine.begin() as conn:
+        # Required before create_all: the ORM models declare GIN indexes with
+        # the `gin_trgm_ops` opclass (change 10-busqueda-global, design.md
+        # Decision 2) — without the extension, create_all fails building
+        # those indexes and `similarity()` is unavailable to tests.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield test_engine
