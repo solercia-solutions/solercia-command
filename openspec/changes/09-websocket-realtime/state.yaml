@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -25,3 +25,11 @@ constraints:
   - frontend-frozen
   - strict-tdd
 last_updated: 2026-07-12
+apply_summary:
+  tasks_done: 18/18
+  suite: 466 passed (450 pre-existing + 12 requiring TEST_AUTH_TOKEN + 4 new push)
+  new_tests: 15 (Fase A) + 8 (Fase B) + 4 (Fase C) = 27
+  commits:
+    - "feat(realtime): agrega ConnectionManager y publisher del canal WebSocket"
+    - "feat(realtime): agrega handshake autenticado y router WebSocket"
+    - "feat(realtime): conecta creación de notificaciones al push WebSocket"
