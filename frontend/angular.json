@@ -67,29 +67,6 @@
           "defaultConfiguration": "development"
         }
       }
-    },
-    "boki-ui": {
-      "projectType": "library",
-      "root": "projects/boki-ui",
-      "sourceRoot": "projects/boki-ui/src",
-      "prefix": "bk",
-      "architect": {
-        "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
-          "options": {
-            "project": "projects/boki-ui/ng-package.json"
-          },
-          "configurations": {
-            "production": {
-              "tsConfig": "projects/boki-ui/tsconfig.lib.prod.json"
-            },
-            "development": {
-              "tsConfig": "projects/boki-ui/tsconfig.lib.json"
-            }
-          },
-          "defaultConfiguration": "production"
-        }
-      }
     }
   }
 }

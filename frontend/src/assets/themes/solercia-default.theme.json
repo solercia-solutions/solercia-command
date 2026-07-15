@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "tenant": "solercia-pm"
+  },
+  "primitives": {
+    "color": {
+      "indigo": {
+        "400": "#818CF8",
+        "500": "#6366F1",
+        "600": "#4F46E5",
+        "700": "#4338CA"
+      },
+      "violet": {
+        "400": "#A78BFA",
+        "600": "#7C3AED"
+      },
+      "amber": {
+        "400": "#FBBF24",
+        "500": "#F59E0B",
+        "600": "#D97706"
+      },
+      "emerald": {
+        "400": "#34D399",
+        "500": "#0E9F6E"
+      },
+      "red": {
+        "400": "#F87171",
+        "500": "#E02424"
+      },
+      "blue": {
+        "400": "#60A5FA",
+        "600": "#2563EB"
+      },
+      "slate": {
+        "50": "#F4F6FB",
+        "100": "#E6EBF4",
+        "200": "#E5E9F2",
+        "300": "#93A1B8",
+        "400": "#8A99B3",
+        "500": "#647189",
+        "700": "#25304A",
+        "800": "#131A2B",
+        "900": "#0A0F1C"
+      },
+      "white": "#FFFFFF"
+    },
+    "font": {
+      "family": {
+        "sans": "'Inter', system-ui, -apple-system, sans-serif",
+        "mono": "'JetBrains Mono', ui-monospace, monospace",
+        "display": "'Manrope', 'Inter', system-ui, sans-serif"
+      },
+      "size": {
+        "sm": "12px",
+        "base": "14px",
+        "lg": "16px",
+        "xl": "20px"
+      },
+      "weight": {
+        "normal": 400,
+        "bold": 600
+      },
+      "lineHeight": {
+        "base": "1.5"
+      }
+    },
+    "radius": {
+      "sm": "8px",
+      "md": "10px",
+      "lg": "14px",
+      "full": "9999px"
+    },
+    "space": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px"
+    },
+    "size": {
+      "control": {
+        "sm": "32px",
+        "md": "36px",
+        "lg": "40px"
+      }
+    },
+    "z": {
+      "1000": 1000,
+      "1050": 1050,
+      "1100": 1100
+    },
+    "borderWidth": {
+      "thin": "1px"
+    }
+  },
+  "modes": {
+    "light": {
+      "semantic": {
+        "color": {
+          "primary": "{color.indigo.600}",
+          "secondary": "{color.violet.600}",
+          "accent": "{color.amber.500}",
+          "success": "{color.emerald.500}",
+          "warning": "{color.amber.600}",
+          "danger": "{color.red.500}",
+          "info": "{color.blue.600}"
+        },
+        "text": {
+          "primary": "{color.slate.900}",
+          "secondary": "{color.slate.500}",
+          "muted": "{color.slate.400}"
+        },
+        "surface": {
+          "page": "{color.slate.50}",
+          "surface": "{color.white}",
+          "overlay": "rgba(10, 15, 28, 0.5)"
+        },
+        "border": {
+          "color": "{color.slate.200}",
+          "width": "{borderWidth.thin}"
+        },
+        "layer": {
+          "dropdown": "{z.1000}",
+          "modal": "{z.1050}",
+          "tooltip": "{z.1100}"
+        },
+        "shadow": {
+          "sm": "0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05)",
+          "md": "0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06)",
+          "lg": "0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10)"
+        }
+      },
+      "component": {
+        "control": {
+          "inputHeight": "{size.control.md}",
+          "buttonHeight": "{size.control.md}"
+        },
+        "layout": {
+          "sidebarWidth": "240px",
+          "headerHeight": "64px"
+        },
+        "shadow": {
+          "card": "0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06)"
+        },
+        "alerts": {
+          "borderRadius": "{radius.md}",
+          "showIcon": true,
+          "position": "top-right",
+          "duration": 5000
+        }
+      }
+    },
+    "dark": {
+      "semantic": {
+        "color": {
+          "primary": "{color.indigo.500}",
+          "secondary": "{color.violet.400}",
+          "accent": "{color.amber.400}",
+          "success": "{color.emerald.400}",
+          "warning": "{color.amber.400}",
+          "danger": "{color.red.400}",
+          "info": "{color.blue.400}"
+        },
+        "text": {
+          "primary": "{color.slate.100}",
+          "secondary": "{color.slate.300}",
+          "muted": "{color.slate.500}"
+        },
+        "surface": {
+          "page": "{color.slate.900}",
+          "surface": "{color.slate.800}",
+          "overlay": "rgba(0, 0, 0, 0.7)"
+        },
+        "border": {
+          "color": "{color.slate.700}",
+          "width": "{borderWidth.thin}"
+        },
+        "layer": {
+          "dropdown": "{z.1000}",
+          "modal": "{z.1050}",
+          "tooltip": "{z.1100}"
+        },
+        "shadow": {
+          "sm": "0 1px 3px 0 rgba(0, 0, 0, 0.50), 0 1px 2px -1px rgba(0, 0, 0, 0.40)",
+          "md": "0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50)",
+          "lg": "0 18px 40px -12px rgba(0, 0, 0, 0.70), 0 6px 14px -8px rgba(0, 0, 0, 0.55)"
+        }
+      },
+      "component": {
+        "control": {
+          "inputHeight": "{size.control.md}",
+          "buttonHeight": "{size.control.md}"
+        },
+        "layout": {
+          "sidebarWidth": "240px",
+          "headerHeight": "64px"
+        },
+        "shadow": {
+          "card": "0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50)"
+        },
+        "alerts": {
+          "borderRadius": "{radius.md}",
+          "showIcon": true,
+          "position": "top-right",
+          "duration": 5000
+        }
+      }
+    }
+  }
+}

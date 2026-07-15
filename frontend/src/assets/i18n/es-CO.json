@@ -1,0 +1,23 @@
+{
+  "auth": {
+    "login": {
+      "title": "Inicia sesión",
+      "subtitle": "Accede a tu gestor de proyectos Solercia.",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "admin@solercia.com",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "••••••••",
+      "submit": "Iniciar sesión",
+      "submitting": "Ingresando…",
+      "demoLabel": "Usuario de prueba:",
+      "errors": {
+        "emailRequired": "El correo es obligatorio.",
+        "emailInvalid": "El correo no es válido.",
+        "passwordRequired": "La contraseña es obligatoria.",
+        "invalidCredentials": "Las credenciales no son correctas. Verifica tu correo y contraseña.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+        "generic": "Ocurrió un error al iniciar sesión. Inténtalo más tarde."
+      }
+    }
+  }
+}

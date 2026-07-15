@@ -3,11 +3,14 @@
 @tailwind utilities;
 
 /* ============================================================
-   Solercia design tokens (--sp-*) — STATIC FALLBACK / first paint.
-   ThemeService re-applies these from assets/themes/default.json at
-   runtime (and can swap them per tenant). Keep this in sync with
-   default.json: colors are RGB channels for alpha support, the rest
-   are raw CSS values.
+   Legacy design tokens (--sp-*) — PUENTE TEMPORAL (Wave A).
+   El theming vivo lo gobierna @solercia/ui (tokens --sol-* emitidos por
+   ThemeService, con el toggle claro/oscuro vía la clase `.dark`). Estos
+   --sp-* son valores estáticos que mantienen renderizados los componentes
+   `bk-*` heredados y las utilidades Tailwind hasta que la Wave B los migre
+   a `sol-*` / `var(--sol-*)`. Colores en canales RGB para soportar alpha;
+   el resto, valores CSS crudos. El bloque `.dark` lo activa el mismo
+   `.dark` que conmuta el ThemeService de la librería.
    ============================================================ */
 :root {
   /* color */

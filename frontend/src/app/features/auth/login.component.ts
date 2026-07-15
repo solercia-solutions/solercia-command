@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SolButtonComponent } from '@solercia/ui';
 import { AuthService } from '../../core/auth.service';
+import { I18nService } from '../../core/i18n';
 import { CardComponent } from '../../shared/ui/card.component';
 import { TextInputComponent } from '../../shared/ui/text-input.component';
 
@@ -32,9 +33,9 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
             >
               S
             </div>
-            <h1 class="text-xl font-semibold text-text">Inicia sesión</h1>
+            <h1 class="text-xl font-semibold text-text">{{ text.title() }}</h1>
             <p class="mt-1 text-sm text-muted">
-              Accede a tu gestor de proyectos Solercia.
+              {{ text.subtitle() }}
             </p>
           </div>
 
@@ -46,9 +47,9 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
           >
             <div>
               <bk-text-input
-                label="Correo electrónico"
+                [label]="text.emailLabel()"
                 type="email"
-                placeholder="admin@solercia.com"
+                [placeholder]="text.emailPlaceholder()"
                 autocomplete="email"
                 formControlName="email"
               ></bk-text-input>
@@ -61,15 +62,15 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
 
             <div>
               <bk-text-input
-                label="Contraseña"
+                [label]="text.passwordLabel()"
                 type="password"
-                placeholder="••••••••"
+                [placeholder]="text.passwordPlaceholder()"
                 autocomplete="current-password"
                 formControlName="password"
               ></bk-text-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
-                  La contraseña es obligatoria.
+                  {{ text.passwordRequired() }}
                 </p>
               }
             </div>
@@ -90,14 +91,14 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
               [disabled]="loading()"
               [loading]="loading()"
             >
-              {{ loading() ? 'Ingresando…' : 'Iniciar sesión' }}
+              {{ loading() ? text.submitting() : text.submit() }}
             </sol-button>
           </form>
 
           <p
             class="mt-5 rounded-lg border border-border bg-page px-3 py-2 text-center text-xs text-muted"
           >
-            Usuario de prueba:
+            {{ text.demoLabel() }}
             <span class="font-medium text-text">admin&#64;solercia.com</span>
             /
             <span class="font-medium text-text">Admin123*</span>
@@ -111,6 +112,21 @@ export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
+  protected readonly text = {
+    title: this.i18n.t('auth.login.title'),
+    subtitle: this.i18n.t('auth.login.subtitle'),
+    emailLabel: this.i18n.t('auth.login.emailLabel'),
+    emailPlaceholder: this.i18n.t('auth.login.emailPlaceholder'),
+    passwordLabel: this.i18n.t('auth.login.passwordLabel'),
+    passwordPlaceholder: this.i18n.t('auth.login.passwordPlaceholder'),
+    passwordRequired: this.i18n.t('auth.login.errors.passwordRequired'),
+    submit: this.i18n.t('auth.login.submit'),
+    submitting: this.i18n.t('auth.login.submitting'),
+    demoLabel: this.i18n.t('auth.login.demoLabel'),
+  } as const;
 
   protected readonly loading = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
@@ -128,10 +144,10 @@ export class LoginComponent {
   protected emailError(): string {
     const c = this.form.controls.email;
     if (c.hasError('required')) {
-      return 'El correo es obligatorio.';
+      return this.i18n.translate('auth.login.errors.emailRequired');
     }
     if (c.hasError('email')) {
-      return 'El correo no es válido.';
+      return this.i18n.translate('auth.login.errors.emailInvalid');
     }
     return '';
   }
@@ -155,15 +171,15 @@ export class LoginComponent {
         this.loading.set(false);
         if (err.status === 401) {
           this.errorMessage.set(
-            'Las credenciales no son correctas. Verifica tu correo y contraseña.',
+            this.i18n.translate('auth.login.errors.invalidCredentials'),
           );
         } else if (err.status === 0) {
           this.errorMessage.set(
-            'No fue posible conectar con el servidor. Inténtalo de nuevo.',
+            this.i18n.translate('auth.login.errors.network'),
           );
         } else {
           this.errorMessage.set(
-            'Ocurrió un error al iniciar sesión. Inténtalo más tarde.',
+            this.i18n.translate('auth.login.errors.generic'),
           );
         }
       },

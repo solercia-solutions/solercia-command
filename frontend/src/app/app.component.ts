@@ -15,7 +15,7 @@ import {
 } from '@angular/router';
 import { interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ThemeService } from './core/theme.service';
+import { ThemeService } from '@solercia/ui';
 import { AuthService } from './core/auth.service';
 import { MenuService } from './core/menu.service';
 import { NotificationsService } from './features/notifications/notifications.service';
