@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
 } from '@angular/core';
 import { VelocityData } from '@entities/workspace/workspace.model';
+import { I18nService } from '@shared/i18n';
 
 interface Bar {
   x: number;
@@ -38,7 +40,7 @@ function shortSprintLabel(name: string): string {
   template: `
     @if (series().length === 0) {
       <p class="py-8 text-center text-sm text-muted">
-        Aún no hay sprints cerrados para calcular la velocidad.
+        {{ text.emptyState() }}
       </p>
     } @else {
       <div class="flex flex-col gap-4">
@@ -46,26 +48,26 @@ function shortSprintLabel(name: string): string {
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div class="rounded-lg border border-border bg-surface p-4 text-center">
             <p class="text-2xl font-bold text-brand">{{ avgVelocity() }}</p>
-            <p class="mt-1 text-xs text-muted">pts / sprint (promedio)</p>
+            <p class="mt-1 text-xs text-muted">{{ text.avgPerSprint() }}</p>
           </div>
           <div class="rounded-lg border border-border bg-surface p-4 text-center">
             <p class="text-2xl font-bold text-text">{{ backlogPoints() }}</p>
-            <p class="mt-1 text-xs text-muted">puntos en el backlog</p>
+            <p class="mt-1 text-xs text-muted">{{ text.backlogPoints() }}</p>
           </div>
           <div class="rounded-lg border border-border bg-surface p-4 text-center">
             @if (projectedSprints() !== null) {
               <p class="text-2xl font-bold text-warning">{{ projectedSprints() }}</p>
-              <p class="mt-1 text-xs text-muted">sprints estimados para vaciar el backlog</p>
+              <p class="mt-1 text-xs text-muted">{{ text.projectedSprints() }}</p>
             } @else {
               <p class="text-2xl font-bold text-muted">—</p>
-              <p class="mt-1 text-xs text-muted">velocidad insuficiente para proyectar</p>
+              <p class="mt-1 text-xs text-muted">{{ text.insufficientVelocity() }}</p>
             }
           </div>
         </div>
 
         <!-- Disclaimer -->
         <p class="text-xs italic text-muted">
-          La velocidad refleja el rendimiento histórico del equipo y sirve para estimar, no para exigir.
+          {{ text.disclaimer() }}
         </p>
 
         <!-- SVG bar chart -->
@@ -73,7 +75,7 @@ function shortSprintLabel(name: string): string {
           [attr.viewBox]="'0 0 ' + W + ' ' + H"
           class="h-auto w-full"
           role="img"
-          aria-label="Gráfico de velocidad por sprint: puntos completados por sprint cerrado"
+          [attr.aria-label]="text.chartAria()"
           preserveAspectRatio="xMidYMid meet"
         >
           <g [attr.transform]="'translate(' + padLeft + ',' + padTop + ')'">
@@ -140,7 +142,7 @@ function shortSprintLabel(name: string): string {
               [attr.y]="avgY()"
               dominant-baseline="middle"
               style="font-size:10px;fill:var(--color-warning,#f59e0b);font-weight:600"
-            >avg</text>
+            >{{ text.avgAnnotation() }}</text>
 
             <!-- X axis baseline -->
             <line
@@ -161,7 +163,7 @@ function shortSprintLabel(name: string): string {
               <rect x="0" y="1" width="22" height="6" rx="2"
                 fill="var(--color-brand,#6366f1)" opacity="0.75"/>
             </svg>
-            Puntos completados
+            {{ text.legendCompleted() }}
           </span>
           <span class="inline-flex items-center gap-2">
             <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
@@ -169,7 +171,7 @@ function shortSprintLabel(name: string): string {
                 stroke="var(--color-warning,#f59e0b)"
                 stroke-width="2" stroke-dasharray="6 3"/>
             </svg>
-            Promedio
+            {{ text.legendAverage() }}
           </span>
         </div>
       </div>
@@ -177,6 +179,24 @@ function shortSprintLabel(name: string): string {
   `,
 })
 export class VelocityChartComponent {
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    emptyState: this.i18n.t('velocityChart.emptyState'),
+    avgPerSprint: this.i18n.t('velocityChart.metrics.avgPerSprint'),
+    backlogPoints: this.i18n.t('velocityChart.metrics.backlogPoints'),
+    projectedSprints: this.i18n.t('velocityChart.metrics.projectedSprints'),
+    insufficientVelocity: this.i18n.t(
+      'velocityChart.metrics.insufficientVelocity',
+    ),
+    disclaimer: this.i18n.t('velocityChart.disclaimer'),
+    chartAria: this.i18n.t('velocityChart.chartAria'),
+    avgAnnotation: this.i18n.t('velocityChart.avgAnnotation'),
+    legendCompleted: this.i18n.t('velocityChart.legend.completedPoints'),
+    legendAverage: this.i18n.t('velocityChart.legend.average'),
+  } as const;
+
   readonly data = input.required<VelocityData>();
 
   // SVG layout constants

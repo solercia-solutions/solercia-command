@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import { SolBadgeComponent } from '@shared/ui';
 import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
 import { SolModalComponent } from '@shared/ui';
 import { SolTableComponent } from '@shared/ui/table.component';
+import { I18nService } from '@shared/i18n';
 import { RolesService } from '@entities/role/roles.service';
 import { Role } from '@entities/role/role.model';
 import { MenusService } from '@entities/menu/menus.service';
@@ -44,21 +46,21 @@ import {
   template: `
     <section class="flex flex-col gap-6">
       <sol-page-header
-        title="Roles"
-        subtitle="Define los roles y las actividades que cada uno puede ver."
+        [title]="text.title()"
+        [subtitle]="text.subtitle()"
       >
         <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
-          ariaLabel="Crea un rol"
+          [ariaLabel]="text.actions.createAria()"
         >
-          Crear rol
+          {{ text.actions.create() }}
         </sol-button>
       </sol-page-header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando roles…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -68,19 +70,19 @@ import {
         </div>
       } @else if (items().length === 0) {
         <div class="rounded-xl border border-border bg-surface p-8 text-center">
-          <p class="text-base font-medium text-text">Todavía no hay roles.</p>
+          <p class="text-base font-medium text-text">{{ text.empty.title() }}</p>
           <p class="mt-1 text-sm text-muted">
-            Crea el primer rol para empezar a controlar los accesos.
+            {{ text.empty.subtitle() }}
           </p>
         </div>
       } @else {
         <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">Código</th>
-              <th class="px-4 py-3 font-medium">Nombre</th>
-              <th class="px-4 py-3 font-medium">Estado</th>
-              <th class="px-4 py-3 text-right font-medium">Acciones</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.code() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.name() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.status() }}</th>
+              <th class="px-4 py-3 text-right font-medium">{{ text.table.actions() }}</th>
             </tr>
           </thead>
           <tbody>
@@ -92,27 +94,27 @@ import {
                 <td class="px-4 py-3 font-medium text-text">{{ item.name }}</td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sol-badge variant="success">Activo</sol-badge>
+                    <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
                   } @else {
-                    <sol-badge variant="neutral">Inactivo</sol-badge>
+                    <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
                     <sol-icon-button
                       icon="link"
-                      ariaLabel="Asocia actividades al rol"
+                      [ariaLabel]="text.actions.menusAria()"
                       (click)="openMenus(item)"
                     ></sol-icon-button>
                     <sol-icon-button
                       icon="edit"
-                      ariaLabel="Edita el rol"
+                      [ariaLabel]="text.actions.editAria()"
                       (click)="openEdit(item)"
                     ></sol-icon-button>
                     <sol-icon-button
                       icon="delete"
                       variant="danger"
-                      ariaLabel="Elimina el rol"
+                      [ariaLabel]="text.actions.deleteAria()"
                       (click)="askDelete(item)"
                     ></sol-icon-button>
                   </div>
@@ -126,7 +128,7 @@ import {
 
     @if (showForm()) {
       <sol-modal [open]="true"
-        [title]="editing() ? 'Editar rol' : 'Nuevo rol'"
+        [title]="editing() ? text.form.editTitle() : text.form.createTitle()"
         (closed)="closeForm()"
       >
         <form
@@ -137,23 +139,23 @@ import {
         >
           <div>
             <sol-input
-              label="Código"
-              placeholder="Ej. MANAGER"
+              [label]="text.form.code()"
+              [placeholder]="text.form.codePlaceholder()"
               formControlName="code"
             ></sol-input>
             @if (showError('code')) {
-              <p class="mt-1 text-xs text-danger">El código es obligatorio.</p>
+              <p class="mt-1 text-xs text-danger">{{ text.form.errors.codeRequired() }}</p>
             }
           </div>
 
           <div>
             <sol-input
-              label="Nombre"
-              placeholder="Ej. Líder"
+              [label]="text.form.name()"
+              [placeholder]="text.form.namePlaceholder()"
               formControlName="name"
             ></sol-input>
             @if (showError('name')) {
-              <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
+              <p class="mt-1 text-xs text-danger">{{ text.form.errors.nameRequired() }}</p>
             }
           </div>
 
@@ -163,7 +165,7 @@ import {
               formControlName="is_active"
               class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
             />
-            Activo
+            {{ text.form.active() }}
           </label>
 
           @if (formError()) {
@@ -177,10 +179,10 @@ import {
 
           <div class="flex items-center justify-end gap-2">
             <sol-button type="button" variant="ghost" (click)="closeForm()">
-              Cancelar
+              {{ text.actions.cancel() }}
             </sol-button>
             <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? 'Guardando…' : 'Guardar' }}
+              {{ saving() ? text.actions.saving() : text.actions.save() }}
             </sol-button>
           </div>
         </form>
@@ -190,14 +192,14 @@ import {
     @if (menusFor()) {
       <sol-modal [open]="true"
         size="lg"
-        [title]="'Actividades de ' + (menusFor()?.name ?? '')"
+        [title]="menusTitle()"
         (closed)="closeMenus()"
       >
         @if (menusLoading()) {
-          <p class="text-sm text-muted">Cargando actividades…</p>
+          <p class="text-sm text-muted">{{ text.menus.loading() }}</p>
         } @else {
           <p class="mb-3 text-sm text-muted">
-            Selecciona las actividades que este rol puede ver.
+            {{ text.menus.hint() }}
           </p>
           <div class="flex flex-col gap-1">
             @for (row of menuRows(); track row.menu.id) {
@@ -231,7 +233,7 @@ import {
 
         <div class="mt-5 flex items-center justify-end gap-2">
           <sol-button type="button" variant="ghost" (click)="closeMenus()">
-            Cancelar
+            {{ text.actions.cancel() }}
           </sol-button>
           <sol-button
             type="button"
@@ -239,18 +241,18 @@ import {
             [disabled]="saving() || menusLoading()"
             (click)="saveMenus()"
           >
-            {{ saving() ? 'Guardando…' : 'Guardar actividades' }}
+            {{ saving() ? text.actions.saving() : text.menus.save() }}
           </sol-button>
         </div>
       </sol-modal>
     }
 
     @if (deleting()) {
-      <sol-modal [open]="true" size="sm" title="Eliminar rol" (closed)="cancelDelete()">
+      <sol-modal [open]="true" size="sm" [title]="text.delete.title()" (closed)="cancelDelete()">
         <p class="text-sm text-muted">
-          ¿Confirmas que deseas eliminar
-          <span class="font-medium text-text">{{ deleting()?.name }}</span>? Esta
-          acción no se puede deshacer.
+          {{ text.delete.confirmLead() }}
+          <span class="font-medium text-text">{{ deleting()?.name }}</span
+          >{{ text.delete.confirmTail() }}
         </p>
         @if (formError()) {
           <div
@@ -262,7 +264,7 @@ import {
         }
         <div class="mt-5 flex items-center justify-end gap-2">
           <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            Cancelar
+            {{ text.actions.cancel() }}
           </sol-button>
           <sol-button
             type="button"
@@ -270,7 +272,7 @@ import {
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
-            {{ saving() ? 'Eliminando…' : 'Eliminar' }}
+            {{ saving() ? text.actions.deleting() : text.actions.delete() }}
           </sol-button>
         </div>
       </sol-modal>
@@ -281,6 +283,63 @@ export class RolesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(RolesService);
   private readonly menusService = inject(MenusService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
+  protected readonly text = {
+    title: this.i18n.t('admin.roles.title'),
+    subtitle: this.i18n.t('admin.roles.subtitle'),
+    loading: this.i18n.t('admin.roles.loading'),
+    actions: {
+      create: this.i18n.t('admin.roles.actions.create'),
+      createAria: this.i18n.t('admin.roles.actions.createAria'),
+      menusAria: this.i18n.t('admin.roles.actions.menusAria'),
+      editAria: this.i18n.t('admin.roles.actions.editAria'),
+      deleteAria: this.i18n.t('admin.roles.actions.deleteAria'),
+      cancel: this.i18n.t('admin.roles.actions.cancel'),
+      save: this.i18n.t('admin.roles.actions.save'),
+      saving: this.i18n.t('admin.roles.actions.saving'),
+      delete: this.i18n.t('admin.roles.actions.delete'),
+      deleting: this.i18n.t('admin.roles.actions.deleting'),
+    },
+    status: {
+      active: this.i18n.t('admin.roles.status.active'),
+      inactive: this.i18n.t('admin.roles.status.inactive'),
+    },
+    empty: {
+      title: this.i18n.t('admin.roles.empty.title'),
+      subtitle: this.i18n.t('admin.roles.empty.subtitle'),
+    },
+    table: {
+      code: this.i18n.t('admin.roles.table.code'),
+      name: this.i18n.t('admin.roles.table.name'),
+      status: this.i18n.t('admin.roles.table.status'),
+      actions: this.i18n.t('admin.roles.table.actions'),
+    },
+    form: {
+      createTitle: this.i18n.t('admin.roles.form.createTitle'),
+      editTitle: this.i18n.t('admin.roles.form.editTitle'),
+      code: this.i18n.t('admin.roles.form.code'),
+      codePlaceholder: this.i18n.t('admin.roles.form.codePlaceholder'),
+      name: this.i18n.t('admin.roles.form.name'),
+      namePlaceholder: this.i18n.t('admin.roles.form.namePlaceholder'),
+      active: this.i18n.t('admin.roles.form.active'),
+      errors: {
+        codeRequired: this.i18n.t('admin.roles.form.errors.codeRequired'),
+        nameRequired: this.i18n.t('admin.roles.form.errors.nameRequired'),
+      },
+    },
+    menus: {
+      loading: this.i18n.t('admin.roles.menus.loading'),
+      hint: this.i18n.t('admin.roles.menus.hint'),
+      save: this.i18n.t('admin.roles.menus.save'),
+    },
+    delete: {
+      title: this.i18n.t('admin.roles.delete.title'),
+      confirmLead: this.i18n.t('admin.roles.delete.confirmLead'),
+      confirmTail: this.i18n.t('admin.roles.delete.confirmTail'),
+    },
+  } as const;
 
   protected readonly items = signal<Role[]>([]);
   protected readonly loading = signal(false);
@@ -299,6 +358,14 @@ export class RolesPageComponent implements OnInit {
     Array<{ menu: AdminMenu; depth: number }>
   >([]);
   protected readonly selectedMenuIds = signal<Set<string>>(new Set());
+
+  /** Título del modal de actividades: depende del rol activo y del idioma. */
+  protected readonly menusTitle = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('admin.roles.menus.title', {
+      name: this.menusFor()?.name ?? '',
+    });
+  });
 
   protected readonly form = this.fb.nonNullable.group({
     code: ['', [Validators.required]],
@@ -482,8 +549,8 @@ export class RolesPageComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar los roles. Inténtalo más tarde.',
+            ? this.i18n.translate('admin.roles.errors.network')
+            : this.i18n.translate('admin.roles.errors.loadFailed'),
         );
       },
     });
@@ -491,12 +558,12 @@ export class RolesPageComponent implements OnInit {
 
   private messageFor(err: HttpErrorResponse): string {
     if (err.status === 0) {
-      return 'No fue posible conectar con el servidor. Inténtalo de nuevo.';
+      return this.i18n.translate('admin.roles.errors.network');
     }
     const detail = (err.error as { detail?: unknown } | null)?.detail;
     if (typeof detail === 'string') {
       return detail;
     }
-    return 'No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.';
+    return this.i18n.translate('admin.roles.errors.generic');
   }
 }

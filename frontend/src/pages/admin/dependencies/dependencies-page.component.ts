@@ -18,6 +18,7 @@ import { SolBadgeComponent } from '@shared/ui';
 import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
 import { SolModalComponent } from '@shared/ui';
 import { SolTableComponent } from '@shared/ui/table.component';
+import { I18nService } from '@shared/i18n';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
 import { Dependency } from '@entities/dependency/dependency.model';
 
@@ -38,21 +39,21 @@ import { Dependency } from '@entities/dependency/dependency.model';
   template: `
     <section class="flex flex-col gap-6">
       <sol-page-header
-        title="Dependencias"
-        subtitle="Administra las áreas o dependencias de tu organización."
+        [title]="text.title()"
+        [subtitle]="text.subtitle()"
       >
         <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
-          ariaLabel="Crea una dependencia"
+          [ariaLabel]="text.createAria()"
         >
-          Crear dependencia
+          {{ text.create() }}
         </sol-button>
       </sol-page-header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando dependencias…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -63,20 +64,20 @@ import { Dependency } from '@entities/dependency/dependency.model';
       } @else if (items().length === 0) {
         <div class="rounded-xl border border-border bg-surface p-8 text-center">
           <p class="text-base font-medium text-text">
-            Todavía no hay dependencias.
+            {{ text.emptyTitle() }}
           </p>
           <p class="mt-1 text-sm text-muted">
-            Crea la primera para clasificar a las personas de tu organización.
+            {{ text.emptySubtitle() }}
           </p>
         </div>
       } @else {
         <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">Nombre</th>
-              <th class="px-4 py-3 font-medium">Código</th>
-              <th class="px-4 py-3 font-medium">Estado</th>
-              <th class="px-4 py-3 text-right font-medium">Acciones</th>
+              <th class="px-4 py-3 font-medium">{{ text.thName() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.thCode() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.thStatus() }}</th>
+              <th class="px-4 py-3 text-right font-medium">{{ text.thActions() }}</th>
             </tr>
           </thead>
           <tbody>
@@ -86,22 +87,22 @@ import { Dependency } from '@entities/dependency/dependency.model';
                 <td class="px-4 py-3 text-muted">{{ item.code || '—' }}</td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sol-badge variant="success">Activa</sol-badge>
+                    <sol-badge variant="success">{{ text.statusActive() }}</sol-badge>
                   } @else {
-                    <sol-badge variant="neutral">Inactiva</sol-badge>
+                    <sol-badge variant="neutral">{{ text.statusInactive() }}</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
                     <sol-icon-button
                       icon="edit"
-                      ariaLabel="Edita la dependencia"
+                      [ariaLabel]="text.editAria()"
                       (click)="openEdit(item)"
                     ></sol-icon-button>
                     <sol-icon-button
                       icon="delete"
                       variant="danger"
-                      ariaLabel="Elimina la dependencia"
+                      [ariaLabel]="text.deleteAria()"
                       (click)="askDelete(item)"
                     ></sol-icon-button>
                   </div>
@@ -115,7 +116,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
 
     @if (showForm()) {
       <sol-modal [open]="true"
-        [title]="editing() ? 'Editar dependencia' : 'Nueva dependencia'"
+        [title]="editing() ? text.formEditTitle() : text.formCreateTitle()"
         (closed)="closeForm()"
       >
         <form
@@ -126,18 +127,18 @@ import { Dependency } from '@entities/dependency/dependency.model';
         >
           <div>
             <sol-input
-              label="Nombre"
-              placeholder="Ej. Tecnología"
+              [label]="text.nameLabel()"
+              [placeholder]="text.namePlaceholder()"
               formControlName="name"
             ></sol-input>
             @if (showError('name')) {
-              <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
+              <p class="mt-1 text-xs text-danger">{{ text.nameRequired() }}</p>
             }
           </div>
 
           <sol-input
-            label="Código (opcional)"
-            placeholder="Ej. TEC"
+            [label]="text.codeLabel()"
+            [placeholder]="text.codePlaceholder()"
             formControlName="code"
           ></sol-input>
 
@@ -147,7 +148,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
               formControlName="is_active"
               class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
             />
-            Activa
+            {{ text.activeLabel() }}
           </label>
 
           @if (formError()) {
@@ -161,10 +162,10 @@ import { Dependency } from '@entities/dependency/dependency.model';
 
           <div class="flex items-center justify-end gap-2">
             <sol-button type="button" variant="ghost" (click)="closeForm()">
-              Cancelar
+              {{ text.cancel() }}
             </sol-button>
             <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? 'Guardando…' : 'Guardar' }}
+              {{ saving() ? text.saving() : text.save() }}
             </sol-button>
           </div>
         </form>
@@ -174,13 +175,13 @@ import { Dependency } from '@entities/dependency/dependency.model';
     @if (deleting()) {
       <sol-modal [open]="true"
         size="sm"
-        title="Eliminar dependencia"
+        [title]="text.deleteTitle()"
         (closed)="cancelDelete()"
       >
         <p class="text-sm text-muted">
-          ¿Confirmas que deseas eliminar
-          <span class="font-medium text-text">{{ deleting()?.name }}</span>? Esta
-          acción no se puede deshacer.
+          {{ text.deleteConfirmPrefix() }}
+          <span class="font-medium text-text">{{ deleting()?.name }}</span
+          >{{ text.deleteConfirmSuffix() }}
         </p>
         @if (formError()) {
           <div
@@ -192,7 +193,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
         }
         <div class="mt-5 flex items-center justify-end gap-2">
           <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            Cancelar
+            {{ text.cancel() }}
           </sol-button>
           <sol-button
             type="button"
@@ -200,7 +201,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
-            {{ saving() ? 'Eliminando…' : 'Eliminar' }}
+            {{ saving() ? text.deleting() : text.delete() }}
           </sol-button>
         </div>
       </sol-modal>
@@ -210,6 +211,42 @@ import { Dependency } from '@entities/dependency/dependency.model';
 export class DependenciesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(DependenciesService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
+  protected readonly text = {
+    title: this.i18n.t('admin.dependencies.title'),
+    subtitle: this.i18n.t('admin.dependencies.subtitle'),
+    loading: this.i18n.t('admin.dependencies.loading'),
+    emptyTitle: this.i18n.t('admin.dependencies.empty.title'),
+    emptySubtitle: this.i18n.t('admin.dependencies.empty.subtitle'),
+    thName: this.i18n.t('admin.dependencies.table.name'),
+    thCode: this.i18n.t('admin.dependencies.table.code'),
+    thStatus: this.i18n.t('admin.dependencies.table.status'),
+    thActions: this.i18n.t('admin.dependencies.table.actions'),
+    statusActive: this.i18n.t('admin.dependencies.status.active'),
+    statusInactive: this.i18n.t('admin.dependencies.status.inactive'),
+    create: this.i18n.t('admin.dependencies.actions.create'),
+    createAria: this.i18n.t('admin.dependencies.actions.createAria'),
+    editAria: this.i18n.t('admin.dependencies.actions.editAria'),
+    deleteAria: this.i18n.t('admin.dependencies.actions.deleteAria'),
+    cancel: this.i18n.t('admin.dependencies.actions.cancel'),
+    save: this.i18n.t('admin.dependencies.actions.save'),
+    saving: this.i18n.t('admin.dependencies.actions.saving'),
+    delete: this.i18n.t('admin.dependencies.actions.delete'),
+    deleting: this.i18n.t('admin.dependencies.actions.deleting'),
+    formCreateTitle: this.i18n.t('admin.dependencies.form.createTitle'),
+    formEditTitle: this.i18n.t('admin.dependencies.form.editTitle'),
+    nameLabel: this.i18n.t('admin.dependencies.form.nameLabel'),
+    namePlaceholder: this.i18n.t('admin.dependencies.form.namePlaceholder'),
+    nameRequired: this.i18n.t('admin.dependencies.form.nameRequired'),
+    codeLabel: this.i18n.t('admin.dependencies.form.codeLabel'),
+    codePlaceholder: this.i18n.t('admin.dependencies.form.codePlaceholder'),
+    activeLabel: this.i18n.t('admin.dependencies.form.activeLabel'),
+    deleteTitle: this.i18n.t('admin.dependencies.delete.title'),
+    deleteConfirmPrefix: this.i18n.t('admin.dependencies.delete.confirmPrefix'),
+    deleteConfirmSuffix: this.i18n.t('admin.dependencies.delete.confirmSuffix'),
+  } as const;
 
   protected readonly items = signal<Dependency[]>([]);
   protected readonly loading = signal(false);
@@ -333,8 +370,8 @@ export class DependenciesPageComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar las dependencias. Inténtalo más tarde.',
+            ? this.i18n.translate('admin.dependencies.errors.network')
+            : this.i18n.translate('admin.dependencies.errors.loadFailed'),
         );
       },
     });
@@ -342,12 +379,12 @@ export class DependenciesPageComponent implements OnInit {
 
   private messageFor(err: HttpErrorResponse): string {
     if (err.status === 0) {
-      return 'No fue posible conectar con el servidor. Inténtalo de nuevo.';
+      return this.i18n.translate('admin.dependencies.errors.network');
     }
     const detail = (err.error as { detail?: unknown } | null)?.detail;
     if (typeof detail === 'string') {
       return detail;
     }
-    return 'No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.';
+    return this.i18n.translate('admin.dependencies.errors.saveFailed');
   }
 }

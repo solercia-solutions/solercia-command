@@ -18,6 +18,7 @@ import { SolBadgeComponent } from '@shared/ui';
 import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
 import { SolModalComponent } from '@shared/ui';
 import { SolTableComponent } from '@shared/ui/table.component';
+import { I18nService } from '@shared/i18n';
 import { MenusService } from '@entities/menu/menus.service';
 import {
   AdminMenu,
@@ -43,21 +44,21 @@ import {
   template: `
     <section class="flex flex-col gap-6">
       <sol-page-header
-        title="Actividades"
-        subtitle="Organiza las actividades del menú y su jerarquía."
+        [title]="text.title()"
+        [subtitle]="text.subtitle()"
       >
         <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
-          ariaLabel="Crea una actividad"
+          [ariaLabel]="text.createAria()"
         >
-          Crear actividad
+          {{ text.create() }}
         </sol-button>
       </sol-page-header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando actividades…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -68,21 +69,21 @@ import {
       } @else if (rows().length === 0) {
         <div class="rounded-xl border border-border bg-surface p-8 text-center">
           <p class="text-base font-medium text-text">
-            Todavía no hay actividades.
+            {{ text.emptyTitle() }}
           </p>
           <p class="mt-1 text-sm text-muted">
-            Crea la primera para construir el menú de la aplicación.
+            {{ text.emptySubtitle() }}
           </p>
         </div>
       } @else {
         <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">Actividad</th>
-              <th class="px-4 py-3 font-medium">Ruta</th>
-              <th class="px-4 py-3 font-medium">Orden</th>
-              <th class="px-4 py-3 font-medium">Estado</th>
-              <th class="px-4 py-3 text-right font-medium">Acciones</th>
+              <th class="px-4 py-3 font-medium">{{ text.thActivity() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.thPath() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.thOrder() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.thStatus() }}</th>
+              <th class="px-4 py-3 text-right font-medium">{{ text.thActions() }}</th>
             </tr>
           </thead>
           <tbody>
@@ -100,22 +101,22 @@ import {
                 <td class="px-4 py-3 text-muted">{{ row.menu.order }}</td>
                 <td class="px-4 py-3">
                   @if (row.menu.is_active) {
-                    <sol-badge variant="success">Activa</sol-badge>
+                    <sol-badge variant="success">{{ text.statusActive() }}</sol-badge>
                   } @else {
-                    <sol-badge variant="neutral">Inactiva</sol-badge>
+                    <sol-badge variant="neutral">{{ text.statusInactive() }}</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
                     <sol-icon-button
                       icon="edit"
-                      ariaLabel="Edita la actividad"
+                      [ariaLabel]="text.editAria()"
                       (click)="openEdit(row.menu)"
                     ></sol-icon-button>
                     <sol-icon-button
                       icon="delete"
                       variant="danger"
-                      ariaLabel="Elimina la actividad"
+                      [ariaLabel]="text.deleteAria()"
                       (click)="askDelete(row.menu)"
                     ></sol-icon-button>
                   </div>
@@ -129,7 +130,7 @@ import {
 
     @if (showForm()) {
       <sol-modal [open]="true"
-        [title]="editing() ? 'Editar actividad' : 'Nueva actividad'"
+        [title]="editing() ? text.formEditTitle() : text.formCreateTitle()"
         (closed)="closeForm()"
       >
         <form
@@ -140,37 +141,37 @@ import {
         >
           <div>
             <sol-input
-              label="Nombre"
-              placeholder="Ej. Proyectos"
+              [label]="text.nameLabel()"
+              [placeholder]="text.namePlaceholder()"
               formControlName="name"
             ></sol-input>
             @if (showError('name')) {
-              <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
+              <p class="mt-1 text-xs text-danger">{{ text.nameRequired() }}</p>
             }
           </div>
 
           <sol-input
-            label="Ícono (opcional)"
-            placeholder="Ej. folder"
+            [label]="text.iconLabel()"
+            [placeholder]="text.iconPlaceholder()"
             formControlName="icon"
           ></sol-input>
 
           <sol-input
-            label="Ruta (opcional)"
-            placeholder="Ej. /projects"
+            [label]="text.pathLabel()"
+            [placeholder]="text.pathPlaceholder()"
             formControlName="path"
           ></sol-input>
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
-              >Actividad padre (opcional)</span
+              >{{ text.parentLabel() }}</span
             >
             <select
               formControlName="parent_id"
               class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
                      transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
             >
-              <option value="">Sin padre (nivel superior)</option>
+              <option value="">{{ text.noParent() }}</option>
               @for (option of parentOptions(); track option.id) {
                 <option [value]="option.id">{{ option.name }}</option>
               }
@@ -178,7 +179,7 @@ import {
           </label>
 
           <sol-input
-            label="Orden"
+            [label]="text.orderLabel()"
             type="number"
             placeholder="0"
             formControlName="order"
@@ -190,7 +191,7 @@ import {
               formControlName="is_active"
               class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
             />
-            Activa
+            {{ text.activeLabel() }}
           </label>
 
           @if (formError()) {
@@ -204,10 +205,10 @@ import {
 
           <div class="flex items-center justify-end gap-2">
             <sol-button type="button" variant="ghost" (click)="closeForm()">
-              Cancelar
+              {{ text.cancel() }}
             </sol-button>
             <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? 'Guardando…' : 'Guardar' }}
+              {{ saving() ? text.saving() : text.save() }}
             </sol-button>
           </div>
         </form>
@@ -215,11 +216,11 @@ import {
     }
 
     @if (deleting()) {
-      <sol-modal [open]="true" size="sm" title="Eliminar actividad" (closed)="cancelDelete()">
+      <sol-modal [open]="true" size="sm" [title]="text.deleteTitle()" (closed)="cancelDelete()">
         <p class="text-sm text-muted">
-          ¿Confirmas que deseas eliminar
-          <span class="font-medium text-text">{{ deleting()?.name }}</span>? Si
-          tiene actividades hijas, revisa que no queden huérfanas.
+          {{ text.deleteConfirmPrefix() }}
+          <span class="font-medium text-text">{{ deleting()?.name }}</span
+          >{{ text.deleteConfirmSuffix() }}
         </p>
         @if (formError()) {
           <div
@@ -231,7 +232,7 @@ import {
         }
         <div class="mt-5 flex items-center justify-end gap-2">
           <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            Cancelar
+            {{ text.cancel() }}
           </sol-button>
           <sol-button
             type="button"
@@ -239,7 +240,7 @@ import {
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
-            {{ saving() ? 'Eliminando…' : 'Eliminar' }}
+            {{ saving() ? text.deleting() : text.delete() }}
           </sol-button>
         </div>
       </sol-modal>
@@ -249,6 +250,48 @@ import {
 export class MenusPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(MenusService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
+  protected readonly text = {
+    title: this.i18n.t('admin.menus.title'),
+    subtitle: this.i18n.t('admin.menus.subtitle'),
+    loading: this.i18n.t('admin.menus.loading'),
+    emptyTitle: this.i18n.t('admin.menus.empty.title'),
+    emptySubtitle: this.i18n.t('admin.menus.empty.subtitle'),
+    thActivity: this.i18n.t('admin.menus.table.activity'),
+    thPath: this.i18n.t('admin.menus.table.path'),
+    thOrder: this.i18n.t('admin.menus.table.order'),
+    thStatus: this.i18n.t('admin.menus.table.status'),
+    thActions: this.i18n.t('admin.menus.table.actions'),
+    statusActive: this.i18n.t('admin.menus.status.active'),
+    statusInactive: this.i18n.t('admin.menus.status.inactive'),
+    create: this.i18n.t('admin.menus.actions.create'),
+    createAria: this.i18n.t('admin.menus.actions.createAria'),
+    editAria: this.i18n.t('admin.menus.actions.editAria'),
+    deleteAria: this.i18n.t('admin.menus.actions.deleteAria'),
+    cancel: this.i18n.t('admin.menus.actions.cancel'),
+    save: this.i18n.t('admin.menus.actions.save'),
+    saving: this.i18n.t('admin.menus.actions.saving'),
+    delete: this.i18n.t('admin.menus.actions.delete'),
+    deleting: this.i18n.t('admin.menus.actions.deleting'),
+    formCreateTitle: this.i18n.t('admin.menus.form.createTitle'),
+    formEditTitle: this.i18n.t('admin.menus.form.editTitle'),
+    nameLabel: this.i18n.t('admin.menus.form.nameLabel'),
+    namePlaceholder: this.i18n.t('admin.menus.form.namePlaceholder'),
+    nameRequired: this.i18n.t('admin.menus.form.nameRequired'),
+    iconLabel: this.i18n.t('admin.menus.form.iconLabel'),
+    iconPlaceholder: this.i18n.t('admin.menus.form.iconPlaceholder'),
+    pathLabel: this.i18n.t('admin.menus.form.pathLabel'),
+    pathPlaceholder: this.i18n.t('admin.menus.form.pathPlaceholder'),
+    parentLabel: this.i18n.t('admin.menus.form.parentLabel'),
+    noParent: this.i18n.t('admin.menus.form.noParent'),
+    orderLabel: this.i18n.t('admin.menus.form.orderLabel'),
+    activeLabel: this.i18n.t('admin.menus.form.activeLabel'),
+    deleteTitle: this.i18n.t('admin.menus.delete.title'),
+    deleteConfirmPrefix: this.i18n.t('admin.menus.delete.confirmPrefix'),
+    deleteConfirmSuffix: this.i18n.t('admin.menus.delete.confirmSuffix'),
+  } as const;
 
   private readonly flat = signal<AdminMenu[]>([]);
   protected readonly rows = signal<
@@ -400,8 +443,8 @@ export class MenusPageComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar las actividades. Inténtalo más tarde.',
+            ? this.i18n.translate('admin.menus.errors.network')
+            : this.i18n.translate('admin.menus.errors.loadFailed'),
         );
       },
     });
@@ -409,12 +452,12 @@ export class MenusPageComponent implements OnInit {
 
   private messageFor(err: HttpErrorResponse): string {
     if (err.status === 0) {
-      return 'No fue posible conectar con el servidor. Inténtalo de nuevo.';
+      return this.i18n.translate('admin.menus.errors.network');
     }
     const detail = (err.error as { detail?: unknown } | null)?.detail;
     if (typeof detail === 'string') {
       return detail;
     }
-    return 'No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.';
+    return this.i18n.translate('admin.menus.errors.saveFailed');
   }
 }

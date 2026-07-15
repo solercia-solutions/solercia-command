@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
 } from '@angular/core';
 import { Sprint } from '@entities/workspace/workspace.model';
+import { I18nService } from '@shared/i18n';
 
 interface TimelineSprint {
   sprint: Sprint;
@@ -49,7 +51,7 @@ function shortDate(iso: string | null | undefined): string {
   template: `
     @if (sprints().length === 0) {
       <p class="py-8 text-center text-sm text-muted">
-        No hay sprints en este proyecto todavía.
+        {{ text.emptyState() }}
       </p>
     } @else {
       <div class="flex flex-col gap-6">
@@ -100,10 +102,12 @@ function shortDate(iso: string | null | undefined): string {
               <!-- Legend -->
               <div class="mt-4 flex flex-wrap gap-4 text-xs text-muted">
                 <span class="inline-flex items-center gap-1.5">
-                  <span class="h-3 w-3 rounded bg-success"></span> Activo
+                  <span class="h-3 w-3 rounded bg-success"></span>
+                  {{ text.statusActive() }}
                 </span>
                 <span class="inline-flex items-center gap-1.5">
-                  <span class="h-3 w-3 rounded bg-muted"></span> Cerrado
+                  <span class="h-3 w-3 rounded bg-muted"></span>
+                  {{ text.statusClosed() }}
                 </span>
               </div>
             </div>
@@ -114,7 +118,7 @@ function shortDate(iso: string | null | undefined): string {
         @if (undatedSprints().length > 0) {
           <div>
             <p class="mb-2 text-xs font-medium text-muted">
-              Sprints sin fechas definidas
+              {{ text.undatedTitle() }}
             </p>
             <div class="flex flex-wrap gap-2">
               @for (s of undatedSprints(); track s.id) {
@@ -126,7 +130,12 @@ function shortDate(iso: string | null | undefined): string {
                 >
                   {{ s.name }}
                   <span class="opacity-60">
-                    {{ s.status === 'active' ? '· Activo' : '· Cerrado' }}
+                    ·
+                    {{
+                      s.status === 'active'
+                        ? text.statusActive()
+                        : text.statusClosed()
+                    }}
                   </span>
                 </span>
               }
@@ -139,6 +148,16 @@ function shortDate(iso: string | null | undefined): string {
   `,
 })
 export class SprintTimelineComponent {
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    emptyState: this.i18n.t('sprintTimeline.emptyState'),
+    statusActive: this.i18n.t('sprintTimeline.status.active'),
+    statusClosed: this.i18n.t('sprintTimeline.status.closed'),
+    undatedTitle: this.i18n.t('sprintTimeline.undatedTitle'),
+  } as const;
+
   readonly sprints = input.required<Sprint[]>();
 
   /** Sprints that have at least a start_date and an end_date. */

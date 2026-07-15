@@ -15,6 +15,7 @@ import {
 import { SolButtonComponent } from '@shared/ui';
 import { SolCardComponent } from '@shared/ui';
 import { SolInputComponent } from '@shared/ui';
+import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
   METHODOLOGY_LABELS,
@@ -39,24 +40,24 @@ import {
     <section class="flex flex-col gap-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold text-text">Proyectos</h1>
+          <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
           <p class="text-sm text-muted">
-            Administra los proyectos de tu organización.
+            {{ text.subtitle() }}
           </p>
         </div>
         <sol-button
           type="button"
           variant="primary"
           (click)="toggleForm()"
-          [ariaLabel]="showForm() ? 'Cierra el formulario' : 'Crea un proyecto'"
+          [ariaLabel]="showForm() ? text.toggleClose() : text.toggleOpen()"
         >
-          {{ showForm() ? 'Cerrar' : 'Crear proyecto' }}
+          {{ showForm() ? text.close() : text.create() }}
         </sol-button>
       </div>
 
       @if (showForm()) {
         <sol-card>
-          <h2 class="mb-4 text-lg font-semibold text-text">Crea tu proyecto</h2>
+          <h2 class="mb-4 text-lg font-semibold text-text">{{ text.formTitle() }}</h2>
           <form
             [formGroup]="form"
             (ngSubmit)="onSubmit()"
@@ -65,21 +66,21 @@ import {
           >
             <div>
               <sol-input
-                label="Nombre"
-                placeholder="Ej. Plataforma de pagos"
+                [label]="text.nameLabel()"
+                [placeholder]="text.namePlaceholder()"
                 formControlName="name"
               ></sol-input>
               @if (showError('name')) {
                 <p class="mt-1 text-xs text-danger">
-                  El nombre es obligatorio.
+                  {{ text.nameRequired() }}
                 </p>
               }
             </div>
 
             <div>
               <sol-input
-                label="Descripción"
-                placeholder="Describe brevemente el objetivo (opcional)"
+                [label]="text.descriptionLabel()"
+                [placeholder]="text.descriptionPlaceholder()"
                 formControlName="description"
               ></sol-input>
             </div>
@@ -87,7 +88,7 @@ import {
             <div>
               <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-text"
-                  >Metodología</span
+                  >{{ text.methodologyLabel() }}</span
                 >
                 <select
                   formControlName="methodology"
@@ -116,14 +117,14 @@ import {
                 variant="ghost"
                 (click)="toggleForm()"
               >
-                Cancelar
+                {{ text.cancel() }}
               </sol-button>
               <sol-button
                 type="submit"
                 variant="primary"
                 [disabled]="saving()"
               >
-                {{ saving() ? 'Guardando…' : 'Guardar proyecto' }}
+                {{ saving() ? text.saving() : text.save() }}
               </sol-button>
             </div>
           </form>
@@ -131,7 +132,7 @@ import {
       }
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando proyectos…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -143,10 +144,10 @@ import {
         <sol-card>
           <div class="py-8 text-center">
             <p class="text-base font-medium text-text">
-              Todavía no tienes proyectos.
+              {{ text.emptyTitle() }}
             </p>
             <p class="mt-1 text-sm text-muted">
-              Crea tu primer proyecto para empezar a organizar el trabajo.
+              {{ text.emptySubtitle() }}
             </p>
           </div>
         </sol-card>
@@ -157,7 +158,7 @@ import {
               [routerLink]="['/projects', project.id]"
               class="block rounded-xl transition-transform hover:-translate-y-0.5
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-              [attr.aria-label]="'Abre el proyecto ' + project.name"
+              [attr.aria-label]="cardAria(project.name)"
             >
             <sol-card>
               <div class="flex h-full flex-col gap-3">
@@ -172,7 +173,7 @@ import {
                   </span>
                 </div>
                 <p class="flex-1 text-sm text-muted">
-                  {{ project.description || 'Sin descripción.' }}
+                  {{ project.description || text.noDescription() }}
                 </p>
                 <div class="flex items-center gap-2 pt-1">
                   <span
@@ -197,6 +198,31 @@ import {
 export class ProjectsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly projectsService = inject(ProjectsService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    title: this.i18n.t('projects.title'),
+    subtitle: this.i18n.t('projects.subtitle'),
+    toggleClose: this.i18n.t('projects.toggle.closeAria'),
+    toggleOpen: this.i18n.t('projects.toggle.openAria'),
+    close: this.i18n.t('projects.toggle.close'),
+    create: this.i18n.t('projects.toggle.create'),
+    formTitle: this.i18n.t('projects.form.title'),
+    nameLabel: this.i18n.t('projects.form.nameLabel'),
+    namePlaceholder: this.i18n.t('projects.form.namePlaceholder'),
+    nameRequired: this.i18n.t('projects.form.nameRequired'),
+    descriptionLabel: this.i18n.t('projects.form.descriptionLabel'),
+    descriptionPlaceholder: this.i18n.t('projects.form.descriptionPlaceholder'),
+    methodologyLabel: this.i18n.t('projects.form.methodologyLabel'),
+    cancel: this.i18n.t('projects.actions.cancel'),
+    save: this.i18n.t('projects.actions.save'),
+    saving: this.i18n.t('projects.actions.saving'),
+    loading: this.i18n.t('projects.loading'),
+    emptyTitle: this.i18n.t('projects.empty.title'),
+    emptySubtitle: this.i18n.t('projects.empty.subtitle'),
+    noDescription: this.i18n.t('projects.noDescription'),
+  } as const;
 
   protected readonly methodologyOptions = METHODOLOGY_OPTIONS;
 
@@ -224,6 +250,10 @@ export class ProjectsComponent implements OnInit {
 
   protected statusText(status: string): string {
     return statusLabel(status);
+  }
+
+  protected cardAria(name: string): string {
+    return this.i18n.translate('projects.cardAria', { name });
   }
 
   protected toggleForm(): void {
@@ -274,8 +304,8 @@ export class ProjectsComponent implements OnInit {
           this.saving.set(false);
           this.formError.set(
             err.status === 0
-              ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-              : 'No se pudo crear el proyecto. Revisa los datos e inténtalo de nuevo.',
+              ? this.i18n.translate('projects.errors.network')
+              : this.i18n.translate('projects.errors.create'),
           );
         },
       });
@@ -294,8 +324,8 @@ export class ProjectsComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar los proyectos. Inténtalo más tarde.',
+            ? this.i18n.translate('projects.errors.network')
+            : this.i18n.translate('projects.errors.load'),
         );
       },
     });

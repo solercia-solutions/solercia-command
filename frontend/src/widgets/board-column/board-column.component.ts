@@ -1,6 +1,8 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
+  inject,
   input,
   output,
 } from '@angular/core';
@@ -8,6 +10,7 @@ import {
   CdkDragDrop,
   DragDropModule,
 } from '@angular/cdk/drag-drop';
+import { I18nService } from '@shared/i18n';
 import { EstimationMode } from '@entities/project/project.model';
 import { TaskCardComponent } from '@widgets/task-card/task-card.component';
 import { Task, statusDisplay } from '@entities/workspace/workspace.model';
@@ -31,7 +34,7 @@ export interface ColumnDrop {
   template: `
     <section
       class="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-page/60"
-      [attr.aria-label]="'Columna ' + label()"
+      [attr.aria-label]="columnAria()"
     >
       <header
         class="flex items-center justify-between gap-2 border-b border-border px-3 py-2"
@@ -62,7 +65,7 @@ export interface ColumnDrop {
         }
         @if (tasks().length === 0) {
           <p class="px-2 py-6 text-center text-xs text-muted">
-            Suelta tareas aquí.
+            {{ text.emptyDrop() }}
           </p>
         }
       </div>
@@ -73,9 +76,9 @@ export interface ColumnDrop {
         class="m-2 inline-flex items-center justify-center gap-1 rounded-lg border border-dashed border-border
                px-3 py-2 text-xs font-medium text-muted transition-colors hover:border-brand/50 hover:text-brand
                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-        [attr.aria-label]="'Agrega una tarea en ' + label()"
+        [attr.aria-label]="addTaskAria()"
       >
-        + Agregar
+        + {{ text.add() }}
       </button>
     </section>
   `,
@@ -90,6 +93,28 @@ export class BoardColumnComponent {
   readonly addTask = output<string>();
   readonly editTask = output<Task>();
   readonly dropped = output<ColumnDrop>();
+
+  private readonly i18n = inject(I18nService);
+
+  /** Static UI text resolved via i18n (reactive to language change). */
+  protected readonly text = {
+    emptyDrop: this.i18n.t('boardColumn.emptyDrop'),
+    add: this.i18n.t('boardColumn.add'),
+  } as const;
+
+  /** aria-label for the column section: "Columna {label}". */
+  protected readonly columnAria = computed<string>(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('boardColumn.columnAria', { label: this.label() });
+  });
+
+  /** aria-label for the add button: "Agrega una tarea en {label}". */
+  protected readonly addTaskAria = computed<string>(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('boardColumn.addTaskAria', {
+      label: this.label(),
+    });
+  });
 
   /** Spanish display label for the column header. */
   protected label(): string {

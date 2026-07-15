@@ -10,18 +10,7 @@ import {
 import { Router } from '@angular/router';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { AppNotification, RULE_TYPE_LABELS } from '@entities/notification/notification.model';
-
-/** Formats an ISO timestamp as a relative Spanish string ("hace 2 h"). */
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'ahora mismo';
-  if (mins < 60) return `hace ${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `hace ${hours} h`;
-  const days = Math.floor(hours / 24);
-  return `hace ${days} d`;
-}
+import { I18nService } from '@shared/i18n';
 
 /**
  * Notification center dropdown panel.
@@ -36,12 +25,12 @@ function relativeTime(iso: string): string {
   template: `
     <div
       role="dialog"
-      aria-label="Centro de notificaciones"
+      [attr.aria-label]="text.dialogAria()"
       class="w-80 rounded-xl border border-border bg-elevated shadow-lg sm:w-96"
     >
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 class="text-sm font-semibold text-text">Notificaciones</h2>
+        <h2 class="text-sm font-semibold text-text">{{ text.title() }}</h2>
         @if (notifications().length > 0) {
           <button
             type="button"
@@ -49,7 +38,7 @@ function relativeTime(iso: string): string {
             class="text-xs font-medium text-brand hover:underline
                    focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
           >
-            Marcar todas como leídas
+            {{ text.markAllRead() }}
           </button>
         }
       </div>
@@ -71,7 +60,7 @@ function relativeTime(iso: string): string {
           </div>
         } @else if (notifications().length === 0) {
           <p class="px-4 py-10 text-center text-sm text-muted">
-            No tienes notificaciones pendientes.
+            {{ text.empty() }}
           </p>
         } @else {
           <ul role="list" class="divide-y divide-border">
@@ -101,7 +90,7 @@ function relativeTime(iso: string): string {
                       class="text-xs font-medium text-brand hover:underline
                              focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
                     >
-                      Ver tarea
+                      {{ text.viewTask() }}
                     </button>
                     <span class="text-subtle" aria-hidden="true">·</span>
                   }
@@ -111,7 +100,7 @@ function relativeTime(iso: string): string {
                     class="text-xs text-muted transition-colors hover:text-text
                            focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
                   >
-                    Marcar como leída
+                    {{ text.markRead() }}
                   </button>
                   <span class="text-subtle" aria-hidden="true">·</span>
                   <button
@@ -120,7 +109,7 @@ function relativeTime(iso: string): string {
                     class="text-xs text-muted transition-colors hover:text-text
                            focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
                   >
-                    Resolver
+                    {{ text.resolve() }}
                   </button>
                 </div>
               </li>
@@ -134,14 +123,46 @@ function relativeTime(iso: string): string {
 export class NotificationPanelComponent implements OnInit {
   private readonly notifService = inject(NotificationsService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
 
   /** Emitted when the panel should be closed (e.g. after navigating to a task). */
   @Output() readonly closed = new EventEmitter<void>();
 
+  /** Static UI text resolved via i18n (reactive to language change). */
+  protected readonly text = {
+    dialogAria: this.i18n.t('notificationPanel.dialogAria'),
+    title: this.i18n.t('notificationPanel.title'),
+    markAllRead: this.i18n.t('notificationPanel.markAllRead'),
+    empty: this.i18n.t('notificationPanel.empty'),
+    viewTask: this.i18n.t('notificationPanel.viewTask'),
+    markRead: this.i18n.t('notificationPanel.markRead'),
+    resolve: this.i18n.t('notificationPanel.resolve'),
+  } as const;
+
   protected readonly notifications = signal<AppNotification[]>([]);
   protected readonly loading = signal(false);
 
-  protected readonly relativeTime = relativeTime;
+  /** Formats an ISO timestamp as a relative Spanish string ("hace 2 h"). */
+  protected relativeTime(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return this.i18n.translate('notificationPanel.relativeTime.now');
+    if (mins < 60) {
+      return this.i18n.translate('notificationPanel.relativeTime.minutes', {
+        count: mins,
+      });
+    }
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) {
+      return this.i18n.translate('notificationPanel.relativeTime.hours', {
+        count: hours,
+      });
+    }
+    const days = Math.floor(hours / 24);
+    return this.i18n.translate('notificationPanel.relativeTime.days', {
+      count: days,
+    });
+  }
 
   protected ruleLabel(ruleType: string): string {
     return RULE_TYPE_LABELS[ruleType] ?? ruleType;

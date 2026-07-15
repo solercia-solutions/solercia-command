@@ -23,6 +23,7 @@ import { SolButtonComponent } from '@shared/ui';
 import { SolCardComponent } from '@shared/ui';
 import { SolModalComponent } from '@shared/ui';
 import { SolTableComponent } from '@shared/ui/table.component';
+import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
 import { EstimationMode, ProjectDetail } from '@entities/project/project.model';
 import { WorkspaceService } from '@entities/workspace/workspace.service';
@@ -87,7 +88,7 @@ interface BoardColumn {
   ],
   template: `
     @if (loading()) {
-      <p class="text-sm text-muted">Cargando proyecto…</p>
+      <p class="text-sm text-muted">{{ text.loading() }}</p>
     } @else if (loadError()) {
       <div
         role="alert"
@@ -118,7 +119,7 @@ interface BoardColumn {
               <line x1="19" y1="12" x2="5" y2="12" />
               <polyline points="12 19 5 12 12 5" />
             </svg>
-            Volver a proyectos
+            {{ text.backToProjects() }}
           </a>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -133,9 +134,9 @@ interface BoardColumn {
               type="button"
               variant="primary"
               (click)="openCreate()"
-              ariaLabel="Crea una nueva tarea"
+              [ariaLabel]="text.newTaskAria()"
             >
-              + Nueva tarea
+              + {{ text.newTask() }}
             </sol-button>
           </div>
         </div>
@@ -171,7 +172,7 @@ interface BoardColumn {
         <!-- BOARD / GRID -->
         @if (activeTab() === 'board') {
           <!-- View mode toggle -->
-          <div class="flex items-center gap-2" role="group" aria-label="Modo de visualización">
+          <div class="flex items-center gap-2" role="group" [attr.aria-label]="text.viewModeGroupAria()">
             <button
               type="button"
               (click)="viewMode.set('board')"
@@ -183,7 +184,7 @@ interface BoardColumn {
               [class.border-border]="viewMode() !== 'board'"
               [class.text-muted]="viewMode() !== 'board'"
               [attr.aria-pressed]="viewMode() === 'board'"
-              aria-label="Vista tablero"
+              [attr.aria-label]="text.viewBoardAria()"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -191,7 +192,7 @@ interface BoardColumn {
                 aria-hidden="true">
                 <rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="18"/>
               </svg>
-              Tablero
+              {{ text.viewBoard() }}
             </button>
             <button
               type="button"
@@ -204,7 +205,7 @@ interface BoardColumn {
               [class.border-border]="viewMode() !== 'grid'"
               [class.text-muted]="viewMode() !== 'grid'"
               [attr.aria-pressed]="viewMode() === 'grid'"
-              aria-label="Vista cuadrícula"
+              [attr.aria-label]="text.viewGridAria()"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -213,7 +214,7 @@ interface BoardColumn {
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
               </svg>
-              Cuadrícula
+              {{ text.viewGrid() }}
             </button>
           </div>
 
@@ -222,7 +223,7 @@ interface BoardColumn {
             @if (boardColumns().length === 0) {
               <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
-                  Esta metodología no define columnas de tablero.
+                  {{ text.boardNoColumns() }}
                 </p>
               </sol-card>
             } @else {
@@ -249,21 +250,21 @@ interface BoardColumn {
             @if (allTasks().length === 0) {
               <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
-                  No hay tareas en este proyecto.
+                  {{ text.boardEmpty() }}
                 </p>
               </sol-card>
             } @else {
               <sol-table>
                 <thead>
                   <tr class="border-b border-border bg-surface/60">
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Código</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Título</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Estado</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Responsable</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Prioridad</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Fecha límite</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colCode() }}</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colTitle() }}</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colStatus() }}</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colAssignee() }}</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colPriority() }}</th>
+                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colDueDate() }}</th>
                     @if (estimationMode() !== 'none') {
-                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Estimación</th>
+                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colEstimation() }}</th>
                     }
                   </tr>
                 </thead>
@@ -279,7 +280,7 @@ interface BoardColumn {
                             [routerLink]="['/task', task.task_key]"
                             (click)="$event.stopPropagation()"
                             class="font-semibold text-brand hover:underline"
-                            [attr.aria-label]="'Abre el detalle de ' + task.task_key"
+                            [attr.aria-label]="openDetailAria(task.task_key)"
                           >{{ task.task_key }}</a>
                         } @else {
                           <span class="text-muted">—</span>
@@ -309,12 +310,12 @@ interface BoardColumn {
                         <td class="px-4 py-3 text-sm text-muted text-right tabular-nums">
                           @if (estimationMode() === 'points' || estimationMode() === 'both') {
                             @if (task.estimation_points != null) {
-                              <span>{{ task.estimation_points }} pts</span>
+                              <span>{{ task.estimation_points }} {{ text.pointsSuffix() }}</span>
                             }
                           }
                           @if (estimationMode() === 'hours' || estimationMode() === 'both') {
                             @if (task.estimation_hours != null) {
-                              <span class="ml-1">{{ task.estimation_hours }} h</span>
+                              <span class="ml-1">{{ task.estimation_hours }} {{ text.hoursSuffix() }}</span>
                             }
                           }
                           @if (task.estimation_points == null && task.estimation_hours == null) {
@@ -334,20 +335,20 @@ interface BoardColumn {
         @if (activeTab() === 'backlog') {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold text-text">Backlog</h2>
+              <h2 class="text-lg font-semibold text-text">{{ text.backlogTitle() }}</h2>
               <sol-button
                 type="button"
                 variant="secondary"
                 (click)="openCreate()"
-                ariaLabel="Agrega una tarea al backlog"
+                [ariaLabel]="text.backlogAddAria()"
               >
-                + Agregar al backlog
+                + {{ text.backlogAdd() }}
               </sol-button>
             </div>
             @if (backlogTasks().length === 0) {
               <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
-                  No hay tareas en el backlog.
+                  {{ text.backlogEmpty() }}
                 </p>
               </sol-card>
             } @else {
@@ -365,16 +366,16 @@ interface BoardColumn {
                     @if (sprintsEnabled()) {
                       <label class="block sm:w-56">
                         <span class="mb-1 block text-xs font-medium text-muted"
-                          >Mover a sprint</span
+                          >{{ text.moveToSprint() }}</span
                         >
                         <select
                           [value]="task.sprint_id ?? ''"
                           (change)="onAssignSprint(task, $event)"
                           class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
                                  transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-                          [attr.aria-label]="'Asigna ' + task.title + ' a un sprint'"
+                          [attr.aria-label]="assignSprintAria(task.title)"
                         >
-                          <option value="">Backlog</option>
+                          <option value="">{{ text.backlogOption() }}</option>
                           @for (sprint of sprints(); track sprint.id) {
                             <option [value]="sprint.id">{{ sprint.name }}</option>
                           }
@@ -393,7 +394,7 @@ interface BoardColumn {
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div class="lg:col-span-1">
               <sol-card>
-                <h2 class="mb-4 text-lg font-semibold text-text">Nuevo sprint</h2>
+                <h2 class="mb-4 text-lg font-semibold text-text">{{ text.newSprintTitle() }}</h2>
                 <form
                   [formGroup]="sprintForm"
                   (ngSubmit)="onCreateSprint()"
@@ -402,33 +403,33 @@ interface BoardColumn {
                 >
                   <label class="block">
                     <span class="mb-1.5 block text-sm font-medium text-text"
-                      >Nombre</span
+                      >{{ text.sprintNameLabel() }}</span
                     >
                     <input
                       formControlName="name"
-                      placeholder="Ej. Sprint 1"
+                      [placeholder]="text.sprintNamePlaceholder()"
                       [class]="fieldClass"
                     />
                     @if (sprintNameError()) {
                       <p class="mt-1 text-xs text-danger">
-                        El nombre es obligatorio.
+                        {{ text.sprintNameRequired() }}
                       </p>
                     }
                   </label>
                   <label class="block">
                     <span class="mb-1.5 block text-sm font-medium text-text"
-                      >Objetivo</span
+                      >{{ text.sprintGoalLabel() }}</span
                     >
                     <input
                       formControlName="goal"
-                      placeholder="Meta del sprint (opcional)"
+                      [placeholder]="text.sprintGoalPlaceholder()"
                       [class]="fieldClass"
                     />
                   </label>
                   <div class="grid grid-cols-2 gap-3">
                     <label class="block">
                       <span class="mb-1.5 block text-sm font-medium text-text"
-                        >Inicio</span
+                        >{{ text.sprintStartLabel() }}</span
                       >
                       <input
                         type="date"
@@ -438,7 +439,7 @@ interface BoardColumn {
                     </label>
                     <label class="block">
                       <span class="mb-1.5 block text-sm font-medium text-text"
-                        >Fin</span
+                        >{{ text.sprintEndLabel() }}</span
                       >
                       <input
                         type="date"
@@ -453,7 +454,7 @@ interface BoardColumn {
                     class="w-full"
                     [disabled]="savingSprint()"
                   >
-                    {{ savingSprint() ? 'Guardando…' : 'Crear sprint' }}
+                    {{ savingSprint() ? text.saving() : text.createSprint() }}
                   </sol-button>
                 </form>
               </sol-card>
@@ -463,7 +464,7 @@ interface BoardColumn {
               @if (sprints().length === 0) {
                 <sol-card>
                   <p class="py-6 text-center text-sm text-muted">
-                    Todavía no hay sprints en este proyecto.
+                    {{ text.sprintsEmpty() }}
                   </p>
                 </sol-card>
               } @else {
@@ -483,11 +484,11 @@ interface BoardColumn {
                             class="rounded-full px-2.5 py-0.5 text-xs font-medium"
                             [class]="sprintBadgeClass(sprint)"
                           >
-                            {{ sprint.status === 'active' ? 'Activo' : 'Cerrado' }}
+                            {{ sprint.status === 'active' ? text.sprintActive() : text.sprintClosed() }}
                           </span>
                           @if (sprint.status === 'closed' && sprint.completed_points != null) {
                             <span class="text-xs text-muted">
-                              {{ sprint.completed_points }} pts completados
+                              {{ pointsCompletedLabel(sprint.completed_points) }}
                             </span>
                           }
                         </div>
@@ -506,12 +507,12 @@ interface BoardColumn {
                           type="button"
                           variant="primary"
                           (click)="selectSprint(sprint)"
-                          [ariaLabel]="'Muestra el burndown del sprint ' + sprint.name"
+                          [ariaLabel]="showBurndownAria(sprint.name)"
                         >
                           {{
                             selectedSprintId() === sprint.id
-                              ? 'Ocultar burndown'
-                              : 'Ver burndown'
+                              ? text.hideBurndown()
+                              : text.showBurndown()
                           }}
                         </sol-button>
                         @if (sprint.status === 'active') {
@@ -519,18 +520,18 @@ interface BoardColumn {
                             type="button"
                             variant="secondary"
                             (click)="openCloseSprint(sprint)"
-                            [ariaLabel]="'Cierra el sprint ' + sprint.name"
+                            [ariaLabel]="closeSprintAria(sprint.name)"
                           >
-                            Cerrar sprint
+                            {{ text.closeSprint() }}
                           </sol-button>
                         } @else {
                           <sol-button
                             type="button"
                             variant="secondary"
                             (click)="toggleSprintStatus(sprint)"
-                            [ariaLabel]="'Reactiva el sprint ' + sprint.name"
+                            [ariaLabel]="reactivateSprintAria(sprint.name)"
                           >
-                            Reactivar
+                            {{ text.reactivate() }}
                           </sol-button>
                         }
                       </div>
@@ -540,7 +541,7 @@ interface BoardColumn {
                       <div class="mt-4 border-t border-border pt-4">
                         @if (burndownLoading()) {
                           <p class="py-6 text-center text-sm text-muted">
-                            Cargando burndown…
+                            {{ text.burndownLoading() }}
                           </p>
                         } @else if (burndownError()) {
                           <div
@@ -554,16 +555,15 @@ interface BoardColumn {
                             class="mb-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm"
                           >
                             <span class="text-muted">
-                              Total:
+                              {{ text.burndownTotal() }}
                               <span class="font-semibold text-text">
                                 {{ burndownTotal(bd) }} {{ burndownUnitLabel(bd) }}
                               </span>
                             </span>
                             <span class="text-muted">
-                              Completadas:
+                              {{ text.burndownCompleted() }}
                               <span class="font-semibold text-text">
-                                {{ bd.completed_tasks }} de {{ bd.total_tasks }}
-                                tareas
+                                {{ completedOfTotalLabel(bd.completed_tasks, bd.total_tasks) }}
                               </span>
                             </span>
                           </div>
@@ -581,18 +581,18 @@ interface BoardColumn {
               <!-- Velocity section -->
               <div class="mt-2">
                 <div class="mb-3 flex items-center justify-between gap-2">
-                  <h3 class="text-base font-semibold text-text">Velocidad del equipo</h3>
+                  <h3 class="text-base font-semibold text-text">{{ text.velocityTitle() }}</h3>
                   @if (velocityLoaded()) {
                     <button
                       type="button"
                       (click)="loadVelocity()"
                       class="text-xs text-muted hover:text-text transition-colors"
-                      aria-label="Actualiza la velocidad del equipo"
-                    >Actualizar</button>
+                      [attr.aria-label]="text.velocityRefreshAria()"
+                    >{{ text.velocityRefresh() }}</button>
                   }
                 </div>
                 @if (velocityLoading()) {
-                  <p class="py-4 text-center text-sm text-muted">Cargando velocidad…</p>
+                  <p class="py-4 text-center text-sm text-muted">{{ text.velocityLoading() }}</p>
                 } @else if (velocityError()) {
                   <div
                     role="alert"
@@ -612,8 +612,8 @@ interface BoardColumn {
         @if (activeTab() === 'timeline') {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
-              <h2 class="text-lg font-semibold text-text">Cronograma de sprints</h2>
-              <p class="text-xs text-muted">Cada barra representa un sprint posicionado por sus fechas de inicio y fin.</p>
+              <h2 class="text-lg font-semibold text-text">{{ text.timelineTitle() }}</h2>
+              <p class="text-xs text-muted">{{ text.timelineDescription() }}</p>
             </div>
             <sol-sprint-timeline [sprints]="sprints()"></sol-sprint-timeline>
           </div>
@@ -642,7 +642,7 @@ interface BoardColumn {
       <!-- Close sprint modal -->
       @if (closeSprintOpen()) {
         <sol-modal [open]="true"
-          title="Cerrar sprint"
+          [title]="text.closeSprintTitle()"
           size="sm"
           (closed)="cancelCloseSprint()"
         >
@@ -650,17 +650,16 @@ interface BoardColumn {
             <!-- Success state -->
             <div class="flex flex-col gap-4">
               <div class="rounded-lg bg-success/10 px-4 py-3 text-sm text-success">
-                Sprint cerrado exitosamente.
+                {{ text.closeSprintSuccess() }}
               </div>
               <div class="flex flex-col gap-1 text-sm text-text">
                 <p>
                   <span class="font-semibold">{{ result.sprint.completed_points ?? 0 }}</span>
-                  puntos completados
+                  {{ text.closeSprintPointsCompleted() }}
                 </p>
                 <p>
                   <span class="font-semibold">{{ result.tasks_moved }}</span>
-                  {{ result.tasks_moved === 1 ? 'tarea movida' : 'tareas movidas' }}
-                  al destino seleccionado
+                  {{ tasksMovedLabel(result.tasks_moved) }}
                 </p>
               </div>
               <sol-button
@@ -669,30 +668,29 @@ interface BoardColumn {
                 class="w-full"
                 (click)="cancelCloseSprint()"
               >
-                Entendido
+                {{ text.closeSprintUnderstood() }}
               </sol-button>
             </div>
           } @else {
             <!-- Confirmation state -->
             <div class="flex flex-col gap-4">
               <p class="text-sm text-muted">
-                Al cerrar el sprint se calculan los puntos completados. Las tareas
-                incompletas se mueven al destino que selecciones.
+                {{ text.closeSprintDescription() }}
               </p>
 
               @if (activeSprintsForClose().length > 0) {
                 <label class="block">
                   <span class="mb-1.5 block text-sm font-medium text-text">
-                    Mover tareas incompletas a
+                    {{ text.closeSprintMoveIncompleteTo() }}
                   </span>
                   <select
                     [value]="closingTargetSprintId()"
                     (change)="closingTargetSprintId.set(toSelectValue($event))"
                     class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
                            transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-                    aria-label="Selecciona el destino de las tareas incompletas"
+                    [attr.aria-label]="text.closeSprintTargetAria()"
                   >
-                    <option value="">Backlog (por defecto)</option>
+                    <option value="">{{ text.closeSprintBacklogDefault() }}</option>
                     @for (s of activeSprintsForClose(); track s.id) {
                       <option [value]="s.id">{{ s.name }}</option>
                     }
@@ -700,7 +698,7 @@ interface BoardColumn {
                 </label>
               } @else {
                 <p class="rounded-lg bg-muted/10 px-3 py-2 text-xs text-muted">
-                  Las tareas incompletas se moverán al backlog (no hay otros sprints activos).
+                  {{ text.closeSprintNoOtherSprints() }}
                 </p>
               }
 
@@ -721,7 +719,7 @@ interface BoardColumn {
                   [disabled]="closingSprintBusy()"
                   (click)="cancelCloseSprint()"
                 >
-                  Cancelar
+                  {{ text.cancel() }}
                 </sol-button>
                 <sol-button
                   type="button"
@@ -730,7 +728,7 @@ interface BoardColumn {
                   [disabled]="closingSprintBusy()"
                   (click)="confirmCloseSprint()"
                 >
-                  {{ closingSprintBusy() ? 'Cerrando…' : 'Cerrar sprint' }}
+                  {{ closingSprintBusy() ? text.closing() : text.closeSprintTitle() }}
                 </sol-button>
               </div>
             </div>
@@ -745,6 +743,74 @@ export class ProjectWorkspaceComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly projectsService = inject(ProjectsService);
   private readonly workspace = inject(WorkspaceService);
+  private readonly i18n = inject(I18nService);
+
+  /** Static UI chrome resolved by i18n (reactive to language changes). */
+  protected readonly text = {
+    loading: this.i18n.t('workspace.loading'),
+    backToProjects: this.i18n.t('workspace.backToProjects'),
+    newTask: this.i18n.t('workspace.newTask'),
+    newTaskAria: this.i18n.t('workspace.newTaskAria'),
+    viewModeGroupAria: this.i18n.t('workspace.viewMode.groupAria'),
+    viewBoard: this.i18n.t('workspace.viewMode.board'),
+    viewBoardAria: this.i18n.t('workspace.viewMode.boardAria'),
+    viewGrid: this.i18n.t('workspace.viewMode.grid'),
+    viewGridAria: this.i18n.t('workspace.viewMode.gridAria'),
+    boardNoColumns: this.i18n.t('workspace.board.noColumns'),
+    boardEmpty: this.i18n.t('workspace.board.empty'),
+    colCode: this.i18n.t('workspace.grid.columns.code'),
+    colTitle: this.i18n.t('workspace.grid.columns.title'),
+    colStatus: this.i18n.t('workspace.grid.columns.status'),
+    colAssignee: this.i18n.t('workspace.grid.columns.assignee'),
+    colPriority: this.i18n.t('workspace.grid.columns.priority'),
+    colDueDate: this.i18n.t('workspace.grid.columns.dueDate'),
+    colEstimation: this.i18n.t('workspace.grid.columns.estimation'),
+    pointsSuffix: this.i18n.t('workspace.grid.pointsSuffix'),
+    hoursSuffix: this.i18n.t('workspace.grid.hoursSuffix'),
+    backlogTitle: this.i18n.t('workspace.backlog.title'),
+    backlogAdd: this.i18n.t('workspace.backlog.add'),
+    backlogAddAria: this.i18n.t('workspace.backlog.addAria'),
+    backlogEmpty: this.i18n.t('workspace.backlog.empty'),
+    moveToSprint: this.i18n.t('workspace.backlog.moveToSprint'),
+    backlogOption: this.i18n.t('workspace.backlog.backlogOption'),
+    newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
+    sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
+    sprintNamePlaceholder: this.i18n.t('workspace.sprints.namePlaceholder'),
+    sprintNameRequired: this.i18n.t('workspace.sprints.nameRequired'),
+    sprintGoalLabel: this.i18n.t('workspace.sprints.goalLabel'),
+    sprintGoalPlaceholder: this.i18n.t('workspace.sprints.goalPlaceholder'),
+    sprintStartLabel: this.i18n.t('workspace.sprints.startLabel'),
+    sprintEndLabel: this.i18n.t('workspace.sprints.endLabel'),
+    saving: this.i18n.t('workspace.sprints.saving'),
+    createSprint: this.i18n.t('workspace.sprints.create'),
+    sprintsEmpty: this.i18n.t('workspace.sprints.empty'),
+    sprintActive: this.i18n.t('workspace.sprints.statusActive'),
+    sprintClosed: this.i18n.t('workspace.sprints.statusClosed'),
+    hideBurndown: this.i18n.t('workspace.sprints.hideBurndown'),
+    showBurndown: this.i18n.t('workspace.sprints.showBurndown'),
+    closeSprint: this.i18n.t('workspace.sprints.close'),
+    reactivate: this.i18n.t('workspace.sprints.reactivate'),
+    burndownLoading: this.i18n.t('workspace.sprints.burndownLoading'),
+    burndownTotal: this.i18n.t('workspace.sprints.totalLabel'),
+    burndownCompleted: this.i18n.t('workspace.sprints.completedLabel'),
+    velocityTitle: this.i18n.t('workspace.sprints.velocityTitle'),
+    velocityRefresh: this.i18n.t('workspace.sprints.velocityRefresh'),
+    velocityRefreshAria: this.i18n.t('workspace.sprints.velocityRefreshAria'),
+    velocityLoading: this.i18n.t('workspace.sprints.velocityLoading'),
+    timelineTitle: this.i18n.t('workspace.timeline.title'),
+    timelineDescription: this.i18n.t('workspace.timeline.description'),
+    closeSprintTitle: this.i18n.t('workspace.closeSprint.title'),
+    closeSprintSuccess: this.i18n.t('workspace.closeSprint.success'),
+    closeSprintPointsCompleted: this.i18n.t('workspace.closeSprint.pointsCompleted'),
+    closeSprintUnderstood: this.i18n.t('workspace.closeSprint.understood'),
+    closeSprintDescription: this.i18n.t('workspace.closeSprint.description'),
+    closeSprintMoveIncompleteTo: this.i18n.t('workspace.closeSprint.moveIncompleteTo'),
+    closeSprintTargetAria: this.i18n.t('workspace.closeSprint.targetAria'),
+    closeSprintBacklogDefault: this.i18n.t('workspace.closeSprint.backlogDefault'),
+    closeSprintNoOtherSprints: this.i18n.t('workspace.closeSprint.noOtherSprints'),
+    cancel: this.i18n.t('workspace.closeSprint.cancel'),
+    closing: this.i18n.t('workspace.closeSprint.closing'),
+  } as const;
 
   protected readonly fieldClass =
     'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text ' +
@@ -810,16 +876,17 @@ export class ProjectWorkspaceComponent implements OnInit {
   }
 
   protected readonly tabs = computed(() => {
+    this.i18n.activeLang();
     const info = this.project()?.methodology_info;
     const list: { id: TabId; label: string }[] = [
-      { id: 'board', label: 'Tablero' },
+      { id: 'board', label: this.i18n.translate('workspace.tabs.board') },
     ];
     if (info?.has_backlog) {
-      list.push({ id: 'backlog', label: 'Backlog' });
+      list.push({ id: 'backlog', label: this.i18n.translate('workspace.tabs.backlog') });
     }
     if (info?.sprints_enabled) {
-      list.push({ id: 'sprints', label: 'Sprints' });
-      list.push({ id: 'timeline', label: 'Cronograma' });
+      list.push({ id: 'sprints', label: this.i18n.translate('workspace.tabs.sprints') });
+      list.push({ id: 'timeline', label: this.i18n.translate('workspace.tabs.timeline') });
     }
     return list;
   });
@@ -879,6 +946,49 @@ export class ProjectWorkspaceComponent implements OnInit {
     return (event.target as HTMLSelectElement).value;
   }
 
+  /* ---- i18n dynamic labels (loop/param dependent) ------------------------ */
+
+  protected openDetailAria(key: string): string {
+    return this.i18n.translate('workspace.grid.openDetailAria', { key });
+  }
+
+  protected assignSprintAria(title: string): string {
+    return this.i18n.translate('workspace.backlog.assignSprintAria', { title });
+  }
+
+  protected pointsCompletedLabel(points: number): string {
+    return this.i18n.translate('workspace.sprints.pointsCompleted', {
+      n: points,
+    });
+  }
+
+  protected showBurndownAria(name: string): string {
+    return this.i18n.translate('workspace.sprints.showBurndownAria', { name });
+  }
+
+  protected closeSprintAria(name: string): string {
+    return this.i18n.translate('workspace.sprints.closeAria', { name });
+  }
+
+  protected reactivateSprintAria(name: string): string {
+    return this.i18n.translate('workspace.sprints.reactivateAria', { name });
+  }
+
+  protected completedOfTotalLabel(done: number, total: number): string {
+    return this.i18n.translate('workspace.sprints.completedOfTotal', {
+      done,
+      total,
+    });
+  }
+
+  protected tasksMovedLabel(count: number): string {
+    return this.i18n.translate(
+      count === 1
+        ? 'workspace.closeSprint.tasksMovedOne'
+        : 'workspace.closeSprint.tasksMovedOther',
+    );
+  }
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.projectId.set(id);
@@ -889,7 +999,7 @@ export class ProjectWorkspaceComponent implements OnInit {
     const id = this.projectId();
     if (!id) {
       this.loading.set(false);
-      this.loadError.set('No se encontró el proyecto solicitado.');
+      this.loadError.set(this.i18n.translate('workspace.errors.projectNotFound'));
       return;
     }
     this.loading.set(true);
@@ -908,9 +1018,11 @@ export class ProjectWorkspaceComponent implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
         this.loadError.set(
-          err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudo cargar el proyecto. Inténtalo más tarde.',
+          this.i18n.translate(
+            err.status === 0
+              ? 'workspace.errors.projectNetwork'
+              : 'workspace.errors.projectLoad',
+          ),
         );
       },
     });
@@ -939,7 +1051,7 @@ export class ProjectWorkspaceComponent implements OnInit {
       },
       error: () =>
         this.tasksError.set(
-          'No se pudieron cargar las tareas. Inténtalo más tarde.',
+          this.i18n.translate('workspace.errors.tasksLoad'),
         ),
     });
   }
@@ -956,7 +1068,7 @@ export class ProjectWorkspaceComponent implements OnInit {
       error: () => {
         this.velocityLoading.set(false);
         this.velocityError.set(
-          'No se pudo cargar la velocidad del equipo. Inténtalo más tarde.',
+          this.i18n.translate('workspace.errors.velocityLoad'),
         );
       },
     });
@@ -1042,7 +1154,7 @@ export class ProjectWorkspaceComponent implements OnInit {
     const fail = (): void => {
       this.savingTask.set(false);
       this.modalError.set(
-        'No se pudo guardar la tarea. Revisa los datos e inténtalo de nuevo.',
+        this.i18n.translate('workspace.errors.taskSave'),
       );
     };
 
@@ -1088,7 +1200,7 @@ export class ProjectWorkspaceComponent implements OnInit {
       },
       error: () => {
         this.savingTask.set(false);
-        this.modalError.set('No se pudo eliminar la tarea. Inténtalo de nuevo.');
+        this.modalError.set(this.i18n.translate('workspace.errors.taskDelete'));
       },
     });
   }
@@ -1191,10 +1303,12 @@ export class ProjectWorkspaceComponent implements OnInit {
         error: (err: HttpErrorResponse) => {
           this.closingSprintBusy.set(false);
           if (err.status === 409) {
-            this.closeSprintError.set('Este sprint ya estaba cerrado.');
+            this.closeSprintError.set(
+              this.i18n.translate('workspace.errors.sprintAlreadyClosed'),
+            );
           } else {
             this.closeSprintError.set(
-              'No se pudo cerrar el sprint. Inténtalo de nuevo.',
+              this.i18n.translate('workspace.errors.sprintClose'),
             );
           }
         },
@@ -1226,7 +1340,7 @@ export class ProjectWorkspaceComponent implements OnInit {
         this.burndownLoading.set(false);
         this.burndown.set(null);
         this.burndownError.set(
-          'No se pudo cargar el burndown del sprint. Inténtalo más tarde.',
+          this.i18n.translate('workspace.errors.burndownLoad'),
         );
       },
     });
@@ -1237,11 +1351,15 @@ export class ProjectWorkspaceComponent implements OnInit {
   }
 
   protected burndownUnitLabel(data: BurndownData): string {
-    return data.unit === 'points' ? 'puntos' : 'tareas';
+    return this.i18n.translate(
+      data.unit === 'points'
+        ? 'workspace.sprints.unitPoints'
+        : 'workspace.sprints.unitTasks',
+    );
   }
 
   protected dateLabel(value: string | null | undefined): string {
-    return formatShortDate(value) || 'sin fecha';
+    return formatShortDate(value) || this.i18n.translate('workspace.dates.noDate');
   }
 
   protected sprintBadgeClass(sprint: Sprint): string {

@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SolCardComponent } from '@shared/ui';
+import { I18nService } from '@shared/i18n';
 import {
   PRIORITY_CHIP_CLASS,
   PRIORITY_LABELS,
@@ -31,15 +32,15 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
     <section class="flex flex-col gap-6">
       <div>
         <h1 class="font-display text-2xl font-bold tracking-tight text-text">
-          Vista de jefe
+          {{ text.title() }}
         </h1>
         <p class="text-sm text-muted">
-          Panorama del equipo: en qué anda cada uno, riesgos y avance.
+          {{ text.subtitle() }}
         </p>
       </div>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando panorama…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -51,19 +52,19 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
         <!-- Totals -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <sol-card>
-            <p class="text-sm text-muted">Proyectos</p>
+            <p class="text-sm text-muted">{{ text.totalProjects() }}</p>
             <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.projects }}
             </p>
           </sol-card>
           <sol-card>
-            <p class="text-sm text-muted">Tareas</p>
+            <p class="text-sm text-muted">{{ text.totalTasks() }}</p>
             <p class="mt-1 text-3xl font-bold tracking-tight tnum text-text">
               {{ dash.totals.tasks }}
             </p>
           </sol-card>
           <sol-card>
-            <p class="text-sm text-muted">Vencidas</p>
+            <p class="text-sm text-muted">{{ text.totalOverdue() }}</p>
             <p
               class="mt-1 text-3xl font-bold tracking-tight tnum"
               [class.text-danger]="dash.totals.overdue > 0"
@@ -73,7 +74,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
             </p>
           </sol-card>
           <sol-card>
-            <p class="text-sm text-muted">En riesgo</p>
+            <p class="text-sm text-muted">{{ text.totalAtRisk() }}</p>
             <p
               class="mt-1 text-3xl font-bold tracking-tight tnum"
               [class.text-warning]="dash.totals.at_risk > 0"
@@ -87,11 +88,11 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <!-- En qué anda cada uno -->
           <div class="flex flex-col gap-3">
-            <h2 class="font-display text-lg font-bold tracking-tight text-text">En qué anda cada uno</h2>
+            <h2 class="font-display text-lg font-bold tracking-tight text-text">{{ text.byAssigneeTitle() }}</h2>
             @if (dash.by_assignee.length === 0) {
               <sol-card>
                 <p class="py-4 text-center text-sm text-muted">
-                  Nadie tiene tareas en progreso.
+                  {{ text.byAssigneeEmpty() }}
                 </p>
               </sol-card>
             } @else {
@@ -112,7 +113,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                     <span
                       class="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium text-muted"
                     >
-                      {{ person.active_count }} activas
+                      {{ activeCountLabel(person.active_count) }}
                     </span>
                   </div>
                   @if (person.in_progress.length > 0) {
@@ -134,7 +135,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                       }
                     </ul>
                   } @else {
-                    <p class="mt-2 text-xs text-muted">Sin tareas en progreso.</p>
+                    <p class="mt-2 text-xs text-muted">{{ text.noInProgress() }}</p>
                   }
                 </sol-card>
               }
@@ -143,11 +144,11 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
 
           <!-- Riesgos -->
           <div class="flex flex-col gap-3">
-            <h2 class="font-display text-lg font-bold tracking-tight text-text">Riesgos</h2>
+            <h2 class="font-display text-lg font-bold tracking-tight text-text">{{ text.risksTitle() }}</h2>
             @if (dash.at_risk.length === 0) {
               <sol-card>
                 <p class="py-4 text-center text-sm text-muted">
-                  No hay tareas en riesgo. ¡Buen trabajo!
+                  {{ text.risksEmpty() }}
                 </p>
               </sol-card>
             } @else {
@@ -180,9 +181,9 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                           {{ task.title }}
                         </p>
                         <p class="text-xs text-muted">
-                          {{ task.assignee_name || 'Sin responsable' }}
+                          {{ task.assignee_name || text.noAssignee() }}
                           @if (task.due_date) {
-                            · Vence {{ shortDate(task.due_date) }}
+                            · {{ dueOnLabel(task.due_date) }}
                           }
                         </p>
                       </div>
@@ -202,11 +203,11 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
 
         <!-- Carga del equipo -->
         <div class="flex flex-col gap-3">
-          <h2 class="font-display text-lg font-bold tracking-tight text-text">Carga del equipo</h2>
+          <h2 class="font-display text-lg font-bold tracking-tight text-text">{{ text.workloadTitle() }}</h2>
           <sol-card>
             @if (dash.workload.length === 0) {
               <p class="py-4 text-center text-sm text-muted">
-                No hay carga activa registrada.
+                {{ text.workloadEmpty() }}
               </p>
             } @else {
               <ul class="flex flex-col gap-3">
@@ -219,10 +220,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                       class="h-2.5 flex-1 overflow-hidden rounded-full bg-sunken"
                       role="img"
                       [attr.aria-label]="
-                        item.user.full_name +
-                        ': ' +
-                        item.active_count +
-                        ' tareas activas'
+                        workloadAria(item.user.full_name, item.active_count)
                       "
                     >
                       <div
@@ -244,11 +242,11 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
 
         <!-- Avance por proyecto -->
         <div class="flex flex-col gap-3">
-          <h2 class="font-display text-lg font-bold tracking-tight text-text">Avance por proyecto</h2>
+          <h2 class="font-display text-lg font-bold tracking-tight text-text">{{ text.progressTitle() }}</h2>
           @if (dash.projects_progress.length === 0) {
             <sol-card>
               <p class="py-4 text-center text-sm text-muted">
-                Aún no hay proyectos con tareas.
+                {{ text.progressEmpty() }}
               </p>
             </sol-card>
           } @else {
@@ -270,7 +268,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                   </div>
                   <div class="mt-3">
                     <div class="flex items-center justify-between text-xs text-muted">
-                      <span>{{ progress.done }} de {{ progress.total }} listas</span>
+                      <span>{{ doneOfTotalLabel(progress.done, progress.total) }}</span>
                       <span class="font-medium text-text"
                         >{{ progress.percent_done }}%</span
                       >
@@ -278,9 +276,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                     <div
                       class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-sunken"
                       role="img"
-                      [attr.aria-label]="
-                        'Avance ' + progress.percent_done + ' por ciento'
-                      "
+                      [attr.aria-label]="percentAria(progress.percent_done)"
                     >
                       <div
                         class="h-full rounded-full bg-success transition-all"
@@ -299,6 +295,28 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
 })
 export class ExecutiveComponent implements OnInit {
   private readonly executiveService = inject(ExecutiveService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    title: this.i18n.t('executive.title'),
+    subtitle: this.i18n.t('executive.subtitle'),
+    loading: this.i18n.t('executive.loading'),
+    totalProjects: this.i18n.t('executive.totals.projects'),
+    totalTasks: this.i18n.t('executive.totals.tasks'),
+    totalOverdue: this.i18n.t('executive.totals.overdue'),
+    totalAtRisk: this.i18n.t('executive.totals.atRisk'),
+    byAssigneeTitle: this.i18n.t('executive.byAssignee.title'),
+    byAssigneeEmpty: this.i18n.t('executive.byAssignee.empty'),
+    noInProgress: this.i18n.t('executive.byAssignee.noInProgress'),
+    risksTitle: this.i18n.t('executive.risks.title'),
+    risksEmpty: this.i18n.t('executive.risks.empty'),
+    noAssignee: this.i18n.t('executive.risks.noAssignee'),
+    workloadTitle: this.i18n.t('executive.workload.title'),
+    workloadEmpty: this.i18n.t('executive.workload.empty'),
+    progressTitle: this.i18n.t('executive.progress.title'),
+    progressEmpty: this.i18n.t('executive.progress.empty'),
+  } as const;
 
   protected readonly data = signal<ExecutiveDashboard | null>(null);
   protected readonly loading = signal(true);
@@ -342,6 +360,31 @@ export class ExecutiveComponent implements OnInit {
     return formatShortDate(value);
   }
 
+  protected activeCountLabel(count: number): string {
+    return this.i18n.translate('executive.byAssignee.activeCount', { count });
+  }
+
+  protected dueOnLabel(due: string | null | undefined): string {
+    return this.i18n.translate('executive.risks.dueOn', {
+      date: this.shortDate(due),
+    });
+  }
+
+  protected workloadAria(name: string, count: number): string {
+    return this.i18n.translate('executive.workload.barAria', { name, count });
+  }
+
+  protected doneOfTotalLabel(done: number, total: number): string {
+    return this.i18n.translate('executive.progress.doneOfTotal', {
+      done,
+      total,
+    });
+  }
+
+  protected percentAria(percent: number): string {
+    return this.i18n.translate('executive.progress.percentAria', { percent });
+  }
+
   private load(): void {
     this.loading.set(true);
     this.loadError.set(null);
@@ -354,8 +397,8 @@ export class ExecutiveComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudo cargar el panorama ejecutivo. Inténtalo más tarde.',
+            ? this.i18n.translate('executive.errors.network')
+            : this.i18n.translate('executive.errors.load'),
         );
       },
     });

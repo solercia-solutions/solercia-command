@@ -20,6 +20,7 @@ import { AuthService } from '@features/auth/auth.service';
 import { MenuService } from '@features/navigation/menu.service';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
+import { I18nService } from '@shared/i18n';
 
 /** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
 @Component({
@@ -39,7 +40,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
             <a
               class="flex items-center gap-2.5"
               routerLink="/projects"
-              aria-label="Solercia PM, inicio"
+              [attr.aria-label]="text.brandAria()"
             >
               <span
                 class="grid h-8 w-8 place-items-center rounded-xl bg-brand text-brand-fg text-sm font-bold shadow-sm"
@@ -55,7 +56,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
             @if (auth.isAuthenticated()) {
               <nav
                 class="hidden items-center gap-1 md:flex"
-                aria-label="Navegación principal"
+                [attr.aria-label]="text.primaryNavAria()"
               >
                 @if (useMenuNav()) {
                   @for (item of menu.menus(); track item.id) {
@@ -113,7 +114,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                     }
                   }
                 } @else {
-                  @for (link of fallbackLinks; track link.path) {
+                  @for (link of fallbackLinks(); track link.path) {
                     <a
                       [routerLink]="link.path"
                       routerLinkActive="bg-brand-soft !text-brand-soft-fg"
@@ -133,7 +134,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
               type="button"
               (click)="theme.toggleMode()"
               [attr.aria-label]="
-                theme.isDark() ? 'Activa el modo claro' : 'Activa el modo oscuro'
+                theme.isDark() ? text.themeToLight() : text.themeToDark()
               "
               class="grid h-9 w-9 place-items-center rounded-lg border border-border
                      bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
@@ -180,11 +181,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                   type="button"
                   (click)="toggleNotif()"
                   [attr.aria-expanded]="notifOpen()"
-                  [attr.aria-label]="
-                    notifs.unreadCount() > 0
-                      ? 'Centro de notificaciones, ' + notifs.unreadCount() + ' sin leer'
-                      : 'Centro de notificaciones'
-                  "
+                  [attr.aria-label]="notifAria()"
                   class="relative grid h-9 w-9 place-items-center rounded-lg border border-border
                          bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
@@ -248,7 +245,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                <span>Cerrar sesión</span>
+                <span>{{ text.logout() }}</span>
               </button>
 
               <!-- Mobile menu toggle -->
@@ -256,7 +253,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                 type="button"
                 (click)="toggleMobile()"
                 [attr.aria-expanded]="mobileOpen()"
-                aria-label="Abre el menú de navegación"
+                [attr.aria-label]="text.mobileMenuAria()"
                 class="grid h-9 w-9 place-items-center rounded-lg border border-border
                        bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 md:hidden"
@@ -275,7 +272,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
         @if (auth.isAuthenticated() && mobileOpen()) {
           <nav
             class="border-t border-border bg-surface px-4 py-3 md:hidden"
-            aria-label="Navegación móvil"
+            [attr.aria-label]="text.mobileNavAria()"
           >
             <div class="flex flex-col gap-0.5">
               @if (useMenuNav()) {
@@ -308,7 +305,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                   }
                 }
               } @else {
-                @for (link of fallbackLinks; track link.path) {
+                @for (link of fallbackLinks(); track link.path) {
                   <a
                     [routerLink]="link.path"
                     routerLinkActive="bg-brand-soft !text-brand-soft-fg"
@@ -325,7 +322,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                 class="mt-1 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                Cerrar sesión
+                {{ text.logout() }}
               </button>
             </div>
           </nav>
@@ -337,7 +334,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
         <button
           type="button"
           (click)="closeDropdown()"
-          aria-label="Cierra el menú"
+          [attr.aria-label]="text.closeMenu()"
           class="fixed inset-0 z-20 cursor-default"
         ></button>
       }
@@ -347,7 +344,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
         <button
           type="button"
           (click)="closeNotif()"
-          aria-label="Cierra las notificaciones"
+          [attr.aria-label]="text.closeNotifications()"
           class="fixed inset-0 z-20 cursor-default"
         ></button>
       }
@@ -366,6 +363,29 @@ export class AppComponent {
   protected readonly menu = inject(MenuService);
   protected readonly notifs = inject(NotificationsService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
+
+  /** Static UI text resolved via i18n (reactive to language change). */
+  protected readonly text = {
+    brandAria: this.i18n.t('nav.brandAria'),
+    primaryNavAria: this.i18n.t('nav.primaryNavAria'),
+    mobileNavAria: this.i18n.t('nav.mobileNavAria'),
+    themeToLight: this.i18n.t('nav.themeToLight'),
+    themeToDark: this.i18n.t('nav.themeToDark'),
+    logout: this.i18n.t('nav.logout'),
+    mobileMenuAria: this.i18n.t('nav.mobileMenuAria'),
+    closeMenu: this.i18n.t('nav.closeMenu'),
+    closeNotifications: this.i18n.t('nav.closeNotifications'),
+  } as const;
+
+  /** Notification bell aria-label; includes the unread count when > 0. */
+  protected readonly notifAria = computed<string>(() => {
+    this.i18n.activeLang();
+    const count = this.notifs.unreadCount();
+    return count > 0
+      ? this.i18n.translate('nav.notificationsUnread', { count })
+      : this.i18n.translate('nav.notifications');
+  });
 
   /** Which nav dropdown (by menu id) is open, or null. */
   protected readonly openId = signal<string | null>(null);
@@ -377,11 +397,14 @@ export class AppComponent {
   protected readonly notifOpen = signal(false);
 
   /** Static fallback nav links when the menu tree is unavailable. */
-  protected readonly fallbackLinks = [
-    { path: '/projects', label: 'Proyectos' },
-    { path: '/executive', label: 'Vista de jefe' },
-    { path: '/performance', label: 'Rendimiento' },
-  ];
+  protected readonly fallbackLinks = computed(() => {
+    this.i18n.activeLang();
+    return [
+      { path: '/projects', label: this.i18n.translate('nav.links.projects') },
+      { path: '/executive', label: this.i18n.translate('nav.links.executive') },
+      { path: '/performance', label: this.i18n.translate('nav.links.performance') },
+    ];
+  });
 
   /** Use the menu-driven nav only when a non-empty tree has loaded. */
   protected readonly useMenuNav = computed<boolean>(

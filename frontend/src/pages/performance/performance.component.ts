@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SolCardComponent } from '@shared/ui';
+import { I18nService } from '@shared/i18n';
 import { PerformanceService } from '@entities/performance/performance.service';
 import { PerfCollaborator, PerformanceData } from '@entities/performance/performance.model';
 
@@ -25,15 +26,14 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
   template: `
     <section class="flex flex-col gap-6">
       <div>
-        <h1 class="text-2xl font-semibold text-text">Rendimiento</h1>
+        <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
         <p class="text-sm text-muted">
-          Desempeño por colaborador: trabajo entregado, cumplimiento y carga
-          actual.
+          {{ text.subtitle() }}
         </p>
       </div>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando rendimiento…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -44,7 +44,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
       } @else if (collaborators().length === 0) {
         <sol-card>
           <p class="py-6 text-center text-sm text-muted">
-            Todavía no hay datos de rendimiento para mostrar.
+            {{ text.empty() }}
           </p>
         </sol-card>
       } @else {
@@ -67,25 +67,25 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
               <!-- Metrics -->
               <div class="mt-4 grid grid-cols-2 gap-3">
                 <div class="rounded-lg bg-muted/10 px-3 py-2">
-                  <p class="text-xs text-muted">Tareas completadas</p>
+                  <p class="text-xs text-muted">{{ text.completedTasks() }}</p>
                   <p class="mt-0.5 text-xl font-semibold text-text">
                     {{ person.completed_tasks }}
                   </p>
                 </div>
                 <div class="rounded-lg bg-muted/10 px-3 py-2">
-                  <p class="text-xs text-muted">Puntos completados</p>
+                  <p class="text-xs text-muted">{{ text.completedPoints() }}</p>
                   <p class="mt-0.5 text-xl font-semibold text-text">
                     {{ person.completed_points }}
                   </p>
                 </div>
                 <div class="rounded-lg bg-muted/10 px-3 py-2">
-                  <p class="text-xs text-muted">Activas</p>
+                  <p class="text-xs text-muted">{{ text.active() }}</p>
                   <p class="mt-0.5 text-xl font-semibold text-text">
                     {{ person.active_count }}
                   </p>
                 </div>
                 <div class="rounded-lg bg-muted/10 px-3 py-2">
-                  <p class="text-xs text-muted">Vencidas</p>
+                  <p class="text-xs text-muted">{{ text.overdue() }}</p>
                   <p
                     class="mt-0.5 text-xl font-semibold"
                     [class.text-danger]="person.overdue_count > 0"
@@ -102,7 +102,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
                   <div
                     class="flex items-center justify-between text-xs text-muted"
                   >
-                    <span>Puntos completados</span>
+                    <span>{{ text.completedPoints() }}</span>
                     <span class="font-medium text-text">
                       {{ person.completed_points }}
                     </span>
@@ -110,9 +110,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
                   <div
                     class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted/15"
                     role="img"
-                    [attr.aria-label]="
-                      person.completed_points + ' puntos completados'
-                    "
+                    [attr.aria-label]="pointsCompletedAria(person)"
                   >
                     <div
                       class="h-full rounded-full bg-brand transition-all"
@@ -125,7 +123,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
                   <div
                     class="flex items-center justify-between text-xs text-muted"
                   >
-                    <span>% a tiempo</span>
+                    <span>{{ text.onTimeBar() }}</span>
                     <span class="font-medium text-text">
                       {{ onTimeLabel(person) }}
                     </span>
@@ -133,9 +131,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
                   <div
                     class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted/15"
                     role="img"
-                    [attr.aria-label]="
-                      onTimePercent(person) + ' por ciento a tiempo'
-                    "
+                    [attr.aria-label]="onTimeAria(person)"
                   >
                     <div
                       class="h-full rounded-full transition-all"
@@ -151,7 +147,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
 
         @if (generatedAt()) {
           <p class="text-right text-xs text-muted">
-            Actualizado: {{ generatedAt() }}
+            {{ text.updatedAt() }} {{ generatedAt() }}
           </p>
         }
       }
@@ -160,6 +156,21 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
 })
 export class PerformanceComponent implements OnInit {
   private readonly performanceService = inject(PerformanceService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    title: this.i18n.t('performance.title'),
+    subtitle: this.i18n.t('performance.subtitle'),
+    loading: this.i18n.t('performance.loading'),
+    empty: this.i18n.t('performance.empty'),
+    completedTasks: this.i18n.t('performance.metrics.completedTasks'),
+    completedPoints: this.i18n.t('performance.metrics.completedPoints'),
+    active: this.i18n.t('performance.metrics.active'),
+    overdue: this.i18n.t('performance.metrics.overdue'),
+    onTimeBar: this.i18n.t('performance.bars.onTime'),
+    updatedAt: this.i18n.t('performance.updatedAt'),
+  } as const;
 
   protected readonly data = signal<PerformanceData | null>(null);
   protected readonly loading = signal(true);
@@ -194,6 +205,20 @@ export class PerformanceComponent implements OnInit {
     return Math.round((person.completed_points / max) * 100);
   }
 
+  protected pointsCompletedAria(person: PerfCollaborator): string {
+    this.i18n.activeLang();
+    return this.i18n.translate('performance.aria.pointsCompleted', {
+      n: person.completed_points,
+    });
+  }
+
+  protected onTimeAria(person: PerfCollaborator): string {
+    this.i18n.activeLang();
+    return this.i18n.translate('performance.aria.onTimePercent', {
+      n: this.onTimePercent(person),
+    });
+  }
+
   protected hasOnTime(person: PerfCollaborator): boolean {
     return person.on_time_rate !== null && person.on_time_rate !== undefined;
   }
@@ -205,7 +230,9 @@ export class PerformanceComponent implements OnInit {
   }
 
   protected onTimeLabel(person: PerfCollaborator): string {
-    return this.hasOnTime(person) ? `${this.onTimePercent(person)}%` : 'sin datos';
+    return this.hasOnTime(person)
+      ? `${this.onTimePercent(person)}%`
+      : this.i18n.translate('performance.states.noData');
   }
 
   protected onTimeBarClass(person: PerfCollaborator): string {
@@ -251,8 +278,8 @@ export class PerformanceComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudo cargar el rendimiento. Inténtalo más tarde.',
+            ? this.i18n.translate('performance.errors.network')
+            : this.i18n.translate('performance.errors.loadFailed'),
         );
       },
     });

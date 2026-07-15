@@ -21,6 +21,7 @@ import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
 import { SolModalComponent } from '@shared/ui';
 import { SolSelectComponent } from '@shared/ui';
 import { SolTableComponent } from '@shared/ui/table.component';
+import { I18nService } from '@shared/i18n';
 import { UsersService } from '@entities/user/users.service';
 import { AdminUser } from '@entities/user/user-admin.model';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
@@ -46,21 +47,21 @@ import { Role } from '@entities/role/role.model';
   template: `
     <section class="flex flex-col gap-6">
       <sol-page-header
-        title="Usuarios"
-        subtitle="Administra las personas, sus dependencias y sus roles."
+        [title]="text.title()"
+        [subtitle]="text.subtitle()"
       >
         <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
-          ariaLabel="Crea un usuario"
+          [ariaLabel]="text.actions.createAria()"
         >
-          Crear usuario
+          {{ text.actions.create() }}
         </sol-button>
       </sol-page-header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">Cargando usuarios…</p>
+        <p class="text-sm text-muted">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -70,21 +71,21 @@ import { Role } from '@entities/role/role.model';
         </div>
       } @else if (items().length === 0) {
         <div class="rounded-xl border border-border bg-surface p-8 text-center">
-          <p class="text-base font-medium text-text">Todavía no hay usuarios.</p>
+          <p class="text-base font-medium text-text">{{ text.empty.title() }}</p>
           <p class="mt-1 text-sm text-muted">
-            Crea el primer usuario para dar acceso a tu organización.
+            {{ text.empty.subtitle() }}
           </p>
         </div>
       } @else {
         <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">Nombre</th>
-              <th class="px-4 py-3 font-medium">Correo</th>
-              <th class="px-4 py-3 font-medium">Dependencia</th>
-              <th class="px-4 py-3 font-medium">Roles</th>
-              <th class="px-4 py-3 font-medium">Estado</th>
-              <th class="px-4 py-3 text-right font-medium">Acciones</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.name() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.email() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.dependency() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.roles() }}</th>
+              <th class="px-4 py-3 font-medium">{{ text.table.status() }}</th>
+              <th class="px-4 py-3 text-right font-medium">{{ text.table.actions() }}</th>
             </tr>
           </thead>
           <tbody>
@@ -102,28 +103,28 @@ import { Role } from '@entities/role/role.model';
                     @for (role of item.roles ?? []; track role.id) {
                       <sol-badge variant="info">{{ role.name }}</sol-badge>
                     } @empty {
-                      <span class="text-xs text-muted">Sin roles</span>
+                      <span class="text-xs text-muted">{{ text.noRoles() }}</span>
                     }
                   </div>
                 </td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <sol-badge variant="success">Activo</sol-badge>
+                    <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
                   } @else {
-                    <sol-badge variant="neutral">Inactivo</sol-badge>
+                    <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
                     <sol-icon-button
                       icon="edit"
-                      ariaLabel="Edita el usuario"
+                      [ariaLabel]="text.actions.editAria()"
                       (click)="openEdit(item)"
                     ></sol-icon-button>
                     <sol-icon-button
                       icon="delete"
                       variant="danger"
-                      ariaLabel="Elimina el usuario"
+                      [ariaLabel]="text.actions.deleteAria()"
                       (click)="askDelete(item)"
                     ></sol-icon-button>
                   </div>
@@ -138,7 +139,7 @@ import { Role } from '@entities/role/role.model';
     @if (showForm()) {
       <sol-modal [open]="true"
         size="xl"
-        [title]="editing() ? 'Editar usuario' : 'Nuevo usuario'"
+        [title]="editing() ? text.form.editTitle() : text.form.createTitle()"
         (closed)="closeForm()"
       >
         <form
@@ -150,45 +151,45 @@ import { Role } from '@entities/role/role.model';
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <sol-input
-                label="Primer nombre"
-                placeholder="Ej. Ana"
+                [label]="text.form.firstName()"
+                [placeholder]="text.form.firstNamePlaceholder()"
                 formControlName="primer_nombre"
               ></sol-input>
               @if (showError('primer_nombre')) {
                 <p class="mt-1 text-xs text-danger">
-                  El primer nombre es obligatorio.
+                  {{ text.form.errors.firstNameRequired() }}
                 </p>
               }
             </div>
             <sol-input
-              label="Segundo nombre (opcional)"
-              placeholder="Ej. María"
+              [label]="text.form.secondName()"
+              [placeholder]="text.form.secondNamePlaceholder()"
               formControlName="segundo_nombre"
             ></sol-input>
             <div>
               <sol-input
-                label="Primer apellido"
-                placeholder="Ej. Torres"
+                [label]="text.form.firstLastName()"
+                [placeholder]="text.form.firstLastNamePlaceholder()"
                 formControlName="primer_apellido"
               ></sol-input>
               @if (showError('primer_apellido')) {
                 <p class="mt-1 text-xs text-danger">
-                  El primer apellido es obligatorio.
+                  {{ text.form.errors.firstLastNameRequired() }}
                 </p>
               }
             </div>
             <sol-input
-              label="Segundo apellido (opcional)"
-              placeholder="Ej. Páez"
+              [label]="text.form.secondLastName()"
+              [placeholder]="text.form.secondLastNamePlaceholder()"
               formControlName="segundo_apellido"
             ></sol-input>
           </div>
 
           <div>
             <sol-input
-              label="Correo electrónico"
+              [label]="text.form.email()"
               type="email"
-              placeholder="persona@solercia.com"
+              [placeholder]="text.form.emailPlaceholder()"
               autocomplete="email"
               formControlName="email"
             ></sol-input>
@@ -200,15 +201,15 @@ import { Role } from '@entities/role/role.model';
           @if (!editing()) {
             <div>
               <sol-input
-                label="Contraseña"
+                [label]="text.form.password()"
                 type="password"
-                placeholder="••••••••"
+                [placeholder]="text.form.passwordPlaceholder()"
                 autocomplete="new-password"
                 formControlName="password"
               ></sol-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
-                  La contraseña debe tener al menos 8 caracteres.
+                  {{ text.form.errors.passwordMinLength() }}
                 </p>
               }
             </div>
@@ -216,14 +217,14 @@ import { Role } from '@entities/role/role.model';
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
-              >Dependencia (opcional)</span
+              >{{ text.form.dependency() }}</span
             >
             <select
               formControlName="dependency_id"
               class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
                      transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
             >
-              <option value="">Sin dependencia</option>
+              <option value="">{{ text.form.noDependency() }}</option>
               @for (dependency of dependencies(); track dependency.id) {
                 <option [value]="dependency.id">{{ dependency.name }}</option>
               }
@@ -232,16 +233,16 @@ import { Role } from '@entities/role/role.model';
 
           <div>
             @if (roles().length === 0) {
-              <span class="mb-1.5 block text-sm font-medium text-text">Roles</span>
+              <span class="mb-1.5 block text-sm font-medium text-text">{{ text.form.roles() }}</span>
               <p class="text-xs text-muted">
-                No hay roles creados todavía. Crea roles para poder asignarlos.
+                {{ text.form.noRolesHint() }}
               </p>
             } @else {
               <sol-select
-                label="Roles"
+                [label]="text.form.roles()"
                 [multiple]="true"
                 [options]="roleOptions()"
-                placeholder="Asigna uno o más roles"
+                [placeholder]="text.form.rolesPlaceholder()"
                 formControlName="role_ids"
               ></sol-select>
             }
@@ -253,7 +254,7 @@ import { Role } from '@entities/role/role.model';
               formControlName="is_active"
               class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
             />
-            Activo
+            {{ text.form.active() }}
           </label>
 
           @if (formError()) {
@@ -267,10 +268,10 @@ import { Role } from '@entities/role/role.model';
 
           <div class="flex items-center justify-end gap-2">
             <sol-button type="button" variant="ghost" (click)="closeForm()">
-              Cancelar
+              {{ text.actions.cancel() }}
             </sol-button>
             <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? 'Guardando…' : 'Guardar' }}
+              {{ saving() ? text.actions.saving() : text.actions.save() }}
             </sol-button>
           </div>
         </form>
@@ -278,11 +279,11 @@ import { Role } from '@entities/role/role.model';
     }
 
     @if (deleting()) {
-      <sol-modal [open]="true" size="sm" title="Eliminar usuario" (closed)="cancelDelete()">
+      <sol-modal [open]="true" size="sm" [title]="text.delete.title()" (closed)="cancelDelete()">
         <p class="text-sm text-muted">
-          ¿Confirmas que deseas eliminar a
+          {{ text.delete.confirmLead() }}
           <span class="font-medium text-text">{{ deleting()?.full_name }}</span
-          >? Esta acción no se puede deshacer.
+          >{{ text.delete.confirmTail() }}
         </p>
         @if (formError()) {
           <div
@@ -294,7 +295,7 @@ import { Role } from '@entities/role/role.model';
         }
         <div class="mt-5 flex items-center justify-end gap-2">
           <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            Cancelar
+            {{ text.actions.cancel() }}
           </sol-button>
           <sol-button
             type="button"
@@ -302,7 +303,7 @@ import { Role } from '@entities/role/role.model';
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
-            {{ saving() ? 'Eliminando…' : 'Eliminar' }}
+            {{ saving() ? text.actions.deleting() : text.actions.delete() }}
           </sol-button>
         </div>
       </sol-modal>
@@ -314,6 +315,74 @@ export class UsersPageComponent implements OnInit {
   private readonly service = inject(UsersService);
   private readonly dependenciesService = inject(DependenciesService);
   private readonly rolesService = inject(RolesService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
+  protected readonly text = {
+    title: this.i18n.t('admin.users.title'),
+    subtitle: this.i18n.t('admin.users.subtitle'),
+    loading: this.i18n.t('admin.users.loading'),
+    noRoles: this.i18n.t('admin.users.noRoles'),
+    actions: {
+      create: this.i18n.t('admin.users.actions.create'),
+      createAria: this.i18n.t('admin.users.actions.createAria'),
+      editAria: this.i18n.t('admin.users.actions.editAria'),
+      deleteAria: this.i18n.t('admin.users.actions.deleteAria'),
+      cancel: this.i18n.t('admin.users.actions.cancel'),
+      save: this.i18n.t('admin.users.actions.save'),
+      saving: this.i18n.t('admin.users.actions.saving'),
+      delete: this.i18n.t('admin.users.actions.delete'),
+      deleting: this.i18n.t('admin.users.actions.deleting'),
+    },
+    status: {
+      active: this.i18n.t('admin.users.status.active'),
+      inactive: this.i18n.t('admin.users.status.inactive'),
+    },
+    empty: {
+      title: this.i18n.t('admin.users.empty.title'),
+      subtitle: this.i18n.t('admin.users.empty.subtitle'),
+    },
+    table: {
+      name: this.i18n.t('admin.users.table.name'),
+      email: this.i18n.t('admin.users.table.email'),
+      dependency: this.i18n.t('admin.users.table.dependency'),
+      roles: this.i18n.t('admin.users.table.roles'),
+      status: this.i18n.t('admin.users.table.status'),
+      actions: this.i18n.t('admin.users.table.actions'),
+    },
+    form: {
+      createTitle: this.i18n.t('admin.users.form.createTitle'),
+      editTitle: this.i18n.t('admin.users.form.editTitle'),
+      firstName: this.i18n.t('admin.users.form.firstName'),
+      firstNamePlaceholder: this.i18n.t('admin.users.form.firstNamePlaceholder'),
+      secondName: this.i18n.t('admin.users.form.secondName'),
+      secondNamePlaceholder: this.i18n.t('admin.users.form.secondNamePlaceholder'),
+      firstLastName: this.i18n.t('admin.users.form.firstLastName'),
+      firstLastNamePlaceholder: this.i18n.t('admin.users.form.firstLastNamePlaceholder'),
+      secondLastName: this.i18n.t('admin.users.form.secondLastName'),
+      secondLastNamePlaceholder: this.i18n.t('admin.users.form.secondLastNamePlaceholder'),
+      email: this.i18n.t('admin.users.form.email'),
+      emailPlaceholder: this.i18n.t('admin.users.form.emailPlaceholder'),
+      password: this.i18n.t('admin.users.form.password'),
+      passwordPlaceholder: this.i18n.t('admin.users.form.passwordPlaceholder'),
+      dependency: this.i18n.t('admin.users.form.dependency'),
+      noDependency: this.i18n.t('admin.users.form.noDependency'),
+      roles: this.i18n.t('admin.users.form.roles'),
+      noRolesHint: this.i18n.t('admin.users.form.noRolesHint'),
+      rolesPlaceholder: this.i18n.t('admin.users.form.rolesPlaceholder'),
+      active: this.i18n.t('admin.users.form.active'),
+      errors: {
+        firstNameRequired: this.i18n.t('admin.users.form.errors.firstNameRequired'),
+        firstLastNameRequired: this.i18n.t('admin.users.form.errors.firstLastNameRequired'),
+        passwordMinLength: this.i18n.t('admin.users.form.errors.passwordMinLength'),
+      },
+    },
+    delete: {
+      title: this.i18n.t('admin.users.delete.title'),
+      confirmLead: this.i18n.t('admin.users.delete.confirmLead'),
+      confirmTail: this.i18n.t('admin.users.delete.confirmTail'),
+    },
+  } as const;
 
   protected readonly items = signal<AdminUser[]>([]);
   protected readonly dependencies = signal<Dependency[]>([]);
@@ -371,10 +440,10 @@ export class UsersPageComponent implements OnInit {
   protected emailError(): string {
     const c = this.form.controls.email;
     if (c.hasError('required')) {
-      return 'El correo es obligatorio.';
+      return this.i18n.translate('admin.users.form.errors.emailRequired');
     }
     if (c.hasError('email')) {
-      return 'El correo no es válido.';
+      return this.i18n.translate('admin.users.form.errors.emailInvalid');
     }
     return '';
   }
@@ -548,8 +617,8 @@ export class UsersPageComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar los usuarios. Inténtalo más tarde.',
+            ? this.i18n.translate('admin.users.errors.network')
+            : this.i18n.translate('admin.users.errors.loadFailed'),
         );
       },
     });
@@ -557,12 +626,12 @@ export class UsersPageComponent implements OnInit {
 
   private messageFor(err: HttpErrorResponse): string {
     if (err.status === 0) {
-      return 'No fue posible conectar con el servidor. Inténtalo de nuevo.';
+      return this.i18n.translate('admin.users.errors.network');
     }
     const detail = (err.error as { detail?: unknown } | null)?.detail;
     if (typeof detail === 'string') {
       return detail;
     }
-    return 'No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.';
+    return this.i18n.translate('admin.users.errors.generic');
   }
 }

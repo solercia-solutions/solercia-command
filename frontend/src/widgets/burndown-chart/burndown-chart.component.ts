@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
 } from '@angular/core';
 import { BurndownDay, BurndownUnit } from '@entities/workspace/workspace.model';
+import { I18nService } from '@shared/i18n';
 
 /** A plotted point in the SVG coordinate system. */
 interface ChartPoint {
@@ -65,7 +67,7 @@ function formatDayLabel(iso: string): string {
   template: `
     @if (days().length === 0) {
       <p class="py-8 text-center text-sm text-muted">
-        No hay datos suficientes para dibujar el burndown.
+        {{ text.emptyState() }}
       </p>
     } @else {
       <div class="flex flex-col gap-3">
@@ -86,7 +88,7 @@ function formatDayLabel(iso: string): string {
                 stroke-dasharray="4 3"
               />
             </svg>
-            Ideal
+            {{ text.legendIdeal() }}
           </span>
           <span class="inline-flex items-center gap-2 text-brand">
             <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
@@ -99,10 +101,10 @@ function formatDayLabel(iso: string): string {
                 stroke-width="2.5"
               />
             </svg>
-            Real
+            {{ text.legendActual() }}
           </span>
           <span class="ml-auto text-muted">
-            Eje vertical: {{ unitLabel() }} restantes
+            {{ yAxisCaption() }}
           </span>
         </div>
 
@@ -110,9 +112,7 @@ function formatDayLabel(iso: string): string {
           [attr.viewBox]="'0 0 ' + width + ' ' + height"
           class="h-auto w-full"
           role="img"
-          [attr.aria-label]="
-            'Gráfico de burndown del sprint, eje vertical en ' + unitLabel()
-          "
+          [attr.aria-label]="chartAria()"
           preserveAspectRatio="xMidYMid meet"
         >
           <!-- Horizontal grid + y-axis labels -->
@@ -211,6 +211,15 @@ function formatDayLabel(iso: string): string {
   `,
 })
 export class BurndownChartComponent {
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    emptyState: this.i18n.t('burndownChart.emptyState'),
+    legendIdeal: this.i18n.t('burndownChart.legend.ideal'),
+    legendActual: this.i18n.t('burndownChart.legend.actual'),
+  } as const;
+
   /** The full day-by-day series (ideal + actual). */
   readonly days = input.required<BurndownDay[]>();
   /** Estimation unit the y-axis is measured in. */
@@ -224,8 +233,23 @@ export class BurndownChartComponent {
   protected readonly padTop = 16;
   protected readonly padBottom = 44;
 
-  protected readonly unitLabel = computed<string>(() =>
-    this.unit() === 'points' ? 'puntos' : 'tareas',
+  protected readonly unitLabel = computed<string>(() => {
+    this.i18n.activeLang();
+    return this.unit() === 'points'
+      ? this.i18n.translate('burndownChart.unit.points')
+      : this.i18n.translate('burndownChart.unit.tasks');
+  });
+
+  /** Leyenda del eje vertical, dependiente de la unidad. */
+  protected readonly yAxisCaption = computed<string>(() =>
+    this.i18n.translate('burndownChart.yAxisCaption', {
+      unit: this.unitLabel(),
+    }),
+  );
+
+  /** Etiqueta accesible del gráfico, dependiente de la unidad. */
+  protected readonly chartAria = computed<string>(() =>
+    this.i18n.translate('burndownChart.chartAria', { unit: this.unitLabel() }),
   );
 
   /** Upper bound of the y-axis (max remaining work, rounded up). */

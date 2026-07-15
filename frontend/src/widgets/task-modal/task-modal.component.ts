@@ -13,6 +13,7 @@ import {
 } from '@angular/forms';
 import { EstimationMode } from '@entities/project/project.model';
 import { SolButtonComponent } from '@shared/ui';
+import { I18nService } from '@shared/i18n';
 import {
   Member,
   PRIORITY_OPTIONS,
@@ -55,20 +56,20 @@ export interface TaskFormResult {
       <div
         role="dialog"
         aria-modal="true"
-        [attr.aria-label]="task() ? 'Edita la tarea' : 'Crea una tarea'"
+        [attr.aria-label]="task() ? text.editAria() : text.createAria()"
         (click)="$event.stopPropagation()"
         class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-lg"
       >
         <div class="mb-4 flex items-center justify-between gap-2">
           <h2 class="text-lg font-semibold text-text">
-            {{ task() ? 'Editar tarea' : 'Nueva tarea' }}
+            {{ task() ? text.editTitle() : text.createTitle() }}
           </h2>
           <button
             type="button"
             (click)="close.emit()"
             class="grid h-8 w-8 place-items-center rounded-lg text-muted transition-colors hover:bg-muted/10 hover:text-text
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-            aria-label="Cierra el formulario"
+            [attr.aria-label]="text.closeAria()"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -95,25 +96,25 @@ export interface TaskFormResult {
           novalidate
         >
           <label class="block">
-            <span class="mb-1.5 block text-sm font-medium text-text">Título</span>
+            <span class="mb-1.5 block text-sm font-medium text-text">{{ text.titleLabel() }}</span>
             <input
               formControlName="title"
-              placeholder="Ej. Diseñar el formulario de registro"
+              [placeholder]="text.titlePlaceholder()"
               [class]="fieldClass"
             />
             @if (showError('title')) {
-              <p class="mt-1 text-xs text-danger">El título es obligatorio.</p>
+              <p class="mt-1 text-xs text-danger">{{ text.titleRequired() }}</p>
             }
           </label>
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
-              >Descripción</span
+              >{{ text.descriptionLabel() }}</span
             >
             <textarea
               formControlName="description"
               rows="3"
-              placeholder="Detalla el alcance (opcional)"
+              [placeholder]="text.descriptionPlaceholder()"
               class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text
                      placeholder:text-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
             ></textarea>
@@ -122,7 +123,7 @@ export interface TaskFormResult {
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-text"
-                >Estado</span
+                >{{ text.statusLabel() }}</span
               >
               <select formControlName="status" [class]="fieldClass">
                 @for (status of allowedStatuses(); track status) {
@@ -133,7 +134,7 @@ export interface TaskFormResult {
 
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-text"
-                >Prioridad</span
+                >{{ text.priorityLabel() }}</span
               >
               <select formControlName="priority" [class]="fieldClass">
                 @for (option of priorityOptions; track option.value) {
@@ -144,10 +145,10 @@ export interface TaskFormResult {
 
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-text"
-                >Responsable</span
+                >{{ text.assigneeLabel() }}</span
               >
               <select formControlName="assignee_id" [class]="fieldClass">
-                <option [ngValue]="null">Sin responsable</option>
+                <option [ngValue]="null">{{ text.assigneeNone() }}</option>
                 @for (member of members(); track member.user_id) {
                   <option [ngValue]="member.user_id">
                     {{ member.full_name }}
@@ -158,7 +159,7 @@ export interface TaskFormResult {
 
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-text"
-                >Tipo</span
+                >{{ text.typeLabel() }}</span
               >
               <select formControlName="task_type" [class]="fieldClass">
                 @for (option of taskTypeOptions; track option.value) {
@@ -170,7 +171,7 @@ export interface TaskFormResult {
             @if (showPoints()) {
               <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-text"
-                  >Estimación (puntos)</span
+                  >{{ text.estimationPoints() }}</span
                 >
                 <input
                   type="number"
@@ -186,7 +187,7 @@ export interface TaskFormResult {
             @if (showHours()) {
               <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-text"
-                  >Estimación (horas)</span
+                  >{{ text.estimationHours() }}</span
                 >
                 <input
                   type="number"
@@ -201,7 +202,7 @@ export interface TaskFormResult {
 
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-text"
-                >Fecha límite</span
+                >{{ text.dueDateLabel() }}</span
               >
               <input type="date" formControlName="due_date" [class]="fieldClass" />
             </label>
@@ -209,10 +210,10 @@ export interface TaskFormResult {
             @if (sprintsEnabled()) {
               <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-text"
-                  >Sprint</span
+                  >{{ text.sprintLabel() }}</span
                 >
                 <select formControlName="sprint_id" [class]="fieldClass">
-                  <option [ngValue]="null">Backlog</option>
+                  <option [ngValue]="null">{{ text.backlogOption() }}</option>
                   @for (sprint of sprints(); track sprint.id) {
                     <option [ngValue]="sprint.id">{{ sprint.name }}</option>
                   }
@@ -237,17 +238,17 @@ export interface TaskFormResult {
                 variant="danger"
                 (click)="remove.emit(task()!.id)"
               >
-                Eliminar
+                {{ text.remove() }}
               </sol-button>
             } @else {
               <span></span>
             }
             <div class="flex items-center gap-2">
               <sol-button type="button" variant="ghost" (click)="close.emit()">
-                Cancelar
+                {{ text.cancel() }}
               </sol-button>
               <sol-button type="submit" variant="primary" [disabled]="saving()">
-                {{ saving() ? 'Guardando…' : 'Guardar' }}
+                {{ saving() ? text.saving() : text.save() }}
               </sol-button>
             </div>
           </div>
@@ -258,6 +259,35 @@ export interface TaskFormResult {
 })
 export class TaskModalComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
+  private readonly i18n = inject(I18nService);
+
+  /** Static UI chrome resolved by i18n (reactive to language changes). */
+  protected readonly text = {
+    editAria: this.i18n.t('taskModal.editAria'),
+    createAria: this.i18n.t('taskModal.createAria'),
+    editTitle: this.i18n.t('taskModal.editTitle'),
+    createTitle: this.i18n.t('taskModal.createTitle'),
+    closeAria: this.i18n.t('taskModal.closeAria'),
+    titleLabel: this.i18n.t('taskModal.titleLabel'),
+    titlePlaceholder: this.i18n.t('taskModal.titlePlaceholder'),
+    titleRequired: this.i18n.t('taskModal.titleRequired'),
+    descriptionLabel: this.i18n.t('taskModal.descriptionLabel'),
+    descriptionPlaceholder: this.i18n.t('taskModal.descriptionPlaceholder'),
+    statusLabel: this.i18n.t('taskModal.statusLabel'),
+    priorityLabel: this.i18n.t('taskModal.priorityLabel'),
+    assigneeLabel: this.i18n.t('taskModal.assigneeLabel'),
+    assigneeNone: this.i18n.t('taskModal.assigneeNone'),
+    typeLabel: this.i18n.t('taskModal.typeLabel'),
+    estimationPoints: this.i18n.t('taskModal.estimationPoints'),
+    estimationHours: this.i18n.t('taskModal.estimationHours'),
+    dueDateLabel: this.i18n.t('taskModal.dueDateLabel'),
+    sprintLabel: this.i18n.t('taskModal.sprintLabel'),
+    backlogOption: this.i18n.t('taskModal.backlogOption'),
+    remove: this.i18n.t('taskModal.remove'),
+    cancel: this.i18n.t('taskModal.cancel'),
+    saving: this.i18n.t('taskModal.saving'),
+    save: this.i18n.t('taskModal.save'),
+  } as const;
 
   readonly allowedStatuses = input.required<string[]>();
   readonly estimationMode = input<EstimationMode>('none');

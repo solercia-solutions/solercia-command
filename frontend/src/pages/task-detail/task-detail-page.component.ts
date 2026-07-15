@@ -20,6 +20,7 @@ import { SolSelectComponent } from '@shared/ui';
 import { SolRichEditorComponent } from '@shared/ui/rich-editor.component';
 import { SolInputComponent } from '@shared/ui';
 import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
+import { I18nService } from '@shared/i18n';
 
 @Component({
   selector: 'sol-task-detail-page',
@@ -52,8 +53,8 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
     <div class="mb-6 flex items-center gap-3">
       <a [routerLink]="['/projects', task()!.project_id]"
          class="flex items-center gap-1 text-sm text-muted hover:text-text transition-colors"
-         aria-label="Volver al proyecto">
-        ← Volver
+         [attr.aria-label]="text.backAria()">
+        ← {{ text.back() }}
       </a>
       @if (task()!.task_key) {
         <span class="font-mono text-sm font-semibold text-brand">{{ task()!.task_key }}</span>
@@ -69,7 +70,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
         <!-- Description -->
         <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">Descripción</h2>
+          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.description() }}</h2>
           <sol-rich-editor
             [ngModel]="task()!.description ?? ''"
             (ngModelChange)="updateField('description', $event)"
@@ -81,19 +82,19 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
         <!-- Subtasks -->
         <div class="rounded-lg border border-border bg-surface p-4">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-muted uppercase tracking-wide">Subtareas</h2>
+            <h2 class="text-sm font-semibold text-muted uppercase tracking-wide">{{ text.subtasksTitle() }}</h2>
             <button
               class="text-xs text-brand hover:underline"
               (click)="showSubtaskForm.set(true)"
-              aria-label="Agregar subtarea">
-              + Nueva subtarea
+              [attr.aria-label]="text.subtaskAddAria()">
+              + {{ text.subtaskNew() }}
             </button>
           </div>
 
           @if (task()!.subtask_progress !== null) {
             <div class="mb-3">
               <div class="mb-1 flex justify-between text-xs text-muted">
-                <span>Progreso</span>
+                <span>{{ text.subtaskProgress() }}</span>
                 <span>{{ (task()!.subtask_progress! * 100) | number:'1.0-0' }}%</span>
               </div>
               <div class="h-1.5 rounded-full bg-muted/20">
@@ -122,13 +123,13 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           @if (showSubtaskForm()) {
             <div class="mt-3 space-y-2 border-t border-border pt-3">
               <sol-input
-                label="Título de la subtarea"
+                [label]="text.subtaskTitleField()"
                 [ngModel]="newSubtaskTitle()"
                 (ngModelChange)="newSubtaskTitle.set($event)"
-                placeholder="Título de la subtarea"
+                [placeholder]="text.subtaskTitleField()"
               />
               <div>
-                <label class="mb-1 block text-xs text-muted">Horas estimadas</label>
+                <label class="mb-1 block text-xs text-muted">{{ text.subtaskHours() }}</label>
                 <input
                   type="number"
                   class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
@@ -143,14 +144,14 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                   class="rounded bg-brand px-3 py-1.5 text-xs font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
                   (click)="createSubtask()"
                   [disabled]="savingSubtask() || !newSubtaskTitle().trim()"
-                  aria-label="Guardar subtarea">
-                  {{ savingSubtask() ? 'Guardando...' : 'Guardar' }}
+                  [attr.aria-label]="text.subtaskSaveAria()">
+                  {{ savingSubtask() ? text.subtaskSaving() : text.subtaskSave() }}
                 </button>
                 <button
                   class="rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
                   (click)="showSubtaskForm.set(false)"
-                  aria-label="Cancelar creación de subtarea">
-                  Cancelar
+                  [attr.aria-label]="text.subtaskCancelAria()">
+                  {{ text.subtaskCancel() }}
                 </button>
               </div>
             </div>
@@ -159,7 +160,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
         <!-- Comments -->
         <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">Comentarios</h2>
+          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.commentsTitle() }}</h2>
 
           <ul class="space-y-4 mb-4">
             @for (comment of comments(); track comment.id) {
@@ -174,13 +175,13 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                       @if (auth.user()?.id === comment.author_id) {
                         <button class="text-xs text-muted hover:text-text"
                                 (click)="startEditComment(comment)"
-                                aria-label="Editar comentario">
-                          Editar
+                                [attr.aria-label]="text.commentEditAria()">
+                          {{ text.commentEdit() }}
                         </button>
                         <button class="text-xs text-danger/70 hover:text-danger"
                                 (click)="deleteComment(comment.id)"
-                                aria-label="Eliminar comentario">
-                          Eliminar
+                                [attr.aria-label]="text.commentDeleteAria()">
+                          {{ text.commentDelete() }}
                         </button>
                       }
                     </div>
@@ -196,14 +197,14 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                         <button
                           class="rounded bg-brand px-3 py-1.5 text-xs font-medium text-brand-fg hover:opacity-90"
                           (click)="saveEditComment()"
-                          aria-label="Guardar edición">
-                          Guardar
+                          [attr.aria-label]="text.commentSaveEditAria()">
+                          {{ text.commentSaveEdit() }}
                         </button>
                         <button
                           class="rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
                           (click)="cancelEditComment()"
-                          aria-label="Cancelar edición">
-                          Cancelar
+                          [attr.aria-label]="text.commentCancelEditAria()">
+                          {{ text.commentCancelEdit() }}
                         </button>
                       </div>
                     } @else {
@@ -219,8 +220,8 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                             <span>{{ formatBytes(att.size_bytes) }}</span>
                             <button class="text-brand hover:underline"
                                     (click)="downloadAttachment(att)"
-                                    aria-label="Descargar archivo">
-                              Descargar
+                                    [attr.aria-label]="text.commentDownloadAria()">
+                              {{ text.commentDownload() }}
                             </button>
                           </li>
                         }
@@ -229,10 +230,10 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
                     <!-- Upload to comment -->
                     <label class="mt-1 inline-block cursor-pointer text-xs text-muted hover:text-text">
-                      Subir archivo
+                      {{ text.commentUpload() }}
                       <input type="file" class="sr-only"
                              (change)="uploadCommentFile(comment.id, $event)"
-                             aria-label="Subir archivo al comentario" />
+                             [attr.aria-label]="text.commentUploadAria()" />
                     </label>
                   </div>
                 </div>
@@ -253,8 +254,8 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                 class="rounded bg-brand px-4 py-1.5 text-sm font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
                 (click)="addComment()"
                 [disabled]="savingComment() || !commentBody().trim()"
-                aria-label="Agregar comentario">
-                {{ savingComment() ? 'Enviando...' : 'Comentar' }}
+                [attr.aria-label]="text.commentSubmitAria()">
+                {{ savingComment() ? text.commentSending() : text.commentSubmit() }}
               </button>
             </div>
           </div>
@@ -262,7 +263,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
         <!-- Task attachments -->
         <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">Archivos adjuntos</h2>
+          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.attachmentsTitle() }}</h2>
           <ul class="space-y-2 mb-3">
             @for (att of taskAttachments(); track att.id) {
               <li class="flex items-center gap-2 text-sm">
@@ -270,17 +271,17 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                 <span class="text-xs text-muted">{{ formatBytes(att.size_bytes) }}</span>
                 <button class="text-xs text-brand hover:underline"
                         (click)="downloadAttachment(att)"
-                        aria-label="Descargar archivo adjunto">
-                  Descargar
+                        [attr.aria-label]="text.attachmentDownloadAria()">
+                  {{ text.attachmentDownload() }}
                 </button>
               </li>
             }
           </ul>
           <label class="inline-flex cursor-pointer items-center gap-1 rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text">
-            + Subir archivo
+            + {{ text.attachmentUpload() }}
             <input type="file" class="sr-only"
                    (change)="uploadTaskFile($event)"
-                   aria-label="Subir archivo adjunto" />
+                   [attr.aria-label]="text.attachmentUploadAria()" />
           </label>
         </div>
 
@@ -292,41 +293,41 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
           <!-- Status -->
           <div>
-            <label class="mb-1 block text-xs font-medium text-muted">Estado</label>
+            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldStatus() }}</label>
             <sol-select
               [options]="statusOptions()"
               [ngModel]="task()!.status"
               (ngModelChange)="updateField('status', $event)"
-              placeholder="Seleccionar estado"
+              [placeholder]="text.fieldStatusPlaceholder()"
             />
           </div>
 
           <!-- Priority -->
           <div>
-            <label class="mb-1 block text-xs font-medium text-muted">Prioridad</label>
+            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldPriority() }}</label>
             <sol-select
-              [options]="priorityOptions"
+              [options]="priorityOptions()"
               [ngModel]="task()!.priority"
               (ngModelChange)="updateField('priority', $event)"
-              placeholder="Seleccionar prioridad"
+              [placeholder]="text.fieldPriorityPlaceholder()"
             />
           </div>
 
           <!-- Assignee -->
           <div>
-            <label class="mb-1 block text-xs font-medium text-muted">Responsable</label>
+            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldAssignee() }}</label>
             <sol-select
               [options]="assigneeOptions()"
               [ngModel]="task()!.assignee_id ?? ''"
               (ngModelChange)="updateField('assignee_id', $event || null)"
-              placeholder="Sin asignar"
+              [placeholder]="text.fieldAssigneePlaceholder()"
             />
           </div>
 
           <!-- Estimation hours -->
           @if (task()!.estimation_hours !== null && task()!.estimation_hours !== undefined) {
             <div>
-              <label class="mb-1 block text-xs font-medium text-muted">Horas estimadas</label>
+              <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldEstimationHours() }}</label>
               <p class="text-sm text-text">{{ task()!.estimation_hours }}h</p>
             </div>
           }
@@ -334,7 +335,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Estimation points -->
           @if (task()!.estimation_points !== null && task()!.estimation_points !== undefined) {
             <div>
-              <label class="mb-1 block text-xs font-medium text-muted">Story points</label>
+              <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldStoryPoints() }}</label>
               <p class="text-sm text-text">{{ task()!.estimation_points }}</p>
             </div>
           }
@@ -342,7 +343,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Due date -->
           @if (task()!.due_date) {
             <div>
-              <label class="mb-1 block text-xs font-medium text-muted">Fecha límite</label>
+              <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldDueDate() }}</label>
               <p class="text-sm text-text">{{ task()!.due_date | date:'dd/MM/yyyy' }}</p>
             </div>
           }
@@ -350,7 +351,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Risk flag -->
           @if (task()!.risk_flag) {
             <div class="rounded border border-danger/30 bg-danger/10 p-3">
-              <p class="text-xs font-semibold text-danger">En riesgo</p>
+              <p class="text-xs font-semibold text-danger">{{ text.fieldAtRisk() }}</p>
               @if (task()!.risk_reason) {
                 <p class="mt-1 text-xs text-danger/80">{{ task()!.risk_reason }}</p>
               }
@@ -367,6 +368,60 @@ export class TaskDetailPageComponent implements OnInit {
   protected readonly svc = inject(TaskDetailService);
   protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    back: this.i18n.t('taskDetail.back'),
+    backAria: this.i18n.t('taskDetail.backAria'),
+    description: this.i18n.t('taskDetail.description'),
+    subtasksTitle: this.i18n.t('taskDetail.subtasks.title'),
+    subtaskAddAria: this.i18n.t('taskDetail.subtasks.addAria'),
+    subtaskNew: this.i18n.t('taskDetail.subtasks.new'),
+    subtaskProgress: this.i18n.t('taskDetail.subtasks.progress'),
+    subtaskTitleField: this.i18n.t('taskDetail.subtasks.titleField'),
+    subtaskHours: this.i18n.t('taskDetail.subtasks.hours'),
+    subtaskSaving: this.i18n.t('taskDetail.subtasks.saving'),
+    subtaskSave: this.i18n.t('taskDetail.subtasks.save'),
+    subtaskSaveAria: this.i18n.t('taskDetail.subtasks.saveAria'),
+    subtaskCancel: this.i18n.t('taskDetail.subtasks.cancel'),
+    subtaskCancelAria: this.i18n.t('taskDetail.subtasks.cancelAria'),
+    commentsTitle: this.i18n.t('taskDetail.comments.title'),
+    commentEdit: this.i18n.t('taskDetail.comments.edit'),
+    commentEditAria: this.i18n.t('taskDetail.comments.editAria'),
+    commentDelete: this.i18n.t('taskDetail.comments.delete'),
+    commentDeleteAria: this.i18n.t('taskDetail.comments.deleteAria'),
+    commentSaveEdit: this.i18n.t('taskDetail.comments.saveEdit'),
+    commentSaveEditAria: this.i18n.t('taskDetail.comments.saveEditAria'),
+    commentCancelEdit: this.i18n.t('taskDetail.comments.cancelEdit'),
+    commentCancelEditAria: this.i18n.t('taskDetail.comments.cancelEditAria'),
+    commentDownload: this.i18n.t('taskDetail.comments.download'),
+    commentDownloadAria: this.i18n.t('taskDetail.comments.downloadAria'),
+    commentUpload: this.i18n.t('taskDetail.comments.upload'),
+    commentUploadAria: this.i18n.t('taskDetail.comments.uploadAria'),
+    commentSending: this.i18n.t('taskDetail.comments.sending'),
+    commentSubmit: this.i18n.t('taskDetail.comments.submit'),
+    commentSubmitAria: this.i18n.t('taskDetail.comments.submitAria'),
+    attachmentsTitle: this.i18n.t('taskDetail.attachments.title'),
+    attachmentDownload: this.i18n.t('taskDetail.attachments.download'),
+    attachmentDownloadAria: this.i18n.t('taskDetail.attachments.downloadAria'),
+    attachmentUpload: this.i18n.t('taskDetail.attachments.upload'),
+    attachmentUploadAria: this.i18n.t('taskDetail.attachments.uploadAria'),
+    fieldStatus: this.i18n.t('taskDetail.fields.status'),
+    fieldStatusPlaceholder: this.i18n.t('taskDetail.fields.statusPlaceholder'),
+    fieldPriority: this.i18n.t('taskDetail.fields.priority'),
+    fieldPriorityPlaceholder: this.i18n.t(
+      'taskDetail.fields.priorityPlaceholder',
+    ),
+    fieldAssignee: this.i18n.t('taskDetail.fields.assignee'),
+    fieldAssigneePlaceholder: this.i18n.t(
+      'taskDetail.fields.assigneePlaceholder',
+    ),
+    fieldEstimationHours: this.i18n.t('taskDetail.fields.estimationHours'),
+    fieldStoryPoints: this.i18n.t('taskDetail.fields.storyPoints'),
+    fieldDueDate: this.i18n.t('taskDetail.fields.dueDate'),
+    fieldAtRisk: this.i18n.t('taskDetail.fields.atRisk'),
+  } as const;
 
   readonly task = signal<TaskDetail | null>(null);
   readonly subtasks = signal<TaskDetail[]>([]);
@@ -392,12 +447,15 @@ export class TaskDetailPageComponent implements OnInit {
     return statuses.map(s => ({ value: s, label: s.replace(/_/g, ' ') }));
   });
 
-  readonly priorityOptions = [
-    { value: 'critical', label: 'Crítica' },
-    { value: 'high', label: 'Alta' },
-    { value: 'medium', label: 'Media' },
-    { value: 'low', label: 'Baja' },
-  ];
+  readonly priorityOptions = computed(() => {
+    this.i18n.activeLang();
+    return [
+      { value: 'critical', label: this.i18n.translate('taskDetail.priorities.critical') },
+      { value: 'high', label: this.i18n.translate('taskDetail.priorities.high') },
+      { value: 'medium', label: this.i18n.translate('taskDetail.priorities.medium') },
+      { value: 'low', label: this.i18n.translate('taskDetail.priorities.low') },
+    ];
+  });
 
   readonly mentionableUsers = computed<MentionUser[]>(() =>
     this.members().map(m => ({ id: m.user_id, name: m.full_name })),
@@ -417,7 +475,7 @@ export class TaskDetailPageComponent implements OnInit {
       this.taskKey.set(key);
       this.loadAll(key);
     } else {
-      this.error.set('Clave de tarea no encontrada en la URL.');
+      this.error.set(this.i18n.translate('taskDetail.errors.missingKey'));
       this.loading.set(false);
     }
   }
@@ -449,14 +507,14 @@ export class TaskDetailPageComponent implements OnInit {
             });
           },
           error: (err) => {
-            this.error.set('Error al cargar los datos de la tarea.');
+            this.error.set(this.i18n.translate('taskDetail.errors.loadData'));
             this.loading.set(false);
             console.error(err);
           },
         });
       },
       error: (err) => {
-        this.error.set('No se encontró la tarea.');
+        this.error.set(this.i18n.translate('taskDetail.errors.notFound'));
         this.loading.set(false);
         console.error(err);
       },

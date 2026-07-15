@@ -1,23 +1,655 @@
 {
+  "admin": {
+    "dependencies": {
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Crear dependencia",
+        "createAria": "Crea una dependencia",
+        "delete": "Eliminar",
+        "deleteAria": "Elimina la dependencia",
+        "deleting": "Eliminando…",
+        "editAria": "Edita la dependencia",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "delete": {
+        "confirmPrefix": "¿Confirmas que deseas eliminar",
+        "confirmSuffix": "? Esta acción no se puede deshacer.",
+        "title": "Eliminar dependencia"
+      },
+      "empty": {
+        "subtitle": "Crea la primera para clasificar a las personas de tu organización.",
+        "title": "Todavía no hay dependencias."
+      },
+      "errors": {
+        "loadFailed": "No se pudieron cargar las dependencias. Inténtalo más tarde.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+        "saveFailed": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo."
+      },
+      "form": {
+        "activeLabel": "Activa",
+        "codeLabel": "Código (opcional)",
+        "codePlaceholder": "Ej. TEC",
+        "createTitle": "Nueva dependencia",
+        "editTitle": "Editar dependencia",
+        "nameLabel": "Nombre",
+        "namePlaceholder": "Ej. Tecnología",
+        "nameRequired": "El nombre es obligatorio."
+      },
+      "loading": "Cargando dependencias…",
+      "status": {
+        "active": "Activa",
+        "inactive": "Inactiva"
+      },
+      "subtitle": "Administra las áreas o dependencias de tu organización.",
+      "table": {
+        "actions": "Acciones",
+        "code": "Código",
+        "name": "Nombre",
+        "status": "Estado"
+      },
+      "title": "Dependencias"
+    },
+    "menus": {
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Crear actividad",
+        "createAria": "Crea una actividad",
+        "delete": "Eliminar",
+        "deleteAria": "Elimina la actividad",
+        "deleting": "Eliminando…",
+        "editAria": "Edita la actividad",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "delete": {
+        "confirmPrefix": "¿Confirmas que deseas eliminar",
+        "confirmSuffix": "? Si tiene actividades hijas, revisa que no queden huérfanas.",
+        "title": "Eliminar actividad"
+      },
+      "empty": {
+        "subtitle": "Crea la primera para construir el menú de la aplicación.",
+        "title": "Todavía no hay actividades."
+      },
+      "errors": {
+        "loadFailed": "No se pudieron cargar las actividades. Inténtalo más tarde.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+        "saveFailed": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo."
+      },
+      "form": {
+        "activeLabel": "Activa",
+        "createTitle": "Nueva actividad",
+        "editTitle": "Editar actividad",
+        "iconLabel": "Ícono (opcional)",
+        "iconPlaceholder": "Ej. folder",
+        "nameLabel": "Nombre",
+        "namePlaceholder": "Ej. Proyectos",
+        "nameRequired": "El nombre es obligatorio.",
+        "noParent": "Sin padre (nivel superior)",
+        "orderLabel": "Orden",
+        "parentLabel": "Actividad padre (opcional)",
+        "pathLabel": "Ruta (opcional)",
+        "pathPlaceholder": "Ej. /projects"
+      },
+      "loading": "Cargando actividades…",
+      "status": {
+        "active": "Activa",
+        "inactive": "Inactiva"
+      },
+      "subtitle": "Organiza las actividades del menú y su jerarquía.",
+      "table": {
+        "actions": "Acciones",
+        "activity": "Actividad",
+        "order": "Orden",
+        "path": "Ruta",
+        "status": "Estado"
+      },
+      "title": "Actividades"
+    },
+    "roles": {
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Crear rol",
+        "createAria": "Crea un rol",
+        "delete": "Eliminar",
+        "deleteAria": "Elimina el rol",
+        "deleting": "Eliminando…",
+        "editAria": "Edita el rol",
+        "menusAria": "Asocia actividades al rol",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "delete": {
+        "confirmLead": "¿Confirmas que deseas eliminar",
+        "confirmTail": "? Esta acción no se puede deshacer.",
+        "title": "Eliminar rol"
+      },
+      "empty": {
+        "subtitle": "Crea el primer rol para empezar a controlar los accesos.",
+        "title": "Todavía no hay roles."
+      },
+      "errors": {
+        "generic": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.",
+        "loadFailed": "No se pudieron cargar los roles. Inténtalo más tarde.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+      },
+      "form": {
+        "active": "Activo",
+        "code": "Código",
+        "codePlaceholder": "Ej. MANAGER",
+        "createTitle": "Nuevo rol",
+        "editTitle": "Editar rol",
+        "errors": {
+          "codeRequired": "El código es obligatorio.",
+          "nameRequired": "El nombre es obligatorio."
+        },
+        "name": "Nombre",
+        "namePlaceholder": "Ej. Líder"
+      },
+      "loading": "Cargando roles…",
+      "menus": {
+        "hint": "Selecciona las actividades que este rol puede ver.",
+        "loading": "Cargando actividades…",
+        "save": "Guardar actividades",
+        "title": "Actividades de {{ name }}"
+      },
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo"
+      },
+      "subtitle": "Define los roles y las actividades que cada uno puede ver.",
+      "table": {
+        "actions": "Acciones",
+        "code": "Código",
+        "name": "Nombre",
+        "status": "Estado"
+      },
+      "title": "Roles"
+    },
+    "users": {
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Crear usuario",
+        "createAria": "Crea un usuario",
+        "delete": "Eliminar",
+        "deleteAria": "Elimina el usuario",
+        "deleting": "Eliminando…",
+        "editAria": "Edita el usuario",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "delete": {
+        "confirmLead": "¿Confirmas que deseas eliminar a",
+        "confirmTail": "? Esta acción no se puede deshacer.",
+        "title": "Eliminar usuario"
+      },
+      "empty": {
+        "subtitle": "Crea el primer usuario para dar acceso a tu organización.",
+        "title": "Todavía no hay usuarios."
+      },
+      "errors": {
+        "generic": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.",
+        "loadFailed": "No se pudieron cargar los usuarios. Inténtalo más tarde.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+      },
+      "form": {
+        "active": "Activo",
+        "createTitle": "Nuevo usuario",
+        "dependency": "Dependencia (opcional)",
+        "editTitle": "Editar usuario",
+        "email": "Correo electrónico",
+        "emailPlaceholder": "persona@solercia.com",
+        "errors": {
+          "emailInvalid": "El correo no es válido.",
+          "emailRequired": "El correo es obligatorio.",
+          "firstLastNameRequired": "El primer apellido es obligatorio.",
+          "firstNameRequired": "El primer nombre es obligatorio.",
+          "passwordMinLength": "La contraseña debe tener al menos 8 caracteres."
+        },
+        "firstLastName": "Primer apellido",
+        "firstLastNamePlaceholder": "Ej. Torres",
+        "firstName": "Primer nombre",
+        "firstNamePlaceholder": "Ej. Ana",
+        "noDependency": "Sin dependencia",
+        "noRolesHint": "No hay roles creados todavía. Crea roles para poder asignarlos.",
+        "password": "Contraseña",
+        "passwordPlaceholder": "••••••••",
+        "roles": "Roles",
+        "rolesPlaceholder": "Asigna uno o más roles",
+        "secondLastName": "Segundo apellido (opcional)",
+        "secondLastNamePlaceholder": "Ej. Páez",
+        "secondName": "Segundo nombre (opcional)",
+        "secondNamePlaceholder": "Ej. María"
+      },
+      "loading": "Cargando usuarios…",
+      "noRoles": "Sin roles",
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo"
+      },
+      "subtitle": "Administra las personas, sus dependencias y sus roles.",
+      "table": {
+        "actions": "Acciones",
+        "dependency": "Dependencia",
+        "email": "Correo",
+        "name": "Nombre",
+        "roles": "Roles",
+        "status": "Estado"
+      },
+      "title": "Usuarios"
+    }
+  },
   "auth": {
     "login": {
-      "title": "Inicia sesión",
-      "subtitle": "Accede a tu gestor de proyectos Solercia.",
+      "demoLabel": "Usuario de prueba:",
       "emailLabel": "Correo electrónico",
       "emailPlaceholder": "admin@solercia.com",
+      "errors": {
+        "emailInvalid": "El correo no es válido.",
+        "emailRequired": "El correo es obligatorio.",
+        "generic": "Ocurrió un error al iniciar sesión. Inténtalo más tarde.",
+        "invalidCredentials": "Las credenciales no son correctas. Verifica tu correo y contraseña.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+        "passwordRequired": "La contraseña es obligatoria."
+      },
       "passwordLabel": "Contraseña",
       "passwordPlaceholder": "••••••••",
       "submit": "Iniciar sesión",
       "submitting": "Ingresando…",
-      "demoLabel": "Usuario de prueba:",
-      "errors": {
-        "emailRequired": "El correo es obligatorio.",
-        "emailInvalid": "El correo no es válido.",
-        "passwordRequired": "La contraseña es obligatoria.",
-        "invalidCredentials": "Las credenciales no son correctas. Verifica tu correo y contraseña.",
-        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
-        "generic": "Ocurrió un error al iniciar sesión. Inténtalo más tarde."
-      }
+      "subtitle": "Accede a tu gestor de proyectos Solercia.",
+      "title": "Inicia sesión"
+    }
+  },
+  "boardColumn": {
+    "add": "Agregar",
+    "addTaskAria": "Agrega una tarea en {{ label }}",
+    "columnAria": "Columna {{ label }}",
+    "emptyDrop": "Suelta tareas aquí."
+  },
+  "burndownChart": {
+    "chartAria": "Gráfico de burndown del sprint, eje vertical en {{ unit }}",
+    "emptyState": "No hay datos suficientes para dibujar el burndown.",
+    "legend": {
+      "actual": "Real",
+      "ideal": "Ideal"
+    },
+    "unit": {
+      "points": "puntos",
+      "tasks": "tareas"
+    },
+    "yAxisCaption": "Eje vertical: {{ unit }} restantes"
+  },
+  "executive": {
+    "byAssignee": {
+      "activeCount": "{{ count }} activas",
+      "empty": "Nadie tiene tareas en progreso.",
+      "noInProgress": "Sin tareas en progreso.",
+      "title": "En qué anda cada uno"
+    },
+    "errors": {
+      "load": "No se pudo cargar el panorama ejecutivo. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    },
+    "loading": "Cargando panorama…",
+    "progress": {
+      "doneOfTotal": "{{ done }} de {{ total }} listas",
+      "empty": "Aún no hay proyectos con tareas.",
+      "percentAria": "Avance {{ percent }} por ciento",
+      "title": "Avance por proyecto"
+    },
+    "risks": {
+      "dueOn": "Vence {{ date }}",
+      "empty": "No hay tareas en riesgo. ¡Buen trabajo!",
+      "noAssignee": "Sin responsable",
+      "title": "Riesgos"
+    },
+    "subtitle": "Panorama del equipo: en qué anda cada uno, riesgos y avance.",
+    "title": "Vista de jefe",
+    "totals": {
+      "atRisk": "En riesgo",
+      "overdue": "Vencidas",
+      "projects": "Proyectos",
+      "tasks": "Tareas"
+    },
+    "workload": {
+      "barAria": "{{ name }}: {{ count }} tareas activas",
+      "empty": "No hay carga activa registrada.",
+      "title": "Carga del equipo"
+    }
+  },
+  "nav": {
+    "brandAria": "Solercia PM, inicio",
+    "closeMenu": "Cierra el menú",
+    "closeNotifications": "Cierra las notificaciones",
+    "links": {
+      "executive": "Vista de jefe",
+      "performance": "Rendimiento",
+      "projects": "Proyectos"
+    },
+    "logout": "Cerrar sesión",
+    "mobileMenuAria": "Abre el menú de navegación",
+    "mobileNavAria": "Navegación móvil",
+    "notifications": "Centro de notificaciones",
+    "notificationsUnread": "Centro de notificaciones, {{ count }} sin leer",
+    "primaryNavAria": "Navegación principal",
+    "themeToDark": "Activa el modo oscuro",
+    "themeToLight": "Activa el modo claro"
+  },
+  "notificationPanel": {
+    "dialogAria": "Centro de notificaciones",
+    "empty": "No tienes notificaciones pendientes.",
+    "markAllRead": "Marcar todas como leídas",
+    "markRead": "Marcar como leída",
+    "relativeTime": {
+      "days": "hace {{ count }} d",
+      "hours": "hace {{ count }} h",
+      "minutes": "hace {{ count }} min",
+      "now": "ahora mismo"
+    },
+    "resolve": "Resolver",
+    "title": "Notificaciones",
+    "viewTask": "Ver tarea"
+  },
+  "performance": {
+    "aria": {
+      "onTimePercent": "{{ n }} por ciento a tiempo",
+      "pointsCompleted": "{{ n }} puntos completados"
+    },
+    "bars": {
+      "onTime": "% a tiempo"
+    },
+    "empty": "Todavía no hay datos de rendimiento para mostrar.",
+    "errors": {
+      "loadFailed": "No se pudo cargar el rendimiento. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    },
+    "loading": "Cargando rendimiento…",
+    "metrics": {
+      "active": "Activas",
+      "completedPoints": "Puntos completados",
+      "completedTasks": "Tareas completadas",
+      "overdue": "Vencidas"
+    },
+    "states": {
+      "noData": "sin datos"
+    },
+    "subtitle": "Desempeño por colaborador: trabajo entregado, cumplimiento y carga actual.",
+    "title": "Rendimiento",
+    "updatedAt": "Actualizado:"
+  },
+  "projects": {
+    "actions": {
+      "cancel": "Cancelar",
+      "save": "Guardar proyecto",
+      "saving": "Guardando…"
+    },
+    "cardAria": "Abre el proyecto {{ name }}",
+    "empty": {
+      "subtitle": "Crea tu primer proyecto para empezar a organizar el trabajo.",
+      "title": "Todavía no tienes proyectos."
+    },
+    "errors": {
+      "create": "No se pudo crear el proyecto. Revisa los datos e inténtalo de nuevo.",
+      "load": "No se pudieron cargar los proyectos. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    },
+    "form": {
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "Describe brevemente el objetivo (opcional)",
+      "methodologyLabel": "Metodología",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Ej. Plataforma de pagos",
+      "nameRequired": "El nombre es obligatorio.",
+      "title": "Crea tu proyecto"
+    },
+    "loading": "Cargando proyectos…",
+    "noDescription": "Sin descripción.",
+    "subtitle": "Administra los proyectos de tu organización.",
+    "title": "Proyectos",
+    "toggle": {
+      "close": "Cerrar",
+      "closeAria": "Cierra el formulario",
+      "create": "Crear proyecto",
+      "openAria": "Crea un proyecto"
+    }
+  },
+  "sprintTimeline": {
+    "emptyState": "No hay sprints en este proyecto todavía.",
+    "status": {
+      "active": "Activo",
+      "closed": "Cerrado"
+    },
+    "undatedTitle": "Sprints sin fechas definidas"
+  },
+  "taskCard": {
+    "assignedTo": "Asignada a {{ name }}",
+    "editAria": "Edita la tarea {{ title }}",
+    "hours": "h",
+    "openDetail": "Abrir detalle",
+    "openDetailAria": "Abrir detalle de la tarea",
+    "pts": "pts",
+    "riskDefault": "Tarea en riesgo",
+    "unassigned": "Sin responsable"
+  },
+  "taskDetail": {
+    "attachments": {
+      "download": "Descargar",
+      "downloadAria": "Descargar archivo adjunto",
+      "title": "Archivos adjuntos",
+      "upload": "Subir archivo",
+      "uploadAria": "Subir archivo adjunto"
+    },
+    "back": "Volver",
+    "backAria": "Volver al proyecto",
+    "comments": {
+      "cancelEdit": "Cancelar",
+      "cancelEditAria": "Cancelar edición",
+      "delete": "Eliminar",
+      "deleteAria": "Eliminar comentario",
+      "download": "Descargar",
+      "downloadAria": "Descargar archivo",
+      "edit": "Editar",
+      "editAria": "Editar comentario",
+      "saveEdit": "Guardar",
+      "saveEditAria": "Guardar edición",
+      "sending": "Enviando...",
+      "submit": "Comentar",
+      "submitAria": "Agregar comentario",
+      "title": "Comentarios",
+      "upload": "Subir archivo",
+      "uploadAria": "Subir archivo al comentario"
+    },
+    "description": "Descripción",
+    "errors": {
+      "loadData": "Error al cargar los datos de la tarea.",
+      "missingKey": "Clave de tarea no encontrada en la URL.",
+      "notFound": "No se encontró la tarea."
+    },
+    "fields": {
+      "assignee": "Responsable",
+      "assigneePlaceholder": "Sin asignar",
+      "atRisk": "En riesgo",
+      "dueDate": "Fecha límite",
+      "estimationHours": "Horas estimadas",
+      "priority": "Prioridad",
+      "priorityPlaceholder": "Seleccionar prioridad",
+      "status": "Estado",
+      "statusPlaceholder": "Seleccionar estado",
+      "storyPoints": "Story points"
+    },
+    "priorities": {
+      "critical": "Crítica",
+      "high": "Alta",
+      "low": "Baja",
+      "medium": "Media"
+    },
+    "subtasks": {
+      "addAria": "Agregar subtarea",
+      "cancel": "Cancelar",
+      "cancelAria": "Cancelar creación de subtarea",
+      "hours": "Horas estimadas",
+      "new": "Nueva subtarea",
+      "progress": "Progreso",
+      "save": "Guardar",
+      "saveAria": "Guardar subtarea",
+      "saving": "Guardando...",
+      "title": "Subtareas",
+      "titleField": "Título de la subtarea"
+    }
+  },
+  "taskModal": {
+    "assigneeLabel": "Responsable",
+    "assigneeNone": "Sin responsable",
+    "backlogOption": "Backlog",
+    "cancel": "Cancelar",
+    "closeAria": "Cierra el formulario",
+    "createAria": "Crea una tarea",
+    "createTitle": "Nueva tarea",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Detalla el alcance (opcional)",
+    "dueDateLabel": "Fecha límite",
+    "editAria": "Edita la tarea",
+    "editTitle": "Editar tarea",
+    "estimationHours": "Estimación (horas)",
+    "estimationPoints": "Estimación (puntos)",
+    "priorityLabel": "Prioridad",
+    "remove": "Eliminar",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "sprintLabel": "Sprint",
+    "statusLabel": "Estado",
+    "titleLabel": "Título",
+    "titlePlaceholder": "Ej. Diseñar el formulario de registro",
+    "titleRequired": "El título es obligatorio.",
+    "typeLabel": "Tipo"
+  },
+  "velocityChart": {
+    "avgAnnotation": "avg",
+    "chartAria": "Gráfico de velocidad por sprint: puntos completados por sprint cerrado",
+    "disclaimer": "La velocidad refleja el rendimiento histórico del equipo y sirve para estimar, no para exigir.",
+    "emptyState": "Aún no hay sprints cerrados para calcular la velocidad.",
+    "legend": {
+      "average": "Promedio",
+      "completedPoints": "Puntos completados"
+    },
+    "metrics": {
+      "avgPerSprint": "pts / sprint (promedio)",
+      "backlogPoints": "puntos en el backlog",
+      "insufficientVelocity": "velocidad insuficiente para proyectar",
+      "projectedSprints": "sprints estimados para vaciar el backlog"
+    }
+  },
+  "workspace": {
+    "backToProjects": "Volver a proyectos",
+    "backlog": {
+      "add": "Agregar al backlog",
+      "addAria": "Agrega una tarea al backlog",
+      "assignSprintAria": "Asigna {{ title }} a un sprint",
+      "backlogOption": "Backlog",
+      "empty": "No hay tareas en el backlog.",
+      "moveToSprint": "Mover a sprint",
+      "title": "Backlog"
+    },
+    "board": {
+      "empty": "No hay tareas en este proyecto.",
+      "noColumns": "Esta metodología no define columnas de tablero."
+    },
+    "closeSprint": {
+      "backlogDefault": "Backlog (por defecto)",
+      "cancel": "Cancelar",
+      "closing": "Cerrando…",
+      "description": "Al cerrar el sprint se calculan los puntos completados. Las tareas incompletas se mueven al destino que selecciones.",
+      "moveIncompleteTo": "Mover tareas incompletas a",
+      "noOtherSprints": "Las tareas incompletas se moverán al backlog (no hay otros sprints activos).",
+      "pointsCompleted": "puntos completados",
+      "success": "Sprint cerrado exitosamente.",
+      "targetAria": "Selecciona el destino de las tareas incompletas",
+      "tasksMovedOne": "tarea movida al destino seleccionado",
+      "tasksMovedOther": "tareas movidas al destino seleccionado",
+      "title": "Cerrar sprint",
+      "understood": "Entendido"
+    },
+    "dates": {
+      "noDate": "sin fecha"
+    },
+    "errors": {
+      "burndownLoad": "No se pudo cargar el burndown del sprint. Inténtalo más tarde.",
+      "projectLoad": "No se pudo cargar el proyecto. Inténtalo más tarde.",
+      "projectNetwork": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "projectNotFound": "No se encontró el proyecto solicitado.",
+      "sprintAlreadyClosed": "Este sprint ya estaba cerrado.",
+      "sprintClose": "No se pudo cerrar el sprint. Inténtalo de nuevo.",
+      "taskDelete": "No se pudo eliminar la tarea. Inténtalo de nuevo.",
+      "taskSave": "No se pudo guardar la tarea. Revisa los datos e inténtalo de nuevo.",
+      "tasksLoad": "No se pudieron cargar las tareas. Inténtalo más tarde.",
+      "velocityLoad": "No se pudo cargar la velocidad del equipo. Inténtalo más tarde."
+    },
+    "grid": {
+      "columns": {
+        "assignee": "Responsable",
+        "code": "Código",
+        "dueDate": "Fecha límite",
+        "estimation": "Estimación",
+        "priority": "Prioridad",
+        "status": "Estado",
+        "title": "Título"
+      },
+      "hoursSuffix": "h",
+      "openDetailAria": "Abre el detalle de {{ key }}",
+      "pointsSuffix": "pts"
+    },
+    "loading": "Cargando proyecto…",
+    "newTask": "Nueva tarea",
+    "newTaskAria": "Crea una nueva tarea",
+    "sprints": {
+      "burndownLoading": "Cargando burndown…",
+      "close": "Cerrar sprint",
+      "closeAria": "Cierra el sprint {{ name }}",
+      "completedLabel": "Completadas:",
+      "completedOfTotal": "{{ done }} de {{ total }} tareas",
+      "create": "Crear sprint",
+      "empty": "Todavía no hay sprints en este proyecto.",
+      "endLabel": "Fin",
+      "goalLabel": "Objetivo",
+      "goalPlaceholder": "Meta del sprint (opcional)",
+      "hideBurndown": "Ocultar burndown",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Ej. Sprint 1",
+      "nameRequired": "El nombre es obligatorio.",
+      "newTitle": "Nuevo sprint",
+      "pointsCompleted": "{{ n }} pts completados",
+      "reactivate": "Reactivar",
+      "reactivateAria": "Reactiva el sprint {{ name }}",
+      "saving": "Guardando…",
+      "showBurndown": "Ver burndown",
+      "showBurndownAria": "Muestra el burndown del sprint {{ name }}",
+      "startLabel": "Inicio",
+      "statusActive": "Activo",
+      "statusClosed": "Cerrado",
+      "totalLabel": "Total:",
+      "unitPoints": "puntos",
+      "unitTasks": "tareas",
+      "velocityLoading": "Cargando velocidad…",
+      "velocityRefresh": "Actualizar",
+      "velocityRefreshAria": "Actualiza la velocidad del equipo",
+      "velocityTitle": "Velocidad del equipo"
+    },
+    "tabs": {
+      "backlog": "Backlog",
+      "board": "Tablero",
+      "sprints": "Sprints",
+      "timeline": "Cronograma"
+    },
+    "timeline": {
+      "description": "Cada barra representa un sprint posicionado por sus fechas de inicio y fin.",
+      "title": "Cronograma de sprints"
+    },
+    "viewMode": {
+      "board": "Tablero",
+      "boardAria": "Vista tablero",
+      "grid": "Cuadrícula",
+      "gridAria": "Vista cuadrícula",
+      "groupAria": "Modo de visualización"
     }
   }
 }
