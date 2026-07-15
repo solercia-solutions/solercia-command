@@ -11,8 +11,8 @@ import {
   type ThemeFile,
 } from '@solercia/ui';
 import { routes } from './app.routes';
-import { authInterceptor } from './core/auth.interceptor';
-import { provideI18n, I18nService } from './core/i18n';
+import { authInterceptor } from '@features/auth/auth.interceptor';
+import { provideI18n, I18nService } from '@shared/i18n';
 import solerciaDefaultTheme from '../assets/themes/solercia-default.theme.json';
 
 export const appConfig: ApplicationConfig = {

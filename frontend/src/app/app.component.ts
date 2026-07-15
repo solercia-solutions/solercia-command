@@ -16,10 +16,10 @@ import {
 import { interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ThemeService } from '@solercia/ui';
-import { AuthService } from './core/auth.service';
-import { MenuService } from './core/menu.service';
-import { NotificationsService } from './features/notifications/notifications.service';
-import { NotificationPanelComponent } from './features/notifications/notification-panel.component';
+import { AuthService } from '@features/auth/auth.service';
+import { MenuService } from '@features/navigation/menu.service';
+import { NotificationsService } from '@entities/notification/notifications.service';
+import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
 
 /** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
 @Component({

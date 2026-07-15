@@ -1,18 +1,18 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/auth.guard';
+import { authGuard } from '@features/auth/auth.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'projects' },
   {
     path: 'login',
     loadComponent: () =>
-      import('./features/auth/login.component').then((m) => m.LoginComponent),
+      import('@pages/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'projects',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/projects/projects.component').then(
+      import('@pages/projects/projects.component').then(
         (m) => m.ProjectsComponent,
       ),
   },
@@ -21,14 +21,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import(
-        './features/projects/workspace/project-workspace.component'
+        '@widgets/project-workspace/project-workspace.component'
       ).then((m) => m.ProjectWorkspaceComponent),
   },
   {
     path: 'executive',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/executive/executive.component').then(
+      import('@pages/executive/executive.component').then(
         (m) => m.ExecutiveComponent,
       ),
   },
@@ -36,7 +36,7 @@ export const routes: Routes = [
     path: 'performance',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/performance/performance.component').then(
+      import('@pages/performance/performance.component').then(
         (m) => m.PerformanceComponent,
       ),
   },
@@ -44,13 +44,13 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [authGuard],
     loadChildren: () =>
-      import('./features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+      import('@pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
   {
     path: 'task/:key',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/task-detail/task-detail-page.component').then(
+      import('@pages/task-detail/task-detail-page.component').then(
         (m) => m.TaskDetailPageComponent,
       ),
   },
