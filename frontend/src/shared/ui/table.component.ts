@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
  * <table>. Consumers project <thead>/<tbody>. Keeps admin lists consistent.
  */
 @Component({
-  selector: 'bk-table',
+  selector: 'sol-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -16,4 +16,4 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     </div>
   `,
 })
-export class TableComponent {}
+export class SolTableComponent {}

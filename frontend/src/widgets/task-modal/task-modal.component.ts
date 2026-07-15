@@ -12,7 +12,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { EstimationMode } from '@entities/project/project.model';
-import { ButtonComponent } from '@shared/ui/button.component';
+import { SolButtonComponent } from '@shared/ui';
 import {
   Member,
   PRIORITY_OPTIONS,
@@ -43,10 +43,10 @@ export interface TaskFormResult {
  * when sprints are enabled. Purely presentational — emits `save`/`close`.
  */
 @Component({
-  selector: 'bk-task-modal',
+  selector: 'sol-task-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ButtonComponent],
+  imports: [ReactiveFormsModule, SolButtonComponent],
   template: `
     <div
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -232,23 +232,23 @@ export interface TaskFormResult {
 
           <div class="flex items-center justify-between gap-2 pt-1">
             @if (task()) {
-              <bk-button
+              <sol-button
                 type="button"
                 variant="danger"
                 (click)="remove.emit(task()!.id)"
               >
                 Eliminar
-              </bk-button>
+              </sol-button>
             } @else {
               <span></span>
             }
             <div class="flex items-center gap-2">
-              <bk-button type="button" variant="ghost" (click)="close.emit()">
+              <sol-button type="button" variant="ghost" (click)="close.emit()">
                 Cancelar
-              </bk-button>
-              <bk-button type="submit" variant="primary" [disabled]="saving()">
+              </sol-button>
+              <sol-button type="submit" variant="primary" [disabled]="saving()">
                 {{ saving() ? 'Guardando…' : 'Guardar' }}
-              </bk-button>
+              </sol-button>
             </div>
           </div>
         </form>

@@ -11,13 +11,13 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { ButtonComponent } from '@shared/ui/button.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
-import { PageHeaderComponent } from '@shared/ui/page-header.component';
-import { BadgeComponent } from '@shared/ui/badge.component';
-import { IconButtonComponent } from '@shared/ui/icon-button.component';
-import { ModalComponent } from '@shared/ui/modal.component';
-import { TableComponent } from '@shared/ui/table.component';
+import { SolButtonComponent } from '@shared/ui';
+import { SolInputComponent } from '@shared/ui';
+import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
+import { SolBadgeComponent } from '@shared/ui';
+import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
+import { SolModalComponent } from '@shared/ui';
+import { SolTableComponent } from '@shared/ui/table.component';
 import { MenusService } from '@entities/menu/menus.service';
 import {
   AdminMenu,
@@ -27,34 +27,34 @@ import {
 } from '@entities/menu/menu-admin.model';
 
 @Component({
-  selector: 'bk-admin-menus',
+  selector: 'sol-admin-menus',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    ButtonComponent,
-    TextInputComponent,
-    PageHeaderComponent,
-    BadgeComponent,
-    IconButtonComponent,
-    ModalComponent,
-    TableComponent,
+    SolButtonComponent,
+    SolInputComponent,
+    SolPageHeaderComponent,
+    SolBadgeComponent,
+    SolIconButtonComponent,
+    SolModalComponent,
+    SolTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <bk-page-header
+      <sol-page-header
         title="Actividades"
         subtitle="Organiza las actividades del menú y su jerarquía."
       >
-        <bk-button
+        <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea una actividad"
         >
           Crear actividad
-        </bk-button>
-      </bk-page-header>
+        </sol-button>
+      </sol-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando actividades…</p>
@@ -75,7 +75,7 @@ import {
           </p>
         </div>
       } @else {
-        <bk-table>
+        <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Actividad</th>
@@ -100,37 +100,37 @@ import {
                 <td class="px-4 py-3 text-muted">{{ row.menu.order }}</td>
                 <td class="px-4 py-3">
                   @if (row.menu.is_active) {
-                    <bk-badge tone="success">Activa</bk-badge>
+                    <sol-badge variant="success">Activa</sol-badge>
                   } @else {
-                    <bk-badge tone="muted">Inactiva</bk-badge>
+                    <sol-badge variant="neutral">Inactiva</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <bk-icon-button
+                    <sol-icon-button
                       icon="edit"
                       ariaLabel="Edita la actividad"
                       (click)="openEdit(row.menu)"
-                    ></bk-icon-button>
-                    <bk-icon-button
+                    ></sol-icon-button>
+                    <sol-icon-button
                       icon="delete"
-                      tone="danger"
+                      variant="danger"
                       ariaLabel="Elimina la actividad"
                       (click)="askDelete(row.menu)"
-                    ></bk-icon-button>
+                    ></sol-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </bk-table>
+        </sol-table>
       }
     </section>
 
     @if (showForm()) {
-      <bk-modal
+      <sol-modal [open]="true"
         [title]="editing() ? 'Editar actividad' : 'Nueva actividad'"
-        (close)="closeForm()"
+        (closed)="closeForm()"
       >
         <form
           [formGroup]="form"
@@ -139,27 +139,27 @@ import {
           novalidate
         >
           <div>
-            <bk-text-input
+            <sol-input
               label="Nombre"
               placeholder="Ej. Proyectos"
               formControlName="name"
-            ></bk-text-input>
+            ></sol-input>
             @if (showError('name')) {
               <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
             }
           </div>
 
-          <bk-text-input
+          <sol-input
             label="Ícono (opcional)"
             placeholder="Ej. folder"
             formControlName="icon"
-          ></bk-text-input>
+          ></sol-input>
 
-          <bk-text-input
+          <sol-input
             label="Ruta (opcional)"
             placeholder="Ej. /projects"
             formControlName="path"
-          ></bk-text-input>
+          ></sol-input>
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
@@ -177,12 +177,12 @@ import {
             </select>
           </label>
 
-          <bk-text-input
+          <sol-input
             label="Orden"
             type="number"
             placeholder="0"
             formControlName="order"
-          ></bk-text-input>
+          ></sol-input>
 
           <label class="flex items-center gap-2 text-sm text-text">
             <input
@@ -203,19 +203,19 @@ import {
           }
 
           <div class="flex items-center justify-end gap-2">
-            <bk-button type="button" variant="ghost" (click)="closeForm()">
+            <sol-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </bk-button>
-            <bk-button type="submit" variant="primary" [disabled]="saving()">
+            </sol-button>
+            <sol-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </bk-button>
+            </sol-button>
           </div>
         </form>
-      </bk-modal>
+      </sol-modal>
     }
 
     @if (deleting()) {
-      <bk-modal size="sm" title="Eliminar actividad" (close)="cancelDelete()">
+      <sol-modal [open]="true" size="sm" title="Eliminar actividad" (closed)="cancelDelete()">
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar
           <span class="font-medium text-text">{{ deleting()?.name }}</span>? Si
@@ -230,19 +230,19 @@ import {
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
+          <sol-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </bk-button>
-          <bk-button
+          </sol-button>
+          <sol-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </bk-button>
+          </sol-button>
         </div>
-      </bk-modal>
+      </sol-modal>
     }
   `,
 })

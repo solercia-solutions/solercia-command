@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { CardComponent } from '@shared/ui/card.component';
+import { SolCardComponent } from '@shared/ui';
 import { PerformanceService } from '@entities/performance/performance.service';
 import { PerfCollaborator, PerformanceData } from '@entities/performance/performance.model';
 
@@ -18,10 +18,10 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
  * the bearer token; no project context required.
  */
 @Component({
-  selector: 'bk-performance',
+  selector: 'sol-performance',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent],
+  imports: [SolCardComponent],
   template: `
     <section class="flex flex-col gap-6">
       <div>
@@ -42,15 +42,15 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
           {{ loadError() }}
         </div>
       } @else if (collaborators().length === 0) {
-        <bk-card>
+        <sol-card>
           <p class="py-6 text-center text-sm text-muted">
             Todavía no hay datos de rendimiento para mostrar.
           </p>
-        </bk-card>
+        </sol-card>
       } @else {
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           @for (person of collaborators(); track person.user.id) {
-            <bk-card>
+            <sol-card>
               <!-- Header -->
               <div class="flex items-center gap-3">
                 <span
@@ -145,7 +145,7 @@ import { PerfCollaborator, PerformanceData } from '@entities/performance/perform
                   </div>
                 </div>
               </div>
-            </bk-card>
+            </sol-card>
           }
         </div>
 

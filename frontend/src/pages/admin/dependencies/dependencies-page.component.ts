@@ -11,45 +11,45 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { ButtonComponent } from '@shared/ui/button.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
-import { PageHeaderComponent } from '@shared/ui/page-header.component';
-import { BadgeComponent } from '@shared/ui/badge.component';
-import { IconButtonComponent } from '@shared/ui/icon-button.component';
-import { ModalComponent } from '@shared/ui/modal.component';
-import { TableComponent } from '@shared/ui/table.component';
+import { SolButtonComponent } from '@shared/ui';
+import { SolInputComponent } from '@shared/ui';
+import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
+import { SolBadgeComponent } from '@shared/ui';
+import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
+import { SolModalComponent } from '@shared/ui';
+import { SolTableComponent } from '@shared/ui/table.component';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
 import { Dependency } from '@entities/dependency/dependency.model';
 
 @Component({
-  selector: 'bk-admin-dependencies',
+  selector: 'sol-admin-dependencies',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    ButtonComponent,
-    TextInputComponent,
-    PageHeaderComponent,
-    BadgeComponent,
-    IconButtonComponent,
-    ModalComponent,
-    TableComponent,
+    SolButtonComponent,
+    SolInputComponent,
+    SolPageHeaderComponent,
+    SolBadgeComponent,
+    SolIconButtonComponent,
+    SolModalComponent,
+    SolTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <bk-page-header
+      <sol-page-header
         title="Dependencias"
         subtitle="Administra las áreas o dependencias de tu organización."
       >
-        <bk-button
+        <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea una dependencia"
         >
           Crear dependencia
-        </bk-button>
-      </bk-page-header>
+        </sol-button>
+      </sol-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando dependencias…</p>
@@ -70,7 +70,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
           </p>
         </div>
       } @else {
-        <bk-table>
+        <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Nombre</th>
@@ -86,37 +86,37 @@ import { Dependency } from '@entities/dependency/dependency.model';
                 <td class="px-4 py-3 text-muted">{{ item.code || '—' }}</td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <bk-badge tone="success">Activa</bk-badge>
+                    <sol-badge variant="success">Activa</sol-badge>
                   } @else {
-                    <bk-badge tone="muted">Inactiva</bk-badge>
+                    <sol-badge variant="neutral">Inactiva</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <bk-icon-button
+                    <sol-icon-button
                       icon="edit"
                       ariaLabel="Edita la dependencia"
                       (click)="openEdit(item)"
-                    ></bk-icon-button>
-                    <bk-icon-button
+                    ></sol-icon-button>
+                    <sol-icon-button
                       icon="delete"
-                      tone="danger"
+                      variant="danger"
                       ariaLabel="Elimina la dependencia"
                       (click)="askDelete(item)"
-                    ></bk-icon-button>
+                    ></sol-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </bk-table>
+        </sol-table>
       }
     </section>
 
     @if (showForm()) {
-      <bk-modal
+      <sol-modal [open]="true"
         [title]="editing() ? 'Editar dependencia' : 'Nueva dependencia'"
-        (close)="closeForm()"
+        (closed)="closeForm()"
       >
         <form
           [formGroup]="form"
@@ -125,21 +125,21 @@ import { Dependency } from '@entities/dependency/dependency.model';
           novalidate
         >
           <div>
-            <bk-text-input
+            <sol-input
               label="Nombre"
               placeholder="Ej. Tecnología"
               formControlName="name"
-            ></bk-text-input>
+            ></sol-input>
             @if (showError('name')) {
               <p class="mt-1 text-xs text-danger">El nombre es obligatorio.</p>
             }
           </div>
 
-          <bk-text-input
+          <sol-input
             label="Código (opcional)"
             placeholder="Ej. TEC"
             formControlName="code"
-          ></bk-text-input>
+          ></sol-input>
 
           <label class="flex items-center gap-2 text-sm text-text">
             <input
@@ -160,22 +160,22 @@ import { Dependency } from '@entities/dependency/dependency.model';
           }
 
           <div class="flex items-center justify-end gap-2">
-            <bk-button type="button" variant="ghost" (click)="closeForm()">
+            <sol-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </bk-button>
-            <bk-button type="submit" variant="primary" [disabled]="saving()">
+            </sol-button>
+            <sol-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </bk-button>
+            </sol-button>
           </div>
         </form>
-      </bk-modal>
+      </sol-modal>
     }
 
     @if (deleting()) {
-      <bk-modal
+      <sol-modal [open]="true"
         size="sm"
         title="Eliminar dependencia"
-        (close)="cancelDelete()"
+        (closed)="cancelDelete()"
       >
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar
@@ -191,19 +191,19 @@ import { Dependency } from '@entities/dependency/dependency.model';
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
+          <sol-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </bk-button>
-          <bk-button
+          </sol-button>
+          <sol-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </bk-button>
+          </sol-button>
         </div>
-      </bk-modal>
+      </sol-modal>
     }
   `,
 })

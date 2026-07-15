@@ -3,113 +3,55 @@
 @tailwind utilities;
 
 /* ============================================================
-   Legacy design tokens (--sp-*) — PUENTE TEMPORAL (Wave A).
-   El theming vivo lo gobierna @solercia/ui (tokens --sol-* emitidos por
-   ThemeService, con el toggle claro/oscuro vía la clase `.dark`). Estos
-   --sp-* son valores estáticos que mantienen renderizados los componentes
-   `bk-*` heredados y las utilidades Tailwind hasta que la Wave B los migre
-   a `sol-*` / `var(--sol-*)`. Colores en canales RGB para soportar alpha;
-   el resto, valores CSS crudos. El bloque `.dark` lo activa el mismo
-   `.dark` que conmuta el ThemeService de la librería.
+   Fallback de tema (--sol-*) — se aplica solo si el JSON del tema aún no
+   cargó. El theming vivo lo gobierna @solercia/ui: `ThemeService`
+   (via provideTheme) emite los tokens --sol-* sobre :root y gestiona el
+   toggle claro/oscuro (clase `.dark` en <html>/<body>). Estos valores
+   reflejan la identidad índigo por defecto de gestion_proyectos
+   (semántica clara) para evitar un parpadeo antes del primer emit.
+   Las utilidades Tailwind de marca (tailwind.config.js) leen estos mismos
+   tokens, así que el modo oscuro y el retheme por tenant fluyen solos.
    ============================================================ */
 :root {
   /* color */
-  --sp-brand: 79 70 229;
-  --sp-brand-fg: 255 255 255;
-  --sp-brand-hover: 67 56 202;
-  --sp-brand-soft: 238 242 255;
-  --sp-brand-soft-fg: 67 56 202;
+  --sol-color-primary: #4f46e5;
+  --sol-color-secondary: #7c3aed;
+  --sol-color-accent: #7c3aed;
+  --sol-color-success: #0e9f6e;
+  --sol-color-warning: #d97706;
+  --sol-color-danger: #e02424;
+  --sol-color-info: #2563eb;
+  --sol-color-text-primary: #0b1220;
+  --sol-color-text-secondary: #5a6b85;
+  --sol-color-text-muted: #8a99b3;
 
-  --sp-page: 244 246 251;
-  --sp-surface: 255 255 255;
-  --sp-elevated: 255 255 255;
-  --sp-sunken: 237 241 248;
+  /* surfaces */
+  --sol-bg-page: #f4f6fb;
+  --sol-bg-surface: #ffffff;
+  --sol-bg-sunken: #edf1f8;
 
-  --sp-text: 11 18 32;
-  --sp-muted: 90 107 133;
-  --sp-subtle: 138 153 179;
-
-  --sp-border: 229 233 242;
-  --sp-border-strong: 211 218 232;
-
-  --sp-success: 14 159 110;
-  --sp-success-soft: 227 245 238;
-  --sp-success-soft-fg: 4 120 87;
-  --sp-warning: 217 119 6;
-  --sp-warning-soft: 253 240 227;
-  --sp-warning-soft-fg: 180 83 9;
-  --sp-danger: 224 36 36;
-  --sp-danger-soft: 253 235 235;
-  --sp-danger-soft-fg: 185 28 28;
-  --sp-info: 37 99 235;
-  --sp-accent: 124 58 237;
-  --sp-ring: 99 102 241;
-
-  /* radius */
-  --sp-radius-sm: 8px;
-  --sp-radius-md: 10px;
-  --sp-radius-lg: 14px;
-  --sp-radius-xl: 18px;
-  --sp-radius-2xl: 24px;
-  --sp-radius-full: 9999px;
-
-  /* shadow */
-  --sp-shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --sp-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
-  --sp-shadow-md: 0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
-  --sp-shadow-lg: 0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10);
-  --sp-shadow-xl: 0 28px 60px -16px rgba(15, 23, 42, 0.22);
+  /* border */
+  --sol-border-color-default: #e5e9f2;
 
   /* typography */
-  --sp-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --sp-font-display: 'Manrope', 'Inter', system-ui, sans-serif;
-  --sp-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sol-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --sol-font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sol-font-display: 'Manrope', 'Inter', system-ui, sans-serif;
+
+  /* radius */
+  --sol-border-radius-sm: 8px;
+  --sol-border-radius-md: 10px;
+  --sol-border-radius-lg: 14px;
+  --sol-border-radius-full: 9999px;
+
+  /* shadow */
+  --sol-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --sol-shadow-md: 0 6px 16px -4px rgba(15, 23, 42, 0.1), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --sol-shadow-lg: 0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.1);
 
   /* motion */
-  --sp-motion-fast: 120ms;
-  --sp-motion-base: 200ms;
-  --sp-motion-slow: 320ms;
-  --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.dark {
-  --sp-brand: 99 102 241;
-  --sp-brand-fg: 255 255 255;
-  --sp-brand-hover: 129 140 248;
-  --sp-brand-soft: 32 38 74;
-  --sp-brand-soft-fg: 199 210 254;
-
-  --sp-page: 10 15 28;
-  --sp-surface: 19 26 43;
-  --sp-elevated: 27 36 56;
-  --sp-sunken: 14 20 36;
-
-  --sp-text: 230 235 244;
-  --sp-muted: 147 161 184;
-  --sp-subtle: 100 113 137;
-
-  --sp-border: 37 48 74;
-  --sp-border-strong: 54 66 95;
-
-  --sp-success: 52 211 153;
-  --sp-success-soft: 16 36 30;
-  --sp-success-soft-fg: 110 231 183;
-  --sp-warning: 251 191 36;
-  --sp-warning-soft: 42 33 16;
-  --sp-warning-soft-fg: 252 211 77;
-  --sp-danger: 248 113 113;
-  --sp-danger-soft: 44 22 24;
-  --sp-danger-soft-fg: 252 165 165;
-  --sp-info: 96 165 250;
-  --sp-accent: 167 139 250;
-  --sp-ring: 129 140 248;
-
-  /* shadow (deeper on dark surfaces) */
-  --sp-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.40);
-  --sp-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.50), 0 1px 2px -1px rgba(0, 0, 0, 0.40);
-  --sp-shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50);
-  --sp-shadow-lg: 0 18px 40px -12px rgba(0, 0, 0, 0.70), 0 6px 14px -8px rgba(0, 0, 0, 0.55);
-  --sp-shadow-xl: 0 30px 64px -16px rgba(0, 0, 0, 0.75);
+  --sol-dur-slow: 320ms;
+  --sol-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html,
@@ -119,9 +61,9 @@ body {
 
 body {
   margin: 0;
-  font-family: var(--sp-font-sans);
-  background-color: rgb(var(--sp-page));
-  color: rgb(var(--sp-text));
+  font-family: var(--sol-font-family);
+  background-color: var(--sol-bg-page);
+  color: var(--sol-color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -134,13 +76,13 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid rgb(var(--sp-ring));
+  outline: 2px solid var(--sol-color-primary);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 ::selection {
-  background: rgb(var(--sp-brand) / 0.18);
+  background: color-mix(in srgb, var(--sol-color-primary) 18%, transparent);
 }
 
 /* Slim custom scrollbar */
@@ -152,13 +94,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--sp-subtle) / 0.45);
+  background: color-mix(in srgb, var(--sol-color-text-muted) 45%, transparent);
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--sp-subtle) / 0.7);
+  background: color-mix(in srgb, var(--sol-color-text-muted) 70%, transparent);
   background-clip: padding-box;
 }
 
@@ -167,7 +109,7 @@ body {
    translateY(0)) turns this element into the containing block for
    position:fixed descendants, which would push modals/overlays out of the
    viewport. Default fill-mode reverts to no transform once the run ends. */
-@keyframes sp-fade-in {
+@keyframes sol-fade-in {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -177,34 +119,8 @@ body {
     transform: translateY(0);
   }
 }
-.sp-animate-in {
-  animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease);
-}
-
-/* Open animations for overlays (modal backdrop/panel, dropdown panel).
-   Token-driven; no fill-mode so no transform lingers after the run. */
-@keyframes bk-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes bk-modal-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes bk-pop-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-.bk-anim-backdrop {
-  animation: bk-backdrop-in var(--sp-motion-base) var(--sp-ease);
-}
-.bk-anim-modal {
-  animation: bk-modal-in var(--sp-motion-base) var(--sp-ease);
-  transform-origin: center;
-}
-.bk-anim-pop {
-  animation: bk-pop-in var(--sp-motion-fast) var(--sp-ease);
-  transform-origin: top;
+.sol-animate-in {
+  animation: sol-fade-in var(--sol-dur-slow, 320ms) var(--sol-ease, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 @media (prefers-reduced-motion: reduce) {

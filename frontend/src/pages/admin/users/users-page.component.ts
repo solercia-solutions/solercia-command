@@ -13,14 +13,14 @@ import {
   Validators,
 } from '@angular/forms';
 import { switchMap } from 'rxjs';
-import { ButtonComponent } from '@shared/ui/button.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
-import { PageHeaderComponent } from '@shared/ui/page-header.component';
-import { BadgeComponent } from '@shared/ui/badge.component';
-import { IconButtonComponent } from '@shared/ui/icon-button.component';
-import { ModalComponent } from '@shared/ui/modal.component';
-import { SelectComponent } from '@shared/ui/select.component';
-import { TableComponent } from '@shared/ui/table.component';
+import { SolButtonComponent } from '@shared/ui';
+import { SolInputComponent } from '@shared/ui';
+import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
+import { SolBadgeComponent } from '@shared/ui';
+import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
+import { SolModalComponent } from '@shared/ui';
+import { SolSelectComponent } from '@shared/ui';
+import { SolTableComponent } from '@shared/ui/table.component';
 import { UsersService } from '@entities/user/users.service';
 import { AdminUser } from '@entities/user/user-admin.model';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
@@ -29,35 +29,35 @@ import { RolesService } from '@entities/role/roles.service';
 import { Role } from '@entities/role/role.model';
 
 @Component({
-  selector: 'bk-admin-users',
+  selector: 'sol-admin-users',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    ButtonComponent,
-    TextInputComponent,
-    PageHeaderComponent,
-    BadgeComponent,
-    IconButtonComponent,
-    ModalComponent,
-    SelectComponent,
-    TableComponent,
+    SolButtonComponent,
+    SolInputComponent,
+    SolPageHeaderComponent,
+    SolBadgeComponent,
+    SolIconButtonComponent,
+    SolModalComponent,
+    SolSelectComponent,
+    SolTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
-      <bk-page-header
+      <sol-page-header
         title="Usuarios"
         subtitle="Administra las personas, sus dependencias y sus roles."
       >
-        <bk-button
+        <sol-button
           type="button"
           variant="primary"
           (click)="openCreate()"
           ariaLabel="Crea un usuario"
         >
           Crear usuario
-        </bk-button>
-      </bk-page-header>
+        </sol-button>
+      </sol-page-header>
 
       @if (loading()) {
         <p class="text-sm text-muted">Cargando usuarios…</p>
@@ -76,7 +76,7 @@ import { Role } from '@entities/role/role.model';
           </p>
         </div>
       } @else {
-        <bk-table>
+        <sol-table>
           <thead>
             <tr class="border-b border-border text-xs uppercase text-muted">
               <th class="px-4 py-3 font-medium">Nombre</th>
@@ -100,7 +100,7 @@ import { Role } from '@entities/role/role.model';
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap gap-1">
                     @for (role of item.roles ?? []; track role.id) {
-                      <bk-badge tone="brand">{{ role.name }}</bk-badge>
+                      <sol-badge variant="info">{{ role.name }}</sol-badge>
                     } @empty {
                       <span class="text-xs text-muted">Sin roles</span>
                     }
@@ -108,38 +108,38 @@ import { Role } from '@entities/role/role.model';
                 </td>
                 <td class="px-4 py-3">
                   @if (item.is_active) {
-                    <bk-badge tone="success">Activo</bk-badge>
+                    <sol-badge variant="success">Activo</sol-badge>
                   } @else {
-                    <bk-badge tone="muted">Inactivo</bk-badge>
+                    <sol-badge variant="neutral">Inactivo</sol-badge>
                   }
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center justify-end gap-2">
-                    <bk-icon-button
+                    <sol-icon-button
                       icon="edit"
                       ariaLabel="Edita el usuario"
                       (click)="openEdit(item)"
-                    ></bk-icon-button>
-                    <bk-icon-button
+                    ></sol-icon-button>
+                    <sol-icon-button
                       icon="delete"
-                      tone="danger"
+                      variant="danger"
                       ariaLabel="Elimina el usuario"
                       (click)="askDelete(item)"
-                    ></bk-icon-button>
+                    ></sol-icon-button>
                   </div>
                 </td>
               </tr>
             }
           </tbody>
-        </bk-table>
+        </sol-table>
       }
     </section>
 
     @if (showForm()) {
-      <bk-modal
+      <sol-modal [open]="true"
         size="xl"
         [title]="editing() ? 'Editar usuario' : 'Nuevo usuario'"
-        (close)="closeForm()"
+        (closed)="closeForm()"
       >
         <form
           [formGroup]="form"
@@ -149,49 +149,49 @@ import { Role } from '@entities/role/role.model';
         >
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <bk-text-input
+              <sol-input
                 label="Primer nombre"
                 placeholder="Ej. Ana"
                 formControlName="primer_nombre"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('primer_nombre')) {
                 <p class="mt-1 text-xs text-danger">
                   El primer nombre es obligatorio.
                 </p>
               }
             </div>
-            <bk-text-input
+            <sol-input
               label="Segundo nombre (opcional)"
               placeholder="Ej. María"
               formControlName="segundo_nombre"
-            ></bk-text-input>
+            ></sol-input>
             <div>
-              <bk-text-input
+              <sol-input
                 label="Primer apellido"
                 placeholder="Ej. Torres"
                 formControlName="primer_apellido"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('primer_apellido')) {
                 <p class="mt-1 text-xs text-danger">
                   El primer apellido es obligatorio.
                 </p>
               }
             </div>
-            <bk-text-input
+            <sol-input
               label="Segundo apellido (opcional)"
               placeholder="Ej. Páez"
               formControlName="segundo_apellido"
-            ></bk-text-input>
+            ></sol-input>
           </div>
 
           <div>
-            <bk-text-input
+            <sol-input
               label="Correo electrónico"
               type="email"
               placeholder="persona@solercia.com"
               autocomplete="email"
               formControlName="email"
-            ></bk-text-input>
+            ></sol-input>
             @if (showError('email')) {
               <p class="mt-1 text-xs text-danger">{{ emailError() }}</p>
             }
@@ -199,13 +199,13 @@ import { Role } from '@entities/role/role.model';
 
           @if (!editing()) {
             <div>
-              <bk-text-input
+              <sol-input
                 label="Contraseña"
                 type="password"
                 placeholder="••••••••"
                 autocomplete="new-password"
                 formControlName="password"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
                   La contraseña debe tener al menos 8 caracteres.
@@ -237,13 +237,13 @@ import { Role } from '@entities/role/role.model';
                 No hay roles creados todavía. Crea roles para poder asignarlos.
               </p>
             } @else {
-              <bk-select
+              <sol-select
                 label="Roles"
                 [multiple]="true"
                 [options]="roleOptions()"
                 placeholder="Asigna uno o más roles"
                 formControlName="role_ids"
-              ></bk-select>
+              ></sol-select>
             }
           </div>
 
@@ -266,19 +266,19 @@ import { Role } from '@entities/role/role.model';
           }
 
           <div class="flex items-center justify-end gap-2">
-            <bk-button type="button" variant="ghost" (click)="closeForm()">
+            <sol-button type="button" variant="ghost" (click)="closeForm()">
               Cancelar
-            </bk-button>
-            <bk-button type="submit" variant="primary" [disabled]="saving()">
+            </sol-button>
+            <sol-button type="submit" variant="primary" [disabled]="saving()">
               {{ saving() ? 'Guardando…' : 'Guardar' }}
-            </bk-button>
+            </sol-button>
           </div>
         </form>
-      </bk-modal>
+      </sol-modal>
     }
 
     @if (deleting()) {
-      <bk-modal size="sm" title="Eliminar usuario" (close)="cancelDelete()">
+      <sol-modal [open]="true" size="sm" title="Eliminar usuario" (closed)="cancelDelete()">
         <p class="text-sm text-muted">
           ¿Confirmas que deseas eliminar a
           <span class="font-medium text-text">{{ deleting()?.full_name }}</span
@@ -293,19 +293,19 @@ import { Role } from '@entities/role/role.model';
           </div>
         }
         <div class="mt-5 flex items-center justify-end gap-2">
-          <bk-button type="button" variant="ghost" (click)="cancelDelete()">
+          <sol-button type="button" variant="ghost" (click)="cancelDelete()">
             Cancelar
-          </bk-button>
-          <bk-button
+          </sol-button>
+          <sol-button
             type="button"
             variant="danger"
             [disabled]="saving()"
             (click)="confirmDelete()"
           >
             {{ saving() ? 'Eliminando…' : 'Eliminar' }}
-          </bk-button>
+          </sol-button>
         </div>
-      </bk-modal>
+      </sol-modal>
     }
   `,
 })

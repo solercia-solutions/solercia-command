@@ -9,23 +9,23 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { SolButtonComponent } from '@solercia/ui';
 import { AuthService } from '@features/auth/auth.service';
 import { I18nService } from '@shared/i18n';
-import { CardComponent } from '@shared/ui/card.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
+import { SolCardComponent } from '@shared/ui';
+import { SolInputComponent } from '@shared/ui';
 
 @Component({
-  selector: 'bk-login',
+  selector: 'sol-login',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
     SolButtonComponent,
-    CardComponent,
-    TextInputComponent,
+    SolCardComponent,
+    SolInputComponent,
   ],
   template: `
     <div class="flex min-h-[70vh] items-center justify-center">
       <div class="w-full max-w-sm">
-        <bk-card>
+        <sol-card>
           <div class="mb-6 text-center">
             <div
               class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-brand text-brand-fg text-lg font-bold"
@@ -46,13 +46,13 @@ import { TextInputComponent } from '@shared/ui/text-input.component';
             novalidate
           >
             <div>
-              <bk-text-input
+              <sol-input
                 [label]="text.emailLabel()"
                 type="email"
                 [placeholder]="text.emailPlaceholder()"
                 autocomplete="email"
                 formControlName="email"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('email')) {
                 <p class="mt-1 text-xs text-danger">
                   {{ emailError() }}
@@ -61,13 +61,13 @@ import { TextInputComponent } from '@shared/ui/text-input.component';
             </div>
 
             <div>
-              <bk-text-input
+              <sol-input
                 [label]="text.passwordLabel()"
                 type="password"
                 [placeholder]="text.passwordPlaceholder()"
                 autocomplete="current-password"
                 formControlName="password"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('password')) {
                 <p class="mt-1 text-xs text-danger">
                   {{ text.passwordRequired() }}
@@ -103,7 +103,7 @@ import { TextInputComponent } from '@shared/ui/text-input.component';
             /
             <span class="font-medium text-text">Admin123*</span>
           </p>
-        </bk-card>
+        </sol-card>
       </div>
     </div>
   `,

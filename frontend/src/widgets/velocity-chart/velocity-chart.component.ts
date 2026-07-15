@@ -32,7 +32,7 @@ function shortSprintLabel(name: string): string {
  * Follows the same visual pattern as BurndownChartComponent.
  */
 @Component({
-  selector: 'bk-velocity-chart',
+  selector: 'sol-velocity-chart',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

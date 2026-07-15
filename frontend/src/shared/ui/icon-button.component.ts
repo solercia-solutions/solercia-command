@@ -7,7 +7,7 @@ type IconName = 'edit' | 'delete' | 'link' | 'plus';
  * Used for row actions in admin tables (edit, delete, manage relations).
  */
 @Component({
-  selector: 'bk-icon-button',
+  selector: 'sol-icon-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -92,7 +92,7 @@ type IconName = 'edit' | 'delete' | 'link' | 'plus';
     </button>
   `,
 })
-export class IconButtonComponent {
+export class SolIconButtonComponent {
   @Input({ required: true }) icon: IconName = 'edit';
   @Input({ required: true }) ariaLabel = '';
   @Input() type: 'button' | 'submit' = 'button';

@@ -29,7 +29,7 @@ function relativeTime(iso: string): string {
  * Emits `closed` when an action should dismiss the panel (e.g. task navigation).
  */
 @Component({
-  selector: 'bk-notification-panel',
+  selector: 'sol-notification-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],

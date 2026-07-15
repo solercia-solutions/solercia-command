@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
@@ -15,26 +15,25 @@ import { AuthService } from '@features/auth/auth.service';
 import { TaskDetailService } from '@entities/task/task-detail.service';
 import { Attachment, Comment, TaskDetail, formatBytes } from '@entities/task/task-detail.model';
 import { Member } from '@entities/workspace/workspace.model';
-import { BadgeComponent } from '@shared/ui/badge.component';
-import { SelectComponent } from '@shared/ui/select.component';
-import { RichEditorComponent } from '@shared/ui/rich-editor.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
+import { SolBadgeComponent } from '@shared/ui';
+import { SolSelectComponent } from '@shared/ui';
+import { SolRichEditorComponent } from '@shared/ui/rich-editor.component';
+import { SolInputComponent } from '@shared/ui';
 import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
 @Component({
-  selector: 'bk-task-detail-page',
+  selector: 'sol-task-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     DatePipe,
     DecimalPipe,
-    NgClass,
     FormsModule,
-    BadgeComponent,
-    SelectComponent,
-    RichEditorComponent,
-    TextInputComponent,
+    SolBadgeComponent,
+    SolSelectComponent,
+    SolRichEditorComponent,
+    SolInputComponent,
   ],
   template: `
 <div class="min-h-screen bg-page px-4 py-6 md:px-8">
@@ -71,7 +70,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
         <!-- Description -->
         <div class="rounded-lg border border-border bg-surface p-4">
           <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">Descripción</h2>
-          <bk-rich-editor
+          <sol-rich-editor
             [ngModel]="task()!.description ?? ''"
             (ngModelChange)="updateField('description', $event)"
             [mentionableUsers]="mentionableUsers()"
@@ -107,7 +106,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <ul class="space-y-2">
             @for (sub of subtasks(); track sub.id) {
               <li class="flex items-center gap-2 rounded p-2 hover:bg-muted/5">
-                <bk-badge [tone]="statusTone(sub.status)">{{ sub.status }}</bk-badge>
+                <sol-badge [variant]="statusTone(sub.status)">{{ sub.status }}</sol-badge>
                 @if (sub.task_key) {
                   <a [routerLink]="['/task', sub.task_key]"
                      class="text-sm text-text hover:text-brand hover:underline flex-1">
@@ -122,7 +121,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
           @if (showSubtaskForm()) {
             <div class="mt-3 space-y-2 border-t border-border pt-3">
-              <bk-text-input
+              <sol-input
                 label="Título de la subtarea"
                 [ngModel]="newSubtaskTitle()"
                 (ngModelChange)="newSubtaskTitle.set($event)"
@@ -187,7 +186,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
                     </div>
 
                     @if (editingCommentId() === comment.id) {
-                      <bk-rich-editor
+                      <sol-rich-editor
                         [ngModel]="editBody()"
                         (ngModelChange)="editBody.set($event)"
                         [mentionableUsers]="mentionableUsers()"
@@ -243,7 +242,7 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
 
           <!-- New comment -->
           <div class="border-t border-border pt-4">
-            <bk-rich-editor
+            <sol-rich-editor
               [ngModel]="commentBody()"
               (ngModelChange)="commentBody.set($event)"
               [mentionableUsers]="mentionableUsers()"
@@ -294,10 +293,10 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Status -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Estado</label>
-            <bk-select
+            <sol-select
               [options]="statusOptions()"
               [ngModel]="task()!.status"
-              (change)="updateField('status', $event)"
+              (ngModelChange)="updateField('status', $event)"
               placeholder="Seleccionar estado"
             />
           </div>
@@ -305,10 +304,10 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Priority -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Prioridad</label>
-            <bk-select
+            <sol-select
               [options]="priorityOptions"
               [ngModel]="task()!.priority"
-              (change)="updateField('priority', $event)"
+              (ngModelChange)="updateField('priority', $event)"
               placeholder="Seleccionar prioridad"
             />
           </div>
@@ -316,10 +315,10 @@ import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
           <!-- Assignee -->
           <div>
             <label class="mb-1 block text-xs font-medium text-muted">Responsable</label>
-            <bk-select
+            <sol-select
               [options]="assigneeOptions()"
               [ngModel]="task()!.assignee_id ?? ''"
-              (change)="updateField('assignee_id', $event || null)"
+              (ngModelChange)="updateField('assignee_id', $event || null)"
               placeholder="Sin asignar"
             />
           </div>
@@ -589,25 +588,25 @@ export class TaskDetailPageComponent implements OnInit {
 
   protected readonly formatBytes = formatBytes;
 
-  statusTone(s: string): 'brand' | 'success' | 'muted' | 'danger' | 'warning' {
-    const map: Record<string, 'brand' | 'success' | 'muted' | 'danger' | 'warning'> = {
+  statusTone(s: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+    const map: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
       done: 'success',
-      in_progress: 'brand',
-      cancelled: 'muted',
+      in_progress: 'info',
+      cancelled: 'neutral',
       in_review: 'warning',
-      to_do: 'muted',
-      backlog: 'muted',
+      to_do: 'neutral',
+      backlog: 'neutral',
     };
-    return map[s] ?? 'muted';
+    return map[s] ?? 'neutral';
   }
 
-  priorityTone(p: string): 'brand' | 'success' | 'muted' | 'danger' | 'warning' {
-    const map: Record<string, 'brand' | 'success' | 'muted' | 'danger' | 'warning'> = {
+  priorityTone(p: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+    const map: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
       critical: 'danger',
       high: 'warning',
-      medium: 'brand',
-      low: 'muted',
+      medium: 'info',
+      low: 'neutral',
     };
-    return map[p] ?? 'muted';
+    return map[p] ?? 'neutral';
   }
 }

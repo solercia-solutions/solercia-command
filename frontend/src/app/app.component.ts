@@ -23,7 +23,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
 
 /** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
 @Component({
-  selector: 'bk-root',
+  selector: 'app-root',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationPanelComponent],
@@ -219,7 +219,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
                 <!-- Notification panel dropdown -->
                 @if (notifOpen()) {
                   <div class="absolute right-0 top-full z-40 mt-2">
-                    <bk-notification-panel (closed)="closeNotif()" />
+                    <sol-notification-panel (closed)="closeNotif()" />
                   </div>
                 }
               </div>
@@ -353,7 +353,7 @@ import { NotificationPanelComponent } from '@widgets/notification-panel/notifica
       }
 
       <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        <div class="sp-animate-in">
+        <div class="sol-animate-in">
           <router-outlet></router-outlet>
         </div>
       </main>

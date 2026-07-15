@@ -12,9 +12,9 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { ButtonComponent } from '@shared/ui/button.component';
-import { CardComponent } from '@shared/ui/card.component';
-import { TextInputComponent } from '@shared/ui/text-input.component';
+import { SolButtonComponent } from '@shared/ui';
+import { SolCardComponent } from '@shared/ui';
+import { SolInputComponent } from '@shared/ui';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
   METHODOLOGY_LABELS,
@@ -25,15 +25,15 @@ import {
 } from '@entities/project/project.model';
 
 @Component({
-  selector: 'bk-projects',
+  selector: 'sol-projects',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     ReactiveFormsModule,
-    ButtonComponent,
-    CardComponent,
-    TextInputComponent,
+    SolButtonComponent,
+    SolCardComponent,
+    SolInputComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
@@ -44,18 +44,18 @@ import {
             Administra los proyectos de tu organización.
           </p>
         </div>
-        <bk-button
+        <sol-button
           type="button"
           variant="primary"
           (click)="toggleForm()"
           [ariaLabel]="showForm() ? 'Cierra el formulario' : 'Crea un proyecto'"
         >
           {{ showForm() ? 'Cerrar' : 'Crear proyecto' }}
-        </bk-button>
+        </sol-button>
       </div>
 
       @if (showForm()) {
-        <bk-card>
+        <sol-card>
           <h2 class="mb-4 text-lg font-semibold text-text">Crea tu proyecto</h2>
           <form
             [formGroup]="form"
@@ -64,11 +64,11 @@ import {
             novalidate
           >
             <div>
-              <bk-text-input
+              <sol-input
                 label="Nombre"
                 placeholder="Ej. Plataforma de pagos"
                 formControlName="name"
-              ></bk-text-input>
+              ></sol-input>
               @if (showError('name')) {
                 <p class="mt-1 text-xs text-danger">
                   El nombre es obligatorio.
@@ -77,11 +77,11 @@ import {
             </div>
 
             <div>
-              <bk-text-input
+              <sol-input
                 label="Descripción"
                 placeholder="Describe brevemente el objetivo (opcional)"
                 formControlName="description"
-              ></bk-text-input>
+              ></sol-input>
             </div>
 
             <div>
@@ -111,23 +111,23 @@ import {
             }
 
             <div class="flex items-center justify-end gap-2">
-              <bk-button
+              <sol-button
                 type="button"
                 variant="ghost"
                 (click)="toggleForm()"
               >
                 Cancelar
-              </bk-button>
-              <bk-button
+              </sol-button>
+              <sol-button
                 type="submit"
                 variant="primary"
                 [disabled]="saving()"
               >
                 {{ saving() ? 'Guardando…' : 'Guardar proyecto' }}
-              </bk-button>
+              </sol-button>
             </div>
           </form>
-        </bk-card>
+        </sol-card>
       }
 
       @if (loading()) {
@@ -140,7 +140,7 @@ import {
           {{ loadError() }}
         </div>
       } @else if (projects().length === 0) {
-        <bk-card>
+        <sol-card>
           <div class="py-8 text-center">
             <p class="text-base font-medium text-text">
               Todavía no tienes proyectos.
@@ -149,7 +149,7 @@ import {
               Crea tu primer proyecto para empezar a organizar el trabajo.
             </p>
           </div>
-        </bk-card>
+        </sol-card>
       } @else {
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           @for (project of projects(); track project.id) {
@@ -159,7 +159,7 @@ import {
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
               [attr.aria-label]="'Abre el proyecto ' + project.name"
             >
-            <bk-card>
+            <sol-card>
               <div class="flex h-full flex-col gap-3">
                 <div class="flex items-start justify-between gap-2">
                   <h3 class="text-base font-semibold text-text">
@@ -186,7 +186,7 @@ import {
                   </span>
                 </div>
               </div>
-            </bk-card>
+            </sol-card>
             </a>
           }
         </div>

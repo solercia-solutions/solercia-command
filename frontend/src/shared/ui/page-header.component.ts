@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
  * actions slot on the right (e.g. a "Crear" button). Theme-aware.
  */
 @Component({
-  selector: 'bk-page-header',
+  selector: 'sol-page-header',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -22,7 +22,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     </div>
   `,
 })
-export class PageHeaderComponent {
+export class SolPageHeaderComponent {
   @Input({ required: true }) title = '';
   @Input() subtitle?: string;
 }

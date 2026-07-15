@@ -22,7 +22,7 @@ import {
  * small risk flag. Emits `edit` when activated.
  */
 @Component({
-  selector: 'bk-task-card',
+  selector: 'sol-task-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],

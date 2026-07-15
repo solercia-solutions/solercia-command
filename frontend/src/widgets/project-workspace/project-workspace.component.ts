@@ -19,11 +19,10 @@ import {
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-import { ButtonComponent } from '@shared/ui/button.component';
-import { CardComponent } from '@shared/ui/card.component';
-import { BadgeComponent } from '@shared/ui/badge.component';
-import { ModalComponent } from '@shared/ui/modal.component';
-import { TableComponent } from '@shared/ui/table.component';
+import { SolButtonComponent } from '@shared/ui';
+import { SolCardComponent } from '@shared/ui';
+import { SolModalComponent } from '@shared/ui';
+import { SolTableComponent } from '@shared/ui/table.component';
 import { ProjectsService } from '@entities/project/projects.service';
 import { EstimationMode, ProjectDetail } from '@entities/project/project.model';
 import { WorkspaceService } from '@entities/workspace/workspace.service';
@@ -68,18 +67,17 @@ interface BoardColumn {
  * enables them. All behaviour derives from `methodology_info`.
  */
 @Component({
-  selector: 'bk-project-workspace',
+  selector: 'sol-project-workspace',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
     ReactiveFormsModule,
     DragDropModule,
-    ButtonComponent,
-    CardComponent,
-    BadgeComponent,
-    ModalComponent,
-    TableComponent,
+    SolButtonComponent,
+    SolCardComponent,
+    SolModalComponent,
+    SolTableComponent,
     BoardColumnComponent,
     TaskCardComponent,
     TaskModalComponent,
@@ -131,14 +129,14 @@ interface BoardColumn {
                 {{ methodologyBadge() }}
               </span>
             </div>
-            <bk-button
+            <sol-button
               type="button"
               variant="primary"
               (click)="openCreate()"
               ariaLabel="Crea una nueva tarea"
             >
               + Nueva tarea
-            </bk-button>
+            </sol-button>
           </div>
         </div>
 
@@ -222,18 +220,18 @@ interface BoardColumn {
           @if (viewMode() === 'board') {
             <!-- Kanban board -->
             @if (boardColumns().length === 0) {
-              <bk-card>
+              <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
                   Esta metodología no define columnas de tablero.
                 </p>
-              </bk-card>
+              </sol-card>
             } @else {
               <div
                 cdkDropListGroup
                 class="flex gap-4 overflow-x-auto pb-2"
               >
                 @for (column of boardColumns(); track column.status) {
-                  <bk-board-column
+                  <sol-board-column
                     class="shrink-0"
                     [status]="column.status"
                     [tasks]="column.tasks"
@@ -242,20 +240,20 @@ interface BoardColumn {
                     (addTask)="openCreate($event)"
                     (editTask)="openEdit($event)"
                     (dropped)="onDrop($event)"
-                  ></bk-board-column>
+                  ></sol-board-column>
                 }
               </div>
             }
           } @else {
             <!-- Grid view -->
             @if (allTasks().length === 0) {
-              <bk-card>
+              <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
                   No hay tareas en este proyecto.
                 </p>
-              </bk-card>
+              </sol-card>
             } @else {
-              <bk-table>
+              <sol-table>
                 <thead>
                   <tr class="border-b border-border bg-surface/60">
                     <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Código</th>
@@ -327,7 +325,7 @@ interface BoardColumn {
                     </tr>
                   }
                 </tbody>
-              </bk-table>
+              </sol-table>
             }
           }
         }
@@ -337,32 +335,32 @@ interface BoardColumn {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-lg font-semibold text-text">Backlog</h2>
-              <bk-button
+              <sol-button
                 type="button"
                 variant="secondary"
                 (click)="openCreate()"
                 ariaLabel="Agrega una tarea al backlog"
               >
                 + Agregar al backlog
-              </bk-button>
+              </sol-button>
             </div>
             @if (backlogTasks().length === 0) {
-              <bk-card>
+              <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
                   No hay tareas en el backlog.
                 </p>
-              </bk-card>
+              </sol-card>
             } @else {
               <div class="flex flex-col gap-3">
                 @for (task of backlogTasks(); track task.id) {
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <div class="flex-1">
-                      <bk-task-card
+                      <sol-task-card
                         [task]="task"
                         [estimationMode]="estimationMode()"
                         [doneStatus]="doneStatus()"
                         (edit)="openEdit($event)"
-                      ></bk-task-card>
+                      ></sol-task-card>
                     </div>
                     @if (sprintsEnabled()) {
                       <label class="block sm:w-56">
@@ -394,7 +392,7 @@ interface BoardColumn {
         @if (activeTab() === 'sprints') {
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div class="lg:col-span-1">
-              <bk-card>
+              <sol-card>
                 <h2 class="mb-4 text-lg font-semibold text-text">Nuevo sprint</h2>
                 <form
                   [formGroup]="sprintForm"
@@ -449,25 +447,25 @@ interface BoardColumn {
                       />
                     </label>
                   </div>
-                  <bk-button
+                  <sol-button
                     type="submit"
                     variant="primary"
-                    [block]="true"
+                    class="w-full"
                     [disabled]="savingSprint()"
                   >
                     {{ savingSprint() ? 'Guardando…' : 'Crear sprint' }}
-                  </bk-button>
+                  </sol-button>
                 </form>
-              </bk-card>
+              </sol-card>
             </div>
 
             <div class="flex flex-col gap-3 lg:col-span-2">
               @if (sprints().length === 0) {
-                <bk-card>
+                <sol-card>
                   <p class="py-6 text-center text-sm text-muted">
                     Todavía no hay sprints en este proyecto.
                   </p>
-                </bk-card>
+                </sol-card>
               } @else {
                 @for (sprint of sprints(); track sprint.id) {
                   <div
@@ -504,7 +502,7 @@ interface BoardColumn {
                         }
                       </div>
                       <div class="flex shrink-0 flex-wrap items-center gap-2">
-                        <bk-button
+                        <sol-button
                           type="button"
                           variant="primary"
                           (click)="selectSprint(sprint)"
@@ -515,25 +513,25 @@ interface BoardColumn {
                               ? 'Ocultar burndown'
                               : 'Ver burndown'
                           }}
-                        </bk-button>
+                        </sol-button>
                         @if (sprint.status === 'active') {
-                          <bk-button
+                          <sol-button
                             type="button"
                             variant="secondary"
                             (click)="openCloseSprint(sprint)"
                             [ariaLabel]="'Cierra el sprint ' + sprint.name"
                           >
                             Cerrar sprint
-                          </bk-button>
+                          </sol-button>
                         } @else {
-                          <bk-button
+                          <sol-button
                             type="button"
                             variant="secondary"
                             (click)="toggleSprintStatus(sprint)"
                             [ariaLabel]="'Reactiva el sprint ' + sprint.name"
                           >
                             Reactivar
-                          </bk-button>
+                          </sol-button>
                         }
                       </div>
                     </div>
@@ -569,10 +567,10 @@ interface BoardColumn {
                               </span>
                             </span>
                           </div>
-                          <bk-burndown-chart
+                          <sol-burndown-chart
                             [days]="bd.days"
                             [unit]="bd.unit"
-                          ></bk-burndown-chart>
+                          ></sol-burndown-chart>
                         }
                       </div>
                     }
@@ -603,7 +601,7 @@ interface BoardColumn {
                     {{ velocityError() }}
                   </div>
                 } @else if (velocityData(); as vd) {
-                  <bk-velocity-chart [data]="vd"></bk-velocity-chart>
+                  <sol-velocity-chart [data]="vd"></sol-velocity-chart>
                 }
               </div>
             </div>
@@ -617,7 +615,7 @@ interface BoardColumn {
               <h2 class="text-lg font-semibold text-text">Cronograma de sprints</h2>
               <p class="text-xs text-muted">Cada barra representa un sprint posicionado por sus fechas de inicio y fin.</p>
             </div>
-            <bk-sprint-timeline [sprints]="sprints()"></bk-sprint-timeline>
+            <sol-sprint-timeline [sprints]="sprints()"></sol-sprint-timeline>
           </div>
         }
 
@@ -625,7 +623,7 @@ interface BoardColumn {
 
       <!-- Task modal -->
       @if (modalOpen()) {
-        <bk-task-modal
+        <sol-task-modal
           [allowedStatuses]="allowedStatuses()"
           [estimationMode]="estimationMode()"
           [members]="members()"
@@ -637,16 +635,16 @@ interface BoardColumn {
           [error]="modalError()"
           (save)="onSaveTask($event)"
           (remove)="onDeleteTask($event)"
-          (close)="closeModal()"
-        ></bk-task-modal>
+          (closed)="closeModal()"
+        ></sol-task-modal>
       }
 
       <!-- Close sprint modal -->
       @if (closeSprintOpen()) {
-        <bk-modal
+        <sol-modal [open]="true"
           title="Cerrar sprint"
           size="sm"
-          (close)="cancelCloseSprint()"
+          (closed)="cancelCloseSprint()"
         >
           @if (closeSprintResult(); as result) {
             <!-- Success state -->
@@ -665,14 +663,14 @@ interface BoardColumn {
                   al destino seleccionado
                 </p>
               </div>
-              <bk-button
+              <sol-button
                 type="button"
                 variant="primary"
-                [block]="true"
+                class="w-full"
                 (click)="cancelCloseSprint()"
               >
                 Entendido
-              </bk-button>
+              </sol-button>
             </div>
           } @else {
             <!-- Confirmation state -->
@@ -716,28 +714,28 @@ interface BoardColumn {
               }
 
               <div class="flex gap-3">
-                <bk-button
+                <sol-button
                   type="button"
                   variant="secondary"
-                  [block]="true"
+                  class="w-full"
                   [disabled]="closingSprintBusy()"
                   (click)="cancelCloseSprint()"
                 >
                   Cancelar
-                </bk-button>
-                <bk-button
+                </sol-button>
+                <sol-button
                   type="button"
                   variant="primary"
-                  [block]="true"
+                  class="w-full"
                   [disabled]="closingSprintBusy()"
                   (click)="confirmCloseSprint()"
                 >
                   {{ closingSprintBusy() ? 'Cerrando…' : 'Cerrar sprint' }}
-                </bk-button>
+                </sol-button>
               </div>
             </div>
           }
-        </bk-modal>
+        </sol-modal>
       }
     }
   `,

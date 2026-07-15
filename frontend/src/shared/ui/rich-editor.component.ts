@@ -1,5 +1,5 @@
 /**
- * bk-rich-editor — Editor de texto enriquecido para Solercia PM
+ * sol-rich-editor — Editor de texto enriquecido para Solercia PM
  * =============================================================
  * Basado en contenteditable, sin dependencias externas. Angular 20 standalone.
  *
@@ -40,7 +40,7 @@
  *   implementarla a mano.
  *
  * Uso básico:
- *   <bk-rich-editor
+ *   <sol-rich-editor
  *     label="Descripción"
  *     placeholder="Describe la tarea..."
  *     [mentionableUsers]="teamMembers"
@@ -92,7 +92,7 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
   SPAN: ['class', 'data-mention-id', 'data-task-key', 'contenteditable', 'style'],
 };
 
-function _sanitizeNode(node: Node): void {
+function sanitizeNodeInPlace(node: Node): void {
   const children = Array.from(node.childNodes);
   for (const child of children) {
     if (child.nodeType === Node.TEXT_NODE) continue;
@@ -123,7 +123,7 @@ function _sanitizeNode(node: Node): void {
         }
       }
 
-      _sanitizeNode(el);
+      sanitizeNodeInPlace(el);
     } else {
       // Eliminar nodos que no sean texto ni elemento (comments, etc.)
       node.removeChild(child);
@@ -135,7 +135,7 @@ function sanitizeHtml(html: string): string {
   if (!html?.trim()) return '';
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-  _sanitizeNode(doc.body);
+  sanitizeNodeInPlace(doc.body);
   return doc.body.innerHTML;
 }
 
@@ -160,7 +160,7 @@ function extractTaskKeys(html: string): string[] {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 @Component({
-  selector: 'bk-rich-editor',
+  selector: 'sol-rich-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   // ViewEncapsulation.None para que los estilos de chips apliquen a nodos
@@ -169,32 +169,32 @@ function extractTaskKeys(html: string): string[] {
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
-      useExisting: forwardRef(() => RichEditorComponent),
+      useExisting: forwardRef(() => SolRichEditorComponent),
       multi: true,
     },
   ],
   styles: [`
     /* Estilos de chips: se aplican a nodos insertados dinámicamente */
-    .bk-mention-chip {
+    .sol-mention-chip {
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
       border-radius: 4px;
-      background-color: rgb(var(--sp-brand) / 0.12);
-      color: rgb(var(--sp-brand));
+      background-color: color-mix(in srgb, var(--sol-color-primary) 12%, transparent);
+      color: var(--sol-color-primary);
       font-size: 0.875rem;
       font-weight: 500;
       cursor: default;
       user-select: none;
       line-height: 1.5;
     }
-    .bk-task-chip {
+    .sol-task-chip {
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
       border-radius: 4px;
-      background-color: rgb(var(--sp-success) / 0.12);
-      color: rgb(var(--sp-success));
+      background-color: color-mix(in srgb, var(--sol-color-success) 12%, transparent);
+      color: var(--sol-color-success);
       font-size: 0.875rem;
       font-weight: 600;
       cursor: default;
@@ -203,38 +203,38 @@ function extractTaskKeys(html: string): string[] {
       line-height: 1.5;
     }
     /* Estilos del contenido del editor */
-    .bk-rich-editor-content {
+    .sol-rich-editor-content {
       line-height: 1.6;
       outline: none;
     }
-    .bk-rich-editor-content:empty::before {
+    .sol-rich-editor-content:empty::before {
       content: attr(data-placeholder);
-      color: rgb(var(--sp-muted));
+      color: var(--sol-color-text-muted);
       pointer-events: none;
     }
-    .bk-rich-editor-content a {
-      color: rgb(var(--sp-brand));
+    .sol-rich-editor-content a {
+      color: var(--sol-color-primary);
       text-decoration: underline;
       cursor: pointer;
     }
-    .bk-rich-editor-content ul {
+    .sol-rich-editor-content ul {
       list-style: disc;
       padding-left: 1.5rem;
       margin: 0.25rem 0;
     }
-    .bk-rich-editor-content ol {
+    .sol-rich-editor-content ol {
       list-style: decimal;
       padding-left: 1.5rem;
       margin: 0.25rem 0;
     }
-    .bk-rich-editor-content li {
+    .sol-rich-editor-content li {
       margin: 0.1rem 0;
     }
-    .bk-rich-editor-content p {
+    .sol-rich-editor-content p {
       margin: 0.25rem 0;
     }
     /* Deshabilitar cuando está en modo readonly */
-    .bk-rich-editor-content[contenteditable="false"] {
+    .sol-rich-editor-content[contenteditable="false"] {
       opacity: 0.5;
       cursor: not-allowed;
     }
@@ -338,7 +338,7 @@ function extractTaskKeys(html: string): string[] {
           (blur)="onBlur()"
           (mouseup)="onSelectionChange()"
           (keyup)="onSelectionChange()"
-          class="bk-rich-editor-content px-3 py-2.5 text-sm text-text"
+          class="sol-rich-editor-content px-3 py-2.5 text-sm text-text"
           role="textbox"
           aria-multiline="true"
           [attr.aria-label]="label || placeholder"
@@ -451,7 +451,7 @@ function extractTaskKeys(html: string): string[] {
     </div>
   `,
 })
-export class RichEditorComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
+export class SolRichEditorComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
   @ViewChild('editor') private readonly editorEl!: ElementRef<HTMLDivElement>;
   @ViewChild('linkInput') private readonly linkInputEl?: ElementRef<HTMLInputElement>;
 
@@ -864,7 +864,7 @@ export class RichEditorComponent implements ControlValueAccessor, AfterViewInit,
 
     // Crear el chip
     const chip = document.createElement('span');
-    chip.className       = trigger === '@' ? 'bk-mention-chip' : 'bk-task-chip';
+    chip.className       = trigger === '@' ? 'sol-mention-chip' : 'sol-task-chip';
     chip.contentEditable = 'false';
     chip.textContent     = label;
     for (const [k, v] of Object.entries(attrs)) {
