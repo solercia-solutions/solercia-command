@@ -38,8 +38,9 @@ API REST del backend de **Solercia Project Manager**.
 Los **11 endpoints de lista** marcados con 📄 en «Resumen de endpoints» soportan paginación
 **opcional** por *query string*. El contrato es **retrocompatible a propósito**: si el
 cliente no envía ningún parámetro de paginación, la respuesta es **byte-idéntica** a la de
-antes de este cambio (colección completa + `meta.total`) — es un requisito duro para el
-frontend Angular congelado, no una preferencia de diseño.
+antes de este cambio (colección completa + `meta.total`) — es un requisito duro de
+compatibilidad para el frontend Angular (hoy DESCONGELADO, consumiendo @solercia/ui@0.1.0
+desde la migración PR5 07-e9), no una preferencia de diseño.
 
 | Parámetro | Tipo   | Default | Notas                                                                                   |
 | --------- | ------ | ------- | ---------------------------------------------------------------------------------------- |

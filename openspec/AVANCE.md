@@ -2,7 +2,7 @@
 
 **Fuente del plan**: [CLAUDE.md](../CLAUDE.md) (prioridad de implementación, fases 1-4).
 **Convención**: cada cambio futuro se ejecuta como un ciclo SDD completo en su propia carpeta `openspec/changes/NN-nombre/` (explore → proposal → spec → design → tasks → apply → verify → archive). El `state.yaml` de cada carpeta es la fuente de verdad de su estado. TDD estricto obligatorio (`strict_tdd: true` en [config.yaml](config.yaml); test command: `cd backend && pytest tests/ -v`). Lo YA construido está documentado como specs as-built en `openspec/specs/`.
-**Última actualización**: 2026-07-12 (12-notification-hub archivado — hub agnóstico al canal con puerto DeliveryChannel + registro de canales (durable/best_effort), outbox generalizado notification_deliveries (rename de email_outbox), despachador genérico con claim atómico + reintentos + estado terminal, adaptadores durable (email) y best_effort (WebSocket) refactorizados sin cambio observable, endpoint GET /notifications/{id}/deliveries (admin/manager) para auditoría de entregas, fronteras de extracción declaradas para canales futuros (FCM/APNs/SMS/webhook); 22 nuevos tests (561/561 total base 539 + 22 nuevos), ruff/mypy limpios, migración 0013 rename+round-trip probada, dos correcciones de gate documentadas: aislamiento de fallos entre canales y bootstrap del registro en db_init; backend de notificaciones completamente estandarizado. Todos los 12 cambios del roadmap backend (01-11 + 12) completados y archivados; frontend EN PAUSA por la migración a @solercia/ui).
+**Última actualización**: 2026-07-15 (12-notification-hub archivado — hub agnóstico al canal con puerto DeliveryChannel + registro de canales (durable/best_effort), outbox generalizado notification_deliveries (rename de email_outbox), despachador genérico con claim atómico + reintentos + estado terminal, adaptadores durable (email) y best_effort (WebSocket) refactorizados sin cambio observable, endpoint GET /notifications/{id}/deliveries (admin/manager) para auditoría de entregas, fronteras de extracción declaradas para canales futuros (FCM/APNs/SMS/webhook); 22 nuevos tests (561/561 total base 539 + 22 nuevos), ruff/mypy limpios, migración 0013 rename+round-trip probada, dos correcciones de gate documentadas: aislamiento de fallos entre canales y bootstrap del registro en db_init; backend de notificaciones completamente estandarizado. Todos los 12 cambios del roadmap backend (01-11 + 12) completados y archivados; frontend DESCONGELADO (2026-07-15): migrado a FSD y consumiendo @solercia/ui@0.1.0, con i18n real es-CO extraído de las vistas — constraint frontend-frozen levantado en la migración PR5 07-e9).
 
 ## Mapa visual del plan
 
@@ -23,7 +23,7 @@ flowchart TD
     C10["10 · Búsqueda global<br/>+ filtros avanzados"]
     C12["12 · Notification hub<br/>entrega agnóstica al canal"]
 
-    FE["Frontend Angular 20<br/>cycle2-design-system<br/>EN PAUSA — espera @solercia/ui"]
+    FE["Frontend Angular 22 (FSD)<br/>consumiendo @solercia/ui@0.1.0<br/>DESCONGELADO — migración PR5 07-e9"]
 
     B0 --> C01
     C01 --> C02
@@ -37,7 +37,7 @@ flowchart TD
     C08 --> C12
     C09 --> C12
 
-    FE -.bloqueado por @solercia/ui.- B0
+    FE -.consume @solercia/ui.- B0
 
     class B0 done
     class C01 done
@@ -59,7 +59,7 @@ flowchart TD
     classDef pending fill:#9ca3af,stroke:#4b5563,color:#ffffff
 ```
 
-**Leyenda**: 🟩 completado (línea base) · 🟨 en pausa/bloqueado · ⬜ pendiente
+**Leyenda**: 🟩 completado (línea base) · 🟨 en curso/activo · ⬜ pendiente
 
 ---
 
@@ -109,11 +109,11 @@ Total tras cambio 12: **561 tests en 35 archivos** (`backend/tests/`; 43 en base
 
 ---
 
-## Frontend — EN PAUSA
+## Frontend — DESCONGELADO (activo)
 
-- El ciclo [changes/cycle2-design-system/](changes/cycle2-design-system/) (sistema de diseño del frontend Angular 20) está **ON-HOLD**: proposal y design completos, tasks parcial (Fases 0-1 ejecutadas).
-- **Bloqueante**: la migración a la librería compartida `@solercia/ui`, descrita en [docs/PLAN_MIGRACION_SOLERCIA_UI.md](../docs/PLAN_MIGRACION_SOLERCIA_UI.md). En solercia_flows corresponde al programa **07 · Súper Front @sol/ui (E0–E7)**.
-- **Regla dura**: ningún cambio SDD debe tocar `frontend/` hasta levantar el bloqueo (constraint `frontend-frozen` en config.yaml).
+- La migración a la librería compartida `@solercia/ui` (descrita en [docs/PLAN_MIGRACION_SOLERCIA_UI.md](../docs/PLAN_MIGRACION_SOLERCIA_UI.md); en solercia_flows corresponde al programa **07 · Súper Front @sol/ui (E0–E7)**) está **ejecutándose**. En la rama `feat/consume-solercia-ui` el frontend ya está reestructurado a **FSD** (idéntica a boki-front), todas las vistas usan componentes `sol-*` de `@solercia/ui@0.1.0`, y el i18n real (Transloco es-CO detrás de la fachada `I18nService`) está cableado y con los strings de las vistas extraídos a claves es-CO (migración **PR5 07-e9**, WAVE C).
+- **Constraint `frontend-frozen` LEVANTADO** (2026-07-15): `frontend/` ya es zona de trabajo habilitada. Se pueden proponer cambios de interfaz sobre el design system compartido.
+- El ciclo [changes/cycle2-design-system/](changes/cycle2-design-system/) queda superado por esta migración: el sistema de diseño ya no vive en la app sino en la librería externa `@solercia/ui`.
 
 ---
 
