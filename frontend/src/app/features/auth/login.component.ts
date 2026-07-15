@@ -6,8 +6,8 @@ import {
 } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { SolButtonComponent } from '@solercia/ui';
 import { AuthService } from '../../core/auth.service';
-import { ButtonComponent } from '../../shared/ui/button.component';
 import { CardComponent } from '../../shared/ui/card.component';
 import { TextInputComponent } from '../../shared/ui/text-input.component';
 
@@ -17,7 +17,7 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    ButtonComponent,
+    SolButtonComponent,
     CardComponent,
     TextInputComponent,
   ],
@@ -83,14 +83,15 @@ import { TextInputComponent } from '../../shared/ui/text-input.component';
               </div>
             }
 
-            <bk-button
+            <sol-button
+              class="w-full"
               type="submit"
               variant="primary"
-              [block]="true"
               [disabled]="loading()"
+              [loading]="loading()"
             >
               {{ loading() ? 'Ingresando…' : 'Iniciar sesión' }}
-            </bk-button>
+            </sol-button>
           </form>
 
           <p
