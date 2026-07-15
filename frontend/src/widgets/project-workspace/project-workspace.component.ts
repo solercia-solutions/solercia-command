@@ -22,7 +22,6 @@ import {
 import { SolButtonComponent } from '@shared/ui';
 import { SolCardComponent } from '@shared/ui';
 import { SolModalComponent } from '@shared/ui';
-import { SolTableComponent } from '@shared/ui/table.component';
 import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
 import { EstimationMode, ProjectDetail } from '@entities/project/project.model';
@@ -78,7 +77,6 @@ interface BoardColumn {
     SolButtonComponent,
     SolCardComponent,
     SolModalComponent,
-    SolTableComponent,
     BoardColumnComponent,
     TaskCardComponent,
     TaskModalComponent,
@@ -254,7 +252,8 @@ interface BoardColumn {
                 </p>
               </sol-card>
             } @else {
-              <sol-table>
+              <div class="overflow-x-auto rounded-xl border border-border bg-surface">
+                <table class="w-full border-collapse text-left text-sm text-text">
                 <thead>
                   <tr class="border-b border-border bg-surface/60">
                     <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colCode() }}</th>
@@ -326,7 +325,8 @@ interface BoardColumn {
                     </tr>
                   }
                 </tbody>
-              </sol-table>
+                </table>
+              </div>
             }
           }
         }

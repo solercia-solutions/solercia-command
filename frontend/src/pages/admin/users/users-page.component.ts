@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  TemplateRef,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -13,14 +15,17 @@ import {
   Validators,
 } from '@angular/forms';
 import { switchMap } from 'rxjs';
-import { SolButtonComponent } from '@shared/ui';
-import { SolInputComponent } from '@shared/ui';
-import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
-import { SolBadgeComponent } from '@shared/ui';
-import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
-import { SolModalComponent } from '@shared/ui';
-import { SolSelectComponent } from '@shared/ui';
-import { SolTableComponent } from '@shared/ui/table.component';
+import {
+  SolButtonComponent,
+  SolInputComponent,
+  SolPageHeaderComponent,
+  SolBadgeComponent,
+  SolIconButtonComponent,
+  SolModalComponent,
+  SolSelectComponent,
+  SolDataTableComponent,
+  DataTableColumn,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { UsersService } from '@entities/user/users.service';
 import { AdminUser } from '@entities/user/user-admin.model';
@@ -42,7 +47,7 @@ import { Role } from '@entities/role/role.model';
     SolIconButtonComponent,
     SolModalComponent,
     SolSelectComponent,
-    SolTableComponent,
+    SolDataTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
@@ -77,64 +82,51 @@ import { Role } from '@entities/role/role.model';
           </p>
         </div>
       } @else {
-        <sol-table>
-          <thead>
-            <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">{{ text.table.name() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.email() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.dependency() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.roles() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.status() }}</th>
-              <th class="px-4 py-3 text-right font-medium">{{ text.table.actions() }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of items(); track item.id) {
-              <tr class="border-b border-border last:border-0">
-                <td class="px-4 py-3 font-medium text-text">
-                  {{ item.full_name }}
-                </td>
-                <td class="px-4 py-3 text-muted">{{ item.email }}</td>
-                <td class="px-4 py-3 text-muted">
-                  {{ dependencyName(item.dependency_id) }}
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex flex-wrap gap-1">
-                    @for (role of item.roles ?? []; track role.id) {
-                      <sol-badge variant="info">{{ role.name }}</sol-badge>
-                    } @empty {
-                      <span class="text-xs text-muted">{{ text.noRoles() }}</span>
-                    }
-                  </div>
-                </td>
-                <td class="px-4 py-3">
-                  @if (item.is_active) {
-                    <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
-                  } @else {
-                    <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
-                  }
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex items-center justify-end gap-2">
-                    <sol-icon-button
-                      icon="edit"
-                      [ariaLabel]="text.actions.editAria()"
-                      (click)="openEdit(item)"
-                    ></sol-icon-button>
-                    <sol-icon-button
-                      icon="delete"
-                      variant="danger"
-                      [ariaLabel]="text.actions.deleteAria()"
-                      (click)="askDelete(item)"
-                    ></sol-icon-button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </sol-table>
+        <sol-data-table
+          [data]="tableData()"
+          [columns]="columns()"
+          [showToolbar]="false"
+          [paginated]="false"
+          [actionsLabel]="text.table.actions()"
+        >
+          <ng-template #rowActions let-row>
+            <div class="flex items-center justify-end gap-2">
+              <sol-icon-button
+                icon="edit"
+                [ariaLabel]="text.actions.editAria()"
+                (clicked)="openEdit($any(row))"
+              />
+              <sol-icon-button
+                icon="trash"
+                variant="danger"
+                [ariaLabel]="text.actions.deleteAria()"
+                (clicked)="askDelete($any(row))"
+              />
+            </div>
+          </ng-template>
+        </sol-data-table>
       }
     </section>
+
+    <ng-template #dependencyCell let-row="row">
+      <span class="text-muted">{{ dependencyName($any(row).dependency_id) }}</span>
+    </ng-template>
+    <ng-template #rolesCell let-row="row">
+      <div class="flex flex-wrap gap-1">
+        @for (role of $any(row).roles ?? []; track role.id) {
+          <sol-badge variant="info">{{ role.name }}</sol-badge>
+        } @empty {
+          <span class="text-xs text-muted">{{ text.noRoles() }}</span>
+        }
+      </div>
+    </ng-template>
+    <ng-template #statusCell let-row="row">
+      @if ($any(row).is_active) {
+        <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
+      } @else {
+        <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
+      }
+    </ng-template>
 
     @if (showForm()) {
       <sol-modal [open]="true"
@@ -395,6 +387,27 @@ export class UsersPageComponent implements OnInit {
   );
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+
+  /** Filas para `sol-data-table` (contrato genérico `Record<string, unknown>`). */
+  protected readonly tableData = computed<Record<string, unknown>[]>(
+    () => this.items() as unknown as Record<string, unknown>[],
+  );
+
+  private readonly dependencyTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('dependencyCell');
+  private readonly rolesTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('rolesCell');
+  private readonly statusTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('statusCell');
+
+  /** Columnas de la tabla (reactivas al idioma y a las plantillas de celda). */
+  protected readonly columns = computed<DataTableColumn[]>(() => [
+    { key: 'full_name', label: this.text.table.name() },
+    { key: 'email', label: this.text.table.email() },
+    { key: 'dependency_id', label: this.text.table.dependency(), cellTemplate: this.dependencyTpl() },
+    { key: 'roles', label: this.text.table.roles(), cellTemplate: this.rolesTpl() },
+    { key: 'is_active', label: this.text.table.status(), cellTemplate: this.statusTpl() },
+  ]);
 
   protected readonly showForm = signal(false);
   protected readonly editing = signal<AdminUser | null>(null);

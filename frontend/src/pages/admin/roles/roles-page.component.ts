@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  TemplateRef,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -12,13 +14,16 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { SolButtonComponent } from '@shared/ui';
-import { SolInputComponent } from '@shared/ui';
-import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
-import { SolBadgeComponent } from '@shared/ui';
-import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
-import { SolModalComponent } from '@shared/ui';
-import { SolTableComponent } from '@shared/ui/table.component';
+import {
+  SolButtonComponent,
+  SolInputComponent,
+  SolPageHeaderComponent,
+  SolBadgeComponent,
+  SolIconButtonComponent,
+  SolModalComponent,
+  SolDataTableComponent,
+  DataTableColumn,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { RolesService } from '@entities/role/roles.service';
 import { Role } from '@entities/role/role.model';
@@ -41,7 +46,7 @@ import {
     SolBadgeComponent,
     SolIconButtonComponent,
     SolModalComponent,
-    SolTableComponent,
+    SolDataTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
@@ -76,55 +81,47 @@ import {
           </p>
         </div>
       } @else {
-        <sol-table>
-          <thead>
-            <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">{{ text.table.code() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.name() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.table.status() }}</th>
-              <th class="px-4 py-3 text-right font-medium">{{ text.table.actions() }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of items(); track item.id) {
-              <tr class="border-b border-border last:border-0">
-                <td class="px-4 py-3">
-                  <sol-badge variant="info">{{ item.code }}</sol-badge>
-                </td>
-                <td class="px-4 py-3 font-medium text-text">{{ item.name }}</td>
-                <td class="px-4 py-3">
-                  @if (item.is_active) {
-                    <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
-                  } @else {
-                    <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
-                  }
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex items-center justify-end gap-2">
-                    <sol-icon-button
-                      icon="link"
-                      [ariaLabel]="text.actions.menusAria()"
-                      (click)="openMenus(item)"
-                    ></sol-icon-button>
-                    <sol-icon-button
-                      icon="edit"
-                      [ariaLabel]="text.actions.editAria()"
-                      (click)="openEdit(item)"
-                    ></sol-icon-button>
-                    <sol-icon-button
-                      icon="delete"
-                      variant="danger"
-                      [ariaLabel]="text.actions.deleteAria()"
-                      (click)="askDelete(item)"
-                    ></sol-icon-button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </sol-table>
+        <sol-data-table
+          [data]="tableData()"
+          [columns]="columns()"
+          [showToolbar]="false"
+          [paginated]="false"
+          [actionsLabel]="text.table.actions()"
+        >
+          <ng-template #rowActions let-row>
+            <div class="flex items-center justify-end gap-2">
+              <sol-icon-button
+                icon="link"
+                [ariaLabel]="text.actions.menusAria()"
+                (clicked)="openMenus($any(row))"
+              />
+              <sol-icon-button
+                icon="edit"
+                [ariaLabel]="text.actions.editAria()"
+                (clicked)="openEdit($any(row))"
+              />
+              <sol-icon-button
+                icon="trash"
+                variant="danger"
+                [ariaLabel]="text.actions.deleteAria()"
+                (clicked)="askDelete($any(row))"
+              />
+            </div>
+          </ng-template>
+        </sol-data-table>
       }
     </section>
+
+    <ng-template #codeCell let-value>
+      <sol-badge variant="info">{{ $any(value) }}</sol-badge>
+    </ng-template>
+    <ng-template #statusCell let-row="row">
+      @if ($any(row).is_active) {
+        <sol-badge variant="success">{{ text.status.active() }}</sol-badge>
+      } @else {
+        <sol-badge variant="neutral">{{ text.status.inactive() }}</sol-badge>
+      }
+    </ng-template>
 
     @if (showForm()) {
       <sol-modal [open]="true"
@@ -344,6 +341,23 @@ export class RolesPageComponent implements OnInit {
   protected readonly items = signal<Role[]>([]);
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+
+  /** Filas para `sol-data-table` (contrato genérico `Record<string, unknown>`). */
+  protected readonly tableData = computed<Record<string, unknown>[]>(
+    () => this.items() as unknown as Record<string, unknown>[],
+  );
+
+  private readonly codeTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('codeCell');
+  private readonly statusTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('statusCell');
+
+  /** Columnas de la tabla (reactivas al idioma y a las plantillas de celda). */
+  protected readonly columns = computed<DataTableColumn[]>(() => [
+    { key: 'code', label: this.text.table.code(), cellTemplate: this.codeTpl() },
+    { key: 'name', label: this.text.table.name() },
+    { key: 'is_active', label: this.text.table.status(), cellTemplate: this.statusTpl() },
+  ]);
 
   protected readonly showForm = signal(false);
   protected readonly editing = signal<Role | null>(null);

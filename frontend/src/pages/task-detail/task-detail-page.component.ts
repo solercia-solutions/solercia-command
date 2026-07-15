@@ -15,11 +15,14 @@ import { AuthService } from '@features/auth/auth.service';
 import { TaskDetailService } from '@entities/task/task-detail.service';
 import { Attachment, Comment, TaskDetail, formatBytes } from '@entities/task/task-detail.model';
 import { Member } from '@entities/workspace/workspace.model';
-import { SolBadgeComponent } from '@shared/ui';
-import { SolSelectComponent } from '@shared/ui';
-import { SolRichEditorComponent } from '@shared/ui/rich-editor.component';
-import { SolInputComponent } from '@shared/ui';
-import { MentionUser, LinkableTask } from '@shared/ui/rich-editor.component';
+import {
+  SolBadgeComponent,
+  SolSelectComponent,
+  SolRichEditorComponent,
+  SolInputComponent,
+  MentionUser,
+  LinkableTask,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 
 @Component({

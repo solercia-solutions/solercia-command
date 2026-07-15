@@ -2,8 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  TemplateRef,
+  computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -11,13 +14,16 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { SolButtonComponent } from '@shared/ui';
-import { SolInputComponent } from '@shared/ui';
-import { SolPageHeaderComponent } from '@shared/ui/page-header.component';
-import { SolBadgeComponent } from '@shared/ui';
-import { SolIconButtonComponent } from '@shared/ui/icon-button.component';
-import { SolModalComponent } from '@shared/ui';
-import { SolTableComponent } from '@shared/ui/table.component';
+import {
+  SolButtonComponent,
+  SolInputComponent,
+  SolPageHeaderComponent,
+  SolBadgeComponent,
+  SolIconButtonComponent,
+  SolModalComponent,
+  SolDataTableComponent,
+  DataTableColumn,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { MenusService } from '@entities/menu/menus.service';
 import {
@@ -39,7 +45,7 @@ import {
     SolBadgeComponent,
     SolIconButtonComponent,
     SolModalComponent,
-    SolTableComponent,
+    SolDataTableComponent,
   ],
   template: `
     <section class="flex flex-col gap-6">
@@ -76,57 +82,50 @@ import {
           </p>
         </div>
       } @else {
-        <sol-table>
-          <thead>
-            <tr class="border-b border-border text-xs uppercase text-muted">
-              <th class="px-4 py-3 font-medium">{{ text.thActivity() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.thPath() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.thOrder() }}</th>
-              <th class="px-4 py-3 font-medium">{{ text.thStatus() }}</th>
-              <th class="px-4 py-3 text-right font-medium">{{ text.thActions() }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of rows(); track row.menu.id) {
-              <tr class="border-b border-border last:border-0">
-                <td class="px-4 py-3">
-                  <span
-                    class="font-medium text-text"
-                    [style.padding-left.px]="row.depth * 20"
-                  >
-                    {{ row.menu.name }}
-                  </span>
-                </td>
-                <td class="px-4 py-3 text-muted">{{ row.menu.path || '—' }}</td>
-                <td class="px-4 py-3 text-muted">{{ row.menu.order }}</td>
-                <td class="px-4 py-3">
-                  @if (row.menu.is_active) {
-                    <sol-badge variant="success">{{ text.statusActive() }}</sol-badge>
-                  } @else {
-                    <sol-badge variant="neutral">{{ text.statusInactive() }}</sol-badge>
-                  }
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex items-center justify-end gap-2">
-                    <sol-icon-button
-                      icon="edit"
-                      [ariaLabel]="text.editAria()"
-                      (click)="openEdit(row.menu)"
-                    ></sol-icon-button>
-                    <sol-icon-button
-                      icon="delete"
-                      variant="danger"
-                      [ariaLabel]="text.deleteAria()"
-                      (click)="askDelete(row.menu)"
-                    ></sol-icon-button>
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </sol-table>
+        <sol-data-table
+          [data]="tableData()"
+          [columns]="columns()"
+          [showToolbar]="false"
+          [paginated]="false"
+          [actionsLabel]="text.thActions()"
+        >
+          <ng-template #rowActions let-row>
+            <div class="flex items-center justify-end gap-2">
+              <sol-icon-button
+                icon="edit"
+                [ariaLabel]="text.editAria()"
+                (clicked)="openEdit($any(row).menu)"
+              />
+              <sol-icon-button
+                icon="trash"
+                variant="danger"
+                [ariaLabel]="text.deleteAria()"
+                (clicked)="askDelete($any(row).menu)"
+              />
+            </div>
+          </ng-template>
+        </sol-data-table>
       }
     </section>
+
+    <ng-template #activityCell let-row="row">
+      <span
+        class="font-medium text-text"
+        [style.padding-left.px]="$any(row).depth * 20"
+      >
+        {{ $any(row).menu.name }}
+      </span>
+    </ng-template>
+    <ng-template #pathCell let-row="row">
+      <span class="text-muted">{{ $any(row).menu.path || '—' }}</span>
+    </ng-template>
+    <ng-template #statusCell let-row="row">
+      @if ($any(row).menu.is_active) {
+        <sol-badge variant="success">{{ text.statusActive() }}</sol-badge>
+      } @else {
+        <sol-badge variant="neutral">{{ text.statusInactive() }}</sol-badge>
+      }
+    </ng-template>
 
     @if (showForm()) {
       <sol-modal [open]="true"
@@ -299,6 +298,26 @@ export class MenusPageComponent implements OnInit {
   >([]);
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+
+  /** Filas para `sol-data-table` (contrato genérico `Record<string, unknown>`). */
+  protected readonly tableData = computed<Record<string, unknown>[]>(
+    () => this.rows() as unknown as Record<string, unknown>[],
+  );
+
+  private readonly activityTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('activityCell');
+  private readonly pathTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('pathCell');
+  private readonly statusTpl =
+    viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('statusCell');
+
+  /** Columnas de la tabla (claves con ruta anidada `menu.*`; reactivas al idioma). */
+  protected readonly columns = computed<DataTableColumn[]>(() => [
+    { key: 'menu.name', label: this.text.thActivity(), cellTemplate: this.activityTpl() },
+    { key: 'menu.path', label: this.text.thPath(), cellTemplate: this.pathTpl() },
+    { key: 'menu.order', label: this.text.thOrder() },
+    { key: 'menu.is_active', label: this.text.thStatus(), cellTemplate: this.statusTpl() },
+  ]);
 
   protected readonly showForm = signal(false);
   protected readonly editing = signal<AdminMenu | null>(null);
