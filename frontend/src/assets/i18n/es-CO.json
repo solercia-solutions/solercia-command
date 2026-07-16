@@ -260,14 +260,9 @@
       "title": "Inicia sesión"
     }
   },
-  "boardColumn": {
-    "add": "Agregar",
-    "addTaskAria": "Agrega una tarea en {{ label }}",
-    "columnAria": "Columna {{ label }}",
-    "emptyDrop": "Suelta tareas aquí."
-  },
   "burndownChart": {
-    "chartAria": "Gráfico de burndown del sprint, eje vertical en {{ unit }}",
+    "chartAriaPoints": "Gráfico de burndown del sprint, eje vertical en puntos",
+    "chartAriaTasks": "Gráfico de burndown del sprint, eje vertical en tareas",
     "emptyState": "No hay datos suficientes para dibujar el burndown.",
     "legend": {
       "actual": "Real",
@@ -413,13 +408,41 @@
       "openAria": "Crea un proyecto"
     }
   },
-  "sprintTimeline": {
-    "emptyState": "No hay sprints en este proyecto todavía.",
-    "status": {
-      "active": "Activo",
-      "closed": "Cerrado"
+  "shared": {
+    "kanban": {
+      "addColumn": "Agregar",
+      "columnAria": "Columna {{ title }}",
+      "emptyColumn": "Suelta tareas aquí.",
+      "itemCountAriaSingular": "1 tarjeta",
+      "itemCountAriaPlural": "{{ count }} tarjetas",
+      "moveAriaLabel": "Mover tarjeta",
+      "moveDown": "Bajar",
+      "movePlaceholder": "Mover…",
+      "moveToColumn": "Mover a {{ column }}",
+      "moveUp": "Subir",
+      "movedToColumn": "Tarjeta movida a {{ column }}",
+      "movedWithinColumn": "Tarjeta reordenada en la misma columna"
     },
-    "undatedTitle": "Sprints sin fechas definidas"
+    "timeline": {
+      "collapseNode": "Colapsar",
+      "emptyState": "No hay elementos que mostrar en este cronograma.",
+      "expandNode": "Expandir",
+      "months": [
+        "ene",
+        "feb",
+        "mar",
+        "abr",
+        "may",
+        "jun",
+        "jul",
+        "ago",
+        "sep",
+        "oct",
+        "nov",
+        "dic"
+      ],
+      "undatedTitle": "Elementos sin fechas definidas"
+    }
   },
   "taskCard": {
     "assignedTo": "Asignada a {{ name }}",
@@ -524,12 +547,10 @@
     "typeLabel": "Tipo"
   },
   "velocityChart": {
-    "avgAnnotation": "avg",
     "chartAria": "Gráfico de velocidad por sprint: puntos completados por sprint cerrado",
     "disclaimer": "La velocidad refleja el rendimiento histórico del equipo y sirve para estimar, no para exigir.",
     "emptyState": "Aún no hay sprints cerrados para calcular la velocidad.",
     "legend": {
-      "average": "Promedio",
       "completedPoints": "Puntos completados"
     },
     "metrics": {
@@ -642,6 +663,8 @@
     },
     "timeline": {
       "description": "Cada barra representa un sprint posicionado por sus fechas de inicio y fin.",
+      "legendActive": "Activo",
+      "legendClosed": "Cerrado",
       "title": "Cronograma de sprints"
     },
     "viewMode": {

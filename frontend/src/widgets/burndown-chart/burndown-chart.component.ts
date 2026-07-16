@@ -5,26 +5,9 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { SolChartComponent, type SolChartData } from '@shared/ui';
 import { BurndownDay, BurndownUnit } from '@entities/workspace/workspace.model';
 import { I18nService } from '@shared/i18n';
-
-/** A plotted point in the SVG coordinate system. */
-interface ChartPoint {
-  x: number;
-  y: number;
-}
-
-/** A labelled horizontal gridline / y-axis tick. */
-interface YTick {
-  y: number;
-  label: string;
-}
-
-/** A labelled x-axis tick at a given day index. */
-interface XTick {
-  x: number;
-  label: string;
-}
 
 const MONTHS_ES = [
   'ene',
@@ -53,16 +36,22 @@ function formatDayLabel(iso: string): string {
 }
 
 /**
- * Dependency-free SVG burndown chart. Renders the ideal remaining-work line
- * (dashed) against the actual line (solid), with a y-axis in the sprint's
- * estimation unit and an x-axis of dates. The actual line stops at "today":
- * future days arrive with `actual = null` and are not plotted.
+ * Burndown chart, delegando el motor de dibujo a `sol-chart` (11-a-solercia-ui
+ * PR9, T69) en vez de SVG a mano. Mantiene la misma API pública (`days`,
+ * `unit`) para que `project-workspace` no requiera cambios de consumo.
  *
- * Purely presentational — it only needs the `days[]` series and the `unit`.
+ * Fidelidad visual — desviaciones aceptadas y documentadas (contrato
+ * declarativo de `sol-chart`, sin acceso a opciones por-serie de Chart.js):
+ * - La línea "Ideal" ya no se distingue por trazo punteado (solo por color +
+ *   leyenda) — `SolChartSeries` no expone `borderDash`.
+ * - Se pierde el anillo destacado del punto "hoy"; el resto de puntos siguen
+ *   visibles (tooltip al pasar el mouse).
+ * - El eje Y se autoescala con Chart.js en vez del cálculo manual anterior.
  */
 @Component({
   selector: 'sol-burndown-chart',
   standalone: true,
+  imports: [SolChartComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (days().length === 0) {
@@ -70,142 +59,9 @@ function formatDayLabel(iso: string): string {
         {{ text.emptyState() }}
       </p>
     } @else {
-      <div class="flex flex-col gap-3">
-        <!-- Legend -->
-        <div
-          class="flex flex-wrap items-center gap-4 text-xs font-medium text-muted"
-        >
-          <span class="inline-flex items-center gap-2">
-            <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
-              <line
-                x1="0"
-                y1="4"
-                x2="22"
-                y2="4"
-                stroke="currentColor"
-                class="text-muted"
-                stroke-width="2"
-                stroke-dasharray="4 3"
-              />
-            </svg>
-            {{ text.legendIdeal() }}
-          </span>
-          <span class="inline-flex items-center gap-2 text-brand">
-            <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
-              <line
-                x1="0"
-                y1="4"
-                x2="22"
-                y2="4"
-                stroke="currentColor"
-                stroke-width="2.5"
-              />
-            </svg>
-            {{ text.legendActual() }}
-          </span>
-          <span class="ml-auto text-muted">
-            {{ yAxisCaption() }}
-          </span>
-        </div>
-
-        <svg
-          [attr.viewBox]="'0 0 ' + width + ' ' + height"
-          class="h-auto w-full"
-          role="img"
-          [attr.aria-label]="chartAria()"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <!-- Horizontal grid + y-axis labels -->
-          @for (tick of yTicks(); track tick.label) {
-            <line
-              [attr.x1]="padLeft"
-              [attr.y1]="tick.y"
-              [attr.x2]="width - padRight"
-              [attr.y2]="tick.y"
-              stroke="currentColor"
-              class="text-border"
-              stroke-width="1"
-            />
-            <text
-              [attr.x]="padLeft - 8"
-              [attr.y]="tick.y + 4"
-              text-anchor="end"
-              class="fill-muted text-[10px]"
-            >
-              {{ tick.label }}
-            </text>
-          }
-
-          <!-- x-axis baseline -->
-          <line
-            [attr.x1]="padLeft"
-            [attr.y1]="baselineY()"
-            [attr.x2]="width - padRight"
-            [attr.y2]="baselineY()"
-            stroke="currentColor"
-            class="text-border"
-            stroke-width="1.5"
-          />
-
-          <!-- x-axis date labels -->
-          @for (tick of xTicks(); track tick.x) {
-            <text
-              [attr.x]="tick.x"
-              [attr.y]="height - 12"
-              text-anchor="middle"
-              class="fill-muted text-[10px]"
-            >
-              {{ tick.label }}
-            </text>
-          }
-
-          <!-- Ideal line (dashed) -->
-          <polyline
-            [attr.points]="idealPath()"
-            fill="none"
-            stroke="currentColor"
-            class="text-muted"
-            stroke-width="2"
-            stroke-dasharray="5 4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-
-          <!-- Actual line (solid, stops at today) -->
-          <polyline
-            [attr.points]="actualPath()"
-            fill="none"
-            stroke="currentColor"
-            class="text-brand"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-
-          <!-- Actual data points -->
-          @for (point of actualPoints(); track point.x) {
-            <circle
-              [attr.cx]="point.x"
-              [attr.cy]="point.y"
-              r="2.5"
-              fill="currentColor"
-              class="text-brand"
-            />
-          }
-
-          <!-- "Hoy" marker on the last actual point -->
-          @if (todayPoint(); as today) {
-            <circle
-              [attr.cx]="today.x"
-              [attr.cy]="today.y"
-              r="4.5"
-              fill="none"
-              stroke="currentColor"
-              class="text-brand"
-              stroke-width="2"
-            />
-          }
-        </svg>
+      <div class="flex flex-col gap-2">
+        <p class="text-right text-xs text-muted">{{ yAxisCaption() }}</p>
+        <sol-chart type="line" [data]="chartData()" [ariaLabelKey]="ariaLabelKey()" />
       </div>
     }
   `,
@@ -225,14 +81,6 @@ export class BurndownChartComponent {
   /** Estimation unit the y-axis is measured in. */
   readonly unit = input<BurndownUnit>('points');
 
-  /* ---- SVG geometry (internal coordinate system) ------------------------- */
-  protected readonly width = 640;
-  protected readonly height = 280;
-  protected readonly padLeft = 44;
-  protected readonly padRight = 16;
-  protected readonly padTop = 16;
-  protected readonly padBottom = 44;
-
   protected readonly unitLabel = computed<string>(() => {
     this.i18n.activeLang();
     return this.unit() === 'points'
@@ -247,101 +95,31 @@ export class BurndownChartComponent {
     }),
   );
 
-  /** Etiqueta accesible del gráfico, dependiente de la unidad. */
-  protected readonly chartAria = computed<string>(() =>
-    this.i18n.translate('burndownChart.chartAria', { unit: this.unitLabel() }),
+  /**
+   * `sol-chart` solo acepta una CLAVE i18n estática (sin parámetros) para el
+   * `aria-label` — a diferencia del `chartAria` original (con `{{ unit }}`
+   * interpolado), se resuelve con 2 claves fijas según la unidad.
+   */
+  protected readonly ariaLabelKey = computed<string>(() =>
+    this.unit() === 'points' ? 'burndownChart.chartAriaPoints' : 'burndownChart.chartAriaTasks',
   );
 
-  /** Upper bound of the y-axis (max remaining work, rounded up). */
-  private readonly maxY = computed<number>(() => {
-    const max = this.days().reduce((acc, day) => {
-      const actual = day.actual ?? 0;
-      return Math.max(acc, day.ideal, actual);
-    }, 0);
-    return Math.max(1, Math.ceil(max));
-  });
-
-  protected readonly baselineY = computed<number>(() => this.scaleY(0));
-
-  private readonly innerWidth = computed<number>(
-    () => this.width - this.padLeft - this.padRight,
-  );
-
-  private scaleX(index: number): number {
-    const count = this.days().length;
-    if (count <= 1) {
-      return this.padLeft + this.innerWidth() / 2;
-    }
-    return this.padLeft + (this.innerWidth() * index) / (count - 1);
-  }
-
-  private scaleY(value: number): number {
-    const innerHeight = this.height - this.padTop - this.padBottom;
-    const ratio = value / this.maxY();
-    return this.padTop + innerHeight * (1 - ratio);
-  }
-
-  /** Ideal points (always the full span). */
-  protected readonly idealPath = computed<string>(() =>
-    this.days()
-      .map((day, i) => `${this.scaleX(i)},${this.scaleY(day.ideal)}`)
-      .join(' '),
-  );
-
-  /** Actual points where data exists (null = future, not plotted). */
-  protected readonly actualPoints = computed<ChartPoint[]>(() =>
-    this.days()
-      .map((day, i) =>
-        day.actual == null
-          ? null
-          : { x: this.scaleX(i), y: this.scaleY(day.actual) },
-      )
-      .filter((p): p is ChartPoint => p !== null),
-  );
-
-  protected readonly actualPath = computed<string>(() =>
-    this.actualPoints()
-      .map((point) => `${point.x},${point.y}`)
-      .join(' '),
-  );
-
-  /** Last plotted actual point — i.e. "today". */
-  protected readonly todayPoint = computed<ChartPoint | null>(() => {
-    const points = this.actualPoints();
-    return points.length > 0 ? points[points.length - 1] : null;
-  });
-
-  protected readonly yTicks = computed<YTick[]>(() => {
-    const max = this.maxY();
-    const steps = 4;
-    const ticks: YTick[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const value = (max * i) / steps;
-      ticks.push({ y: this.scaleY(value), label: String(Math.round(value)) });
-    }
-    return ticks;
-  });
-
-  protected readonly xTicks = computed<XTick[]>(() => {
+  /**
+   * Serie "Real" recortada a los días con dato (sin `null`): `SolChartSeries.data`
+   * exige `number[]`. Un arreglo más corto que `labels` no dibuja línea más
+   * allá del último punto real — mismo efecto visual que "se detiene en hoy".
+   */
+  protected readonly chartData = computed<SolChartData>(() => {
     const days = this.days();
-    const count = days.length;
-    if (count === 0) {
-      return [];
-    }
-    // Aim for ~6 labels; always include first and last.
-    const target = 6;
-    const step = Math.max(1, Math.ceil(count / target));
-    const ticks: XTick[] = [];
-    for (let i = 0; i < count; i += step) {
-      ticks.push({ x: this.scaleX(i), label: formatDayLabel(days[i].date) });
-    }
-    const lastIndex = count - 1;
-    if ((ticks.length === 0 || ticks[ticks.length - 1].x !== this.scaleX(lastIndex))) {
-      ticks.push({
-        x: this.scaleX(lastIndex),
-        label: formatDayLabel(days[lastIndex].date),
-      });
-    }
-    return ticks;
+    return {
+      labels: days.map((day) => formatDayLabel(day.date)),
+      series: [
+        { label: this.text.legendIdeal(), data: days.map((day) => day.ideal) },
+        {
+          label: this.text.legendActual(),
+          data: days.filter((day) => day.actual != null).map((day) => day.actual as number),
+        },
+      ],
+    };
   });
 }

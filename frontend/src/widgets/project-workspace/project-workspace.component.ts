@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
@@ -15,25 +16,23 @@ import {
   Validators,
 } from '@angular/forms';
 import {
-  DragDropModule,
-  moveItemInArray,
-  transferArrayItem,
-} from '@angular/cdk/drag-drop';
-import { SolButtonComponent } from '@shared/ui';
-import { SolCardComponent } from '@shared/ui';
-import { SolModalComponent } from '@shared/ui';
+  KanbanColumn,
+  KanbanItemMoved,
+  SolButtonComponent,
+  SolCardComponent,
+  SolModalComponent,
+  SolKanbanBoardComponent,
+  SolTimelineComponent,
+  TimelineLegendItem,
+  TimelineNode,
+  type SolTimelineStatusResolver,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
 import { EstimationMode, ProjectDetail } from '@entities/project/project.model';
 import { WorkspaceService } from '@entities/workspace/workspace.service';
-import {
-  BoardColumnComponent,
-  ColumnDrop,
-} from '@widgets/board-column/board-column.component';
-import { TaskCardComponent } from '@widgets/task-card/task-card.component';
 import { BurndownChartComponent } from '@widgets/burndown-chart/burndown-chart.component';
 import { VelocityChartComponent } from '@widgets/velocity-chart/velocity-chart.component';
-import { SprintTimelineComponent } from '@widgets/sprint-timeline/sprint-timeline.component';
 import {
   TaskFormResult,
   TaskModalComponent,
@@ -49,17 +48,12 @@ import {
   Task,
   VelocityData,
   formatShortDate,
+  isOverdue,
   statusDisplay,
 } from '@entities/workspace/workspace.model';
 
 type TabId = 'board' | 'backlog' | 'sprints' | 'timeline';
 type ViewMode = 'board' | 'grid';
-
-/** Board column working state; `tasks` are live arrays for CDK drag-drop. */
-interface BoardColumn {
-  status: string;
-  tasks: Task[];
-}
 
 /**
  * Methodology-driven project workspace. Renders a board (one column per
@@ -73,16 +67,15 @@ interface BoardColumn {
   imports: [
     RouterLink,
     ReactiveFormsModule,
-    DragDropModule,
+    NgTemplateOutlet,
     SolButtonComponent,
     SolCardComponent,
     SolModalComponent,
-    BoardColumnComponent,
-    TaskCardComponent,
+    SolKanbanBoardComponent,
+    SolTimelineComponent,
     TaskModalComponent,
     BurndownChartComponent,
     VelocityChartComponent,
-    SprintTimelineComponent,
   ],
   template: `
     @if (loading()) {
@@ -217,31 +210,21 @@ interface BoardColumn {
           </div>
 
           @if (viewMode() === 'board') {
-            <!-- Kanban board -->
-            @if (boardColumns().length === 0) {
+            <!-- Kanban board (sol-kanban-board: la lib no conoce Task, el
+                 contenido de tarjeta se proyecta vía taskCardTpl más abajo). -->
+            @if (kanbanColumns().length === 0) {
               <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
                   {{ text.boardNoColumns() }}
                 </p>
               </sol-card>
             } @else {
-              <div
-                cdkDropListGroup
-                class="flex gap-4 overflow-x-auto pb-2"
-              >
-                @for (column of boardColumns(); track column.status) {
-                  <sol-board-column
-                    class="shrink-0"
-                    [status]="column.status"
-                    [tasks]="column.tasks"
-                    [estimationMode]="estimationMode()"
-                    [doneStatus]="doneStatus()"
-                    (addTask)="openCreate($event)"
-                    (editTask)="openEdit($event)"
-                    (dropped)="onDrop($event)"
-                  ></sol-board-column>
-                }
-              </div>
+              <sol-kanban-board
+                [columns]="kanbanColumns()"
+                [cardTemplate]="taskCardTpl"
+                (itemMoved)="onKanbanItemMoved($event)"
+                (addRequested)="openCreate($event)"
+              />
             }
           } @else {
             <!-- Grid view -->
@@ -356,12 +339,9 @@ interface BoardColumn {
                 @for (task of backlogTasks(); track task.id) {
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <div class="flex-1">
-                      <sol-task-card
-                        [task]="task"
-                        [estimationMode]="estimationMode()"
-                        [doneStatus]="doneStatus()"
-                        (edit)="openEdit($event)"
-                      ></sol-task-card>
+                      <ng-container
+                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                      ></ng-container>
                     </div>
                     @if (sprintsEnabled()) {
                       <label class="block sm:w-56">
@@ -615,9 +595,129 @@ interface BoardColumn {
               <h2 class="text-lg font-semibold text-text">{{ text.timelineTitle() }}</h2>
               <p class="text-xs text-muted">{{ text.timelineDescription() }}</p>
             </div>
-            <sol-sprint-timeline [sprints]="sprints()"></sol-sprint-timeline>
+            <sol-timeline
+              [nodes]="timelineNodes()"
+              [statusToken]="timelineStatusToken"
+              [legend]="timelineLegend"
+            ></sol-timeline>
           </div>
         }
+
+        <!-- Task card content: proyectado dentro de sol-kanban-board (tablero)
+             y reutilizado tal cual en la lista de backlog. La librería
+             sol-kanban-* NUNCA conoce Task (D2): este template es 100 %
+             propiedad del consumidor. -->
+        <ng-template #taskCardTpl let-task>
+          <button
+            type="button"
+            (click)="openEdit(task)"
+            class="group flex w-full flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-left
+                   shadow-sm transition-colors hover:border-brand/50 focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-brand/50"
+            [attr.aria-label]="taskCardEditAria(task)"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-sm font-medium leading-snug text-text">
+                {{ task.title }}
+              </p>
+              @if (task.risk_flag) {
+                <span
+                  class="shrink-0 text-danger"
+                  [attr.aria-label]="task.risk_reason || text.taskCardRiskDefault()"
+                  [attr.title]="task.risk_reason || text.taskCardRiskDefault()"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 22V4a1 1 0 0 1 1-1h13l-2.5 4L18 11H5" />
+                  </svg>
+                </span>
+              }
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span
+                class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                [class]="priorityChipClass(task.priority)"
+              >
+                {{ priorityLabel(task.priority) }}
+              </span>
+
+              @if (taskCardShowPoints(task)) {
+                <span
+                  class="rounded-full bg-muted/10 px-2 py-0.5 text-[11px] font-medium text-muted"
+                >
+                  {{ task.estimation_points }} {{ text.taskCardPts() }}
+                </span>
+              }
+              @if (taskCardShowHours(task)) {
+                <span
+                  class="rounded-full bg-muted/10 px-2 py-0.5 text-[11px] font-medium text-muted"
+                >
+                  {{ task.estimation_hours }} {{ text.taskCardHours() }}
+                </span>
+              }
+
+              @if (taskCardDueLabel(task); as due) {
+                <span
+                  class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium"
+                  [class.text-danger]="isOverdue(task, doneStatus())"
+                  [class.text-muted]="!isOverdue(task, doneStatus())"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {{ due }}
+                </span>
+              }
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+              <span
+                class="grid h-6 w-6 place-items-center rounded-full bg-brand/10 text-[11px] font-semibold text-brand"
+                [attr.aria-label]="taskCardAssigneeAria(task)"
+                [attr.title]="task.assignee_name || text.taskCardUnassigned()"
+              >
+                {{ taskCardInitial(task) }}
+              </span>
+              <span class="truncate text-xs text-muted">
+                {{ task.assignee_name || text.taskCardUnassigned() }}
+              </span>
+            </div>
+
+            @if (task.task_key) {
+              <a [routerLink]="['/task', task.task_key]"
+                 (click)="$event.stopPropagation()"
+                 class="mt-1 text-[11px] text-brand hover:underline self-end"
+                 [attr.aria-label]="text.taskCardOpenDetailAria()">
+                {{ text.taskCardOpenDetail() }}
+              </a>
+            }
+          </button>
+        </ng-template>
 
       </section>
 
@@ -810,6 +910,17 @@ export class ProjectWorkspaceComponent implements OnInit {
     closeSprintNoOtherSprints: this.i18n.t('workspace.closeSprint.noOtherSprints'),
     cancel: this.i18n.t('workspace.closeSprint.cancel'),
     closing: this.i18n.t('workspace.closeSprint.closing'),
+    timelineLegendActive: this.i18n.t('workspace.timeline.legendActive'),
+    timelineLegendClosed: this.i18n.t('workspace.timeline.legendClosed'),
+    /* Contenido de la tarjeta de tarea (antes en el widget task-card, ya
+       retirado — T70): proyectado en sol-kanban-board y reutilizado en el
+       backlog vía taskCardTpl. */
+    taskCardRiskDefault: this.i18n.t('taskCard.riskDefault'),
+    taskCardUnassigned: this.i18n.t('taskCard.unassigned'),
+    taskCardPts: this.i18n.t('taskCard.pts'),
+    taskCardHours: this.i18n.t('taskCard.hours'),
+    taskCardOpenDetail: this.i18n.t('taskCard.openDetail'),
+    taskCardOpenDetailAria: this.i18n.t('taskCard.openDetailAria'),
   } as const;
 
   protected readonly fieldClass =
@@ -823,7 +934,6 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly loadError = signal<string | null>(null);
 
   protected readonly allTasks = signal<Task[]>([]);
-  protected readonly boardColumns = signal<BoardColumn[]>([]);
   protected readonly tasksError = signal<string | null>(null);
 
   protected readonly members = signal<Member[]>([]);
@@ -912,6 +1022,43 @@ export class ProjectWorkspaceComponent implements OnInit {
     this.allTasks().filter((task) => task.sprint_id == null),
   );
 
+  /**
+   * Columnas genéricas para `sol-kanban-board` (D2: la lib nunca conoce
+   * `Task`). Cada `KanbanColumn.id` es el propio valor de `status` — así
+   * `KanbanItemMoved.toColumnId` ya es el nuevo status listo para el PATCH.
+   * `Task` satisface `KanbanItem` (`id: string`) sin adaptador.
+   */
+  protected readonly kanbanColumns = computed<KanbanColumn<Task>[]>(() => {
+    const tasks = this.allTasks();
+    return this.allowedStatuses().map((status) => ({
+      id: status,
+      title: statusDisplay(status),
+      items: tasks.filter((task) => task.status === status),
+    }));
+  });
+
+  /** Nodos genéricos para `sol-timeline` (D2): un sprint = un nodo plano, sin jerarquía. */
+  protected readonly timelineNodes = computed<TimelineNode[]>(() =>
+    this.sprints().map((sprint) => ({
+      id: sprint.id,
+      label: sprint.name,
+      start: sprint.start_date,
+      end: sprint.end_date,
+      status: sprint.status,
+    })),
+  );
+
+  /** Mismos colores que el `sprint-timeline` retirado (T70): activo = éxito, cerrado = neutro. */
+  protected readonly timelineStatusToken: SolTimelineStatusResolver = (status) =>
+    status === 'active'
+      ? 'var(--sol-color-success, #10b981)'
+      : 'var(--sol-color-text-muted, #94a3b8)';
+
+  protected readonly timelineLegend: TimelineLegendItem[] = [
+    { status: 'active', labelKey: 'workspace.timeline.legendActive' },
+    { status: 'closed', labelKey: 'workspace.timeline.legendClosed' },
+  ];
+
   /** Active sprints other than the one being closed (for the target selector). */
   protected readonly activeSprintsForClose = computed<Sprint[]>(() =>
     this.sprints().filter(
@@ -989,6 +1136,43 @@ export class ProjectWorkspaceComponent implements OnInit {
     );
   }
 
+  /* ---- Task card content (taskCardTpl) ----------------------------------- */
+
+  /** Solo `null | undefined | ''` para vía `isOverdue`; el helper del modelo ya cubre esto. */
+  protected isOverdue(task: Task, doneStatus: string | null): boolean {
+    return isOverdue(task, doneStatus);
+  }
+
+  protected taskCardEditAria(task: Task): string {
+    return this.i18n.translate('taskCard.editAria', { title: task.title });
+  }
+
+  protected taskCardAssigneeAria(task: Task): string {
+    return task.assignee_name
+      ? this.i18n.translate('taskCard.assignedTo', { name: task.assignee_name })
+      : this.i18n.translate('taskCard.unassigned');
+  }
+
+  protected taskCardInitial(task: Task): string {
+    const name = task.assignee_name?.trim();
+    return name ? name.charAt(0).toUpperCase() : '?';
+  }
+
+  protected taskCardShowPoints(task: Task): boolean {
+    const mode = this.estimationMode();
+    return (mode === 'points' || mode === 'both') && task.estimation_points != null;
+  }
+
+  protected taskCardShowHours(task: Task): boolean {
+    const mode = this.estimationMode();
+    return (mode === 'hours' || mode === 'both') && task.estimation_hours != null;
+  }
+
+  /** Vacío cuando no hay fecha (a diferencia de `dateLabel`, que cae a "sin fecha") — oculta el badge por completo. */
+  protected taskCardDueLabel(task: Task): string {
+    return formatShortDate(task.due_date);
+  }
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.projectId.set(id);
@@ -1047,7 +1231,6 @@ export class ProjectWorkspaceComponent implements OnInit {
     this.workspace.tasks(this.projectId()).subscribe({
       next: (res) => {
         this.allTasks.set(res.data ?? []);
-        this.buildBoard();
       },
       error: () =>
         this.tasksError.set(
@@ -1074,45 +1257,33 @@ export class ProjectWorkspaceComponent implements OnInit {
     });
   }
 
-  /** Rebuild the board columns from the current statuses + tasks. */
-  private buildBoard(): void {
-    const statuses = this.allowedStatuses();
-    const tasks = this.allTasks();
-    this.boardColumns.set(
-      statuses.map((status) => ({
-        status,
-        tasks: tasks.filter((task) => task.status === status),
-      })),
-    );
-  }
+  /* ---- Drag and drop ------------------------------------------------------
+   * `sol-kanban-board` mantiene su propio espejo interno (D4): un reorden
+   * DENTRO de la misma columna ya queda reflejado ahí sin que este consumidor
+   * haga nada (no se persiste orden, igual que el board manual anterior). Un
+   * movimiento ENTRE columnas sí requiere el PATCH optimista — actualizar
+   * `allTasks` reasigna una referencia NUEVA a `kanbanColumns()`, lo que hace
+   * que el board re-siembre su espejo (rollback natural si el PATCH falla).
+   */
 
-  /* ---- Drag and drop ----------------------------------------------------- */
-
-  protected onDrop({ event, status }: ColumnDrop): void {
-    if (event.previousContainer === event.container) {
-      moveItemInArray(
-        event.container.data,
-        event.previousIndex,
-        event.currentIndex,
-      );
-      this.boardColumns.update((cols) => [...cols]);
+  protected onKanbanItemMoved(moved: KanbanItemMoved<Task>): void {
+    if (moved.fromColumnId === moved.toColumnId) {
       return;
     }
 
-    const moved = event.previousContainer.data[event.previousIndex];
-    const previousStatus = moved.status;
-    transferArrayItem(
-      event.previousContainer.data,
-      event.container.data,
-      event.previousIndex,
-      event.currentIndex,
-    );
-    moved.status = status;
-    this.boardColumns.update((cols) => [...cols]);
+    const taskId = moved.item.id;
+    const previousStatus = moved.item.status;
+    const nextStatus = moved.toColumnId;
 
-    this.workspace.updateTask(moved.id, { status }).subscribe({
+    this.allTasks.update((tasks) =>
+      tasks.map((task) => (task.id === taskId ? { ...task, status: nextStatus } : task)),
+    );
+
+    this.workspace.updateTask(taskId, { status: nextStatus }).subscribe({
       error: () => {
-        moved.status = previousStatus;
+        this.allTasks.update((tasks) =>
+          tasks.map((task) => (task.id === taskId ? { ...task, status: previousStatus } : task)),
+        );
         this.loadTasks();
       },
     });

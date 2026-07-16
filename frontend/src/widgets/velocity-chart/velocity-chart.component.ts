@@ -5,23 +5,9 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { SolChartComponent, type SolChartData } from '@shared/ui';
 import { VelocityData } from '@entities/workspace/workspace.model';
 import { I18nService } from '@shared/i18n';
-
-interface Bar {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  shortLabel: string;
-  points: number;
-}
-
-interface YTick {
-  y: number;
-  label: string;
-}
 
 function shortSprintLabel(name: string): string {
   const m = /\d+/.exec(name);
@@ -29,13 +15,22 @@ function shortSprintLabel(name: string): string {
 }
 
 /**
- * Dependency-free SVG velocity chart. Renders one bar per closed sprint
- * (completed story points) with a dashed average line and a metrics panel.
- * Follows the same visual pattern as BurndownChartComponent.
+ * Velocity chart, delegando el motor de dibujo a `sol-chart` (11-a-solercia-ui
+ * PR9, T69) en vez de SVG a mano. Mantiene el mismo panel de métricas
+ * (promedio/backlog/proyección) — es texto puro, no depende del motor de
+ * gráficas.
+ *
+ * Desviación aceptada y documentada: la línea punteada de "promedio" que
+ * cruzaba las barras se retira — `sol-chart` (contrato declarativo) no
+ * soporta mezclar `bar` + `line` ni una anotación de referencia. El valor
+ * promedio SIGUE visible (y con más énfasis) en el panel de métricas de
+ * arriba, así que no se pierde información, solo la referencia visual dentro
+ * del canvas.
  */
 @Component({
   selector: 'sol-velocity-chart',
   standalone: true,
+  imports: [SolChartComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (series().length === 0) {
@@ -70,110 +65,12 @@ function shortSprintLabel(name: string): string {
           {{ text.disclaimer() }}
         </p>
 
-        <!-- SVG bar chart -->
-        <svg
-          [attr.viewBox]="'0 0 ' + W + ' ' + H"
-          class="h-auto w-full"
-          role="img"
-          [attr.aria-label]="text.chartAria()"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <g [attr.transform]="'translate(' + padLeft + ',' + padTop + ')'">
-
-            <!-- Horizontal grid + y-axis labels -->
-            @for (tick of yTicks(); track tick.label) {
-              <line
-                [attr.x1]="0"
-                [attr.y1]="tick.y"
-                [attr.x2]="innerW"
-                [attr.y2]="tick.y"
-                stroke="var(--color-border, #e2e8f0)"
-                stroke-width="1"
-              />
-              <text
-                [attr.x]="-6"
-                [attr.y]="tick.y"
-                text-anchor="end"
-                dominant-baseline="middle"
-                style="font-size:10px;fill:var(--color-muted,#94a3b8)"
-              >{{ tick.label }}</text>
-            }
-
-            <!-- Bars -->
-            @for (bar of bars(); track bar.label) {
-              <rect
-                [attr.x]="bar.x"
-                [attr.y]="bar.y"
-                [attr.width]="bar.width"
-                [attr.height]="bar.height"
-                rx="3"
-                fill="var(--color-brand, #6366f1)"
-                opacity="0.75"
-              />
-              @if (bar.height > 16) {
-                <text
-                  [attr.x]="bar.x + bar.width / 2"
-                  [attr.y]="bar.y - 5"
-                  text-anchor="middle"
-                  style="font-size:10px;fill:var(--color-text,#1e293b);font-weight:600"
-                >{{ bar.points }}</text>
-              }
-              <!-- X-axis label -->
-              <text
-                [attr.x]="bar.x + bar.width / 2"
-                [attr.y]="innerH + 16"
-                text-anchor="middle"
-                style="font-size:9px;fill:var(--color-muted,#94a3b8)"
-              >{{ bar.shortLabel }}</text>
-            }
-
-            <!-- Average line (dashed, warning color) -->
-            <line
-              [attr.x1]="0"
-              [attr.y1]="avgY()"
-              [attr.x2]="innerW"
-              [attr.y2]="avgY()"
-              stroke="var(--color-warning, #f59e0b)"
-              stroke-width="2"
-              stroke-dasharray="6 3"
-            />
-            <text
-              [attr.x]="innerW + 4"
-              [attr.y]="avgY()"
-              dominant-baseline="middle"
-              style="font-size:10px;fill:var(--color-warning,#f59e0b);font-weight:600"
-            >{{ text.avgAnnotation() }}</text>
-
-            <!-- X axis baseline -->
-            <line
-              [attr.x1]="0"
-              [attr.y1]="innerH"
-              [attr.x2]="innerW"
-              [attr.y2]="innerH"
-              stroke="var(--color-border, #e2e8f0)"
-              stroke-width="1"
-            />
-          </g>
-        </svg>
-
-        <!-- Legend -->
-        <div class="flex flex-wrap items-center gap-4 text-xs text-muted">
-          <span class="inline-flex items-center gap-2">
-            <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
-              <rect x="0" y="1" width="22" height="6" rx="2"
-                fill="var(--color-brand,#6366f1)" opacity="0.75"/>
-            </svg>
-            {{ text.legendCompleted() }}
-          </span>
-          <span class="inline-flex items-center gap-2">
-            <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
-              <line x1="0" y1="4" x2="22" y2="4"
-                stroke="var(--color-warning,#f59e0b)"
-                stroke-width="2" stroke-dasharray="6 3"/>
-            </svg>
-            {{ text.legendAverage() }}
-          </span>
-        </div>
+        <sol-chart
+          type="bar"
+          [data]="chartData()"
+          [options]="{ legend: true }"
+          ariaLabelKey="velocityChart.chartAria"
+        />
       </div>
     }
   `,
@@ -191,23 +88,10 @@ export class VelocityChartComponent {
       'velocityChart.metrics.insufficientVelocity',
     ),
     disclaimer: this.i18n.t('velocityChart.disclaimer'),
-    chartAria: this.i18n.t('velocityChart.chartAria'),
-    avgAnnotation: this.i18n.t('velocityChart.avgAnnotation'),
-    legendCompleted: this.i18n.t('velocityChart.legend.completedPoints'),
-    legendAverage: this.i18n.t('velocityChart.legend.average'),
+    legendCompletedPoints: this.i18n.t('velocityChart.legend.completedPoints'),
   } as const;
 
   readonly data = input.required<VelocityData>();
-
-  // SVG layout constants
-  protected readonly W = 600;
-  protected readonly H = 260;
-  protected readonly padTop = 24;
-  protected readonly padRight = 44;
-  protected readonly padBottom = 44;
-  protected readonly padLeft = 44;
-  protected readonly innerW = 600 - 44 - 44; // W - padLeft - padRight = 512
-  protected readonly innerH = 260 - 24 - 44; // H - padTop - padBottom = 192
 
   protected readonly series = computed(() => this.data().series);
 
@@ -219,56 +103,13 @@ export class VelocityChartComponent {
   protected readonly backlogPoints = computed(() => this.data().backlog_points);
   protected readonly projectedSprints = computed(() => this.data().projected_sprints);
 
-  private readonly maxPoints = computed(() => {
-    const pts = this.series().map((e) => e.completed_points);
-    return Math.max(...pts, Math.ceil(this.data().average_velocity), 1);
-  });
-
-  protected readonly yTicks = computed<YTick[]>(() => {
-    const maxP = this.maxPoints();
-    const h = this.innerH;
-    const count = 4;
-    return Array.from({ length: count + 1 }, (_, i) => {
-      const value = Math.round((maxP * i) / count);
-      const y = h - (value / maxP) * h;
-      return { y, label: String(value) };
-    });
-  });
-
-  private readonly barSpacing = computed(() => {
-    const n = this.series().length;
-    return n > 0 ? this.innerW / n : 0;
-  });
-
-  private readonly barWidth = computed(() =>
-    Math.min(52, Math.max(8, this.barSpacing() * 0.6)),
-  );
-
-  protected readonly bars = computed<Bar[]>(() => {
-    const series = this.series();
-    const h = this.innerH;
-    const maxP = this.maxPoints();
-    const spacing = this.barSpacing();
-    const bw = this.barWidth();
-    return series.map((entry, i) => {
-      const cx = i * spacing + spacing / 2;
-      const barH = maxP > 0 ? (entry.completed_points / maxP) * h : 0;
-      return {
-        x: cx - bw / 2,
-        y: h - barH,
-        width: bw,
-        height: barH,
-        label: entry.name,
-        shortLabel: shortSprintLabel(entry.name),
-        points: entry.completed_points,
-      };
-    });
-  });
-
-  protected readonly avgY = computed(() => {
-    const maxP = this.maxPoints();
-    return maxP > 0
-      ? this.innerH - (this.data().average_velocity / maxP) * this.innerH
-      : this.innerH;
-  });
+  protected readonly chartData = computed<SolChartData>(() => ({
+    labels: this.series().map((entry) => shortSprintLabel(entry.name)),
+    series: [
+      {
+        label: this.text.legendCompletedPoints(),
+        data: this.series().map((entry) => entry.completed_points),
+      },
+    ],
+  }));
 }
