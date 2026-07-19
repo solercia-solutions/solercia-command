@@ -9,6 +9,15 @@ export const routes: Routes = [
       import('@pages/login/login.component').then((m) => m.LoginComponent),
   },
   {
+    // No authGuard: the browser lands here straight from the backend's SSO
+    // callback redirect, before any access token exists yet (design.md D5).
+    path: 'auth/callback',
+    loadComponent: () =>
+      import('@pages/auth-callback/auth-callback.component').then(
+        (m) => m.AuthCallbackComponent,
+      ),
+  },
+  {
     path: 'projects',
     canActivate: [authGuard],
     loadComponent: () =>

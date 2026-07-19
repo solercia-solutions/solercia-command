@@ -60,9 +60,9 @@ Nota: sin PR de GitHub; el volumen (~900-1000 líneas, > 2× el presupuesto) se 
 
 ## Lote E — Frontend mínimo (Commit 5)
 
-- [ ] T19 [Frontend] `frontend/src/pages/login/login.component.ts`: botón «Ingresar con SSO» (`window.location.href = ${apiBase}/auth/sso/keycloak/login`).
-- [ ] T20 [Frontend] `frontend/src/pages/auth-callback/auth-callback.component.ts`: crear — canjea `refresh()`+`me()`, navega a `/projects`. `app.routes.ts`: ruta `auth/callback` sin `authGuard`.
-- [ ] T21 VERIFY `npm run build && npm run lint` verdes; checklist manual: click botón → IdP stub → callback → `/projects` autenticado. Commit `feat(frontend): agrega botón SSO y ruta de callback`.
+- [x] T19 [Frontend] `frontend/src/pages/login/login.component.ts`: botón «Ingresar con SSO» (`window.location.href = ${apiBase}/auth/sso/keycloak/login`). Se agregó también un divisor visual «o» y las claves `auth.login.ssoButton`/`auth.login.ssoDivider` en `es-CO.json` (español colombiano formal, tuteo).
+- [x] T20 [Frontend] `frontend/src/pages/auth-callback/auth-callback.component.ts`: crear — canjea `refresh()`+`me()`, navega a `/projects`. `app.routes.ts`: ruta `auth/callback` sin `authGuard`. Ante error del canje (SSO rechazado/expirado), muestra `auth.callback.error` y regresa a `/login` tras 2.5s. Claves nuevas: `auth.callback.completing`/`auth.callback.error`.
+- [x] T21 VERIFY `npm run build && npm run lint` verdes (Node v22.22.3 vía nvm — v22.12.0 activo por defecto no cumplía el mínimo `22.22.3` del CLI de Angular; se documenta para futuras corridas locales). Checklist manual con Keycloak real NO ejecutado en este entorno (sin IdP disponible); el equivalente extremo a extremo (botón → IdP → callback → cookie → `/projects`) está cubierto server-side por `test_auth_sso.py::test_sso_callback_happy_path_sets_refresh_cookie_without_access_in_url` con IdP falso, y el componente de callback reutiliza `AuthService.refresh()`/`me()` ya probados por el resto de la suite del frontend. Commit `feat(frontend): agrega botón SSO y ruta de callback`.
 
 ## Trazabilidad de requisitos
 

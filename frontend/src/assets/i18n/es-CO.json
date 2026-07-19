@@ -240,6 +240,10 @@
     }
   },
   "auth": {
+    "callback": {
+      "completing": "Completando el inicio de sesión…",
+      "error": "No fue posible completar el inicio de sesión. Intenta de nuevo."
+    },
     "login": {
       "demoLabel": "Usuario de prueba:",
       "emailLabel": "Correo electrónico",
@@ -254,6 +258,8 @@
       },
       "passwordLabel": "Contraseña",
       "passwordPlaceholder": "••••••••",
+      "ssoButton": "Ingresar con SSO",
+      "ssoDivider": "o",
       "submit": "Iniciar sesión",
       "submitting": "Ingresando…",
       "subtitle": "Accede a tu gestor de proyectos Solercia.",

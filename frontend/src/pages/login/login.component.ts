@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SolButtonComponent } from '@solercia/ui';
 import { AuthService } from '@features/auth/auth.service';
+import { apiBase } from '@shared/api/api.config';
 import { I18nService } from '@shared/i18n';
 import { SolCardComponent } from '@shared/ui';
 import { SolInputComponent } from '@shared/ui';
@@ -95,6 +96,21 @@ import { SolInputComponent } from '@shared/ui';
             </sol-button>
           </form>
 
+          <div class="my-4 flex items-center gap-3" aria-hidden="true">
+            <span class="h-px flex-1 bg-border"></span>
+            <span class="text-xs text-muted">{{ text.ssoDivider() }}</span>
+            <span class="h-px flex-1 bg-border"></span>
+          </div>
+
+          <sol-button
+            class="w-full"
+            type="button"
+            variant="secondary"
+            (clicked)="onSsoLogin()"
+          >
+            {{ text.ssoButton() }}
+          </sol-button>
+
           <p
             class="mt-5 rounded-lg border border-border bg-page px-3 py-2 text-center text-xs text-muted"
           >
@@ -123,6 +139,8 @@ export class LoginComponent {
     passwordLabel: this.i18n.t('auth.login.passwordLabel'),
     passwordPlaceholder: this.i18n.t('auth.login.passwordPlaceholder'),
     passwordRequired: this.i18n.t('auth.login.errors.passwordRequired'),
+    ssoButton: this.i18n.t('auth.login.ssoButton'),
+    ssoDivider: this.i18n.t('auth.login.ssoDivider'),
     submit: this.i18n.t('auth.login.submit'),
     submitting: this.i18n.t('auth.login.submitting'),
     demoLabel: this.i18n.t('auth.login.demoLabel'),
@@ -150,6 +168,16 @@ export class LoginComponent {
       return this.i18n.translate('auth.login.errors.emailInvalid');
     }
     return '';
+  }
+
+  /**
+   * Redirects the browser (full navigation, NOT an `HttpClient` call) to
+   * the backend's SSO login route. The backend handles the whole OIDC
+   * Authorization Code + PKCE handshake and lands back on
+   * `/auth/callback` (design.md D5).
+   */
+  protected onSsoLogin(): void {
+    window.location.href = `${apiBase}/auth/sso/keycloak/login`;
   }
 
   protected onSubmit(): void {
