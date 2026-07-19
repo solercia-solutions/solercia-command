@@ -27,6 +27,7 @@ from app.modules.connectors.router import router as connectors_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
 from app.modules.glpi_sync.router import router as glpi_sync_router
+from app.modules.intake.router import router as intake_router
 from app.modules.jira_import.router import router as jira_import_router
 from app.modules.labels.router import router as labels_router
 from app.modules.menus.router import router as menus_admin_router
@@ -176,6 +177,7 @@ app.include_router(assets_router, prefix=API_PREFIX)
 app.include_router(connectors_router, prefix=API_PREFIX)
 app.include_router(glpi_sync_router, prefix=API_PREFIX)
 app.include_router(jira_import_router, prefix=API_PREFIX)
+app.include_router(intake_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:
