@@ -137,6 +137,34 @@ class Settings(BaseSettings):
     M365_MAX_PAGES: int = 20
     M365_MAX_LIMIT: int = 200
 
+    # Google adapter (change 16-adapter-google) — the second real provider
+    # over the 14's read-only ports, Gmail/Calendar/Drive via a plain OAuth
+    # 2.0 authorization-code flow (not delegated-tenant like Entra ID).
+    # Every *_BASE_URL below MUST be ``https://`` — ``GoogleClient`` fails
+    # fast otherwise (anti-SSRF/TLS obligatorio, same guard as M365's
+    # `_require_https`). ``GOOGLE_OAUTH_REDIRECT_URI`` documents the
+    # expected callback for operators; the adapter itself always uses the
+    # explicit ``redirect_uri`` the 14's `IntegrationAdapter.authorize_url`
+    # protocol passes in, never this setting.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = "http://localhost:4200/settings/connectors"
+    GOOGLE_GMAIL_BASE_URL: str = "https://gmail.googleapis.com/gmail/v1"
+    GOOGLE_CALENDAR_BASE_URL: str = "https://www.googleapis.com/calendar/v3"
+    GOOGLE_DRIVE_BASE_URL: str = "https://www.googleapis.com/drive/v3"
+    GOOGLE_AUTHZ_BASE_URL: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    GOOGLE_TOKEN_BASE_URL: str = "https://oauth2.googleapis.com/token"
+    GOOGLE_USERINFO_BASE_URL: str = "https://openidconnect.googleapis.com/v1/userinfo"
+    GOOGLE_TIMEOUT_SECONDS: float = 10.0
+    GOOGLE_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429/403 rateLimitExceeded — mismo criterio que
+    # `M365_MAX_BACKOFF_SECONDS`.
+    GOOGLE_MAX_BACKOFF_SECONDS: float = 30.0
+    GOOGLE_DEFAULT_SINCE_DAYS: int = 30
+    GOOGLE_DEFAULT_LIMIT: int = 50
+    GOOGLE_MAX_PAGES: int = 20
+    GOOGLE_MAX_LIMIT: int = 200
+
 
 @lru_cache
 def get_settings() -> Settings:

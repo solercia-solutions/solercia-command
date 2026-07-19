@@ -1,0 +1,34 @@
+{
+  "id": "gmail-msg-1",
+  "threadId": "gmail-thread-1",
+  "labelIds": ["INBOX", "IMPORTANT", "CATEGORY_PERSONAL"],
+  "snippet": "Buenas tardes, les comparto el avance del proyecto de esta semana.",
+  "internalDate": "1783693920000",
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      { "name": "Subject", "value": "Actualización del proyecto" },
+      { "name": "From", "value": "Ana Torres <ana.torres@example.com>" },
+      { "name": "To", "value": "Equipo Proyectos <equipo@example.com>, Carlos Ruiz <carlos.ruiz@example.com>" },
+      { "name": "Date", "value": "Fri, 10 Jul 2026 14:32:00 +0000" }
+    ],
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "headers": [{ "name": "Content-Type", "value": "text/plain; charset=UTF-8" }],
+        "body": {
+          "size": 138,
+          "data": "QnVlbmFzIHRhcmRlcywNCg0KTGVzIGNvbXBhcnRvIGVsIGF2YW5jZSBkZWwgcHJveWVjdG8gZGUgZXN0YSBzZW1hbmEuIFF1ZWRvIGF0ZW50YSBhIGNvbWVudGFyaW9zLg0KDQpTYWx1ZG9zLA0KQW5h"
+        }
+      },
+      {
+        "mimeType": "text/html",
+        "headers": [{ "name": "Content-Type", "value": "text/html; charset=UTF-8" }],
+        "body": {
+          "size": 210,
+          "data": "PGh0bWw-PGJvZHk-PHA-QnVlbmFzIHRhcmRlcyw8L3A-PHA-TGVzIGNvbXBhcnRvIGVsIDxiPmF2YW5jZTwvYj4gZGVsIHByb3llY3RvIGRlIGVzdGEgc2VtYW5hLiBRdWVkbyBhdGVudGEgYSBjb21lbnRhcmlvcy48L3A-PHA-U2FsdWRvcyw8YnIvPkFuYTwvcD48L2JvZHk-PC9odG1sPg"
+        }
+      }
+    ]
+  }
+}

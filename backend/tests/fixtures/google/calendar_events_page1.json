@@ -1,0 +1,18 @@
+{
+  "kind": "calendar#events",
+  "summary": "ana.torres@example.com",
+  "nextPageToken": "calendar-page-2-token",
+  "items": [
+    {
+      "id": "gcal-event-1",
+      "summary": "Reunión de seguimiento del proyecto",
+      "start": { "dateTime": "2026-07-15T15:00:00Z" },
+      "end": { "dateTime": "2026-07-15T16:00:00Z" },
+      "organizer": { "email": "ana.torres@example.com", "displayName": "Ana Torres" },
+      "attendees": [
+        { "email": "carlos.ruiz@example.com", "displayName": "Carlos Ruiz" }
+      ],
+      "location": "Sala virtual"
+    }
+  ]
+}

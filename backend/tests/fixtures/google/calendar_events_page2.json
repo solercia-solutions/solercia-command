@@ -1,0 +1,15 @@
+{
+  "kind": "calendar#events",
+  "summary": "ana.torres@example.com",
+  "items": [
+    {
+      "id": "gcal-event-2",
+      "summary": "Retro del sprint",
+      "start": { "dateTime": "2026-07-16T14:00:00Z" },
+      "end": { "dateTime": "2026-07-16T15:00:00Z" },
+      "organizer": { "email": "ana.torres@example.com", "displayName": "Ana Torres" },
+      "attendees": [],
+      "location": null
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "gmail-msg-3",
+  "threadId": "gmail-thread-3",
+  "labelIds": ["INBOX", "CATEGORY_UPDATES"],
+  "snippet": "Confirmación de entrega adjunta.",
+  "internalDate": "1783509300000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      { "name": "Subject", "value": "Confirmación de entrega" },
+      { "name": "From", "value": "Diana Páez <diana.paez@example.com>" },
+      { "name": "To", "value": "ana.torres@example.com" },
+      { "name": "Date", "value": "Wed, 08 Jul 2026 11:15:00 +0000" }
+    ],
+    "parts": [
+      {
+        "mimeType": "application/pdf",
+        "filename": "entrega.pdf",
+        "body": { "attachmentId": "attachment-1", "size": 40960 }
+      }
+    ]
+  }
+}
