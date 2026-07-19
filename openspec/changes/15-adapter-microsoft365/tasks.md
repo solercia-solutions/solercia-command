@@ -100,11 +100,11 @@ Chain strategy: stacked-to-main
 
 ## Lote 8 — Frontera solo-lectura + docs C4 + `httpx` en runtime (Commit 8)
 
-- [ ] 8.1 RED `TestWriteBoundary`: ninguna llamada HTTP en `client.py`/`ports.py`/`oauth.py` usa verbo `POST`/`PATCH`/`PUT`/`DELETE` hacia Graph (introspección estática sobre los métodos de `httpx` invocados en el paquete). [M365-R8]
-- [ ] 8.2 VERIFY confirmar T8.1: si ya está en verde por diseño (ningún puerto implementa escritura), documentarlo explícitamente como guardia de regresión, no como hallazgo nuevo.
-- [ ] 8.3 [Docs] `docs/diagrams/c4-architecture.md`: agregar nodo `microsoft365` bajo el componente Integrations/adapters del C3 — mismo commit, obligatorio.
-- [ ] 8.4 [Foundation] Verificar si `requirements.txt` ya tiene `httpx>=0.27` (posible promoción del 14/20); si no, moverlo desde `requirements-dev.txt` a `requirements.txt` (el adaptador lo usa en producción, no solo en tests).
-- [ ] 8.5 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión; `ruff check .`/`mypy app` limpios en `app/integrations/adapters/microsoft365/`.
+- [x] 8.1 RED `TestWriteBoundary`: ninguna llamada HTTP en `client.py`/`ports.py`/`oauth.py` usa verbo `POST`/`PATCH`/`PUT`/`DELETE` hacia Graph (introspección estática sobre los métodos de `httpx` invocados en el paquete). [M365-R8]
+- [x] 8.2 VERIFY confirmar T8.1: si ya está en verde por diseño (ningún puerto implementa escritura), documentarlo explícitamente como guardia de regresión, no como hallazgo nuevo. — Confirmado: verde de inmediato (3/3), documentado en `test_this_guard_documents_a_regression_boundary_not_a_new_finding`.
+- [x] 8.3 [Docs] `docs/diagrams/c4-architecture.md`: agregar nodo `microsoft365` bajo el componente Integrations/adapters del C3 — mismo commit, obligatorio.
+- [x] 8.4 [Foundation] Verificar si `requirements.txt` ya tiene `httpx>=0.27` (posible promoción del 14/20); si no, moverlo desde `requirements-dev.txt` a `requirements.txt` (el adaptador lo usa en producción, no solo en tests). — Confirmado presente: `httpx==0.28.1` en `requirements.txt`. Sin cambio necesario.
+- [x] 8.5 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión; `ruff check .`/`mypy app` limpios en `app/integrations/adapters/microsoft365/`.
 
 ## Trazabilidad de requisitos
 

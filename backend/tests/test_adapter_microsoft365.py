@@ -1086,3 +1086,104 @@ class TestMeetingNotesPort:
         assert isinstance(
             adapter.port_for(Capability.meeting_notes), GraphMeetingNotesReader
         )
+
+
+# ---------------------------------------------------------------------------
+# Lote 8 — Frontera solo-lectura estricta hacia Graph
+# ---------------------------------------------------------------------------
+
+
+def _called_http_verbs(module) -> set[str]:
+    """Return every `.get`/`.post`/`.put`/`.patch`/`.delete` METHOD CALL
+    name found in `module`'s own source (AST-based — never matches text
+    inside a comment/docstring, unlike a plain substring search)."""
+
+    import ast
+    import inspect
+    import textwrap
+
+    source = textwrap.dedent(inspect.getsource(module))
+    tree = ast.parse(source)
+    verbs = {"get", "post", "put", "patch", "delete"}
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in verbs
+        ):
+            found.add(node.func.attr)
+    return found
+
+
+class TestWriteBoundary:
+    def test_client_and_ports_never_call_a_graph_write_verb(self) -> None:
+        """Scenario: Ninguna capacidad invoca escritura — `client.py` (the
+        ONLY module that ever talks to `graph.microsoft.com`) and
+        `ports.py` (every port, all four capabilities) never call a write
+        HTTP verb; every Graph call is a `GET` (M365-R8)."""
+
+        from app.integrations.adapters.microsoft365 import client as client_module
+        from app.integrations.adapters.microsoft365 import ports as ports_module
+
+        for module in (client_module, ports_module):
+            verbs = _called_http_verbs(module)
+            assert verbs <= {"get"}, f"{module.__name__} calls write verb(s): {verbs}"
+
+    def test_oauth_module_posts_only_to_the_login_endpoint_never_to_graph(
+        self,
+    ) -> None:
+        """The package's ONE write HTTP verb — `oauth.py`'s `.post(...)`
+        for the OAuth token exchange — targets ONLY
+        `M365_LOGIN_BASE_URL` (Entra ID's own token endpoint), never
+        `M365_GRAPH_BASE_URL`. This is the OAuth handshake itself, not a
+        "write toward Graph" (spec.md's scope is explicitly Graph write
+        endpoints — send mail, create/edit event, etc — not the IdP)."""
+
+        import inspect
+
+        from app.integrations.adapters.microsoft365 import oauth as oauth_module
+
+        source = inspect.getsource(oauth_module)
+        verbs = _called_http_verbs(oauth_module)
+
+        # `.get(...)` also appears here as plain `dict.get(...)` calls
+        # (e.g. `payload.get("scope")`), not an HTTP verb — only the
+        # WRITE verbs matter for this guard, and `post` (the token
+        # exchange) is the sole one this module ever calls.
+        assert "post" in verbs
+        assert not {"put", "patch", "delete"} & verbs
+        assert "M365_GRAPH_BASE_URL" not in source
+        assert "M365_LOGIN_BASE_URL" in source
+
+    def test_this_guard_documents_a_regression_boundary_not_a_new_finding(
+        self,
+    ) -> None:
+        """VERIFY (T8.2): no port implements a write capability BY DESIGN
+        (every `Graph*Reader` only ever calls `client.paginate`/
+        `client.get`, both GET-only) — this test is a regression guard
+        against a FUTURE change accidentally adding a write call, not a
+        newly discovered gap."""
+
+        from app.integrations.adapters.microsoft365.ports import (
+            GraphCalendarReader,
+            GraphExternalTaskReader,
+            GraphMailReader,
+            GraphMeetingNotesReader,
+        )
+
+        for port_cls in (
+            GraphMailReader,
+            GraphCalendarReader,
+            GraphExternalTaskReader,
+            GraphMeetingNotesReader,
+        ):
+            public_methods = {
+                name
+                for name in vars(port_cls)
+                if not name.startswith("_") and callable(vars(port_cls)[name])
+            }
+            assert len(public_methods) == 1, (
+                f"{port_cls.__name__} declares more than its ONE read method: "
+                f"{public_methods}"
+            )

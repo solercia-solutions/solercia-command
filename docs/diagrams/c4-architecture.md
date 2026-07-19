@@ -15,10 +15,13 @@ arquitectura aspiracional.
 
 ## C1 — Contexto del sistema
 
-Tres perfiles de personas usan el sistema. El único sistema externo del código actual es el
-**servidor SMTP**, y solo participa cuando `EMAIL_ENABLED=true` con `EMAIL_BACKEND=smtp`
-(por defecto el backend de correo es `console`, que solo registra en log). No existen otras
-integraciones externas en el código hoy.
+Tres perfiles de personas usan el sistema. El **servidor SMTP** participa solo cuando
+`EMAIL_ENABLED=true` con `EMAIL_BACKEND=smtp` (por defecto el backend de correo es
+`console`, que solo registra en log). **Microsoft 365 (Graph + Entra ID)** es la primera
+integración externa real sobre el motor de conectores del cambio 14 (change
+15-adapter-microsoft365): solo participa cuando una organización conecta un conector
+`provider=microsoft365`, y únicamente en modo lectura (correo, calendario, tareas Planner,
+transcripciones de reuniones).
 
 ```mermaid
 C4Context
@@ -31,11 +34,13 @@ C4Context
     System(spm, "Solercia Project Manager", "Gestión de proyectos multi-tenant con metodología configurable (planner, kanban, scrum, custom), alertas, recordatorios y activos de información.")
 
     System_Ext(smtp, "Servidor SMTP", "Entrega de correos (inmediatos y digest). Solo activo con EMAIL_ENABLED=true y EMAIL_BACKEND=smtp.")
+    System_Ext(m365, "Microsoft 365 (Graph + Entra ID)", "Correo, calendario, tareas Planner y transcripciones de reuniones via Graph API, solo lectura; autorizacion delegada OAuth via Entra ID. Activo solo si la organizacion conecta un conector provider=microsoft365 (change 15).")
 
     Rel(jefe, spm, "Usa", "HTTPS")
     Rel(miembro, spm, "Usa", "HTTPS")
     Rel(admin, spm, "Administra", "HTTPS")
     Rel(spm, smtp, "Envía correos vía", "SMTP/TLS")
+    Rel(spm, m365, "Lee correo/calendario/tareas/transcripciones vía", "HTTPS + OAuth delegado")
 ```
 
 ---
@@ -147,7 +152,8 @@ flowchart TB
             i_oauth["oauth.py: build_authorize /<br/>handle_callback generico"]
             i_crypto["crypto.py: Fernet<br/>(tokens cifrados en reposo)"]
             i_state["state_store.py: state OAuth<br/>en Redis (SETEX + GETDEL single-use)"]
-            i_fake["adapters/fake.py: adaptador en<br/>memoria (unico registrado esta ola)"]
+            i_fake["adapters/fake.py: adaptador en<br/>memoria"]
+            i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunion, solo lectura"]
         end
     end
 
@@ -158,6 +164,7 @@ flowchart TB
     db[("PostgreSQL")]
     redis_ext[("Redis")]
     smtp_ext[["Servidor SMTP"]]
+    graph_ext[["Microsoft 365<br/>(Graph + Entra ID)"]]
 
     http --> deps
     deps --> capas
@@ -184,6 +191,9 @@ flowchart TB
     i_oauth --> i_state
     i_oauth --> i_registry
     i_registry --> i_fake
+    i_registry --> i_ms365
+    i_ms365 -->|"solo lectura: GET correo/calendario/<br/>Planner/transcripciones"| graph_ext
+    i_ms365 -->|"OAuth Entra ID (authorize/token/refresh)"| graph_ext
     r_conn -->|"cifra/descifra tokens"| i_crypto
     i_state --> redis_ext
 ```
@@ -208,14 +218,27 @@ Notas de componentes:
   hermano de `notify`/`alerts`/`email`/`realtime` — puertos de lectura por capacidad
   (correo, calendario, tareas externas, notas, tickets), registro de adaptadores por
   `provider` en import-time (sin `if provider == ...` regado por el código) y handshake
-  OAuth genérico (`authorize`/`callback`) que delega el canje de tokens al adaptador. Esta
-  ola solo registra el adaptador `fake` en memoria — los adaptadores reales (Microsoft 365,
-  Google, GLPI, Jira, MCP) llegan en los cambios 15-19 sin tocar el núcleo. El módulo
-  `app/modules/connectors` (router→service→repository, mismo patrón que `assets`) expone el
-  CRUD y el flujo OAuth vía REST, con RBAC `require_role(admin, manager)` para configurar
-  conectores. Es el **primer consumidor real** de `require_role` (`app/dependencies.py`, ya
-  existía sin uso) y del cliente Redis (`app/shared/redis.py`, nuevo — el state OAuth es el
-  primer dato que realmente pasa por Redis).
+  OAuth genérico (`authorize`/`callback`) que delega el canje de tokens al adaptador. El
+  módulo `app/modules/connectors` (router→service→repository, mismo patrón que `assets`)
+  expone el CRUD y el flujo OAuth vía REST, con RBAC `require_role(admin, manager)` para
+  configurar conectores. Es el **primer consumidor real** de `require_role`
+  (`app/dependencies.py`, ya existía sin uso) y del cliente Redis (`app/shared/redis.py`,
+  nuevo — el state OAuth es el primer dato que realmente pasa por Redis).
+- **Adaptador Microsoft 365 (change 15-adapter-microsoft365)**: primer adaptador REAL
+  sobre el núcleo del 14, `app/integrations/adapters/microsoft365/` (7 módulos:
+  `__init__`/`adapter`/`oauth`/`client`/`mappers`/`ports`/`errors`), auto-registrado en
+  import-time (mismo precedente que `adapters/fake.py`, cero ediciones a `ports.py`/
+  `oauth.py`/`registry.py` del 14). `GraphClient` (httpx inyectable, cero red en tests)
+  centraliza paginación `@odata.nextLink`, TLS obligatorio + anti-SSRF (host fijo desde
+  `M365_GRAPH_BASE_URL`), refresco 401→reintento único y backoff 429 con `Retry-After`.
+  Implementa `MailReaderPort`, `CalendarReaderPort`, `ExternalTaskReaderPort` (solo
+  Planner, sin Microsoft To Do) y `MeetingNotesReaderPort` (degrada a
+  `capability_unavailable` sin red cuando el conector no tiene el scope
+  `OnlineMeetingTranscript.Read.All`, o ante un `403` en runtime); **nunca** declara la
+  capacidad `tickets`. Frontera solo-lectura estricta: ninguna llamada del paquete usa
+  `POST`/`PATCH`/`PUT`/`DELETE` hacia Graph — la única escritura HTTP es el `POST` de
+  `oauth.py` contra el endpoint de token de Entra ID (login.microsoftonline.com), que no
+  es una escritura hacia Graph.
 
 ## Referencias
 
