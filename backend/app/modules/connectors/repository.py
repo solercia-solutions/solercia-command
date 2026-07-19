@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.integrations import crypto
+from app.integrations.dtos import OAuthTokens
 from app.modules.connectors.models import ConnectedAccount, ConnectionCredentials, Connector
 from app.shared.enums import AccountStatus
 
@@ -219,6 +221,39 @@ class ConnectedAccountRepository:
         await self._commit_or_flush(commit)
         await self.db.refresh(credentials)
         return credentials
+
+    async def save_refreshed_credentials(
+        self,
+        connected_account_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        tokens: OAuthTokens,
+    ) -> ConnectionCredentials:
+        """Persist ROTATED credentials after a successful refresh performed
+        mid-read (change 22-intake-classifier, sink ``AccessContext.
+        on_tokens_refreshed`` — ``app/integrations/ports.py``). Same Fernet
+        mechanism as the OAuth callback (``crypto.encrypt``,
+        ``handle_oauth_callback`` above).
+
+        Called ONLY after a refresh SUCCEEDS — a caller whose refresh call
+        raises never reaches this method, so existing credentials are NEVER
+        overwritten with stale/corrupt data on a failed rotation (delta
+        specs/connectors/spec.md, "Refresco fallido no persiste credenciales
+        corruptas").
+        """
+
+        access_token_enc = crypto.encrypt(tokens.access_token)
+        refresh_token_enc = (
+            crypto.encrypt(tokens.refresh_token) if tokens.refresh_token else None
+        )
+        return await self.save_credentials(
+            connected_account_id=connected_account_id,
+            organization_id=organization_id,
+            access_token_enc=access_token_enc,
+            refresh_token_enc=refresh_token_enc,
+            expires_at=tokens.expires_at,
+            token_type="Bearer",
+            scopes=list(tokens.scopes) if tokens.scopes else None,
+        )
 
     async def list_accounts(
         self,

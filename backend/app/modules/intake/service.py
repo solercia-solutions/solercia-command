@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.integrations import crypto
+from app.integrations.dtos import OAuthTokens
 from app.integrations.ports import AccessContext, Capability, CredentialKind
 from app.integrations.registry import get_adapter
 from app.modules.connectors.models import Connector
@@ -262,7 +263,7 @@ class IntakeService:
                 status_code=404,
             )
 
-        ctx = await self._build_access_context(connected_account_id)
+        ctx = await self._build_access_context(organization_id, connector, connected_account_id)
 
         new_items: list[IntakeItem] = []
         for capability in _CAPABILITY_TO_ITEM_TYPE:
@@ -310,7 +311,23 @@ class IntakeService:
             if item.status == IntakeItemStatus.converted:
                 run.items_converted += 1
 
-    async def _build_access_context(self, connected_account_id: uuid.UUID) -> AccessContext:
+    async def _build_access_context(
+        self, organization_id: uuid.UUID, connector: Connector, connected_account_id: uuid.UUID
+    ) -> AccessContext:
+        """Decrypt the account's credentials into an ``AccessContext``.
+
+        Refreshes PROACTIVELY, BEFORE any read, when ``expires_at`` is in
+        the past (delta specs/connectors/spec.md, "Token vencido se refresca
+        y persiste antes de leer") — a token still valid never triggers
+        ``adapter.oauth.refresh`` (delta, "Token vigente no dispara
+        refresco"). The RESULTING context also carries the
+        ``on_tokens_refreshed`` sink so an adapter that refreshes silently
+        MID-read (e.g. on its own 401→retry, changes 15/16) persists that
+        rotation too — both paths converge on the SAME
+        ``save_refreshed_credentials`` (change 22 materializes the 14's
+        addendum, see ``app/integrations/ports.py::AccessContext``).
+        """
+
         credentials = await self.accounts.get_credentials(connected_account_id)
         if credentials is None:
             raise AppException(
@@ -318,6 +335,40 @@ class IntakeService:
                 code="credentials_not_found",
                 status_code=404,
             )
+
+        async def _on_tokens_refreshed(tokens: OAuthTokens) -> None:
+            await self.accounts.save_refreshed_credentials(
+                connected_account_id, organization_id, tokens
+            )
+
+        now = datetime.now(UTC)
+        if credentials.expires_at is not None and credentials.expires_at <= now:
+            adapter = get_adapter(connector.provider)
+            if adapter is None or adapter.oauth is None:
+                raise AppException(
+                    "El proveedor del conector no está disponible para refrescar el token.",
+                    code="provider_not_registered",
+                    status_code=404,
+                )
+            if not credentials.refresh_token_enc:
+                raise AppException(
+                    "La cuenta conectada no tiene un refresh_token disponible.",
+                    code="refresh_token_missing",
+                    status_code=422,
+                )
+            refresh_token_plain = crypto.decrypt(credentials.refresh_token_enc)
+            # A failing refresh raises here and propagates to `_pull_account`'s
+            # try/except — existing credentials are NEVER touched (delta,
+            # "Refresco fallido no persiste credenciales corruptas").
+            new_tokens = await adapter.oauth.refresh(refresh_token_plain)
+            await _on_tokens_refreshed(new_tokens)
+            return AccessContext(
+                access_token=new_tokens.access_token,
+                refresh_token=new_tokens.refresh_token,
+                scopes=tuple(new_tokens.scopes or ()),
+                on_tokens_refreshed=_on_tokens_refreshed,
+            )
+
         access_token = crypto.decrypt(credentials.access_token_enc)
         refresh_token = (
             crypto.decrypt(credentials.refresh_token_enc)
@@ -328,6 +379,7 @@ class IntakeService:
             access_token=access_token,
             refresh_token=refresh_token,
             scopes=tuple(credentials.scopes or []),
+            on_tokens_refreshed=_on_tokens_refreshed,
         )
 
     # -- reads -----------------------------------------------------------
