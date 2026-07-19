@@ -8,14 +8,16 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
   design: true
   tasks: true
   apply: true
+  verify: true
+  archive: true
 capabilities:
   new:
     - project-hierarchy
@@ -26,4 +28,3 @@ constraints:
   - frontend-frozen
   - strict-tdd
 last_updated: 2026-07-18
-

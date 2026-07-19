@@ -54,7 +54,7 @@ OLA 2, ítem 4a. Hoy `Project` es plano: no existe `parent_project_id` y cada pr
 ## Risks
 
 | Risk | Likelihood | Mitigation |
-|------|------------|------------|
+|------|------------|-----------|
 | Rendimiento del CTE recursivo en árboles grandes | Med | Índice en `parent_project_id`; límite de profundidad; agregación en una consulta |
 | Ciclos al reparentar dejan la jerarquía inconsistente | Med | Validación obligatoria en create/reparent antes de persistir |
 | Fuga entre tenants en el roll-up | High | Filtro `organization_id` en cada nivel del CTE; test de aislamiento |

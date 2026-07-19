@@ -33,6 +33,8 @@ Modelo `Project` (Pk + Timestamp + SoftDelete + Tenant):
 - **R2**: El `code` del proyecto DEBE alimentar la clave legible de sus tareas mediante `task_counter` secuencial.
 - **R3**: `GET /{id}/velocity` DEBE calcular los puntos completados por sprint cerrado, su promedio y una proyección.
 - **R4**: Las consultas DEBEN filtrar por `organization_id` de la membresía activa.
+- **R5**: `POST /api/v1/projects` DEBE aceptar un campo opcional `parent_project_id` (UUID de otro `Project`). Cuando se envía, la creación DEBE aplicar las validaciones de jerarquía definidas en `project-hierarchy` (mismo tenant, padre activo, sin ciclos, dentro de la profundidad máxima vigente) antes de persistir; si alguna falla, la creación completa DEBE rechazarse y ningún proyecto queda persistido. Cuando se omite, el proyecto se crea como raíz (`parent_project_id = null`), sin cambio respecto al contrato actual.
+- **R6**: El detalle y la lista de proyectos (`GET /projects`, `GET /projects/{id}`) DEBEN exponer `parent_project_id` (`null` cuando el proyecto es raíz).
 
 ### Escenarios centrales
 
@@ -50,6 +52,22 @@ Modelo `Project` (Pk + Timestamp + SoftDelete + Tenant):
 - Dado proyectos de dos organizaciones distintas
 - Cuando un miembro de la organización A lista `/projects`
 - Entonces no ve proyectos de la organización B.
+
+**R5 — Creación con padre opcional**
+- Dado un usuario con membresía activa y un proyecto existente "Seguridad de la Información" en su organización
+- Cuando envía `POST /projects` con `parent_project_id` apuntando a ese proyecto
+- Entonces el proyecto nuevo queda creado (201) con `parent_project_id` poblado
+- Y cuando envía `POST /projects` sin `parent_project_id`
+- Entonces el proyecto se crea (201) con `parent_project_id = null`, igual que hoy
+- Y cuando envía `POST /projects` con un `parent_project_id` de otra organización
+- Entonces la API rechaza la creación completa con un error de validación y ningún proyecto queda persistido
+
+**R6 — Exposición de jerarquía**
+- Dado un proyecto hijo con padre asignado
+- Cuando se consulta `GET /projects`
+- Entonces el elemento correspondiente incluye `parent_project_id` con el id del padre
+- Y cuando se consulta `GET /projects/{id}` para un proyecto raíz
+- Entonces la respuesta incluye `parent_project_id: null`
 
 ## Limitaciones y deuda conocida
 
