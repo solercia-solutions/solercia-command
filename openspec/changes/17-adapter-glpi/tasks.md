@@ -73,12 +73,14 @@ Chain strategy: stacked-to-main
 
 ## Lote 4 — Cliente GLPI base: `initSession`/paginación/allowlist (Commit 4)
 
-- [ ] 4.1 [Fixtures] `tests/fixtures/glpi/init_session.json`, `kill_session.json`, `ticket_page_1.json` (con header `Content-Range` simulado), `ticket_page_2.json`.
-- [ ] 4.2 [Foundation] `app/config.py`: `GLPI_SESSION_TTL_SECONDS` (default conservador), `GLPI_BASE_URL_ALLOWLIST` (análogo a `OAUTH_REDIRECT_ALLOWLIST` del 14).
-- [ ] 4.3 RED `backend/tests/test_adapter_glpi.py::TestGlpiClientBase`: `GlpiClient` rechaza `base_url` sin esquema http(s) o fuera de `GLPI_BASE_URL_ALLOWLIST` **antes** de cualquier request HTTP (cero invocaciones al `MockTransport`); `initSession` envía `App-Token`+`Authorization: user_token ...` y devuelve `session_token`; `killSession` envía `Session-Token`+`App-Token`; paginación por header `Range` ensambla ambas páginas hasta agotar `Content-Range`. [Threat Matrix: SSRF — `client.py`]
-- [ ] 4.4 VERIFY confirmar T4.3 en ROJO (módulo inexistente) antes de GREEN.
-- [ ] 4.5 GREEN `app/integrations/adapters/glpi/client.py`: `GlpiClient(base_url, *, transport=None)`; valida `base_url` contra `GLPI_BASE_URL_ALLOWLIST` en el constructor; `init_session`/`kill_session`; `list_tickets(range_start, range_end)` vía header `Range`.
-- [ ] 4.6 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -k TestGlpiClientBase -v` en verde; `ruff check .`/`mypy app` limpios en `client.py`.
+- [x] 4.1 [Fixtures] `tests/fixtures/glpi/init_session.json`, `kill_session.json`, `ticket_page_1.json` (con header `Content-Range` simulado), `ticket_page_2.json`.
+- [x] 4.2 [Foundation] `app/config.py`: `GLPI_SESSION_TTL_SECONDS` (default conservador), `GLPI_BASE_URL_ALLOWLIST` (análogo a `OAUTH_REDIRECT_ALLOWLIST` del 14).
+- [x] 4.3 RED `backend/tests/test_adapter_glpi.py::TestGlpiClientBase`: `GlpiClient` rechaza `base_url` sin esquema http(s) o fuera de `GLPI_BASE_URL_ALLOWLIST` **antes** de cualquier request HTTP (cero invocaciones al `MockTransport`); `initSession` envía `App-Token`+`Authorization: user_token ...` y devuelve `session_token`; `killSession` envía `Session-Token`+`App-Token`; paginación por header `Range` ensambla ambas páginas hasta agotar `Content-Range`. [Threat Matrix: SSRF — `client.py`]
+- [x] 4.4 VERIFY confirmar T4.3 en ROJO (módulo inexistente) antes de GREEN.
+- [x] 4.5 GREEN `app/integrations/adapters/glpi/client.py`: `GlpiClient(base_url, *, transport=None)`; valida `base_url` contra `GLPI_BASE_URL_ALLOWLIST` en el constructor; `init_session`/`kill_session`; `list_tickets(range_start, range_end)` vía header `Range`.
+- [x] 4.6 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -k TestGlpiClientBase -v` en verde; `ruff check .`/`mypy app` limpios en `client.py`.
+
+  **Nota**: `app/config.py` también gana `GLPI_TIMEOUT_SECONDS`/`GLPI_PAGE_SIZE`/`GLPI_MAX_PAGES`/`GLPI_MAX_RETRIES`/`GLPI_MAX_BACKOFF_SECONDS`/`GLPI_DEFAULT_DOCUMENT_FIELD` en el mismo commit (no listados explícitamente en T4.2 pero necesarios para `client.py`/lotes 5-6, mismo patrón `M365_*`/`GOOGLE_*`). `client.py` deja pasar errores HTTP nativos de `httpx` (`raise_for_status`) sin envolverlos todavía — la traducción a `GlpiUnavailable`/`GlpiAuthError` es explícitamente del Lote 6 (`errors.py` no existe aún en este lote).
 
 ## Lote 5 — Cache de `session_token` en Redis + reinicio ante `401` (Commit 5)
 

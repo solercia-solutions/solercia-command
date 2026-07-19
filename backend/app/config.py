@@ -168,6 +168,33 @@ class Settings(BaseSettings):
     GOOGLE_MAX_PAGES: int = 20
     GOOGLE_MAX_LIMIT: int = 200
 
+    # GLPI adapter (change 17-adapter-glpi) — read-only tickets over GLPI's
+    # `apirest.php`, `credential_kind=api_token` (App-Token + user_token ->
+    # `initSession`). Unlike M365/Google, `base_url` is PER-CONNECTOR
+    # (`connectors.settings.base_url`, admin-configured) rather than a
+    # single fixed provider host — `GLPI_BASE_URL_ALLOWLIST` is the
+    # anti-SSRF guard (analogous to `OAUTH_REDIRECT_ALLOWLIST`): a
+    # connector's `base_url` MUST be a member of this list, checked BEFORE
+    # any request (`GlpiClient.__init__`, Threat Matrix).
+    GLPI_BASE_URL_ALLOWLIST: list[str] = ["http://localhost:8080/glpi/apirest.php"]
+    GLPI_TIMEOUT_SECONDS: float = 10.0
+    # `session_token` Redis TTL — MUST stay below GLPI's own server-side
+    # session lifetime (design.md Open Questions: confirmar contra la
+    # instancia destino); 3300s (55min) is a conservative default under
+    # GLPI's common 1h default.
+    GLPI_SESSION_TTL_SECONDS: int = 3300
+    GLPI_PAGE_SIZE: int = 100
+    GLPI_MAX_PAGES: int = 20
+    GLPI_MAX_RETRIES: int = 3
+    # Techo del backoff — mismo criterio que `M365_MAX_BACKOFF_SECONDS`/
+    # `GOOGLE_MAX_BACKOFF_SECONDS`, aplicado por `client.py`'s resilience
+    # boundary ante un 5xx transitorio de GLPI.
+    GLPI_MAX_BACKOFF_SECONDS: float = 30.0
+    # Campo GLPI portador del documento de identidad del asignado, usado
+    # por defecto cuando `connectors.settings.document_field` no lo
+    # especifica explícitamente (mapper.py, change 17 Lote 6).
+    GLPI_DEFAULT_DOCUMENT_FIELD: str = "registration_number"
+
 
 @lru_cache
 def get_settings() -> Settings:
