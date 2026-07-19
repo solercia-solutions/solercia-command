@@ -1,9 +1,10 @@
 """Project ORM model."""
 
+import uuid
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -58,6 +59,17 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
     # Monotonically increasing counter used to assign task_number values
     # atomically via UPDATE ... RETURNING, avoiding race conditions.
     task_counter: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Parent project in the hierarchy (change 21-project-hierarchy). NULL means
+    # this project is a root. ``SET NULL`` on delete so a soft/hard-deleted
+    # parent never cascades into its children — they simply become roots.
+    # Same self-FK pattern as ``Task.parent_task_id``; indexed for ancestor
+    # walks and subtree CTEs (``ix_projects_parent_project_id``).
+    parent_project_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     if TYPE_CHECKING:
         # Transient attribute attached by ProjectService for response

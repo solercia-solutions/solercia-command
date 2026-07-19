@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Project hierarchy — maximum nesting depth (root = depth 1), configurable
+    # per change 21-project-hierarchy design.md Decision 3.
+    PROJECT_HIERARCHY_MAX_DEPTH: int = 5
+
     # Alert engine
     ALERT_SCHEDULER_INTERVAL_HOURS: int = 1
 
