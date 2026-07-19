@@ -84,11 +84,13 @@ Chain strategy: stacked-to-main
 
 ## Lote 5 — Cache de `session_token` en Redis + reinicio ante `401` (Commit 5)
 
-- [ ] 5.1 [Fixtures] `tests/fixtures/glpi/session_expired_401.json`.
-- [ ] 5.2 RED `TestGlpiSessionCache`: primera lectura sin cache llama `initSession` y cachea `session_token` en Redis (`SETEX glpi:session:{connector_id}`, TTL=`GLPI_SESSION_TTL_SECONDS`); segunda lectura reutiliza el cache sin llamar `initSession` de nuevo; `401`/expiración detectada invalida el cache, reinicia sesión UNA vez y reintenta la operación original de forma transparente; reinicio con credenciales revocadas propaga error controlado sin dejar `session_token` inválido cacheado; ningún `session_token`/`app_token`/`user_token` aparece en `caplog` ni en `str(exception)`. [GA-R2, GA-R3; Threat Matrix: sin fuga de secretos]
-- [ ] 5.3 VERIFY confirmar T5.2 en ROJO antes de GREEN.
-- [ ] 5.4 GREEN `app/integrations/adapters/glpi/session.py`: `get_or_init_session(connector_id, client) -> str` (Redis GET/SETEX); `with_session_retry(fn)` intercepta `401`, invalida cache, reinicia y reintenta 1 vez.
-- [ ] 5.5 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -k "TestGlpiClientBase or TestGlpiSessionCache" -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 5.1 [Fixtures] `tests/fixtures/glpi/session_expired_401.json`.
+- [x] 5.2 RED `TestGlpiSessionCache`: primera lectura sin cache llama `initSession` y cachea `session_token` en Redis (`SETEX glpi:session:{connector_id}`, TTL=`GLPI_SESSION_TTL_SECONDS`); segunda lectura reutiliza el cache sin llamar `initSession` de nuevo; `401`/expiración detectada invalida el cache, reinicia sesión UNA vez y reintenta la operación original de forma transparente; reinicio con credenciales revocadas propaga error controlado sin dejar `session_token` inválido cacheado; ningún `session_token`/`app_token`/`user_token` aparece en `caplog` ni en `str(exception)`. [GA-R2, GA-R3; Threat Matrix: sin fuga de secretos]
+- [x] 5.3 VERIFY confirmar T5.2 en ROJO antes de GREEN.
+- [x] 5.4 GREEN `app/integrations/adapters/glpi/session.py`: `get_or_init_session(connector_id, client) -> str` (Redis GET/SETEX); `with_session_retry(fn)` intercepta `401`, invalida cache, reinicia y reintenta 1 vez.
+- [x] 5.5 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -k "TestGlpiClientBase or TestGlpiSessionCache" -v` en verde; `ruff check .`/`mypy app` limpios.
+
+  **Nota**: firma real `get_or_init_session(connector_id, client, app_token, user_token, *, settings)` — `app_token`/`user_token` son necesarios para poder llamar `client.init_session` en un cache-miss (el resumen de la tarea los omitió por brevedad). "Reinicio con credenciales revocadas propaga error controlado" se satisface dejando propagar `httpx.HTTPStatusError` (aún sin `errors.py`, que es del Lote 6) — `invalidate_session` ya corrió antes del reintento fallido, así que nunca queda un `session_token` inválido cacheado.
 
 ## Lote 6 — Adaptador completo: `mapper`+`adapter`+`errors`+registro (Commit 6)
 
