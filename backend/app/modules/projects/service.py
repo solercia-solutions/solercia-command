@@ -87,19 +87,49 @@ class ProjectService:
     ) -> Project:
         """Validate the methodology, persist a new project and seed its board.
 
+        Public contract UNCHANGED: this is still ONE call that both creates
+        AND commits (``_create_project_unit()`` + :meth:`ProjectRepository.
+        save`) — the extraction below (change 23-org-role-templates, design.md
+        Decision 3) only splits WHERE the commit happens, never removes it
+        from this path.
+        """
+
+        project = await self._create_project_unit(
+            organization_id, data, actor_id=actor_id
+        )
+        project = await self.repo.save(project)
+        project.methodology_info = get_strategy(data.methodology).to_info()
+        return project
+
+    async def _create_project_unit(
+        self,
+        organization_id: uuid.UUID,
+        data: ProjectCreate,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> Project:
+        """Validate, persist (add+flush) and seed the board of a project — WITHOUT commit.
+
+        Extracted from :meth:`create_project` (change 23-org-role-templates,
+        design.md Decision 3) so a multi-project transaction — the org-role-
+        template instantiation service, which must create an entire tree
+        todo-o-nada — can call this once per node and commit ONCE at the end.
+        ``create_project`` itself calls this then immediately
+        :meth:`ProjectRepository.save` (commit), so its own contract stays a
+        single atomic call — see boards.md, "Siembra del board al crear el
+        proyecto".
+
         When ``data.code`` is omitted the service auto-generates one from the
         project name. A numeric suffix is appended (e.g. "PW2") when the
         derived code is already taken within the organization.
 
-        The board (and its columns, from ``strategy.default_columns()``) is
-        seeded in the SAME transaction as the project: the project is flushed
-        first to obtain its id, the board is added against that id, and both
-        are committed together — see boards.md, "Siembra del board al crear
-        el proyecto".
-
         When ``data.parent_project_id`` is given, :meth:`validate_parent` runs
         BEFORE anything is added to the session (change 21-project-hierarchy,
         R10): a rejected parent leaves NO project persisted — todo-o-nada.
+
+        ``data.lead_user_id`` (change 23-org-role-templates) is fixed onto
+        the project verbatim; ``None`` for the plain ``POST /projects`` flow
+        keeps the compatibility scenario (specs/projects/spec.md delta).
         """
 
         if data.parent_project_id is not None:
@@ -131,6 +161,7 @@ class ProjectService:
             code=code,
             task_counter=0,
             parent_project_id=data.parent_project_id,
+            lead_user_id=data.lead_user_id,
             created_by=actor_id,
             updated_by=actor_id,
         )
@@ -139,8 +170,6 @@ class ProjectService:
 
         await BoardService(self.repo.db).seed_board(project.id, strategy)
 
-        project = await self.repo.save(project)
-        project.methodology_info = strategy.to_info()
         return project
 
     async def get_project(

@@ -48,9 +48,9 @@ Nota: `Chained PRs recommended: No` se refiere a ausencia de cadena de Pull Requ
 
 ## Lote 2 — Extracción de `_create_project_unit()` sin commit (Commit 2)
 
-- [ ] 2.1 RED `backend/tests/test_projects.py`: no-regresión explícita — `POST /projects` sigue devolviendo 201 y persistiendo en una sola llamada (aserción invertida primero: esperar que NO se persista, confirmar rojo).
-- [ ] 2.2 [Service] `app/modules/projects/service.py`: extraer `_create_project_unit()` (valida strategy, resuelve `code`, `add`+`flush`, `seed_board`, fija `lead_user_id`, valida `parent` vía `validate_parent`) SIN `commit`; `create_project` público = `_create_project_unit()` + `repo.save()` (conserva firma y contrato).
-- [ ] 2.3 VERIFY `pytest tests/test_projects.py tests/test_board_aware_strategy.py -v` → verde, sin regresión. Commit `refactor(projects): extrae _create_project_unit sin commit, preservando el contrato de create_project`.
+- [x] 2.1 RED `backend/tests/test_projects.py`: no-regresión explícita — `POST /projects` sigue devolviendo 201 y persistiendo en una sola llamada (aserción invertida primero: esperar que NO se persista, confirmar rojo).
+- [x] 2.2 [Service] `app/modules/projects/service.py`: extraer `_create_project_unit()` (valida strategy, resuelve `code`, `add`+`flush`, `seed_board`, fija `lead_user_id`, valida `parent` vía `validate_parent`) SIN `commit`; `create_project` público = `_create_project_unit()` + `repo.save()` (conserva firma y contrato).
+- [x] 2.3 VERIFY `pytest tests/test_projects.py tests/test_board_aware_strategy.py -v` → verde (12/12), sin regresión; además `test_project_hierarchy_endpoints.py`/`test_project_hierarchy_repository.py`/`test_project_hierarchy_validation.py` (38/38) para blindar el 21. Commit `refactor(projects): extrae _create_project_unit sin commit, preservando el contrato de create_project`.
 
 ## Lote 3 — Repository + service de instanciación + seeder (Commit 3)
 

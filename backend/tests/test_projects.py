@@ -224,3 +224,34 @@ async def test_projects_listing_exposes_lead_user_id_per_element(
     rows = response.json()["data"]
     assert rows
     assert all("lead_user_id" in row for row in rows)
+
+
+# ---------------------------------------------------------------------------
+# No-regresión — extracción de _create_project_unit() (Lote 2, tasks.md T2.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_create_project_persists_in_a_single_call_no_regression(
+    client: AsyncClient, tenant, user
+) -> None:
+    """No-regresión: tras extraer ``_create_project_unit()`` sin commit,
+    ``POST /projects`` sigue devolviendo 201 y dejando el proyecto persistido
+    en UNA sola llamada — ``create_project`` público sigue siendo
+    ``_create_project_unit() + repo.save()`` (design.md Decisión 3)."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={"name": "Persistencia Atómica", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    project_id = response.json()["data"]["id"]
+
+    fetched = await client.get(f"/projects/{project_id}", headers=_auth(token))
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["name"] == "Persistencia Atómica"
