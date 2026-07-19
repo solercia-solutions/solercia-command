@@ -135,6 +135,7 @@ class OidcClient:
                 algorithms=["RS256"],
                 audience=self._config.client_id,
                 issuer=self._config.issuer,
+                options={"require": ["exp", "iat", "sub"]},
             )
         except jwt.InvalidTokenError as exc:
             raise OidcTokenError(f"ID token inválido: {exc}") from exc

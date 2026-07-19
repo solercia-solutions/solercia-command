@@ -10,48 +10,22 @@ access token in the URL) plus the fixed-``redirect_uri`` posture from
 design.md D5.
 """
 
-import base64
-import time
 from urllib.parse import parse_qs, urlparse
 
 import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
 
 from app.modules.auth.oidc import client as oidc_client_module
 from tests.conftest import skip_no_db
+from tests.fake_idp import FakeIdp as _FakeIdp
+from tests.fake_idp import rsa_jwk as _rsa_jwk
+from tests.fake_idp import sign_id_token as _shared_sign_id_token
 
 _ISSUER = "https://idp.test/realms/demo"
 _CLIENT_ID = "solercia-client"
 _REDIRECT_URI = "http://localhost:8000/api/v1/auth/sso/keycloak/callback"
 _POST_LOGIN_REDIRECT = "http://localhost:4200/auth/callback"
-
-
-def _rsa_jwk(kid: str) -> tuple[bytes, dict]:
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    numbers = key.public_key().public_numbers()
-
-    def _b64url_uint(n: int) -> str:
-        raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
-        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-
-    jwk = {
-        "kty": "RSA",
-        "kid": kid,
-        "use": "sig",
-        "alg": "RS256",
-        "n": _b64url_uint(numbers.n),
-        "e": _b64url_uint(numbers.e),
-    }
-    pem = key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    return pem, jwk
 
 
 def _sign_id_token(
@@ -63,47 +37,18 @@ def _sign_id_token(
     email_verified: bool = True,
     expires_in: int = 300,
 ) -> str:
-    now = int(time.time())
-    payload = {
-        "iss": _ISSUER,
-        "aud": _CLIENT_ID,
-        "sub": "idp-sub-1",
-        "exp": now + expires_in,
-        "iat": now,
-        "nonce": nonce,
-        "email": email,
-        "email_verified": email_verified,
-    }
-    return jwt.encode(payload, private_pem, algorithm="RS256", headers={"kid": kid})
+    """Router-suite defaults (fixed ``sub``, own default ``email``) on top
+    of the shared ``fake_idp.sign_id_token``."""
 
-
-class _FakeIdp:
-    def __init__(self) -> None:
-        self._keys: dict[str, dict] = {}
-        self.next_id_token: str = ""
-
-    def add_key(self, kid: str, jwk: dict) -> None:
-        self._keys[kid] = jwk
-
-    def handler(self, request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/.well-known/openid-configuration"):
-            return httpx.Response(
-                200,
-                json={
-                    "issuer": _ISSUER,
-                    "authorization_endpoint": f"{_ISSUER}/protocol/openid-connect/auth",
-                    "token_endpoint": f"{_ISSUER}/protocol/openid-connect/token",
-                    "jwks_uri": f"{_ISSUER}/protocol/openid-connect/certs",
-                },
-            )
-        if request.url.path.endswith("/protocol/openid-connect/certs"):
-            return httpx.Response(200, json={"keys": list(self._keys.values())})
-        if request.url.path.endswith("/protocol/openid-connect/token"):
-            return httpx.Response(
-                200,
-                json={"access_token": "irrelevant-at", "id_token": self.next_id_token},
-            )
-        return httpx.Response(404, json={"error": "not_found"})
+    return _shared_sign_id_token(
+        private_pem,
+        kid,
+        subject="idp-sub-1",
+        nonce=nonce,
+        email=email,
+        email_verified=email_verified,
+        expires_in=expires_in,
+    )
 
 
 @pytest.fixture
@@ -223,6 +168,53 @@ async def test_sso_callback_happy_path_sets_refresh_cookie_without_access_in_url
     assert "refresh_token" in response.headers.get("set-cookie", "")
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_sso_callback_rejects_email_link_to_an_inactive_user(
+    client: AsyncClient, session, sso_env, patched_redis
+) -> None:
+    """The email-match link path (case (b), sso-oidc R4) must reject an
+    inactive local user the SAME way case (a) rejects an inactive linked
+    user — never link/emit a cookie for a soft-deleted account."""
+
+    from sqlalchemy import select
+
+    from app.modules.auth.models import FederatedIdentity
+    from app.modules.users.models import User
+
+    session.add(
+        User(
+            email="sso-person@example.com",
+            primer_nombre="Sso",
+            primer_apellido="Person",
+            hashed_password="x",
+            is_active=False,
+        )
+    )
+    await session.flush()
+
+    fake_idp, private_pem = sso_env
+    login_response = await client.get("/auth/sso/keycloak/login")
+    state = _state_from_location(login_response.headers["location"])
+
+    import json
+
+    raw = await patched_redis.get(f"sso:state:{state}")
+    nonce = json.loads(raw)["nonce"]
+    fake_idp.next_id_token = _sign_id_token(private_pem, "kid-1", nonce=nonce)
+
+    response = await client.get(
+        "/auth/sso/keycloak/callback", params={"code": "auth-code-1", "state": state}
+    )
+
+    assert response.status_code == 403, response.text
+    assert response.json()["code"] == "sso_login_rejected"
+    assert "set-cookie" not in response.headers
+
+    identities = await session.execute(select(FederatedIdentity))
+    assert identities.scalars().all() == []
+
+
 # ---------------------------------------------------------------------------
 # R2 — state inválido/reusado, ID token forjado
 # ---------------------------------------------------------------------------
@@ -307,6 +299,34 @@ async def test_sso_callback_rejects_a_forged_id_token(
 
     assert response.status_code == 400
     assert response.json()["code"] == "sso_id_token_invalid"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_sso_callback_rejects_a_state_issued_for_a_different_provider(
+    client: AsyncClient, sso_env, patched_redis, monkeypatch
+) -> None:
+    """A ``state`` issued for ``keycloak`` must never be honoured on a
+    DIFFERENT provider's callback path, even if that other provider is
+    also configured — cross-provider state/path confusion (sso-oidc R2)."""
+
+    monkeypatch.setenv("OIDC_AZUREAD_ISSUER", "https://idp.test/realms/other")
+    monkeypatch.setenv("OIDC_AZUREAD_CLIENT_ID", "other-client")
+    monkeypatch.setenv("OIDC_AZUREAD_CLIENT_SECRET", "shh-other")
+    monkeypatch.setenv(
+        "OIDC_AZUREAD_REDIRECT_URI",
+        "http://localhost:8000/api/v1/auth/sso/azuread/callback",
+    )
+
+    login_response = await client.get("/auth/sso/keycloak/login")
+    state = _state_from_location(login_response.headers["location"])
+
+    response = await client.get(
+        "/auth/sso/azuread/callback", params={"code": "some-code", "state": state}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "sso_state_invalid"
 
 
 # ---------------------------------------------------------------------------

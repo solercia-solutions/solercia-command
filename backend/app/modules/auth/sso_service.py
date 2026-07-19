@@ -164,6 +164,11 @@ async def resolve_or_provision_user(
     user_result = await db.execute(select(User).where(User.email == email))
     user = user_result.scalar_one_or_none()
 
+    if user is not None and not user.is_active:
+        raise SsoLoginRejectedError(
+            "Local user matching this email is inactive; refusing to link."
+        )
+
     if user is None:
         if not settings.SSO_AUTO_PROVISION:
             raise SsoLoginRejectedError(
@@ -247,6 +252,8 @@ async def sso_callback(
 
     payload = await pop_state(state)
     if payload is None:
+        raise SsoStateInvalidError(state)
+    if payload.get("provider") != provider:
         raise SsoStateInvalidError(state)
 
     if not code:

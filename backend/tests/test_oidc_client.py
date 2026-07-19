@@ -8,102 +8,21 @@ validation, PKCE S256 correctness (RFC 7636 test vector) and JWKS
 caching + refetch on an unknown ``kid`` (key rotation).
 """
 
-import base64
 import time
 
 import httpx
 import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.modules.auth.oidc.client import OidcClient, OidcTokenError
 from app.modules.auth.oidc.config import OidcProviderConfig
 from app.modules.auth.oidc.jwks import JwksCache
+from tests.fake_idp import FakeIdp as _FakeIdp
+from tests.fake_idp import rsa_jwk as _rsa_jwk
+from tests.fake_idp import sign_id_token as _sign_id_token
 
 _ISSUER = "https://idp.test/realms/demo"
 _CLIENT_ID = "solercia-client"
-
-
-def _rsa_jwk(kid: str) -> tuple[bytes, dict]:
-    """Generate an RSA keypair and return ``(private_pem, public_jwk)``."""
-
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    numbers = key.public_key().public_numbers()
-
-    def _b64url_uint(n: int) -> str:
-        raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
-        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-
-    jwk = {
-        "kty": "RSA",
-        "kid": kid,
-        "use": "sig",
-        "alg": "RS256",
-        "n": _b64url_uint(numbers.n),
-        "e": _b64url_uint(numbers.e),
-    }
-    pem = key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    return pem, jwk
-
-
-def _sign_id_token(
-    private_pem: bytes,
-    kid: str,
-    *,
-    issuer: str = _ISSUER,
-    audience: str = _CLIENT_ID,
-    nonce: str = "test-nonce",
-    email_verified: bool = True,
-    expires_in: int = 300,
-) -> str:
-    now = int(time.time())
-    payload = {
-        "iss": issuer,
-        "aud": audience,
-        "sub": "user-123",
-        "exp": now + expires_in,
-        "iat": now,
-        "nonce": nonce,
-        "email": "person@example.com",
-        "email_verified": email_verified,
-    }
-    return jwt.encode(payload, private_pem, algorithm="RS256", headers={"kid": kid})
-
-
-class _FakeIdp:
-    """Stubs discovery/JWKS/token endpoints; counts JWKS fetches for the
-    cache-refetch assertions."""
-
-    def __init__(self) -> None:
-        self.jwks_fetch_count = 0
-        self._keys: dict[str, dict] = {}
-        self.token_response: dict = {"access_token": "irrelevant", "id_token": ""}
-
-    def add_key(self, kid: str, jwk: dict) -> None:
-        self._keys[kid] = jwk
-
-    def handler(self, request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/.well-known/openid-configuration"):
-            return httpx.Response(
-                200,
-                json={
-                    "issuer": _ISSUER,
-                    "authorization_endpoint": f"{_ISSUER}/protocol/openid-connect/auth",
-                    "token_endpoint": f"{_ISSUER}/protocol/openid-connect/token",
-                    "jwks_uri": f"{_ISSUER}/protocol/openid-connect/certs",
-                },
-            )
-        if request.url.path.endswith("/protocol/openid-connect/certs"):
-            self.jwks_fetch_count += 1
-            return httpx.Response(200, json={"keys": list(self._keys.values())})
-        if request.url.path.endswith("/protocol/openid-connect/token"):
-            return httpx.Response(200, json=self.token_response)
-        return httpx.Response(404, json={"error": "not_found"})
 
 
 def _client_for(fake_idp: _FakeIdp) -> OidcClient:
@@ -229,6 +148,34 @@ async def test_verify_id_token_rejects_an_expired_token() -> None:
     fake_idp.add_key("kid-1", jwk)
     client = _client_for(fake_idp)
     token = _sign_id_token(private_pem, "kid-1", expires_in=-60)
+
+    with pytest.raises(OidcTokenError):
+        await client.verify_id_token(token, nonce="test-nonce")
+
+
+@pytest.mark.asyncio
+async def test_verify_id_token_rejects_a_token_missing_the_exp_claim() -> None:
+    """PyJWT only validates ``exp``/``iat`` when they are PRESENT; a token
+    that omits ``exp`` entirely would otherwise sail through as
+    non-expiring. ``options={"require": [...]}`` closes that gap."""
+
+    fake_idp = _FakeIdp()
+    private_pem, jwk = _rsa_jwk("kid-1")
+    fake_idp.add_key("kid-1", jwk)
+    client = _client_for(fake_idp)
+
+    now = int(time.time())
+    payload = {
+        "iss": _ISSUER,
+        "aud": _CLIENT_ID,
+        "sub": "user-123",
+        # "exp" intentionally omitted.
+        "iat": now,
+        "nonce": "test-nonce",
+        "email": "person@example.com",
+        "email_verified": True,
+    }
+    token = jwt.encode(payload, private_pem, algorithm="RS256", headers={"kid": "kid-1"})
 
     with pytest.raises(OidcTokenError):
         await client.verify_id_token(token, nonce="test-nonce")
