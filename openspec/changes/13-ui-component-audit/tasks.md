@@ -45,10 +45,14 @@ Chain strategy: size-exception
 
 ## Fase 3 — app shell (Commit 3)
 
-- [ ] 3.1 Migrar 6 SVG en `frontend/src/app/app.component.ts` a `sol-icon`: `chevron-down`, `sun`, `moon`, `bell`, hamburguesa→`menu`, cerrar→`x`; importar `SolIconComponent` desde `@shared/ui`. [R4,R7]
-- [ ] 3.2 Conservar sin cambios los 2 SVG de logout (`arrow-right-on-rectangle`, sin equivalente); registrar como pendientes en `inventory.md`. [R1,R4,R5]
-- [ ] 3.3 Confirmar que el header/sidebar sigue siendo composición local propia de la app (sin introducir `SolLayoutShell`, ausente en 0.3.0); dejar constancia en `inventory.md` de este gap documentado. [R5]
-- [ ] 3.4 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: tema claro/oscuro, campana, menú hamburguesa en móvil, dropdown de usuario, botones de logout intactos. [R7]
+- [x] 3.1 Migrar 6 SVG en `frontend/src/app/app.component.ts` a `sol-icon`: `chevron-down`, `sun`, `moon`, `bell`, hamburguesa→`menu`, cerrar→`x`; importar `SolIconComponent` desde `@shared/ui`. [R4,R7]
+  - Nota: `ThemeService` en este archivo ya importaba directo de `@solercia/ui` (no vía `@shared/ui`); `SolIconComponent` se importó desde `@shared/ui` según lo pedido, sin tocar el import preexistente de `ThemeService`.
+- [x] 3.2 Conservar sin cambios los 2 SVG de logout (`arrow-right-on-rectangle`, sin equivalente); registrar como pendientes en `inventory.md`. [R1,R4,R5]
+  - Ya documentados en `inventory.md` desde el Commit 1.
+- [x] 3.3 Confirmar que el header/sidebar sigue siendo composición local propia de la app (sin introducir `SolLayoutShell`, ausente en 0.3.0); dejar constancia en `inventory.md` de este gap documentado. [R5]
+  - Confirmado: `app.component.ts` sigue siendo el único dueño del header/sidebar; documentado en `inventory.md` ("Gap documentado: layout shell").
+- [x] 3.4 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: tema claro/oscuro, campana, menú hamburguesa en móvil, dropdown de usuario, botones de logout intactos. [R7]
+  - `npm run build`: verde (4.907s). `npm run lint`: "ESLint: No issues found". Revisión manual: los 6 íconos migrados conservan el mismo contenedor/clases del botón padre (tamaño de botón `h-9 w-9` sin cambios); dropdown de navegación (`chevron-down`) intacto; los 2 botones de logout (desktop+móvil) conservan su SVG manual sin tocar.
 
 ## Fase 4 — notification-panel (Commit 4)
 

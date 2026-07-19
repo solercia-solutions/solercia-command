@@ -20,6 +20,7 @@ import { AuthService } from '@features/auth/auth.service';
 import { MenuService } from '@features/navigation/menu.service';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
+import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 
 /** Application shell: top bar (brand, nav, notification bell, theme toggle, logout) + router outlet. */
@@ -27,7 +28,13 @@ import { I18nService } from '@shared/i18n';
   selector: 'app-root',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationPanelComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    NotificationPanelComponent,
+    SolIconComponent,
+  ],
   template: `
     <div class="flex min-h-screen flex-col bg-page text-text">
       <header
@@ -69,20 +76,7 @@ import { I18nService } from '@shared/i18n';
                           class="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-sunken hover:text-text"
                         >
                           {{ item.name }}
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                          >
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
+                          <sol-icon name="chevron-down" size="sm" />
                         </button>
                         @if (openId() === item.id) {
                           <div
@@ -141,36 +135,9 @@ import { I18nService } from '@shared/i18n';
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
             >
               @if (theme.isDark()) {
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
+                <sol-icon name="sun" size="md" />
               } @else {
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
+                <sol-icon name="moon" size="md" />
               }
             </button>
 
@@ -186,21 +153,7 @@ import { I18nService } from '@shared/i18n';
                          bg-surface text-muted transition-colors hover:bg-sunken hover:text-text
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
+                  <sol-icon name="bell" size="md" />
                   @if (notifs.unreadCount() > 0) {
                     <span
                       aria-hidden="true"
@@ -259,9 +212,9 @@ import { I18nService } from '@shared/i18n';
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 md:hidden"
               >
                 @if (mobileOpen()) {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  <sol-icon name="x" size="md" />
                 } @else {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                  <sol-icon name="menu" size="md" />
                 }
               </button>
             }
