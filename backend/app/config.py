@@ -85,6 +85,18 @@ class Settings(BaseSettings):
     EMAIL_DISPATCH_INTERVAL_MINUTES: int = 5
     EMAIL_DIGEST_INTERVAL_MINUTES: int = 15
 
+    # Integrations engine (OAuth connectors, change 14-integration-ports).
+    # ``INTEGRATIONS_FERNET_KEY`` MUST be a urlsafe-base64 32-byte key (same
+    # shape ``cryptography.fernet.Fernet.generate_key()`` produces); this dev
+    # default is a valid key so the suite boots without a ``.env`` file —
+    # production overrides it via the environment, same convention as
+    # ``JWT_SECRET``.
+    INTEGRATIONS_FERNET_KEY: str = "GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8="
+    OAUTH_STATE_TTL_SECONDS: int = 600
+    # Allowlist of redirect_uri values a caller may request for the OAuth
+    # authorize step (anti-SSRF/open-redirect, specs/connectors/spec.md).
+    OAUTH_REDIRECT_ALLOWLIST: list[str] = ["http://localhost:4200/settings/connectors"]
+
 
 @lru_cache
 def get_settings() -> Settings:
