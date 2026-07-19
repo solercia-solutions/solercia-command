@@ -174,3 +174,53 @@ async def test_get_project_of_other_org_by_id_returns_404(
     )
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# projects delta R1 — lead_user_id (change 23-org-role-templates)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_project_without_template_keeps_lead_user_id_null(
+    client: AsyncClient, tenant, user
+) -> None:
+    """A project created via the plain ``POST /projects`` flow (no template
+    instantiation involved) keeps ``lead_user_id = null`` — compatibility
+    scenario of the ``projects`` delta spec."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={"name": "Sin Plantilla", "methodology": "planner"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["lead_user_id"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_projects_listing_exposes_lead_user_id_per_element(
+    client: AsyncClient, tenant, user
+) -> None:
+    """``GET /projects`` exposes ``lead_user_id`` on every listed element."""
+
+    _, token = user
+
+    created = await client.post(
+        "/projects",
+        json={"name": "Listado Con Responsable", "methodology": "planner"},
+        headers=_auth(token),
+    )
+    assert created.status_code == 201, created.text
+
+    response = await client.get("/projects", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert rows
+    assert all("lead_user_id" in row for row in rows)

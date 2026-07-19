@@ -70,6 +70,17 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
         nullable=True,
         index=True,
     )
+    # Responsible/head of the project (change 23-org-role-templates). Populated
+    # by org-role-template instantiation for EVERY project it generates;
+    # projects created via the plain POST /projects flow keep it NULL — see
+    # specs/projects/spec.md (delta), "compatibilidad". SET NULL on delete so
+    # removing the responsible user never blocks/cascades into the project.
+    lead_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     if TYPE_CHECKING:
         # Transient attribute attached by ProjectService for response

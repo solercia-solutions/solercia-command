@@ -6,7 +6,7 @@ tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,
 de verdad es el **código**; este documento es su espejo navegable.
 
 **Fecha de línea base**: 2026-07-19 (estado del código en la rama `feat/consume-solercia-ui`,
-migraciones Alembic hasta `0017_add_glpi_homologation`).
+migraciones Alembic hasta `0018_add_org_role_templates`).
 
 > **Regla de actualización**: todo cambio de base de datos (modelo nuevo, columna nueva,
 > enum nuevo, FK nueva o eliminada) debe actualizar este documento **en el mismo commit de la
@@ -15,7 +15,7 @@ migraciones Alembic hasta `0017_add_glpi_homologation`).
 > Nota: la imagen `docs/diagrams/erd.png` es una captura histórica anterior a esta línea base.
 > Se conserva como referencia, pero **este archivo es la fuente viva** del diagrama.
 
-**Total de tablas**: 38.
+**Total de tablas**: 41.
 
 ---
 
@@ -80,19 +80,26 @@ flowchart LR
         glpi_user_links
     end
 
+    subgraph ORGTEMPLATES["Plantillas organizacionales (3 tablas)"]
+        org_role_templates
+    end
+
     organizations -->|"organization_id en toda tabla tenant-scoped"| CORE
     organizations --> ALERTS
     organizations --> ASSETS
     organizations --> INTEGRATIONS
     organizations --> GLPISYNC
+    organizations -->|"opcional en org_role_templates - NULL = sistema"| ORGTEMPLATES
     users -->|"assignee, author, actor, auditoría"| CORE
     users -->|"recipient, owner"| ALERTS
     users -->|"responsible_id"| ASSETS
     users -->|"connected_accounts.user_id"| INTEGRATIONS
     users -->|"glpi_user_links.user_id"| GLPISYNC
+    users -->|"lead_user_id via instantiations"| ORGTEMPLATES
     tasks -->|"reminders.task_id"| ALERTS
     tasks -->|"asset_tasks"| ASSETS
     connectors -->|"glpi_user_links.connector_id"| GLPISYNC
+    ORGTEMPLATES -->|"instantiation crea proyectos"| CORE
 ```
 
 ---
@@ -230,6 +237,7 @@ campo validado; `board_column_id` es la fuente en runtime cuando hay tablero con
 erDiagram
     ORGANIZATIONS ||--o{ PROJECTS : "posee"
     PROJECTS      |o--o{ PROJECTS : "es hijo de"
+    USERS         |o--o{ PROJECTS : "es responsable de (lead_user_id)"
     PROJECTS      ||--o| BOARDS : "tiene tablero"
     BOARDS        ||--o{ BOARD_COLUMNS : "ordena"
     PROJECTS      ||--o{ SPRINTS : "contiene"
@@ -263,6 +271,7 @@ erDiagram
         string code "nullable, unique(organization_id, code)"
         int task_counter "asigna task_number atomicamente"
         uuid parent_project_id FK "nullable, autoreferencia, SET NULL"
+        uuid lead_user_id FK "nullable, SET NULL - desde 0018, responsable del proyecto"
     }
 
     BOARDS {
@@ -412,6 +421,10 @@ Notas del dominio:
   registro de auditoría.
 - `tasks.task_number` + `projects.code` forman la llave visible `task_key` (p. ej. `SDM-7`),
   asignada atómicamente vía `UPDATE ... RETURNING` sobre `projects.task_counter`.
+- `projects.lead_user_id` (change 23-org-role-templates, migración `0018`) es el
+  responsable/cabeza del proyecto. Poblado SIEMPRE por la instanciación de una plantilla
+  organizacional (Dominio 7); los proyectos creados por el flujo directo `POST /projects` lo
+  mantienen `NULL` (compatibilidad, ver `specs/projects/spec.md` delta).
 
 ---
 
@@ -717,6 +730,70 @@ Notas del dominio:
   crear ningún link.
 - Todas las consultas están scoped por `organization_id` (directo en las tres tablas, vía
   `TenantMixin`) — una cola/link de la organización A nunca es visible ni resoluble desde B.
+
+---
+
+## Dominio 7 — Plantillas organizacionales de alto cargo
+
+Change 23-org-role-templates (migración `0018`). Perfiles predefinidos que, al instanciarse,
+generan de una sola vez el árbol de proyectos (Dominio 2) de un área con un responsable
+(`lead_user_id`). `org_role_templates` es la cabecera (`organization_id` nullable = plantilla de
+**sistema**, sembrada por `db_init.seed_default`); `org_role_template_nodes` es el árbol
+(sombrilla/rama/equipo) de la plantilla; `org_role_template_instantiations` es el **ledger** de
+idempotencia — la instanciación reconcilia contra esta tabla, nunca contra el nombre del proyecto
+generado.
+
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ ORG_ROLE_TEMPLATES : "opcional - NULL = plantilla de sistema"
+    ORG_ROLE_TEMPLATES ||--o{ ORG_ROLE_TEMPLATE_NODES : "define árbol"
+    ORG_ROLE_TEMPLATE_NODES |o--o{ ORG_ROLE_TEMPLATE_NODES : "es hijo de"
+    ORG_ROLE_TEMPLATES ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "registra instanciación via"
+    ORG_ROLE_TEMPLATE_NODES ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "genera"
+    USERS         ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "es responsable via"
+    PROJECTS      |o--|| ORG_ROLE_TEMPLATE_INSTANTIATIONS : "referencia (project_id)"
+
+    ORG_ROLE_TEMPLATES {
+        uuid id PK
+        uuid organization_id FK "nullable - NULL = plantilla de sistema"
+        string name
+        bool is_system
+    }
+
+    ORG_ROLE_TEMPLATE_NODES {
+        uuid id PK
+        uuid template_id FK "CASCADE"
+        uuid parent_node_id FK "nullable, autoreferencia, CASCADE - NULL = sombrilla"
+        string name
+        enum default_methodology "planner, kanban, scrum, custom"
+        int node_order
+    }
+
+    ORG_ROLE_TEMPLATE_INSTANTIATIONS {
+        uuid id PK
+        uuid organization_id FK "CASCADE"
+        uuid template_id FK "CASCADE"
+        uuid node_id FK "CASCADE"
+        uuid lead_user_id FK "CASCADE"
+        uuid project_id FK "CASCADE - proyecto generado/reconciliado"
+    }
+```
+
+Notas del dominio:
+
+- `org_role_templates`/`org_role_template_nodes` — Pk+Timestamp (la cabecera además
+  Pk+Timestamp+SoftDelete+Audit); las 5 plantillas de sistema son sembradas idempotentemente
+  (patrón `_ensure_*` de `db_init.py`), NUNCA en la migración (`bulk_insert = 0` en el repo).
+- `org_role_template_instantiations` — Pk+Timestamp únicamente, sin `TenantMixin` directo aunque
+  lleva `organization_id` explícito: es el **ledger** de idempotencia,
+  `UNIQUE(organization_id, template_id, node_id, lead_user_id)`. La instanciación REUSA la fila
+  cuando el `project_id` referenciado sigue `is_active=true`; si el proyecto fue soft-deleted, la
+  fila se ACTUALIZA (nunca se inserta un duplicado) con el `project_id` del proyecto recreado.
+- La instanciación recorre `org_role_template_nodes` padre→hijo y crea cada `Project` (Dominio 2)
+  encadenando `parent_project_id` según la estructura del árbol, respetando
+  `PROJECT_HIERARCHY_MAX_DEPTH` (Dominio 2, change 21-project-hierarchy) y fijando
+  `lead_user_id = uuid del responsable` en TODOS los proyectos generados. Toda la operación corre
+  en una única transacción (un solo `commit`).
 
 ---
 

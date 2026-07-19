@@ -23,6 +23,9 @@ class ProjectCreate(BaseModel):
     # Optional parent in the hierarchy (change 21-project-hierarchy). When
     # omitted the project is created as a root, unchanged from before.
     parent_project_id: uuid.UUID | None = None
+    # Optional responsible/head of the project (change 23-org-role-templates).
+    # Omitted -> null, unchanged from before (specs/projects/spec.md delta).
+    lead_user_id: uuid.UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -75,6 +78,9 @@ class ProjectRead(BaseModel):
     updated_by: uuid.UUID | None = None
     # Parent in the hierarchy (change 21-project-hierarchy); null = root.
     parent_project_id: uuid.UUID | None = None
+    # Responsible/head of the project (change 23-org-role-templates); null for
+    # projects created outside a template instantiation.
+    lead_user_id: uuid.UUID | None = None
 
 
 class ProjectTreeNode(BaseModel):

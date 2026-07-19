@@ -63,6 +63,11 @@ from app.modules.notifications.models import (  # noqa: F401
     Notification,
     NotificationPreference,
 )
+from app.modules.org_role_templates.models import (  # noqa: F401
+    OrgRoleTemplate,
+    OrgRoleTemplateInstantiation,
+    OrgRoleTemplateNode,
+)
 from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,

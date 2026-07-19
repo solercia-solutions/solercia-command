@@ -1,0 +1,27 @@
+change: 23-org-role-templates
+artifact_store: hybrid
+depends_on:
+  - 21-project-hierarchy
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - org-role-templates
+  modified:
+    - projects
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+last_updated: 2026-07-18
