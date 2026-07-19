@@ -57,10 +57,10 @@ Chain strategy: size-exception
 
 ## Lote 2 — DTOs y tablas de mapeo (RED→GREEN)
 
-- [ ] 2.1 RED `backend/tests/test_jira_adapter_dtos.py`: `NormalizedJiraIssue`/`NormalizationReport` frozen, campos completos.
-- [ ] 2.2 GREEN `backend/app/integrations/adapters/jira/dtos.py`.
-- [ ] 2.3 RED `backend/tests/test_jira_adapter_mappings.py`: defaults Jira Cloud (tipo/estado/prioridad) + merge con overrides de `settings.jira.{status_map,type_map,priority_map}`.
-- [ ] 2.4 GREEN `backend/app/integrations/adapters/jira/mappings.py`.
+- [x] 2.1 RED `backend/tests/test_jira_adapter_dtos.py`: `NormalizedJiraIssue`/`NormalizationReport` frozen, campos completos.
+- [x] 2.2 GREEN `backend/app/integrations/adapters/jira/dtos.py`.
+- [x] 2.3 RED `backend/tests/test_jira_adapter_mappings.py`: defaults Jira Cloud (tipo/estado/prioridad) + merge con overrides de `settings.jira.{status_map,type_map,priority_map}`.
+- [x] 2.4 GREEN `backend/app/integrations/adapters/jira/mappings.py`.
 
 ## Lote 3 — Normalizador (RED→GREEN) — R7, R8, convergencia (parte de R5)
 
