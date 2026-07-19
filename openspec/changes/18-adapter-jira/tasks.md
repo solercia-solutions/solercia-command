@@ -70,9 +70,9 @@ Chain strategy: size-exception
 
 ## Lote 4 — Parser de archivo (RED→GREEN) — R5, R6, guarda antibomba XLSX
 
-- [ ] 4.1 RED `backend/tests/test_jira_adapter_file_parser.py`: CSV con BOM y columnas repetidas→listas; XLSX vía `openpyxl`; columna "Issue key" ausente→error controlado con columnas faltantes, sin fila normalizada.
-- [ ] 4.2 RED: archivo con **>50.000 filas o >500.000 celdas** → error claro y acotado, sin procesar.
-- [ ] 4.3 GREEN `backend/app/integrations/adapters/jira/file_parser.py` con guarda de límite (50.000 filas / 500.000 celdas, `openpyxl(read_only=True)`).
+- [x] 4.1 RED `backend/tests/test_jira_adapter_file_parser.py`: CSV con BOM y columnas repetidas→listas; XLSX vía `openpyxl`; columna "Issue key" ausente→error controlado con columnas faltantes, sin fila normalizada.
+- [x] 4.2 RED: archivo con **>50.000 filas o >500.000 celdas** → error claro y acotado, sin procesar.
+- [x] 4.3 GREEN `backend/app/integrations/adapters/jira/file_parser.py` con guarda de límite (50.000 filas / 500.000 celdas, `openpyxl(read_only=True)`). Deviation: se agregó `app/integrations/adapters/jira/errors.py` (no listado explícitamente en design.md pero SÍ en el precedente `glpi/errors.py`) para centralizar `JiraFileFormatError`/`JiraFileTooLarge`; se extiende en el Lote 5 con los errores del cliente HTTP.
 
 ## Lote 5 — Cliente API Jira (RED→GREEN) — R2, R3, R4, R9, anti-SSRF
 

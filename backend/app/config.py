@@ -195,6 +195,19 @@ class Settings(BaseSettings):
     # especifica explícitamente (mapper.py, change 17 Lote 6).
     GLPI_DEFAULT_DOCUMENT_FIELD: str = "registration_number"
 
+    # Jira adapter (change 18-adapter-jira) — read-only issue import over
+    # Jira Cloud's REST API v3 and CSV/XLSX export, `credential_kind=
+    # api_token` (email + API token, HTTP Basic, validated via `GET
+    # /rest/api/3/myself`). Solo-lectura; no persiste (design.md, "el
+    # storage y la conversión a Task son del 22").
+    #
+    # Guarda antibomba del parser de archivo (Lote 4): un CSV/XLSX que
+    # exceda CUALQUIERA de estos dos límites se rechaza con un error
+    # controlado ANTES de terminar de leerlo — nunca se procesa
+    # parcialmente (Threat Matrix, "Bomba de descompresión XLSX").
+    JIRA_FILE_MAX_ROWS: int = 50_000
+    JIRA_FILE_MAX_CELLS: int = 500_000
+
 
 @lru_cache
 def get_settings() -> Settings:
