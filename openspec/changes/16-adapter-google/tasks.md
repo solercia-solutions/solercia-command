@@ -61,11 +61,11 @@ Chain strategy: stacked-to-main
 
 ## Lote 5 — calendar.py + meeting_notes.py: Calendar + Drive/Meet (Commit 5)
 
-- [ ] 5.1 [Foundation] `app/integrations/adapters/google/calendar.py`: `CalendarReaderPort.list_events` vía `events.list` (`timeMin`/`timeMax` desde `since`, `maxResults` desde `limit`), mapea a `CalendarEvent` (organizador, asistentes, horario).
-- [ ] 5.2 RED `backend/tests/test_adapter_google_calendar.py`: `since`/`limit` acotan `timeMin`/`maxResults`; evento mapea organizador/asistentes/horario a `CalendarEvent`. [GA-R5]
-- [ ] 5.3 [Foundation] `app/integrations/adapters/google/meeting_notes.py`: `MeetingNotesReaderPort.list_notes` — busca la carpeta "Meet Recordings" en Drive (`files.list`), exporta el Doc (`files.export`, `mimeType=text/plain`) a `MeetingNote.transcript`.
-- [ ] 5.4 RED `backend/tests/test_adapter_google_meeting_notes.py`: Doc de transcripción accesible→`MeetingNote.transcript` poblado; sin Doc (organizador sin transcripción activada/compartida)→lista vacía, sin error; sin permiso sobre el Drive del organizador→`capability_unavailable`, sin afectar mail/calendar. [GA-R6, GA-R7]
-- [ ] 5.5 VERIFY confirmar T5.2/T5.4 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_calendar.py tests/test_adapter_google_meeting_notes.py -v` en verde.
+- [x] 5.1 [Foundation] `app/integrations/adapters/google/calendar.py`: `CalendarReaderPort.list_events` vía `events.list` (`timeMin`/`timeMax` desde `since`, `maxResults` desde `limit`), mapea a `CalendarEvent` (organizador, asistentes, horario).
+- [x] 5.2 RED `backend/tests/test_adapter_google_calendar.py`: `since`/`limit` acotan `timeMin`/`maxResults`; evento mapea organizador/asistentes/horario a `CalendarEvent`. [GA-R5]
+- [x] 5.3 [Foundation] `app/integrations/adapters/google/meeting_notes.py`: `MeetingNotesReaderPort.list_notes` — busca la carpeta "Meet Recordings" en Drive (`files.list`), exporta el Doc (`files.export`, `mimeType=text/plain`) a `MeetingNote.transcript`.
+- [x] 5.4 RED `backend/tests/test_adapter_google_meeting_notes.py`: Doc de transcripción accesible→`MeetingNote.transcript` poblado; sin Doc (organizador sin transcripción activada/compartida)→lista vacía, sin error; sin permiso sobre el Drive del organizador→`capability_unavailable`, sin afectar mail/calendar. [GA-R6, GA-R7]
+- [x] 5.5 VERIFY confirmar T5.2/T5.4 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_calendar.py tests/test_adapter_google_meeting_notes.py -v` en verde.
 
 ## Lote 6 — adapter.py + registro + docs + VERIFY final (Commit 6)
 
