@@ -48,11 +48,6 @@ _LOGGED_BODY_PREVIEW_CHARS = 200
 # in the 15's `ports.py`).
 GOOGLE_PAGE_CAP = 100
 
-# `error.errors[].reason` values Google returns on `403` that mean "cuota
-# excedida, reintenta con backoff" — every OTHER `403` reason means the
-# connected account genuinely lacks permission for the resource requested.
-_THROTTLE_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
-
 
 def _require_https(url: str, field_name: str) -> None:
     """Fail fast when ``url`` is not ``https://`` (anti-SSRF/TLS
@@ -73,7 +68,8 @@ class GoogleClient:
     ``refresh`` is deliberately a plain callable — not a dependency on
     ``oauth.py``/``adapter.py`` — so this module has no import cycle with
     the rest of the package; each port wires ``oauth.refresh`` into every
-    ``GoogleClient`` it builds (same pattern as the 15's ``_GraphPortBase``).
+    ``GoogleClient`` it builds via the shared ``_GooglePortBase``
+    (``ports_base.py``), same pattern as the 15's ``_GraphPortBase``.
     """
 
     def __init__(

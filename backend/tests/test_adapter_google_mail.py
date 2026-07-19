@@ -12,6 +12,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.config import Settings
 from app.integrations.ports import AccessContext
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "google"
@@ -35,6 +36,12 @@ def _ctx(**overrides) -> AccessContext:
     }
     defaults.update(overrides)
     return AccessContext(**defaults)
+
+
+def _settings(**overrides) -> Settings:
+    """Build a real `Settings` instance with `GOOGLE_*` overrides for a test."""
+
+    return Settings(**overrides)
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +237,68 @@ class TestGmailMailReader:
         expected_epoch = int(since.timestamp())
         assert seen_params["q"] == f"after:{expected_epoch}"
         assert seen_params["maxResults"] == "5"
+
+    @pytest.mark.asyncio
+    async def test_one_message_get_failure_is_skipped_and_the_rest_still_list(
+        self,
+    ) -> None:
+        """WARNING 16-adapter-google: un mensaje que falle en `messages.get`
+        (ej. borrado entre `list` y `get`, 404) se OMITE con un log warning
+        — el listado sigue devolviendo el resto, nunca se pierde por
+        completo por una falla puntual (aislamiento N+1)."""
+
+        from app.integrations.adapters.google.mail import GmailMailReader
+
+        listed = {
+            "messages": [
+                {"id": "gmail-msg-1"},
+                {"id": "gmail-msg-2"},
+                {"id": "gmail-msg-3"},
+            ]
+        }
+        message_1 = _load_fixture("gmail_message_multipart.json")
+        message_3 = _load_fixture("gmail_message_no_body.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/gmail/v1/users/me/messages":
+                return httpx.Response(200, json=listed)
+            msg_id = request.url.path.rsplit("/", 1)[-1]
+            if msg_id == "gmail-msg-2":
+                return httpx.Response(404, json={"error": {"message": "not found"}})
+            by_id = {"gmail-msg-1": message_1, "gmail-msg-3": message_3}
+            return httpx.Response(200, json=by_id[msg_id])
+
+        port = GmailMailReader(transport=httpx.MockTransport(handler))
+
+        messages = await port.list_messages(_ctx(), limit=10)
+
+        assert [m.external_id for m in messages] == ["gmail-msg-1", "gmail-msg-3"]
+
+    @pytest.mark.asyncio
+    async def test_google_default_limit_setting_changes_the_effective_default(
+        self,
+    ) -> None:
+        """`GOOGLE_DEFAULT_LIMIT` (config.py) es el default EFECTIVO cuando
+        el caller no pasa `limit` — cambiar el setting cambia `maxResults`
+        sin que el caller pida nada explícito."""
+
+        from app.integrations.adapters.google.mail import GmailMailReader
+
+        empty = _load_fixture("gmail_messages_list_empty.json")
+        seen_params: dict[str, str] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_params.update(dict(request.url.params))
+            return httpx.Response(200, json=empty)
+
+        port = GmailMailReader(
+            settings=_settings(GOOGLE_DEFAULT_LIMIT=7),
+            transport=httpx.MockTransport(handler),
+        )
+
+        await port.list_messages(_ctx())
+
+        assert seen_params["maxResults"] == "7"
 
     def test_labels_are_never_exposed_as_a_folder_field_on_mail_message(self) -> None:
         """Scenario: Labels no se traducen a carpeta — `MailMessage` no

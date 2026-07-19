@@ -9,17 +9,12 @@ permission to see the organizer's Drive at all) — spec.md distinguishes
 these two explicitly (GA-R6/GA-R7).
 """
 
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-import httpx
-
-from app.config import Settings
-from app.config import settings as default_settings
-from app.integrations.adapters.google import oauth
-from app.integrations.adapters.google.client import GOOGLE_PAGE_CAP, GoogleClient
-from app.integrations.dtos import MeetingNote, OAuthTokens
+from app.integrations.adapters.google.client import GoogleClient
+from app.integrations.adapters.google.ports_base import _GooglePortBase
+from app.integrations.dtos import MeetingNote
 from app.integrations.ports import AccessContext
 
 _RECORDINGS_FOLDER_NAME = "Meet Recordings"
@@ -52,21 +47,14 @@ def map_meeting_note(raw: dict[str, Any], transcript_text: str) -> MeetingNote:
     )
 
 
-class DriveMeetingNotesReader:
+class DriveMeetingNotesReader(_GooglePortBase):
     """``MeetingNotesReaderPort`` over the Google Drive API (scope
     ``drive.readonly``)."""
 
-    def __init__(
-        self,
-        *,
-        settings: Settings = default_settings,
-        transport: httpx.AsyncBaseTransport | None = None,
-    ) -> None:
-        self._settings = settings
-        self._transport = transport
+    _base_url_setting = "GOOGLE_DRIVE_BASE_URL"
 
     async def list_notes(
-        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int | None = None
     ) -> list[MeetingNote]:
         bounded_limit = self._bounded_limit(limit)
         client = self._client(ctx)
@@ -117,34 +105,4 @@ class DriveMeetingNotesReader:
         }
         return await client.paginate(
             "/files", params=params, items_key="files", limit=bounded_limit
-        )
-
-    def _bounded_limit(self, limit: int) -> int:
-        return max(0, min(limit, self._settings.GOOGLE_MAX_LIMIT))
-
-    def _page_size(self, limit: int) -> int:
-        return min(self._bounded_limit(limit), GOOGLE_PAGE_CAP) or 1
-
-    def _since_or_default(self, since: datetime | None) -> datetime:
-        if since is not None:
-            return since
-        return datetime.now(UTC) - timedelta(
-            days=self._settings.GOOGLE_DEFAULT_SINCE_DAYS
-        )
-
-    def _refresh(self) -> Callable[[str], Awaitable[OAuthTokens]]:
-        async def _call(refresh_token: str) -> OAuthTokens:
-            return await oauth.refresh(
-                refresh_token, settings=self._settings, transport=self._transport
-            )
-
-        return _call
-
-    def _client(self, ctx: AccessContext) -> GoogleClient:
-        return GoogleClient(
-            ctx,
-            base_url=self._settings.GOOGLE_DRIVE_BASE_URL,
-            transport=self._transport,
-            settings=self._settings,
-            refresh=self._refresh(),
         )

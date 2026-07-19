@@ -296,3 +296,107 @@ class TestRefresh:
             )
 
         assert excinfo.value.code == "oauth_token_invalid"
+
+
+class TestUserinfoEmailVerification:
+    """Threat Matrix: un correo SIN verificar nunca es una identidad válida
+    (mismo criterio que `sso_service.py:159-160`) — `userinfo` respondiendo
+    200 no basta, `email_verified` (OIDC) / `verified_email` (userinfo v2)
+    debe ser truthy."""
+
+    @pytest.mark.asyncio
+    async def test_unverified_email_is_rejected(self) -> None:
+        from app.integrations.adapters.google import oauth
+        from app.shared.exceptions import AppException
+
+        token_payload = _load_fixture("oauth_token_exchange.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json=token_payload)
+            return httpx.Response(
+                200,
+                json={"email": "ana.torres@example.com", "email_verified": False},
+            )
+
+        with pytest.raises(AppException) as excinfo:
+            await oauth.exchange_code(
+                "auth-code-1",
+                "https://app.test/callback",
+                transport=httpx.MockTransport(handler),
+            )
+
+        assert excinfo.value.code == "oauth_token_invalid"
+
+    @pytest.mark.asyncio
+    async def test_missing_email_field_is_rejected(self) -> None:
+        from app.integrations.adapters.google import oauth
+        from app.shared.exceptions import AppException
+
+        token_payload = _load_fixture("oauth_token_exchange.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json=token_payload)
+            return httpx.Response(200, json={"email_verified": True})
+
+        with pytest.raises(AppException) as excinfo:
+            await oauth.exchange_code(
+                "auth-code-1",
+                "https://app.test/callback",
+                transport=httpx.MockTransport(handler),
+            )
+
+        assert excinfo.value.code == "oauth_token_invalid"
+
+    @pytest.mark.asyncio
+    async def test_verified_email_via_oidc_key_is_accepted(self) -> None:
+        """`email_verified` (la clave OIDC que devuelve el
+        `GOOGLE_USERINFO_BASE_URL` configurado) truthy deja pasar la
+        identidad sin error."""
+
+        from app.integrations.adapters.google import oauth
+
+        token_payload = _load_fixture("oauth_token_exchange.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json=token_payload)
+            return httpx.Response(
+                200,
+                json={"email": "ana.torres@example.com", "email_verified": True},
+            )
+
+        tokens = await oauth.exchange_code(
+            "auth-code-1",
+            "https://app.test/callback",
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert tokens.external_account_id == "ana.torres@example.com"
+
+    @pytest.mark.asyncio
+    async def test_verified_email_via_legacy_v2_key_is_accepted(self) -> None:
+        """`verified_email` — la clave que devuelve el `userinfo` v2 de
+        Google (distinto endpoint del OIDC configurado por defecto) — se
+        soporta igual, sin exigir la clave OIDC."""
+
+        from app.integrations.adapters.google import oauth
+
+        token_payload = _load_fixture("oauth_token_exchange.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json=token_payload)
+            return httpx.Response(
+                200,
+                json={"email": "ana.torres@example.com", "verified_email": True},
+            )
+
+        tokens = await oauth.exchange_code(
+            "auth-code-1",
+            "https://app.test/callback",
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert tokens.external_account_id == "ana.torres@example.com"

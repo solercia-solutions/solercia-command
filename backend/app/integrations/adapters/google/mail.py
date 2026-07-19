@@ -6,19 +6,18 @@ maps the full resource (headers + ``mime.body_text``) to a
 reader that needs a message's body (design.md File Changes, "mail.py").
 """
 
+import logging
 import re
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-import httpx
-
-from app.config import Settings
-from app.config import settings as default_settings
-from app.integrations.adapters.google import mime, oauth
-from app.integrations.adapters.google.client import GOOGLE_PAGE_CAP, GoogleClient
-from app.integrations.dtos import MailMessage, OAuthTokens
+from app.integrations.adapters.google import mime
+from app.integrations.adapters.google.ports_base import _GooglePortBase
+from app.integrations.dtos import MailMessage
 from app.integrations.ports import AccessContext
+from app.shared.exceptions import AppException
+
+logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"<([^>]+)>")
 
@@ -70,20 +69,13 @@ def map_mail_message(raw: dict[str, Any]) -> MailMessage:
     )
 
 
-class GmailMailReader:
+class GmailMailReader(_GooglePortBase):
     """``MailReaderPort`` over the Gmail API (scope ``gmail.readonly``)."""
 
-    def __init__(
-        self,
-        *,
-        settings: Settings = default_settings,
-        transport: httpx.AsyncBaseTransport | None = None,
-    ) -> None:
-        self._settings = settings
-        self._transport = transport
+    _base_url_setting = "GOOGLE_GMAIL_BASE_URL"
 
     async def list_messages(
-        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int | None = None
     ) -> list[MailMessage]:
         bounded_limit = self._bounded_limit(limit)
         client = self._client(ctx)
@@ -97,9 +89,21 @@ class GmailMailReader:
 
         messages: list[MailMessage] = []
         for item in listed:
-            response = await client.get(
-                f"/users/me/messages/{item['id']}", params={"format": "full"}
-            )
+            msg_id = str(item["id"])
+            try:
+                response = await client.get(
+                    f"/users/me/messages/{msg_id}", params={"format": "full"}
+                )
+            except AppException:
+                # WARNING 16-adapter-google: un mensaje puntual puede fallar
+                # (ej. borrado entre `messages.list` y `messages.get`) sin
+                # que eso deba tumbar TODO el listado — se omite y se sigue
+                # con el resto (aislamiento N+1). Nunca se loguea el token.
+                logger.warning(
+                    "No fue posible obtener el mensaje de Gmail %s; se omite del listado.",
+                    msg_id,
+                )
+                continue
             messages.append(map_mail_message(response.json()))
         return messages
 
@@ -112,33 +116,3 @@ class GmailMailReader:
             "q": f"after:{epoch}",
             "maxResults": str(self._page_size(bounded_limit)),
         }
-
-    def _bounded_limit(self, limit: int) -> int:
-        return max(0, min(limit, self._settings.GOOGLE_MAX_LIMIT))
-
-    def _page_size(self, limit: int) -> int:
-        return min(self._bounded_limit(limit), GOOGLE_PAGE_CAP) or 1
-
-    def _since_or_default(self, since: datetime | None) -> datetime:
-        if since is not None:
-            return since
-        return datetime.now(UTC) - timedelta(
-            days=self._settings.GOOGLE_DEFAULT_SINCE_DAYS
-        )
-
-    def _refresh(self) -> Callable[[str], Awaitable[OAuthTokens]]:
-        async def _call(refresh_token: str) -> OAuthTokens:
-            return await oauth.refresh(
-                refresh_token, settings=self._settings, transport=self._transport
-            )
-
-        return _call
-
-    def _client(self, ctx: AccessContext) -> GoogleClient:
-        return GoogleClient(
-            ctx,
-            base_url=self._settings.GOOGLE_GMAIL_BASE_URL,
-            transport=self._transport,
-            settings=self._settings,
-            refresh=self._refresh(),
-        )

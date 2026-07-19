@@ -159,7 +159,7 @@ flowchart TB
             i_state["state_store.py: state OAuth<br/>en Redis (SETEX + GETDEL single-use)"]
             i_fake["adapters/fake.py: adaptador en<br/>memoria"]
             i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
-            i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estandar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
+            i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estándar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
         end
     end
 
@@ -250,9 +250,10 @@ Notas de componentes:
   `oauth.py` contra el endpoint de token de Entra ID (login.microsoftonline.com), que no
   es una escritura hacia Graph.
 - **Adaptador Google (change 16-adapter-google)**: segundo adaptador REAL sobre el
-  núcleo del 14, sibling del 15, `app/integrations/adapters/google/` (8 módulos:
-  `__init__`/`adapter`/`oauth`/`client`/`mail`/`calendar`/`meeting_notes`/`mime`/`errors`
-  — un archivo por capacidad, en vez del `ports.py` consolidado del 15), también
+  núcleo del 14, sibling del 15, `app/integrations/adapters/google/` (10 módulos:
+  `__init__`/`adapter`/`oauth`/`client`/`ports_base`/`mail`/`calendar`/`meeting_notes`/
+  `mime`/`errors` — un archivo por capacidad más una base compartida (`ports_base.py`,
+  mismo rol que `_GraphPortBase` del 15), en vez del `ports.py` consolidado del 15), también
   auto-registrado en import-time (cero ediciones a `ports.py`/`oauth.py`/`registry.py`
   del 14). `GoogleClient` (httpx inyectable, cero red en tests) centraliza el mapeo de
   errores (`errors.error_for_response`, taxonomía espejo del 15 más

@@ -5,17 +5,11 @@ account's primary calendar (``calendars/primary/events``) bounded by
 de traducción por puerto: ``since`` → ``timeMin``, ``timeMax`` = now).
 """
 
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-import httpx
-
-from app.config import Settings
-from app.config import settings as default_settings
-from app.integrations.adapters.google import oauth
-from app.integrations.adapters.google.client import GOOGLE_PAGE_CAP, GoogleClient
-from app.integrations.dtos import CalendarEvent, OAuthTokens
+from app.integrations.adapters.google.ports_base import _GooglePortBase
+from app.integrations.dtos import CalendarEvent
 from app.integrations.ports import AccessContext
 
 
@@ -54,21 +48,14 @@ def map_calendar_event(raw: dict[str, Any]) -> CalendarEvent:
     )
 
 
-class GoogleCalendarReader:
+class GoogleCalendarReader(_GooglePortBase):
     """``CalendarReaderPort`` over the Google Calendar API (scope
     ``calendar.readonly``)."""
 
-    def __init__(
-        self,
-        *,
-        settings: Settings = default_settings,
-        transport: httpx.AsyncBaseTransport | None = None,
-    ) -> None:
-        self._settings = settings
-        self._transport = transport
+    _base_url_setting = "GOOGLE_CALENDAR_BASE_URL"
 
     async def list_events(
-        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int | None = None
     ) -> list[CalendarEvent]:
         bounded_limit = self._bounded_limit(limit)
         client = self._client(ctx)
@@ -91,33 +78,3 @@ class GoogleCalendarReader:
             "orderBy": "startTime",
             "maxResults": str(self._page_size(bounded_limit)),
         }
-
-    def _bounded_limit(self, limit: int) -> int:
-        return max(0, min(limit, self._settings.GOOGLE_MAX_LIMIT))
-
-    def _page_size(self, limit: int) -> int:
-        return min(self._bounded_limit(limit), GOOGLE_PAGE_CAP) or 1
-
-    def _since_or_default(self, since: datetime | None) -> datetime:
-        if since is not None:
-            return since
-        return datetime.now(UTC) - timedelta(
-            days=self._settings.GOOGLE_DEFAULT_SINCE_DAYS
-        )
-
-    def _refresh(self) -> Callable[[str], Awaitable[OAuthTokens]]:
-        async def _call(refresh_token: str) -> OAuthTokens:
-            return await oauth.refresh(
-                refresh_token, settings=self._settings, transport=self._transport
-            )
-
-        return _call
-
-    def _client(self, ctx: AccessContext) -> GoogleClient:
-        return GoogleClient(
-            ctx,
-            base_url=self._settings.GOOGLE_CALENDAR_BASE_URL,
-            transport=self._transport,
-            settings=self._settings,
-            refresh=self._refresh(),
-        )

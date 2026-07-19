@@ -165,7 +165,14 @@ async def _fetch_email(
     transport: httpx.AsyncBaseTransport | None,
 ) -> str:
     """Resolve the connected account's email from Google's ``userinfo``
-    endpoint using the just-issued ``access_token``."""
+    endpoint using the just-issued ``access_token`` — NEVER accepted
+    unverified (Threat Matrix: un correo sin verificar como identidad
+    permitiría enlazar la cuenta conectada a un correo que su dueño real no
+    controla; mismo criterio que el gate de ``email_verified`` en
+    ``app/modules/auth/sso_service.py:159-160``). Google's OIDC ``userinfo``
+    (``GOOGLE_USERINFO_BASE_URL`` por defecto) devuelve ``email_verified``;
+    su ``userinfo`` v2 más antiguo devuelve ``verified_email`` en su lugar —
+    ambas claves se aceptan, cualquiera que envíe el endpoint configurado."""
 
     async with httpx.AsyncClient(
         timeout=settings.GOOGLE_TIMEOUT_SECONDS, transport=transport
@@ -180,7 +187,8 @@ async def _fetch_email(
 
     payload: dict[str, Any] = response.json()
     email = payload.get("email")
-    if not email:
+    verified = payload.get("email_verified", payload.get("verified_email"))
+    if not email or not verified:
         raise errors.oauth_token_invalid()
     return str(email)
 

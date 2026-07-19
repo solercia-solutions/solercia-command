@@ -161,6 +161,9 @@ class Settings(BaseSettings):
     # `M365_MAX_BACKOFF_SECONDS`.
     GOOGLE_MAX_BACKOFF_SECONDS: float = 30.0
     GOOGLE_DEFAULT_SINCE_DAYS: int = 30
+    # Límite efectivo que `_GooglePortBase._bounded_limit` usa cuando el
+    # caller NO pasa `limit` (los tres puertos Google resuelven este
+    # default adentro, sin tocar la firma del `Protocol`).
     GOOGLE_DEFAULT_LIMIT: int = 50
     GOOGLE_MAX_PAGES: int = 20
     GOOGLE_MAX_LIMIT: int = 200
