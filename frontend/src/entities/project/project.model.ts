@@ -26,6 +26,8 @@ export interface Project {
   status: string;
   organization_id: string;
   created_at: string;
+  /** Parent in the hierarchy (change 21-project-hierarchy); null = root. */
+  parent_project_id: string | null;
   /** Present on GET /projects and GET /projects/:id responses. */
   methodology_info?: MethodologyInfo;
 }
@@ -85,4 +87,68 @@ export function statusLabel(status: string): string {
     completed: 'Completado',
   };
   return map[status] ?? status;
+}
+
+/** Badge variant used by `project-tree-node` to color each methodology chip. */
+export const METHODOLOGY_BADGE_VARIANT: Record<
+  Methodology,
+  'info' | 'success' | 'warning' | 'neutral'
+> = {
+  planner: 'info',
+  kanban: 'success',
+  scrum: 'warning',
+  custom: 'neutral',
+};
+
+/** A node of `GET /projects/:id/tree` — structural fallback (design.md Decision 1). */
+export interface ProjectTreeNode {
+  id: string;
+  name: string;
+  code: string | null;
+  methodology: Methodology;
+  status: string;
+  children: ProjectTreeNode[];
+}
+
+/** `{done, total, percent_done}` — shared shape for `self`/`rollup` counts. */
+export interface ProjectProgressCounts {
+  done: number;
+  total: number;
+  percent_done: number;
+}
+
+/** A node of `GET /projects/:id/progress` — own vs. consolidated subtree counts. */
+export interface ProjectProgressNode {
+  project_id: string;
+  name: string;
+  self: ProjectProgressCounts;
+  rollup: ProjectProgressCounts;
+  children: ProjectProgressNode[];
+}
+
+/** Envelope for `GET /projects/:id/tree`. */
+export interface ProjectTreeResponse {
+  data: ProjectTreeNode;
+}
+
+/** Envelope for `GET /projects/:id/progress`. */
+export interface ProjectProgressResponse {
+  data: ProjectProgressNode;
+}
+
+/**
+ * View-model of a forest node, composed client-side in `hierarchy.component`
+ * from `list()` (structure, grouped by `parent_project_id`) plus `progress()`
+ * (roll-up numbers, one call per root — design.md Decision 1).
+ */
+export interface TreeNodeVM {
+  id: string;
+  name: string;
+  methodology: Methodology;
+  status: string;
+  /** Undefined when the owning root's `/progress` call failed (R7). */
+  rollup?: { done: number; total: number };
+  /** Set only on the root of a branch whose `/progress` call failed (R7). */
+  rollupError?: string;
+  children: TreeNodeVM[];
 }
