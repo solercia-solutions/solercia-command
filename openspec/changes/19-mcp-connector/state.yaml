@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -26,4 +26,4 @@ constraints:
   - strict-tdd
   - rollback-required
   - read-only-mvp
-last_updated: 2026-07-18
+last_updated: 2026-07-19
