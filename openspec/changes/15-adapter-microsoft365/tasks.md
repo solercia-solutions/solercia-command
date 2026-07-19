@@ -45,12 +45,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 2 — Cliente Graph resiliencia: 401/429 + errores de dominio (Commit 2)
 
-- [ ] 2.1 [Fixtures] `tests/fixtures/graph/unauthorized_401.json`, `throttled_429.json`, `ok_after_retry.json`.
-- [ ] 2.2 RED `TestGraphClientResilience`: `401` dispara `refresh` una vez y reintenta con éxito; `refresh_token` revocado → error controlado de reconexión sin bucle; `429` honra `Retry-After` (sleep inyectado, sin espera real) con backoff; `429` repetidos más allá de `M365_MAX_RETRIES` → error controlado, no bucle infinito; ningún access/refresh token aparece en `caplog` ni en `str(exception)` de `client.py`. [M365-R3, M365-R7; Threat Matrix: sin fuga de tokens (client), backoff acotado]
-- [ ] 2.3 VERIFY confirmar T2.2 en ROJO antes de GREEN.
-- [ ] 2.4 GREEN `.../microsoft365/errors.py`: mapeo Graph→dominio (`capability_unavailable`, `provider_throttled`, `provider_unavailable`, `oauth_token_invalid`).
-- [ ] 2.5 GREEN `client.py` (ampliar): interceptor `401`→`refresh`→reintento único vía sink opcional `on_tokens_refreshed`; interceptor `429`→`sleep(Retry-After)`+backoff acotado a `M365_MAX_RETRIES`.
-- [ ] 2.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k "TestGraphClientBase or TestGraphClientResilience" -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 2.1 [Fixtures] `tests/fixtures/graph/unauthorized_401.json`, `throttled_429.json`, `ok_after_retry.json`.
+- [x] 2.2 RED `TestGraphClientResilience`: `401` dispara `refresh` una vez y reintenta con éxito; `refresh_token` revocado → error controlado de reconexión sin bucle; `429` honra `Retry-After` (sleep inyectado, sin espera real) con backoff; `429` repetidos más allá de `M365_MAX_RETRIES` → error controlado, no bucle infinito; ningún access/refresh token aparece en `caplog` ni en `str(exception)` de `client.py`. [M365-R3, M365-R7; Threat Matrix: sin fuga de tokens (client), backoff acotado]
+- [x] 2.3 VERIFY confirmar T2.2 en ROJO antes de GREEN.
+- [x] 2.4 GREEN `.../microsoft365/errors.py`: mapeo Graph→dominio (`capability_unavailable`, `provider_throttled`, `provider_unavailable`, `oauth_token_invalid`).
+- [x] 2.5 GREEN `client.py` (ampliar): interceptor `401`→`refresh`→reintento único vía sink opcional `on_tokens_refreshed`; interceptor `429`→`sleep(Retry-After)`+backoff acotado a `M365_MAX_RETRIES`.
+- [x] 2.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k "TestGraphClientBase or TestGraphClientResilience" -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 3 — OAuth Entra ID + registro del adaptador (Commit 3)
 

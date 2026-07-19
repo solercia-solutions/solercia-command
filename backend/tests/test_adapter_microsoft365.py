@@ -220,3 +220,205 @@ class TestGraphClientBase:
             await client.paginate("/generic", limit=1000)
 
         assert requested_hosts == ["graph.microsoft.com"]
+
+
+# ---------------------------------------------------------------------------
+# Lote 2 — Cliente Graph resiliencia: 401 refresh + 429 backoff + errores
+# ---------------------------------------------------------------------------
+
+
+async def _noop_sleep(_seconds: float) -> None:
+    """Injectable `sleep` that never actually waits — the resilience tests
+    exercise the retry LOGIC, not real time (design.md, "sin espera real")."""
+
+
+class TestGraphClientResilience:
+    @pytest.mark.asyncio
+    async def test_401_triggers_refresh_once_and_retries_successfully(self) -> None:
+        """Scenario: Refresco automático o error controlado — a 401 makes the
+        client refresh the token exactly once and retry the SAME request,
+        which then succeeds (M365-R3)."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.integrations.dtos import OAuthTokens
+
+        unauthorized = _load_fixture("unauthorized_401.json")
+        ok = _load_fixture("ok_after_retry.json")
+        seen_tokens: list[str] = []
+        refresh_calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_tokens.append(request.headers["Authorization"])
+            if request.headers["Authorization"] == "Bearer test-access-token":
+                return httpx.Response(401, json=unauthorized)
+            return httpx.Response(200, json=ok)
+
+        async def refresh(refresh_token: str) -> OAuthTokens:
+            nonlocal refresh_calls
+            refresh_calls += 1
+            assert refresh_token == "test-refresh-token"
+            return OAuthTokens(
+                external_account_id="oid-123",
+                access_token="fresh-access-token",
+                refresh_token="fresh-refresh-token",
+                expires_at=None,
+                scopes=("Mail.Read",),
+            )
+
+        sink_calls: list[OAuthTokens] = []
+
+        async def on_tokens_refreshed(tokens: OAuthTokens) -> None:
+            sink_calls.append(tokens)
+
+        ctx = _ctx(on_tokens_refreshed=on_tokens_refreshed)
+        client = GraphClient(
+            ctx, transport=httpx.MockTransport(handler), sleep=_noop_sleep, refresh=refresh
+        )
+
+        items = await client.paginate("/generic", limit=10)
+
+        assert [item["id"] for item in items] == ["after-retry-item"]
+        assert refresh_calls == 1
+        assert seen_tokens == ["Bearer test-access-token", "Bearer fresh-access-token"]
+        assert sink_calls[0].access_token == "fresh-access-token"
+
+    @pytest.mark.asyncio
+    async def test_revoked_refresh_token_raises_controlled_error_without_looping(
+        self,
+    ) -> None:
+        """Scenario: `refresh_token` revocado — the refresh callable itself
+        rejects the refresh; the client raises a controlled reconnection
+        error and NEVER loops (only ONE 401 request is ever made)."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.shared.exceptions import AppException
+
+        unauthorized = _load_fixture("unauthorized_401.json")
+        call_count = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(401, json=unauthorized)
+
+        async def revoked_refresh(refresh_token: str) -> None:
+            raise RuntimeError("invalid_grant: refresh token revoked")
+
+        client = GraphClient(
+            _ctx(),
+            transport=httpx.MockTransport(handler),
+            sleep=_noop_sleep,
+            refresh=revoked_refresh,
+        )
+
+        with pytest.raises(AppException) as excinfo:
+            await client.paginate("/generic", limit=10)
+
+        assert excinfo.value.code == "oauth_token_invalid"
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_429_honors_retry_after_and_succeeds(self) -> None:
+        """Scenario: Retry-After se respeta y agotamiento controlado — a
+        `429` with `Retry-After` makes the client sleep at least that long
+        (via the injected `sleep`) before retrying, then completes on
+        success (M365-R7)."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+
+        throttled = _load_fixture("throttled_429.json")
+        ok = _load_fixture("ok_after_retry.json")
+        sleep_calls: list[float] = []
+        call_count = 0
+
+        async def spy_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(
+                    429, json=throttled, headers={"Retry-After": "2"}
+                )
+            return httpx.Response(200, json=ok)
+
+        client = GraphClient(
+            _ctx(), transport=httpx.MockTransport(handler), sleep=spy_sleep
+        )
+
+        items = await client.paginate("/generic", limit=10)
+
+        assert [item["id"] for item in items] == ["after-retry-item"]
+        assert sleep_calls == [2.0]
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_429_beyond_max_retries_raises_controlled_error(self) -> None:
+        """Scenario (agotamiento): `429` repeated past `M365_MAX_RETRIES`
+        raises a controlled error instead of retrying forever."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.shared.exceptions import AppException
+
+        throttled = _load_fixture("throttled_429.json")
+        call_count = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(429, json=throttled, headers={"Retry-After": "1"})
+
+        settings = _settings(M365_MAX_RETRIES=2)
+        client = GraphClient(
+            _ctx(),
+            transport=httpx.MockTransport(handler),
+            sleep=_noop_sleep,
+            settings=settings,
+        )
+
+        with pytest.raises(AppException) as excinfo:
+            await client.paginate("/generic", limit=10)
+
+        assert excinfo.value.code == "provider_throttled"
+        assert call_count == 1 + settings.M365_MAX_RETRIES
+
+    @pytest.mark.asyncio
+    async def test_no_token_leaks_in_caplog_or_exception_message(
+        self, caplog
+    ) -> None:
+        """Neither the access token nor the refresh token used in a request
+        that fails ever appears in a log record or in the raised
+        exception's message (M365-R3/M365-R7 threat matrix, "sin fuga de
+        tokens")."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.shared.exceptions import AppException
+
+        unauthorized = _load_fixture("unauthorized_401.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json=unauthorized)
+
+        async def revoked_refresh(refresh_token: str) -> None:
+            raise RuntimeError("invalid_grant")
+
+        ctx = _ctx(
+            access_token="super-secret-access-token",
+            refresh_token="super-secret-refresh-token",
+        )
+        client = GraphClient(
+            ctx,
+            transport=httpx.MockTransport(handler),
+            sleep=_noop_sleep,
+            refresh=revoked_refresh,
+        )
+
+        with caplog.at_level("DEBUG"):
+            with pytest.raises(AppException) as excinfo:
+                await client.paginate("/generic", limit=10)
+
+        assert "super-secret-access-token" not in str(excinfo.value)
+        assert "super-secret-refresh-token" not in str(excinfo.value)
+        assert "super-secret-access-token" not in caplog.text
+        assert "super-secret-refresh-token" not in caplog.text
