@@ -49,6 +49,11 @@ from app.modules.connectors.models import (  # noqa: F401
     Connector,
 )
 from app.modules.dependencies.models import Dependency  # noqa: F401
+from app.modules.glpi_sync.models import (  # noqa: F401
+    GlpiUnmatchedAssignee,
+    GlpiUnmatchedCase,
+    GlpiUserLink,
+)
 from app.modules.labels.models import Label, TaskLabel  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
 from app.modules.notifications.models import (  # noqa: F401

@@ -5,8 +5,8 @@ tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,
 `backend/app/notify/models.py` y los mixins de `backend/app/shared/base_model.py`. La fuente
 de verdad es el **código**; este documento es su espejo navegable.
 
-**Fecha de línea base**: 2026-07-18 (estado del código en la rama `feat/consume-solercia-ui`,
-migraciones Alembic hasta `0016_add_federated_identities`).
+**Fecha de línea base**: 2026-07-19 (estado del código en la rama `feat/consume-solercia-ui`,
+migraciones Alembic hasta `0017_add_glpi_homologation`).
 
 > **Regla de actualización**: todo cambio de base de datos (modelo nuevo, columna nueva,
 > enum nuevo, FK nueva o eliminada) debe actualizar este documento **en el mismo commit de la
@@ -15,7 +15,7 @@ migraciones Alembic hasta `0016_add_federated_identities`).
 > Nota: la imagen `docs/diagrams/erd.png` es una captura histórica anterior a esta línea base.
 > Se conserva como referencia, pero **este archivo es la fuente viva** del diagrama.
 
-**Total de tablas**: 35.
+**Total de tablas**: 38.
 
 ---
 
@@ -76,16 +76,23 @@ flowchart LR
         connectors
     end
 
+    subgraph GLPISYNC["Homologación GLPI (3 tablas)"]
+        glpi_user_links
+    end
+
     organizations -->|"organization_id en toda tabla tenant-scoped"| CORE
     organizations --> ALERTS
     organizations --> ASSETS
     organizations --> INTEGRATIONS
+    organizations --> GLPISYNC
     users -->|"assignee, author, actor, auditoría"| CORE
     users -->|"recipient, owner"| ALERTS
     users -->|"responsible_id"| ASSETS
     users -->|"connected_accounts.user_id"| INTEGRATIONS
+    users -->|"glpi_user_links.user_id"| GLPISYNC
     tasks -->|"reminders.task_id"| ALERTS
     tasks -->|"asset_tasks"| ASSETS
+    connectors -->|"glpi_user_links.connector_id"| GLPISYNC
 ```
 
 ---
@@ -127,6 +134,7 @@ erDiagram
         string segundo_apellido "nullable"
         uuid dependency_id FK "nullable, SET NULL"
         string hashed_password "nullable desde 0016 - NULL en usuarios solo-SSO, nunca se expone"
+        string numero_documento "nullable desde 0017 - unique parcial global (WHERE NOT NULL)"
     }
 
     ORGANIZATION_MEMBERS {
@@ -201,6 +209,13 @@ Notas del dominio:
   mensaje genérico de credenciales inválidas (nunca revela el método de login de la cuenta). La
   migración `0016.downgrade()` se niega a restaurar `NOT NULL` si existe algún usuario
   solo-SSO, para no corromper esas cuentas.
+- `users.numero_documento` (change 17-adapter-glpi, migración `0017`) es el documento de
+  identidad, nullable, con índice **único parcial** `WHERE numero_documento IS NOT NULL`
+  (`uq_users_numero_documento`, declarado también a nivel ORM en `Index(...)` para que
+  `Base.metadata.create_all` lo respete en tests, no solo la migración). Alcance **global**
+  (igual que `email`), no por organización — `User` no tiene `TenantMixin` en el código real.
+  Segundo nivel determinístico de la cascada de homologación GLPI (correo -> documento ->
+  nombre), ver Dominio 6.
 
 ---
 
@@ -554,9 +569,10 @@ Notas del dominio:
 
 ## Dominio 5 — Conectores e integraciones
 
-Configuración de conectores OAuth por organización (change 14-integration-ports): `connectors`
+Configuración de conectores OAuth/api_token por organización (change 14-integration-ports,
+delta `credential_kind`/`settings` en change 17-adapter-glpi): `connectors`
 es la config del proveedor (p. ej. Microsoft 365, Google, GLPI, Jira — adaptadores reales en
-los cambios 15-19; esta ola solo registra un adaptador `fake` en memoria). `connected_accounts`
+los cambios 15-19). `connected_accounts`
 es la cuenta que un usuario conectó bajo ese proveedor — la unicidad es por
 `external_account_id` **dentro del conector**, nunca por `(user_id, provider)`: un usuario
 puede conectar varias cuentas del mismo proveedor (ej. dos buzones de correo). Los tokens
@@ -577,6 +593,8 @@ erDiagram
         string provider "String(50), no enum PG - extensible 15-19"
         jsonb scopes "nullable"
         enum status "active, inactive, error"
+        enum credential_kind "oauth, api_token - default oauth, desde 0017"
+        jsonb settings "nullable, config no-secreta (ej. GLPI base_url/document_field)"
     }
 
     CONNECTED_ACCOUNTS {
@@ -616,6 +634,89 @@ Notas del dominio:
   token descifrado + `scopes` + un sink opcional `on_tokens_refreshed` para que un adaptador
   que rota tokens en una lectura los devuelva sin conocer la persistencia — lo consumen los
   adaptadores de los cambios 15/16 y el cambio 22.
+- `connectors.credential_kind` (change 17-adapter-glpi, migración `0017`) distingue `oauth`
+  (`authorize`/`callback`, changes 15/16) de `api_token` (registro directo de credenciales,
+  GLPI). Se fija al crear el conector y no cambia después sin recrearlo.
+  `connectors.settings` (JSONB, nullable) es configuración no-secreta específica del
+  proveedor (ej. `base_url`/`document_field` de GLPI) — el 17 es **dueño** de la columna;
+  los cambios 18/19 solo la consumen con su propio namespace, nunca agregan columna nueva.
+  Las credenciales `api_token` de GLPI reutilizan `connection_credentials` sin columna nueva:
+  `access_token_enc`=user_token, `refresh_token_enc`=App-Token, `token_type="glpi"`,
+  `expires_at=NULL` (la vida de la sesión GLPI la maneja Redis, no esta tabla).
+
+---
+
+## Dominio 6 — Homologación de usuarios GLPI
+
+Change 17-adapter-glpi (user-homologation spec). Cada persona **asignada** de un caso GLPI se
+homologa contra un `user` real de la plataforma mediante una cascada determinística
+(correo -> `numero_documento` -> nombre). Los niveles 1 y 2 auto-confirman
+(`glpi_user_links`); el nivel 3 (nombre) **nunca** auto-confirma — solo sugiere candidatos y
+cae en la cola (`glpi_unmatched_assignees` + `glpi_unmatched_cases`). La sync dispara **por
+caso**, pero la cola consolida **por persona GLPI**: un segundo caso sin homologar de la
+misma persona se agrega al detalle de la cabecera existente, nunca duplica la persona.
+
+```mermaid
+erDiagram
+    CONNECTORS             ||--o{ GLPI_USER_LINKS : "confirma mapeo via"
+    USERS                  ||--o{ GLPI_USER_LINKS : "es mapeado a"
+    CONNECTORS             ||--o{ GLPI_UNMATCHED_ASSIGNEES : "acumula cola via"
+    USERS                  |o--o{ GLPI_UNMATCHED_ASSIGNEES : "resuelve (resolved_user_id)"
+    GLPI_UNMATCHED_ASSIGNEES ||--o{ GLPI_UNMATCHED_CASES : "detalla casos via"
+
+    GLPI_USER_LINKS {
+        uuid id PK
+        uuid organization_id FK
+        uuid connector_id FK "CASCADE, unique(connector_id, glpi_user_id)"
+        string glpi_user_id "unique(connector_id, glpi_user_id)"
+        uuid user_id FK "CASCADE"
+        enum match_method "email, document, name, manual"
+        string glpi_username "nullable"
+        string glpi_email "nullable"
+    }
+
+    GLPI_UNMATCHED_ASSIGNEES {
+        uuid id PK
+        uuid organization_id FK
+        uuid connector_id FK "CASCADE, unique(connector_id, glpi_user_id)"
+        string glpi_user_id "unique(connector_id, glpi_user_id) - cabecera por persona"
+        string glpi_username "nullable"
+        string glpi_email "nullable"
+        string glpi_document "nullable"
+        jsonb candidates "sugerencias [{user_id, score, reason}], nunca auto-confirma"
+        enum status "pending, resolved, ignored"
+        uuid resolved_user_id FK "nullable, SET NULL"
+        timestamptz resolved_at "nullable"
+    }
+
+    GLPI_UNMATCHED_CASES {
+        uuid id PK
+        uuid unmatched_assignee_id FK "CASCADE, unique(unmatched_assignee_id, glpi_ticket_id)"
+        string glpi_ticket_id "unique(unmatched_assignee_id, glpi_ticket_id) - idempotente"
+        string glpi_ticket_title "nullable"
+        string glpi_ticket_status "nullable"
+    }
+```
+
+Notas del dominio:
+
+- `glpi_user_links` — Pk+Timestamp+SoftDelete+Audit+Tenant. Mapeo **confirmado**; toda sync
+  futura de ese `glpi_user_id` resuelve directo contra este link, sin repetir la cascada.
+  Revocarlo (soft-delete) devuelve a esa persona a la cascada en la siguiente sync.
+- `glpi_unmatched_assignees` (cabecera) — Pk+Timestamp+Audit+Tenant, **sin** `SoftDeleteMixin`:
+  `status` (`pending|resolved|ignored`) ES el ciclo de vida de la fila; resolver/ignorar la
+  cambia en el sitio en vez de borrarla lógicamente.
+  `UNIQUE(connector_id, glpi_user_id)` — **una fila por persona GLPI sin homologar**, no por
+  caso.
+- `glpi_unmatched_cases` (detalle) — Pk+Timestamp únicamente (sin Audit/Tenant: el aislamiento
+  llega transitivamente vía la cabecera -> `connector_id` -> organización). 1:N off la
+  cabecera; `UNIQUE(unmatched_assignee_id, glpi_ticket_id)` hace idempotente un segundo caso de
+  la misma persona (se agrega al detalle, nunca duplica la cabecera).
+- Resolver una cabecera crea el `glpi_user_link` (`match_method=manual`), la cabecera pasa a
+  `resolved` y el detalle queda como histórico. Ignorarla la retira de la vista activa sin
+  crear ningún link.
+- Todas las consultas están scoped por `organization_id` (directo en las tres tablas, vía
+  `TenantMixin`) — una cola/link de la organización A nunca es visible ni resoluble desde B.
 
 ---
 

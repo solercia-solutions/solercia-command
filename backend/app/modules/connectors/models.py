@@ -9,6 +9,12 @@ usuario puede conectar varias cuentas del mismo proveedor).
 ``ConnectionCredentials`` vive en tabla AISLADA, 1:1 con la cuenta
 (decisión ratificada #4): los tokens cifrados (Fernet) nunca conviven con
 los campos que la API expone directamente sobre ``ConnectedAccount``.
+
+``credential_kind``/``settings`` (change 17-adapter-glpi, delta spec
+connectors/spec.md, "Tipo de credencial del conector") son delta columns
+added by migración `0017`: el 17 es DUEÑO de ambas — 18/19 solo las
+consumen (con su propio namespace dentro de ``settings``), nunca agregan
+columna nueva.
 """
 
 import uuid
@@ -20,6 +26,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.integrations.ports import CredentialKind
 from app.shared.base_model import (
     AuditMixin,
     PkMixin,
@@ -51,6 +58,19 @@ class Connector(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixi
         nullable=False,
         index=True,
     )
+    # Fixed at creation, never changed afterwards without recreating the
+    # connector (specs/connectors/spec.md, change 17-adapter-glpi). Defaults
+    # to `oauth` so every connector created before this column existed (14's
+    # microsoft365/google) keeps behaving exactly as before.
+    credential_kind: Mapped[CredentialKind] = mapped_column(
+        SAEnum(CredentialKind, name="connector_credential_kind", native_enum=False, length=20),
+        default=CredentialKind.oauth,
+        nullable=False,
+    )
+    # Non-secret, provider-specific configuration (e.g. GLPI's `base_url`/
+    # `document_field`) — NEVER a token/credential; those stay isolated in
+    # `ConnectionCredentials`, encrypted.
+    settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class ConnectedAccount(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):

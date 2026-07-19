@@ -178,3 +178,26 @@ class DigestFrequency(str, Enum):
     none = "none"
     daily = "daily"
     weekly = "weekly"
+
+
+class MatchMethod(str, Enum):
+    """How a ``glpi_user_links`` row was confirmed (change 17-adapter-glpi,
+    user-homologation spec, cascada correo→documento→nombre). ``email`` and
+    ``document`` auto-confirm; ``name`` NEVER does (it only feeds the
+    ``glpi_unmatched_assignees`` queue as a suggestion); ``manual`` is an
+    admin/manager resolving a queue entry.
+    """
+
+    email = "email"
+    document = "document"
+    name = "name"
+    manual = "manual"
+
+
+class UnmatchedStatus(str, Enum):
+    """Lifecycle status of a ``glpi_unmatched_assignees`` queue header
+    (change 17-adapter-glpi, user-homologation spec)."""
+
+    pending = "pending"
+    resolved = "resolved"
+    ignored = "ignored"
