@@ -49,6 +49,10 @@ class Microsoft365Adapter:
     def authorize_url(
         self, state: str, redirect_uri: str, scopes: Sequence[str]
     ) -> str:
+        """Delegate to ``oauth.authorize_url`` — an empty ``scopes``
+        assembles ``oauth.DEFAULT_DELEGATED_SCOPES`` there; explicit
+        scopes are respected unchanged."""
+
         return oauth.authorize_url(
             state, redirect_uri, scopes, settings=self._settings
         )

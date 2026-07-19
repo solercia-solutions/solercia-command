@@ -5,10 +5,12 @@ port ``Protocol``s (``MailReaderPort``/``CalendarReaderPort``/
 endpoint, via the shared :class:`GraphClient` (pagination + TLS/anti-SSRF +
 401/429 resilience) and ``mappers.py`` (Graph JSON → DTO).
 
-``_GraphPortBase`` centralizes the ONE piece every port repeats: building a
-:class:`GraphClient` bound to the port's own ``settings``/``transport`` and
-wired with ``oauth.refresh`` as the 401 recovery callable — every subclass
-only adds its endpoint path, query and mapper.
+``_GraphPortBase`` centralizes the TWO pieces every port repeats: building a
+:class:`GraphClient` wired with ``oauth.refresh`` as the 401 recovery
+callable, AND the ``since``-filter + truncate-to-``bounded_limit``
+client-side pass every endpoint without a server-side date filter (Planner
+tasks, meeting transcripts) needs — every subclass only adds its endpoint
+path, query and mapper.
 """
 
 from collections.abc import Callable
@@ -37,6 +39,11 @@ from app.integrations.dtos import (
     OAuthTokens,
 )
 from app.integrations.ports import AccessContext
+from app.shared.exceptions import AppException
+
+# Graph's own per-request `$top` ceiling used by `_page_size` below — a port
+# never asks for more items per page than this, regardless of `limit`.
+GRAPH_PAGE_CAP = 50
 
 
 def _iso_z(value: datetime) -> str:
@@ -62,7 +69,7 @@ class _GraphPortBase:
         return max(0, min(limit, self._settings.M365_MAX_LIMIT))
 
     def _page_size(self, limit: int) -> int:
-        return min(self._bounded_limit(limit), 50) or 1
+        return min(self._bounded_limit(limit), GRAPH_PAGE_CAP) or 1
 
     def _refresh(self) -> Callable[[str], Any]:
         async def _call(refresh_token: str) -> OAuthTokens:
@@ -84,6 +91,22 @@ class _GraphPortBase:
         if since is not None:
             return since
         return datetime.now(UTC) - timedelta(days=self._settings.M365_DEFAULT_SINCE_DAYS)
+
+    def _filtered_since_and_truncated(
+        self,
+        raw_items: list[dict[str, Any]],
+        *,
+        since: datetime,
+        bounded_limit: int,
+    ) -> list[dict[str, Any]]:
+        """Filter ``raw_items`` by ``createdDateTime >= since`` and
+        truncate to ``bounded_limit`` — the ONE client-side pass
+        ``list_tasks``/``list_notes`` both need."""
+
+        recent = [
+            raw for raw in raw_items if graph_datetime(raw["createdDateTime"]) >= since
+        ]
+        return recent[:bounded_limit]
 
 
 class GraphMailReader(_GraphPortBase):
@@ -155,16 +178,21 @@ class GraphExternalTaskReader(_GraphPortBase):
         effective_since = self._since_or_default(since)
         client = self._client(ctx)
 
-        raw_items = await client.paginate(
-            "/me/planner/tasks", limit=self._settings.M365_MAX_LIMIT
-        )
+        try:
+            raw_items = await client.paginate(
+                "/me/planner/tasks", limit=self._settings.M365_MAX_LIMIT
+            )
+        except AppException as exc:
+            if exc.code == "capability_unavailable":
+                # Tenant sin Planner/Grupos M365 — Graph responde 403; el
+                # spec exige degradar a lista vacía, NUNCA error.
+                return []
+            raise
 
-        recent = [
-            raw
-            for raw in raw_items
-            if graph_datetime(raw["createdDateTime"]) >= effective_since
-        ]
-        return [map_external_task(raw) for raw in recent[:bounded_limit]]
+        recent = self._filtered_since_and_truncated(
+            raw_items, since=effective_since, bounded_limit=bounded_limit
+        )
+        return [map_external_task(raw) for raw in recent]
 
 
 _MEETING_NOTES_SCOPE = "OnlineMeetingTranscript.Read.All"
@@ -202,11 +230,9 @@ class GraphMeetingNotesReader(_GraphPortBase):
             limit=self._settings.M365_MAX_LIMIT,
         )
 
-        recent = [
-            raw
-            for raw in raw_transcripts
-            if graph_datetime(raw["createdDateTime"]) >= effective_since
-        ][:bounded_limit]
+        recent = self._filtered_since_and_truncated(
+            raw_transcripts, since=effective_since, bounded_limit=bounded_limit
+        )
 
         notes: list[MeetingNote] = []
         for raw in recent:

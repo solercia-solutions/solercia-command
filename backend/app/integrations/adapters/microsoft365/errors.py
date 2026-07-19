@@ -43,9 +43,23 @@ def provider_unavailable(
         "momento. Inténtalo de nuevo más tarde."
     ),
 ) -> AppException:
-    """Graph is unreachable or returned a 5xx unrelated to throttling."""
+    """Graph is unreachable or returned a 5xx unrelated to throttling
+    (RETRYABLE — a transient outage on Microsoft's side)."""
 
     return AppException(detail, code="provider_unavailable", status_code=503)
+
+
+def provider_request_failed(
+    detail: str = (
+        "Microsoft Graph rechazó la solicitud. Revisa la configuración del "
+        "conector antes de intentarlo de nuevo."
+    ),
+) -> AppException:
+    """Graph responded a 4xx OTHER than 401/403/429 (e.g. 400/404/405/409)
+    — a malformed/invalid request, NOT a transient outage. Distinct from
+    `provider_unavailable`: never suggests retrying as-is."""
+
+    return AppException(detail, code="provider_request_failed", status_code=502)
 
 
 def oauth_token_invalid(

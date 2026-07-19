@@ -29,6 +29,29 @@ from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import errors
 from app.integrations.dtos import OAuthTokens
 
+# Scopes delegados por defecto (spec.md "Handshake OAuth delegado de Entra
+# ID": "openid profile email offline_access User.Read` + los de cada
+# capacidad"). `OnlineMeetingTranscript.Read.All` NUNCA entra aquí: es
+# opt-in por conector (design.md ADR #1).
+DEFAULT_DELEGATED_SCOPES: tuple[str, ...] = (
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "User.Read",
+    "Mail.Read",
+    "Calendars.Read",
+    "Tasks.Read",
+    "OnlineMeetings.Read",
+)
+
+
+def _effective_scopes(scopes: Sequence[str] | None) -> Sequence[str]:
+    """``scopes`` unchanged when explicit; otherwise the default delegated
+    set — never a request with ``scope=`` empty."""
+
+    return scopes if scopes else DEFAULT_DELEGATED_SCOPES
+
 
 def _authorize_endpoint(settings: Settings, tenant: str) -> str:
     return f"{settings.M365_LOGIN_BASE_URL}/{tenant}/oauth2/v2.0/authorize"
@@ -50,14 +73,16 @@ def authorize_url(
     Uses ``settings.M365_TENANT`` (default ``organizations``) — NEVER a
     tenant taken from caller input — so the endpoint's host+path stay fully
     derived from configuration (anti-SSRF/host fijo, mirrors ``client.py``'s
-    boundary)."""
+    boundary). Empty ``scopes`` assembles :data:`DEFAULT_DELEGATED_SCOPES`
+    instead of requesting an empty scope; explicit scopes are respected
+    as-is."""
 
     params = {
         "client_id": settings.M365_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "response_mode": "query",
-        "scope": " ".join(scopes),
+        "scope": " ".join(_effective_scopes(scopes)),
         "state": state,
     }
     endpoint = _authorize_endpoint(settings, settings.M365_TENANT)

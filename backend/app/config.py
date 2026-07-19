@@ -129,6 +129,9 @@ class Settings(BaseSettings):
     M365_LOGIN_BASE_URL: str = "https://login.microsoftonline.com"
     M365_TIMEOUT_SECONDS: float = 10.0
     M365_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429: `_retry_after_seconds` NUNCA duerme más
+    # que esto, sin importar el `Retry-After` que devuelva Graph.
+    M365_MAX_BACKOFF_SECONDS: float = 30.0
     M365_DEFAULT_SINCE_DAYS: int = 30
     M365_CALENDAR_FUTURE_DAYS: int = 90
     M365_MAX_PAGES: int = 20

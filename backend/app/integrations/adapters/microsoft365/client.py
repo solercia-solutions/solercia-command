@@ -10,6 +10,7 @@ test suite never touches the real network (design.md, "cero red en CI").
 
 import asyncio
 import dataclasses
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import urlsplit
@@ -21,6 +22,12 @@ from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import errors
 from app.integrations.dtos import OAuthTokens
 from app.integrations.ports import AccessContext
+
+logger = logging.getLogger(__name__)
+
+# Body preview cap for the 4xx/5xx warning log below (avoid dumping a large
+# Graph error payload into the logs).
+_LOGGED_BODY_PREVIEW_CHARS = 200
 
 
 class GraphHostMismatchError(Exception):
@@ -153,7 +160,12 @@ class GraphClient:
                 raise errors.capability_unavailable()
 
             if response.status_code >= 400:
-                raise errors.provider_unavailable()
+                self._log_error_response(response)
+                if response.status_code >= 500:
+                    raise errors.provider_unavailable()  # 5xx: RETRYABLE
+                # Remaining 4xx (400/404/405/409...): the request itself is
+                # rejected/invalid, NEVER retryable as-is.
+                raise errors.provider_request_failed()
 
             return response
 
@@ -187,14 +199,30 @@ class GraphClient:
             await self._ctx.on_tokens_refreshed(new_tokens)
 
     @staticmethod
-    def _retry_after_seconds(response: httpx.Response) -> float:
+    def _log_error_response(response: httpx.Response) -> None:
+        """Log a 4xx/5xx status + truncated body — NEVER the request's
+        ``Authorization`` header/access token (only ``response.text`` is
+        read here)."""
+
+        body_preview = response.text[:_LOGGED_BODY_PREVIEW_CHARS]
+        logger.warning(
+            "Microsoft Graph respondió %s para %s: %s",
+            response.status_code,
+            response.request.url if response.request else "?",
+            body_preview,
+        )
+
+    def _retry_after_seconds(self, response: httpx.Response) -> float:
         header = response.headers.get("Retry-After")
-        if header is None:
-            return 1.0
-        try:
-            return float(header)
-        except ValueError:
-            return 1.0
+        seconds = 1.0
+        if header is not None:
+            try:
+                seconds = float(header)
+            except ValueError:
+                seconds = 1.0
+        # Clamp: an abusive `Retry-After` (e.g. 3600s) never sleeps longer
+        # than `M365_MAX_BACKOFF_SECONDS`.
+        return min(seconds, self._settings.M365_MAX_BACKOFF_SECONDS)
 
     def _assert_allowed_host(self, url: str) -> None:
         host = urlsplit(url).netloc

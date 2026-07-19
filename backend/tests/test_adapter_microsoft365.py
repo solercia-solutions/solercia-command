@@ -426,6 +426,100 @@ class TestGraphClientResilience:
         assert "super-secret-access-token" not in caplog.text
         assert "super-secret-refresh-token" not in caplog.text
 
+    @pytest.mark.asyncio
+    async def test_4xx_other_than_401_403_429_raises_a_non_retryable_domain_error(
+        self, caplog
+    ) -> None:
+        """4R follow-up: un `400` (solicitud inválida) es un error DE
+        DOMINIO propio (`provider_request_failed`), distinto del
+        `provider_unavailable` reintentable — y queda logueado (status +
+        cuerpo truncado, sin tokens) para diagnóstico."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.shared.exceptions import AppException
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(400, json={"error": {"message": "bad request"}})
+
+        client = GraphClient(
+            _ctx(access_token="super-secret-access-token"),
+            transport=httpx.MockTransport(handler),
+            sleep=_noop_sleep,
+        )
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(AppException) as excinfo:
+                await client.paginate("/generic", limit=10)
+
+        assert excinfo.value.code == "provider_request_failed"
+        assert excinfo.value.status_code != 503
+        assert "400" in caplog.text
+        assert "super-secret-access-token" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_5xx_raises_the_retryable_provider_unavailable_error(
+        self, caplog
+    ) -> None:
+        """Continuación: un `5xx` (falla transitoria del lado de Microsoft)
+        sigue mapeando a `provider_unavailable` (reintentable), distinto
+        del `400` de arriba — y también queda logueado."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+        from app.shared.exceptions import AppException
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, json={"error": {"message": "unavailable"}})
+
+        client = GraphClient(
+            _ctx(), transport=httpx.MockTransport(handler), sleep=_noop_sleep
+        )
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(AppException) as excinfo:
+                await client.paginate("/generic", limit=10)
+
+        assert excinfo.value.code == "provider_unavailable"
+        assert "503" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_429_retry_after_beyond_the_ceiling_sleeps_at_most_the_max(
+        self,
+    ) -> None:
+        """4R follow-up: un `Retry-After` abusivo (ej. 3600s) NUNCA hace
+        dormir al cliente más de `M365_MAX_BACKOFF_SECONDS`."""
+
+        from app.integrations.adapters.microsoft365.client import GraphClient
+
+        throttled = _load_fixture("throttled_429.json")
+        ok = _load_fixture("ok_after_retry.json")
+        sleep_calls: list[float] = []
+        call_count = 0
+
+        async def spy_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(
+                    429, json=throttled, headers={"Retry-After": "3600"}
+                )
+            return httpx.Response(200, json=ok)
+
+        settings = _settings(M365_MAX_BACKOFF_SECONDS=30.0)
+        client = GraphClient(
+            _ctx(),
+            transport=httpx.MockTransport(handler),
+            sleep=spy_sleep,
+            settings=settings,
+        )
+
+        items = await client.paginate("/generic", limit=10)
+
+        assert [item["id"] for item in items] == ["after-retry-item"]
+        assert sleep_calls == [30.0]
+
 
 # ---------------------------------------------------------------------------
 # Lote 3 — OAuth Entra ID + registro del adaptador
@@ -451,6 +545,50 @@ class TestOAuthAndRegistry:
         assert "state=state-1" in url
         assert "client_id=client-abc" in url
         assert "redirect_uri=https%3A%2F%2Fapp.test%2Fcallback" in url
+
+    def test_authorize_url_assembles_default_delegated_scopes_when_none_given(
+        self,
+    ) -> None:
+        """4R follow-up: un conector sin scopes configurados (``scopes=[]``,
+        camino real de `ConnectorService.authorize`'s `connector.scopes or
+        []`) NUNCA debe pedir `scope=` vacío — se ensambla el set delegado
+        por defecto del spec (openid profile email offline_access User.Read
+        + el de cada capacidad; `OnlineMeetingTranscript.Read.All` queda
+        fuera por ser opt-in)."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        settings = _settings(M365_CLIENT_ID="client-abc")
+
+        url = oauth.authorize_url(
+            "state-1", "https://app.test/callback", [], settings=settings
+        )
+
+        assert (
+            "scope=openid+profile+email+offline_access+User.Read"
+            "+Mail.Read+Calendars.Read+Tasks.Read+OnlineMeetings.Read"
+        ) in url
+        assert "OnlineMeetingTranscript.Read.All" not in url
+
+    def test_authorize_url_respects_explicit_scopes_when_the_caller_passes_some(
+        self,
+    ) -> None:
+        """Continuación: un conector CON scopes explícitos los respeta tal
+        cual, sin mezclarlos con el default."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        settings = _settings(M365_CLIENT_ID="client-abc")
+
+        url = oauth.authorize_url(
+            "state-1",
+            "https://app.test/callback",
+            ["User.Read", "Mail.Read"],
+            settings=settings,
+        )
+
+        assert "scope=User.Read+Mail.Read" in url
+        assert "openid" not in url
 
     def test_authorize_url_uses_the_configured_tenant_override(self) -> None:
         """Scenario (continuación): un tenant fijo por variable de entorno
@@ -946,6 +1084,29 @@ class TestPlannerPort:
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json=empty)
+
+        port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
+
+        tasks = await port.list_tasks(_ctx(), limit=10)
+
+        assert tasks == []
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_returns_empty_list_when_graph_denies_planner_access(
+        self,
+    ) -> None:
+        """4R follow-up: un `403` REAL de Graph en `/me/planner/tasks`
+        (tenant sin licencia Planner, que `GraphClient` mapea a
+        `capability_unavailable`) degrada a lista vacía, igual que un
+        `value: []` — spec.md "si el tenant no tiene Planner/Grupos M365,
+        DEBE devolver lista vacía, NUNCA error"."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphExternalTaskReader
+
+        denied = _load_fixture("no_consent_403.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, json=denied)
 
         port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
 

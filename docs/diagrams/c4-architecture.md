@@ -34,7 +34,7 @@ C4Context
     System(spm, "Solercia Project Manager", "Gestión de proyectos multi-tenant con metodología configurable (planner, kanban, scrum, custom), alertas, recordatorios y activos de información.")
 
     System_Ext(smtp, "Servidor SMTP", "Entrega de correos (inmediatos y digest). Solo activo con EMAIL_ENABLED=true y EMAIL_BACKEND=smtp.")
-    System_Ext(m365, "Microsoft 365 (Graph + Entra ID)", "Correo, calendario, tareas Planner y transcripciones de reuniones via Graph API, solo lectura; autorizacion delegada OAuth via Entra ID. Activo solo si la organizacion conecta un conector provider=microsoft365 (change 15).")
+    System_Ext(m365, "Microsoft 365 (Graph + Entra ID)", "Correo, calendario, tareas Planner y transcripciones de reuniones vía Graph API, solo lectura; autorización delegada OAuth vía Entra ID. Activo solo si la organización conecta un conector provider=microsoft365 (change 15).")
 
     Rel(jefe, spm, "Usa", "HTTPS")
     Rel(miembro, spm, "Usa", "HTTPS")
@@ -153,7 +153,7 @@ flowchart TB
             i_crypto["crypto.py: Fernet<br/>(tokens cifrados en reposo)"]
             i_state["state_store.py: state OAuth<br/>en Redis (SETEX + GETDEL single-use)"]
             i_fake["adapters/fake.py: adaptador en<br/>memoria"]
-            i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunion, solo lectura"]
+            i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
         end
     end
 
