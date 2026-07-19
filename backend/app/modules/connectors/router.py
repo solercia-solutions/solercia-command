@@ -1,17 +1,21 @@
-"""Connector routes: CRUD with RBAC (change 14-integration-ports).
+"""Connector routes: CRUD + OAuth flow with RBAC (change 14-integration-ports).
 
 Writes (``POST``/``PATCH``/``DELETE`` on ``/connectors``) require
 ``require_role(admin, manager)`` — the PRIMER consumidor real de esta
 dependencia (``app/dependencies.py``, distinta del RBAC ``require_admin``
 que usan ``assets``). Reads (``GET``) are open to any authenticated member
 (``get_current_membership``) — a member needs to know what it CAN connect
-before it has admin/manager rights. Responses follow the standard
-``{data[, message][, meta]}`` envelope.
+before it has admin/manager rights. ``GET /connectors/{id}/authorize`` is a
+browser navigation (membership only, ``302`` to the IdP); ``GET
+/connectors/oauth/callback`` is a GLOBAL, UNAUTHENTICATED route validated
+entirely by ``state`` (design.md, "redirect_uri OAuth debe ser estático").
+Responses follow the standard ``{data[, message][, meta]}`` envelope.
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -98,3 +102,43 @@ async def delete_connector(
     service = ConnectorService(db)
     await service.delete_connector(membership.organization_id, connector_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/connectors/{connector_id}/authorize")
+async def authorize_connector(
+    connector_id: uuid.UUID,
+    redirect_uri: str | None = Query(default=None),
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Start the OAuth handshake: browser navigation, ``302`` to the IdP.
+
+    404 if the connector does not exist or belongs to another organization
+    (``ConnectorService.authorize`` raises BEFORE any ``state`` is
+    generated). ``400`` if ``redirect_uri`` is supplied but outside
+    ``OAUTH_REDIRECT_ALLOWLIST`` (anti-SSRF/open-redirect).
+    """
+
+    service = ConnectorService(db)
+    result = await service.authorize(
+        membership.organization_id, connector_id, membership.user_id, redirect_uri
+    )
+    return RedirectResponse(url=result.authorize_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/connectors/oauth/callback")
+async def oauth_callback(
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """GLOBAL OAuth callback — validated entirely by ``state`` (single-use),
+    NOT by role/authentication (the browser navigating here comes straight
+    from the IdP, with no bearer token attached)."""
+
+    service = ConnectorService(db)
+    account_summary = await service.handle_oauth_callback(
+        code=code, state=state, error=error
+    )
+    return {"data": account_summary, "message": "Cuenta conectada."}

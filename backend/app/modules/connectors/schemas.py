@@ -24,6 +24,17 @@ class ConnectorUpdate(BaseModel):
     status: ConnectorStatus | None = None
 
 
+class AuthorizeResponse(BaseModel):
+    """Result of the OAuth authorize step.
+
+    Used internally by the service layer; the router converts this into an
+    HTTP ``302`` redirect to ``authorize_url`` (design.md, "es una
+    navegación de navegador que responde una redirección 302 al IdP").
+    """
+
+    authorize_url: str
+
+
 class ConnectorRead(BaseModel):
     """A connector as returned by the API.
 

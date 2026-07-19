@@ -1,28 +1,52 @@
-"""Business logic for connectors — CRUD use-cases (change 14-integration-ports).
+"""Business logic for connectors — CRUD + OAuth flow use-cases
+(change 14-integration-ports).
 
 RBAC lives at the router layer (``require_role(admin, manager)`` for
 writes); this service assumes the caller already passed that gate and
 focuses on org-scoped persistence orchestration.
+
+OAuth callback boundary (design.md "Data Flow"): the callback route is
+GLOBAL (``GET /connectors/oauth/callback``, no ``{id}`` in the path), so
+``handle_oauth_callback`` calls ``state_store.pop``/``registry.get_adapter``
+DIRECTLY (mirroring design.md's Data Flow pseudocode step-by-step) instead
+of ``app.integrations.oauth.handle_callback`` — that core helper takes a
+FIXED adapter up front, but here the adapter is only knowable AFTER popping
+the state (the state payload IS what tells us which connector/provider this
+callback belongs to). ``oauth.build_authorize`` stays used as designed by
+``authorize()`` below, where the adapter IS already known before the state
+is generated.
 """
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.integrations import crypto, oauth, state_store
+from app.integrations.registry import get_adapter
 from app.modules.connectors.models import Connector
-from app.modules.connectors.repository import ConnectorRepository
-from app.modules.connectors.schemas import ConnectorCreate, ConnectorRead, ConnectorUpdate
+from app.modules.connectors.repository import ConnectedAccountRepository, ConnectorRepository
+from app.modules.connectors.schemas import (
+    AuthorizeResponse,
+    ConnectorCreate,
+    ConnectorRead,
+    ConnectorUpdate,
+)
 from app.shared.exceptions import AppException
+
+logger = logging.getLogger("solercia.connectors")
 
 _CONNECTOR_UPDATABLE_FIELDS = ("provider", "scopes", "status")
 
 
 class ConnectorService:
-    """Orchestrates connector CRUD use-cases for a single organization scope."""
+    """Orchestrates connector CRUD + OAuth use-cases for a single organization scope."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.repo = ConnectorRepository(db)
+        self.accounts = ConnectedAccountRepository(db)
 
     async def create_connector(
         self,
@@ -87,6 +111,143 @@ class ConnectorService:
         connector.is_active = False
         connector.deleted_at = datetime.now(UTC)
         await self.repo.save(connector)
+
+    # -- OAuth flow ------------------------------------------------------------
+
+    async def authorize(
+        self,
+        organization_id: uuid.UUID,
+        connector_id: uuid.UUID,
+        user_id: uuid.UUID,
+        redirect_uri: str | None,
+    ) -> AuthorizeResponse:
+        """Start the OAuth handshake: generate ``state``+URL for ``connector_id``.
+
+        404 if the connector does not exist or belongs to another
+        organization (specs/connectors/spec.md, "Authorize sobre conector
+        ajeno o inexistente") — raised BEFORE any ``state`` is generated.
+        """
+
+        connector = await self._require_connector(organization_id, connector_id)
+        adapter = get_adapter(connector.provider)
+        if adapter is None:
+            raise AppException(
+                "El proveedor del conector no está disponible.",
+                code="provider_not_registered",
+                status_code=404,
+            )
+
+        redirect = redirect_uri or settings.OAUTH_REDIRECT_ALLOWLIST[0]
+        if redirect not in settings.OAUTH_REDIRECT_ALLOWLIST:
+            raise AppException(
+                "El redirect_uri solicitado no está permitido.",
+                code="oauth_redirect_not_allowed",
+                status_code=400,
+            )
+
+        state_payload = {
+            "connector_id": str(connector.id),
+            "organization_id": str(organization_id),
+            "user_id": str(user_id),
+            "redirect_uri": redirect,
+        }
+        _, authorize_url = await oauth.build_authorize(
+            adapter,
+            redirect,
+            connector.scopes or [],
+            state_payload=state_payload,
+            ttl=settings.OAUTH_STATE_TTL_SECONDS,
+        )
+        return AuthorizeResponse(authorize_url=authorize_url)
+
+    async def handle_oauth_callback(
+        self, *, code: str | None, state: str | None, error: str | None
+    ) -> dict:
+        """Complete the OAuth handshake for the GLOBAL callback route.
+
+        Never exposes tokens in its return value (only the connector/account
+        identifiers safe for a JSON response) — the caller (router) wraps
+        this dict directly in the envelope's ``data``.
+        """
+
+        if error is not None:
+            raise AppException(
+                "El proveedor reportó un error o el usuario canceló la "
+                "autorización.",
+                code="oauth_provider_error",
+                status_code=400,
+            )
+        if state is None or code is None:
+            raise AppException(
+                "La solicitud de callback está incompleta.",
+                code="oauth_state_invalid",
+                status_code=400,
+            )
+
+        payload = await state_store.pop(state)
+        if payload is None:
+            raise AppException(
+                "El enlace de autorización no es válido o ya expiró.",
+                code="oauth_state_invalid",
+                status_code=400,
+            )
+
+        organization_id = uuid.UUID(payload["organization_id"])
+        connector_id = uuid.UUID(payload["connector_id"])
+        user_id = uuid.UUID(payload["user_id"])
+        redirect_uri = payload["redirect_uri"]
+
+        connector = await self.repo.get(organization_id, connector_id)
+        if connector is None:
+            raise AppException(
+                "El conector asociado a esta autorización ya no existe.",
+                code="connector_not_found",
+                status_code=404,
+            )
+
+        adapter = get_adapter(connector.provider)
+        if adapter is None:
+            raise AppException(
+                "El proveedor del conector no está disponible.",
+                code="provider_not_registered",
+                status_code=404,
+            )
+
+        tokens = await adapter.exchange_code(code, redirect_uri)
+
+        access_token_enc = crypto.encrypt(tokens.access_token)
+        refresh_token_enc = (
+            crypto.encrypt(tokens.refresh_token) if tokens.refresh_token else None
+        )
+
+        account = await self.accounts.upsert_account(
+            organization_id=organization_id,
+            connector_id=connector.id,
+            user_id=user_id,
+            external_account_id=tokens.external_account_id,
+        )
+        await self.accounts.save_credentials(
+            connected_account_id=account.id,
+            organization_id=organization_id,
+            access_token_enc=access_token_enc,
+            refresh_token_enc=refresh_token_enc,
+            expires_at=tokens.expires_at,
+            token_type="Bearer",
+            scopes=list(tokens.scopes) if tokens.scopes else None,
+        )
+
+        logger.info(
+            "Callback de conector procesado: connector_id=%s external_account_id=%s",
+            connector.id,
+            tokens.external_account_id,
+        )
+
+        return {
+            "id": str(account.id),
+            "connector_id": str(account.connector_id),
+            "external_account_id": account.external_account_id,
+            "status": account.status.value,
+        }
 
     # -- helpers -------------------------------------------------------------
 
