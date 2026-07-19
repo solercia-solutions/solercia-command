@@ -54,10 +54,10 @@ Chain strategy: stacked-to-main
 
 ## Lote 4 — mime.py + mail.py: Gmail (Commit 4)
 
-- [ ] 4.1 [Foundation] `app/integrations/adapters/google/mime.py`: decodifica `payload` MIME multiparte base64url (`email`/`base64` de stdlib) a texto plano normalizado.
-- [ ] 4.2 [Foundation] `app/integrations/adapters/google/mail.py`: `MailReaderPort.list_messages` vía `users.messages.list`/`get` (`q=after:<epoch>`, `maxResults`), mapea headers (`Subject/From/To/Date`) + `mime.body_text` a `MailMessage`.
-- [ ] 4.3 RED `backend/tests/test_adapter_google_mail.py`: mensaje multiparte (HTML+texto) decodifica a `body_text` sin base64/MIME crudo; labels de Gmail no se exponen como campo de carpeta en `MailMessage`; `since`/`limit` se traducen a `q=after:<epoch_segundos>`/`maxResults`. [GA-R4]
-- [ ] 4.4 VERIFY confirmar T4.3 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_mail.py -v` en verde.
+- [x] 4.1 [Foundation] `app/integrations/adapters/google/mime.py`: decodifica `payload` MIME multiparte base64url (`email`/`base64` de stdlib) a texto plano normalizado.
+- [x] 4.2 [Foundation] `app/integrations/adapters/google/mail.py`: `MailReaderPort.list_messages` vía `users.messages.list`/`get` (`q=after:<epoch>`, `maxResults`), mapea headers (`Subject/From/To/Date`) + `mime.body_text` a `MailMessage`.
+- [x] 4.3 RED `backend/tests/test_adapter_google_mail.py`: mensaje multiparte (HTML+texto) decodifica a `body_text` sin base64/MIME crudo; labels de Gmail no se exponen como campo de carpeta en `MailMessage`; `since`/`limit` se traducen a `q=after:<epoch_segundos>`/`maxResults`. [GA-R4]
+- [x] 4.4 VERIFY confirmar T4.3 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_mail.py -v` en verde.
 
 ## Lote 5 — calendar.py + meeting_notes.py: Calendar + Drive/Meet (Commit 5)
 
