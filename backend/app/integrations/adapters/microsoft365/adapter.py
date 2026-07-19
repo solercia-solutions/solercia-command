@@ -14,7 +14,10 @@ from collections.abc import Sequence
 from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import oauth
-from app.integrations.adapters.microsoft365.ports import GraphMailReader
+from app.integrations.adapters.microsoft365.ports import (
+    GraphCalendarReader,
+    GraphMailReader,
+)
 from app.integrations.dtos import OAuthTokens
 from app.integrations.ports import Capability
 
@@ -36,6 +39,7 @@ class Microsoft365Adapter:
         self._settings = settings
         self._ports: dict[Capability, object] = {
             Capability.mail: GraphMailReader(settings=settings),
+            Capability.calendar: GraphCalendarReader(settings=settings),
         }
 
     def authorize_url(

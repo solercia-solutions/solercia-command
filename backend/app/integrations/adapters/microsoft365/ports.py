@@ -22,8 +22,11 @@ from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import oauth
 from app.integrations.adapters.microsoft365.client import GraphClient
-from app.integrations.adapters.microsoft365.mappers import map_mail_message
-from app.integrations.dtos import MailMessage, OAuthTokens
+from app.integrations.adapters.microsoft365.mappers import (
+    map_calendar_event,
+    map_mail_message,
+)
+from app.integrations.dtos import CalendarEvent, MailMessage, OAuthTokens
 from app.integrations.ports import AccessContext
 
 
@@ -96,3 +99,31 @@ class GraphMailReader(_GraphPortBase):
             "$orderby": "receivedDateTime desc",
         }
         return f"/me/messages?{urlencode(query)}"
+
+
+class GraphCalendarReader(_GraphPortBase):
+    """``CalendarReaderPort`` over Microsoft Graph's ``/me/calendarView``
+    (scope ``Calendars.Read``)."""
+
+    async def list_events(
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+    ) -> list[CalendarEvent]:
+        bounded_limit = self._bounded_limit(limit)
+        url = self._build_url(since, bounded_limit)
+        client = self._client(ctx)
+        raw_items = await client.paginate(url, limit=bounded_limit)
+        return [map_calendar_event(item) for item in raw_items]
+
+    def _build_url(self, since: datetime | None, bounded_limit: int) -> str:
+        start = self._since_or_default(since)
+        end = datetime.now(UTC) + timedelta(
+            days=self._settings.M365_CALENDAR_FUTURE_DAYS
+        )
+        query = {
+            "$select": "id,subject,start,end,organizer,attendees,location",
+            "$top": str(self._page_size(bounded_limit)),
+            "$orderby": "start/dateTime",
+            "startDateTime": _iso_z(start),
+            "endDateTime": _iso_z(end),
+        }
+        return f"/me/calendarView?{urlencode(query)}"

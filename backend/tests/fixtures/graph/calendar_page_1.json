@@ -1,0 +1,33 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/calendarView",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?$skip=2",
+  "value": [
+    {
+      "id": "event-1",
+      "subject": "Reunión de seguimiento del proyecto",
+      "start": { "dateTime": "2026-07-20T15:00:00.0000000", "timeZone": "UTC" },
+      "end": { "dateTime": "2026-07-20T16:00:00.0000000", "timeZone": "UTC" },
+      "organizer": {
+        "emailAddress": { "name": "Ana Torres", "address": "ana.torres@contoso.com" }
+      },
+      "attendees": [
+        {
+          "emailAddress": { "name": "Carlos Ruiz", "address": "carlos.ruiz@contoso.com" },
+          "type": "required"
+        }
+      ],
+      "location": { "displayName": "Sala virtual" }
+    },
+    {
+      "id": "event-2",
+      "subject": "Revisión de sprint",
+      "start": { "dateTime": "2026-07-21T09:00:00.0000000", "timeZone": "UTC" },
+      "end": { "dateTime": "2026-07-21T10:00:00.0000000", "timeZone": "UTC" },
+      "organizer": {
+        "emailAddress": { "name": "Diana Páez", "address": "diana.paez@contoso.com" }
+      },
+      "attendees": [],
+      "location": null
+    }
+  ]
+}

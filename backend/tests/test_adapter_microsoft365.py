@@ -725,3 +725,119 @@ class TestMailPort:
         port = adapter.port_for(Capability.mail)
 
         assert isinstance(port, GraphMailReader)
+
+
+# ---------------------------------------------------------------------------
+# Lote 5 — Calendario: `CalendarReaderPort`
+# ---------------------------------------------------------------------------
+
+
+class TestCalendarPort:
+    @pytest.mark.asyncio
+    async def test_list_events_aggregates_dtos_from_two_pages_respecting_limit(
+        self,
+    ) -> None:
+        """Scenario: Resultados dentro de la ventana, multi-página (M365-R4,
+        calendario) — `@odata.nextLink` is followed across a second, inline
+        page and every DTO is aggregated."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphCalendarReader
+        from app.integrations.dtos import CalendarEvent
+
+        page_1 = _load_fixture("calendar_page_1.json")
+        page_2 = {
+            "@odata.context": page_1["@odata.context"],
+            "value": [
+                {
+                    "id": "event-3",
+                    "subject": "Retro del sprint",
+                    "start": {"dateTime": "2026-07-22T14:00:00.0000000", "timeZone": "UTC"},
+                    "end": {"dateTime": "2026-07-22T15:00:00.0000000", "timeZone": "UTC"},
+                    "organizer": {
+                        "emailAddress": {"name": "Ana Torres", "address": "ana.torres@contoso.com"}
+                    },
+                    "attendees": [],
+                    "location": None,
+                }
+            ],
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.params.get("$skip") == "2":
+                return httpx.Response(200, json=page_2)
+            assert request.url.path == "/v1.0/me/calendarView"
+            assert "startDateTime" in request.url.params
+            assert "endDateTime" in request.url.params
+            return httpx.Response(200, json=page_1)
+
+        port = GraphCalendarReader(transport=httpx.MockTransport(handler))
+
+        events = await port.list_events(_ctx(), limit=10)
+
+        assert [e.external_id for e in events] == ["event-1", "event-2", "event-3"]
+        assert all(isinstance(e, CalendarEvent) for e in events)
+
+    @pytest.mark.asyncio
+    async def test_list_events_returns_empty_list_without_error(self) -> None:
+        """Scenario: Sin resultados en la ventana — an empty `value` never
+        raises (M365-R4, calendario)."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphCalendarReader
+
+        empty = _load_fixture("calendar_empty.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=empty)
+
+        port = GraphCalendarReader(transport=httpx.MockTransport(handler))
+
+        events = await port.list_events(_ctx(), limit=10)
+
+        assert events == []
+
+    @pytest.mark.asyncio
+    async def test_list_events_maps_every_field_from_the_graph_payload(self) -> None:
+        """Triangulation: organizer/attendees/location map from the REAL
+        Graph event shape — including a `location: null` event mapping to
+        `None`, not a crash."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphCalendarReader
+
+        page_1 = _load_fixture("calendar_page_1.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"value": page_1["value"]})
+
+        port = GraphCalendarReader(transport=httpx.MockTransport(handler))
+
+        events = await port.list_events(_ctx(), limit=10)
+
+        assert len(events) == 2
+        first, second = events
+        assert first.external_id == "event-1"
+        assert first.title == "Reunión de seguimiento del proyecto"
+        assert first.organizer == "ana.torres@contoso.com"
+        assert first.attendees == ("carlos.ruiz@contoso.com",)
+        assert first.location == "Sala virtual"
+        assert first.starts_at.year == 2026
+        assert first.starts_at.hour == 15
+
+        assert second.external_id == "event-2"
+        assert second.attendees == ()
+        assert second.location is None
+
+    def test_calendar_reader_is_wired_into_the_adapter_calendar_capability(
+        self,
+    ) -> None:
+        """The adapter's `port_for(Capability.calendar)` resolves to a REAL
+        `GraphCalendarReader`, not `None`."""
+
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.adapters.microsoft365.ports import GraphCalendarReader
+        from app.integrations.ports import Capability
+
+        adapter = Microsoft365Adapter()
+
+        port = adapter.port_for(Capability.calendar)
+
+        assert isinstance(port, GraphCalendarReader)

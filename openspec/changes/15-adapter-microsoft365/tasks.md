@@ -73,12 +73,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 5 — Calendario: `CalendarReaderPort` (Commit 5)
 
-- [ ] 5.1 [Fixtures] `tests/fixtures/graph/calendar_page_1.json`, `calendar_empty.json`.
-- [ ] 5.2 RED `TestCalendarPort`: `list_events` agrega DTOs multi-página respetando `limit`; `startDateTime=since|now-30d`, `endDateTime=now+M365_CALENDAR_FUTURE_DAYS`; sin resultados → `[]`, no error. [M365-R4 — calendario]
-- [ ] 5.3 VERIFY confirmar T5.2 en ROJO antes de GREEN.
-- [ ] 5.4 GREEN `mappers.py` (ampliar): `map_calendar_event`.
-- [ ] 5.5 GREEN `ports.py` (ampliar): `GraphCalendarReader` sobre `/me/calendarView` (scope `Calendars.Read`); wired en `Capability.calendar`.
-- [ ] 5.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestCalendarPort -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 5.1 [Fixtures] `tests/fixtures/graph/calendar_page_1.json`, `calendar_empty.json`.
+- [x] 5.2 RED `TestCalendarPort`: `list_events` agrega DTOs multi-página respetando `limit`; `startDateTime=since|now-30d`, `endDateTime=now+M365_CALENDAR_FUTURE_DAYS`; sin resultados → `[]`, no error. [M365-R4 — calendario]
+- [x] 5.3 VERIFY confirmar T5.2 en ROJO antes de GREEN.
+- [x] 5.4 GREEN `mappers.py` (ampliar): `map_calendar_event`.
+- [x] 5.5 GREEN `ports.py` (ampliar): `GraphCalendarReader` sobre `/me/calendarView` (scope `Calendars.Read`); wired en `Capability.calendar`.
+- [x] 5.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestCalendarPort -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 6 — Tareas Planner: `ExternalTaskReaderPort` (Commit 6)
 
