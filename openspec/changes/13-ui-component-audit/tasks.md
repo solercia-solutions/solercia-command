@@ -56,10 +56,12 @@ Chain strategy: size-exception
 
 ## Fase 4 — notification-panel (Commit 4)
 
-- [ ] 4.1 Reemplazar el spinner SVG manual por `<sol-spinner size="md">` en `frontend/src/widgets/notification-panel/notification-panel.component.ts`. [R3,R4,R7]
-- [ ] 4.2 Reemplazar el chip/pill manual por `<sol-badge variant="neutral">{{ ruleLabel(...) }}</sol-badge>`. [R3,R7]
-- [ ] 4.3 Migrar `@Output() closed = new EventEmitter<void>()` a `readonly closed = output<void>()`; conservar el mismo nombre de evento (`app.component.ts` sigue enlazando `(closed)` sin cambios). [R3]
-- [ ] 4.4 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: estado de carga muestra `SolSpinner`, chips muestran `SolBadge`, la campana sigue cerrando el panel vía `(closed)`. [R7]
+- [x] 4.1 Reemplazar el spinner SVG manual por `<sol-spinner size="md">` en `frontend/src/widgets/notification-panel/notification-panel.component.ts`. [R3,R4,R7]
+- [x] 4.2 Reemplazar el chip/pill manual por `<sol-badge variant="neutral">{{ ruleLabel(...) }}</sol-badge>`. [R3,R7]
+  - Se agregó `size="sm"` para conservar el tamaño visual compacto del chip original.
+- [x] 4.3 Migrar `@Output() closed = new EventEmitter<void>()` a `readonly closed = output<void>()`; conservar el mismo nombre de evento (`app.component.ts` sigue enlazando `(closed)` sin cambios). [R3]
+- [x] 4.4 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: estado de carga muestra `SolSpinner`, chips muestran `SolBadge`, la campana sigue cerrando el panel vía `(closed)`. [R7]
+  - `npm run build`: verde (4.737s). `npm run lint`: "ESLint: No issues found". Revisión manual: `app.component.ts` no requirió cambios — sigue enlazando `<sol-notification-panel (closed)="closeNotif()" />` sin modificaciones, el nombre del evento se conservó exacto.
 
 ## Fase 5 — task-modal (Commit 5, mayor riesgo)
 

@@ -1,15 +1,15 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  EventEmitter,
   OnInit,
-  Output,
   inject,
+  output,
   signal,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { AppNotification, RULE_TYPE_LABELS } from '@entities/notification/notification.model';
+import { SolBadgeComponent, SolSpinnerComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 
 /**
@@ -21,7 +21,7 @@ import { I18nService } from '@shared/i18n';
   selector: 'sol-notification-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [SolBadgeComponent, SolSpinnerComponent],
   template: `
     <div
       role="dialog"
@@ -47,16 +47,7 @@ import { I18nService } from '@shared/i18n';
       <div class="max-h-[28rem] overflow-y-auto">
         @if (loading()) {
           <div class="flex items-center justify-center py-10">
-            <svg
-              class="h-5 w-5 animate-spin text-muted"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <sol-spinner size="md" />
           </div>
         } @else if (notifications().length === 0) {
           <p class="px-4 py-10 text-center text-sm text-muted">
@@ -72,12 +63,7 @@ import { I18nService } from '@shared/i18n';
 
                 <!-- Meta row -->
                 <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                  <span
-                    class="inline-flex rounded-full bg-sunken px-2 py-0.5
-                           text-[10px] font-semibold uppercase tracking-wide text-subtle"
-                  >
-                    {{ ruleLabel(n.rule_type) }}
-                  </span>
+                  <sol-badge variant="neutral" size="sm">{{ ruleLabel(n.rule_type) }}</sol-badge>
                   <span class="text-[11px] text-subtle">{{ relativeTime(n.created_at) }}</span>
                 </div>
 
@@ -126,7 +112,7 @@ export class NotificationPanelComponent implements OnInit {
   private readonly i18n = inject(I18nService);
 
   /** Emitted when the panel should be closed (e.g. after navigating to a task). */
-  @Output() readonly closed = new EventEmitter<void>();
+  readonly closed = output<void>();
 
   /** Static UI text resolved via i18n (reactive to language change). */
   protected readonly text = {
