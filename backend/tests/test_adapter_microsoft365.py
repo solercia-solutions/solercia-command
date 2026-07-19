@@ -622,3 +622,106 @@ class TestOAuthAndRegistry:
         assert authorize_response.status_code == 302, authorize_response.text
         location = authorize_response.headers["location"]
         assert location.startswith("https://login.microsoftonline.com/")
+
+
+# ---------------------------------------------------------------------------
+# Lote 4 — Correo: `MailReaderPort`
+# ---------------------------------------------------------------------------
+
+
+class TestMailPort:
+    @pytest.mark.asyncio
+    async def test_list_messages_aggregates_dtos_from_two_pages_respecting_limit(
+        self,
+    ) -> None:
+        """Scenario: Resultados dentro de la ventana, multi-página (M365-R4,
+        correo) — two fixture pages chained by `@odata.nextLink` are fully
+        aggregated into `MailMessage` DTOs, Graph's own pagination never
+        leaks into them."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMailReader
+        from app.integrations.dtos import MailMessage
+
+        page_1 = _load_fixture("mail_page_1.json")
+        page_2 = _load_fixture("mail_page_2.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.params.get("$skip") == "2":
+                return httpx.Response(200, json=page_2)
+            assert request.url.path == "/v1.0/me/messages"
+            assert "receivedDateTime ge" in request.url.params.get("$filter", "")
+            return httpx.Response(200, json=page_1)
+
+        port = GraphMailReader(transport=httpx.MockTransport(handler))
+
+        messages = await port.list_messages(_ctx(), limit=10)
+
+        assert [m.external_id for m in messages] == ["mail-1", "mail-2", "mail-3"]
+        assert all(isinstance(m, MailMessage) for m in messages)
+
+    @pytest.mark.asyncio
+    async def test_list_messages_returns_empty_list_without_error(self) -> None:
+        """Scenario: Sin resultados en la ventana — an empty `value` never
+        raises, it returns an empty list (M365-R4, correo)."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMailReader
+
+        empty = _load_fixture("mail_empty.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=empty)
+
+        port = GraphMailReader(transport=httpx.MockTransport(handler))
+
+        messages = await port.list_messages(_ctx(), limit=10)
+
+        assert messages == []
+
+    @pytest.mark.asyncio
+    async def test_list_messages_maps_every_field_from_the_graph_payload(
+        self,
+    ) -> None:
+        """Triangulation: every `MailMessage` field is populated from the
+        REAL Graph message shape, not a hardcoded stub."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMailReader
+
+        single_page = _load_fixture("mail_page_2.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=single_page)
+
+        port = GraphMailReader(transport=httpx.MockTransport(handler))
+
+        messages = await port.list_messages(_ctx(), limit=10)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.external_id == "mail-3"
+        assert message.subject == "Confirmación de entrega"
+        assert message.sender == "diana.paez@contoso.com"
+        assert message.recipients == (
+            "ana.torres@contoso.com",
+            "carlos.ruiz@contoso.com",
+        )
+        assert message.snippet == "Confirmamos la entrega del módulo de tareas."
+        assert message.body_text == (
+            "Confirmamos la entrega del módulo de tareas para revisión."
+        )
+        assert message.received_at.year == 2026
+        assert message.received_at.month == 7
+        assert message.received_at.day == 8
+
+    def test_mail_reader_is_wired_into_the_adapter_mail_capability(self) -> None:
+        """The adapter's `port_for(Capability.mail)` resolves to a REAL
+        `GraphMailReader`, not `None` (spec.md "Lectura de correo...")."""
+
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.adapters.microsoft365.ports import GraphMailReader
+        from app.integrations.ports import Capability
+
+        adapter = Microsoft365Adapter()
+
+        port = adapter.port_for(Capability.mail)
+
+        assert isinstance(port, GraphMailReader)

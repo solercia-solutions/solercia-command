@@ -1,0 +1,22 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/messages",
+  "value": [
+    {
+      "id": "mail-3",
+      "subject": "Confirmación de entrega",
+      "bodyPreview": "Confirmamos la entrega del módulo de tareas.",
+      "receivedDateTime": "2026-07-08T11:15:00Z",
+      "from": {
+        "emailAddress": { "name": "Diana Páez", "address": "diana.paez@contoso.com" }
+      },
+      "toRecipients": [
+        { "emailAddress": { "name": "Ana Torres", "address": "ana.torres@contoso.com" } },
+        { "emailAddress": { "name": "Carlos Ruiz", "address": "carlos.ruiz@contoso.com" } }
+      ],
+      "body": {
+        "contentType": "text",
+        "content": "Confirmamos la entrega del módulo de tareas para revisión."
+      }
+    }
+  ]
+}

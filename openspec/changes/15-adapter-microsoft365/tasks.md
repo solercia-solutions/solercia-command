@@ -64,12 +64,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 4 — Correo: `MailReaderPort` (Commit 4)
 
-- [ ] 4.1 [Fixtures] `tests/fixtures/graph/mail_page_1.json`, `mail_page_2.json`, `mail_empty.json`.
-- [ ] 4.2 RED `TestMailPort`: `list_messages(ctx, since, limit)` agrega DTOs de ambas páginas respetando `limit`; sin resultados dentro de `since` → `[]`, no error. [M365-R4 — correo]
-- [ ] 4.3 VERIFY confirmar T4.2 en ROJO antes de GREEN.
-- [ ] 4.4 GREEN `.../microsoft365/mappers.py`: `map_mail_message(json) -> MailMessage`.
-- [ ] 4.5 GREEN `.../microsoft365/ports.py`: `GraphMailReader` sobre `/me/messages` (`$select`/`$top`/`$filter=receivedDateTime ge {since}`, scope `Mail.Read`); wired en `adapter.port_for(Capability.mail)`.
-- [ ] 4.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestMailPort -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 4.1 [Fixtures] `tests/fixtures/graph/mail_page_1.json`, `mail_page_2.json`, `mail_empty.json`.
+- [x] 4.2 RED `TestMailPort`: `list_messages(ctx, since, limit)` agrega DTOs de ambas páginas respetando `limit`; sin resultados dentro de `since` → `[]`, no error. [M365-R4 — correo]
+- [x] 4.3 VERIFY confirmar T4.2 en ROJO antes de GREEN.
+- [x] 4.4 GREEN `.../microsoft365/mappers.py`: `map_mail_message(json) -> MailMessage`.
+- [x] 4.5 GREEN `.../microsoft365/ports.py`: `GraphMailReader` sobre `/me/messages` (`$select`/`$top`/`$filter=receivedDateTime ge {since}`, scope `Mail.Read`); wired en `adapter.port_for(Capability.mail)`.
+- [x] 4.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestMailPort -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 5 — Calendario: `CalendarReaderPort` (Commit 5)
 

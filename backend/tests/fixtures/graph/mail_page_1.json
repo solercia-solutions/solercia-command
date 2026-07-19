@@ -1,0 +1,38 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/messages",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skip=2",
+  "value": [
+    {
+      "id": "mail-1",
+      "subject": "Actualización del proyecto",
+      "bodyPreview": "Buenas tardes, les comparto el avance del proyecto.",
+      "receivedDateTime": "2026-07-10T14:32:00Z",
+      "from": {
+        "emailAddress": { "name": "Ana Torres", "address": "ana.torres@contoso.com" }
+      },
+      "toRecipients": [
+        { "emailAddress": { "name": "Equipo Proyectos", "address": "equipo@contoso.com" } }
+      ],
+      "body": {
+        "contentType": "text",
+        "content": "Buenas tardes, les comparto el avance del proyecto."
+      }
+    },
+    {
+      "id": "mail-2",
+      "subject": "Recordatorio de reunión",
+      "bodyPreview": "Recordatorio: reunión mañana a las 9am.",
+      "receivedDateTime": "2026-07-09T09:00:00Z",
+      "from": {
+        "emailAddress": { "name": "Carlos Ruiz", "address": "carlos.ruiz@contoso.com" }
+      },
+      "toRecipients": [
+        { "emailAddress": { "name": "Ana Torres", "address": "ana.torres@contoso.com" } }
+      ],
+      "body": {
+        "contentType": "text",
+        "content": "Recordatorio: reunión mañana a las 9am."
+      }
+    }
+  ]
+}

@@ -3,11 +3,10 @@ Microsoft Graph (change 15-adapter-microsoft365, design.md "PRIMER
 adaptador real sobre los puertos del 14"). Read-only; delegated OAuth
 (Entra ID) via ``oauth.py``.
 
-``_ports`` starts EMPTY here (Lote 3): the concrete port implementations
-(``GraphMailReader``/``GraphCalendarReader``/``GraphExternalTaskReader``/
-``GraphMeetingNotesReader``, ``ports.py``) are wired in incrementally by
-Lotes 4-7, one capability per lote — ``capabilities`` already declares the
-full set this adapter WILL support (spec.md, "Registro del adaptador").
+``_ports`` is wired in incrementally, one capability per lote (4-7):
+``capabilities`` already declares the full set this adapter WILL support
+(spec.md, "Registro del adaptador") even before every port has a concrete
+implementation.
 """
 
 from collections.abc import Sequence
@@ -15,6 +14,7 @@ from collections.abc import Sequence
 from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import oauth
+from app.integrations.adapters.microsoft365.ports import GraphMailReader
 from app.integrations.dtos import OAuthTokens
 from app.integrations.ports import Capability
 
@@ -34,7 +34,9 @@ class Microsoft365Adapter:
 
     def __init__(self, settings: Settings = default_settings) -> None:
         self._settings = settings
-        self._ports: dict[Capability, object] = {}
+        self._ports: dict[Capability, object] = {
+            Capability.mail: GraphMailReader(settings=settings),
+        }
 
     def authorize_url(
         self, state: str, redirect_uri: str, scopes: Sequence[str]
