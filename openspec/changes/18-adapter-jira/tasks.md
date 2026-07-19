@@ -101,8 +101,8 @@ Chain strategy: size-exception
 
 ## Lote 9 — Dependencias runtime
 
-- [ ] 9.1 Promover `httpx>=0.27` de `requirements-dev.txt` a `backend/requirements.txt`.
-- [ ] 9.2 Agregar `openpyxl` a `backend/requirements.txt`; confirmar `python-multipart` ya presente (sin cambio).
+- [x] 9.1 Promover `httpx>=0.27` de `requirements-dev.txt` a `backend/requirements.txt`. **Desviación (as-built)**: `httpx==0.28.1` YA estaba en `requirements.txt` (lo promovió el 15/16/17) — no hay diff que aplicar, se deja constancia.
+- [x] 9.2 Agregar `openpyxl` a `backend/requirements.txt` (`openpyxl==3.1.5`); confirmado `python-multipart==0.0.20` ya presente (sin cambio). `pip install -r backend/requirements.txt` real: sin cambios adicionales (ya instalado en el venv). Smoke `pytest tests/ -k jira -v`: 70 passed.
 
 ## Lote 10 — Documentación C4
 
