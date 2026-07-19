@@ -20,6 +20,7 @@ import {
   KanbanItemMoved,
   SolButtonComponent,
   SolCardComponent,
+  SolIconComponent,
   SolModalComponent,
   SolKanbanBoardComponent,
   SolTimelineComponent,
@@ -70,6 +71,7 @@ type ViewMode = 'board' | 'grid';
     NgTemplateOutlet,
     SolButtonComponent,
     SolCardComponent,
+    SolIconComponent,
     SolModalComponent,
     SolKanbanBoardComponent,
     SolTimelineComponent,
@@ -177,12 +179,7 @@ type ViewMode = 'board' | 'grid';
               [attr.aria-pressed]="viewMode() === 'board'"
               [attr.aria-label]="text.viewBoardAria()"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                aria-hidden="true">
-                <rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="18"/>
-              </svg>
+              <sol-icon name="view-columns" size="sm" />
               {{ text.viewBoard() }}
             </button>
             <button
@@ -198,13 +195,7 @@ type ViewMode = 'board' | 'grid';
               [attr.aria-pressed]="viewMode() === 'grid'"
               [attr.aria-label]="text.viewGridAria()"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-              </svg>
+              <sol-icon name="squares-2x2" size="sm" />
               {{ text.viewGrid() }}
             </button>
           </div>
@@ -673,23 +664,7 @@ type ViewMode = 'board' | 'grid';
                   [class.text-danger]="isOverdue(task, doneStatus())"
                   [class.text-muted]="!isOverdue(task, doneStatus())"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
+                  <sol-icon name="calendar" size="sm" />
                   {{ due }}
                 </span>
               }

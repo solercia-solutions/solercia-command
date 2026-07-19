@@ -37,9 +37,11 @@ Chain strategy: size-exception
 
 ## Fase 2 — project-workspace (Commit 2)
 
-- [ ] 2.1 Migrar 3 SVG en `frontend/src/widgets/project-workspace/project-workspace.component.ts` a `sol-icon`: vista board→`view-columns`, vista grid→`squares-2x2`, fecha→`calendar`; importar `SolIconComponent`. [R4,R7]
-- [ ] 2.2 Conservar sin cambios los 2 SVG restantes (back→`arrow-left`, riesgo→`flag`, sin equivalente en `ICON_REGISTRY` 0.3.0); registrar ambos como pendientes en `inventory.md`. [R1,R4]
-- [ ] 2.3 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: navegación board/grid, selector de fecha, back y bandera de riesgo sin regresión visual. [R7]
+- [x] 2.1 Migrar 3 SVG en `frontend/src/widgets/project-workspace/project-workspace.component.ts` a `sol-icon`: vista board→`view-columns`, vista grid→`squares-2x2`, fecha→`calendar`; importar `SolIconComponent`. [R4,R7]
+- [x] 2.2 Conservar sin cambios los 2 SVG restantes (back→`arrow-left`, riesgo→`flag`, sin equivalente en `ICON_REGISTRY` 0.3.0); registrar ambos como pendientes en `inventory.md`. [R1,R4]
+  - Ya documentados en `inventory.md` ("Pendientes de aporte a la librería") desde el Commit 1.
+- [x] 2.3 VERIFY `cd frontend && npm run build && npm run lint` en verde; revisión manual: navegación board/grid, selector de fecha, back y bandera de riesgo sin regresión visual. [R7]
+  - `npm run build`: verde (4.926s). `npm run lint`: "ESLint: No issues found". Revisión manual: los botones de vista board/grid conservan clases/estados activos (`aria-pressed`, `aria-label`) intactos, solo cambió el ícono interno; el ícono de fecha en la tarjeta conserva `size="sm"` visualmente equivalente; back (`arrow-left`) y riesgo (`flag`) quedan intactos como SVG manual.
 
 ## Fase 3 — app shell (Commit 3)
 
