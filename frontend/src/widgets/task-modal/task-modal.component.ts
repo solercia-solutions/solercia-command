@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   input,
   output,
@@ -12,7 +13,15 @@ import {
   Validators,
 } from '@angular/forms';
 import { EstimationMode } from '@entities/project/project.model';
-import { SolButtonComponent } from '@shared/ui';
+import {
+  SolButtonComponent,
+  SolDatePickerComponent,
+  SolInputComponent,
+  SolModalComponent,
+  SolNumberInputComponent,
+  SolSelectComponent,
+  SolTextareaComponent,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import {
   Member,
@@ -41,220 +50,159 @@ export interface TaskFormResult {
 /**
  * Modal form to create or edit a task. Fields shown adapt to the methodology:
  * estimation inputs follow `estimationMode`; the sprint selector appears only
- * when sprints are enabled. Purely presentational — emits `save`/`close`.
+ * when sprints are enabled. Purely presentational — emits `save`/`closed`.
  */
 @Component({
   selector: 'sol-task-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, SolButtonComponent],
+  imports: [
+    ReactiveFormsModule,
+    SolButtonComponent,
+    SolDatePickerComponent,
+    SolInputComponent,
+    SolModalComponent,
+    SolNumberInputComponent,
+    SolSelectComponent,
+    SolTextareaComponent,
+  ],
   template: `
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      (click)="close.emit()"
+    <sol-modal
+      [open]="true"
+      [title]="task() ? text.editTitle() : text.createTitle()"
+      size="md"
+      [closeOnBackdrop]="true"
+      (closed)="closed.emit()"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        [attr.aria-label]="task() ? text.editAria() : text.createAria()"
-        (click)="$event.stopPropagation()"
-        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-lg"
+      <form
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        class="flex flex-col gap-4"
+        novalidate
       >
-        <div class="mb-4 flex items-center justify-between gap-2">
-          <h2 class="text-lg font-semibold text-text">
-            {{ task() ? text.editTitle() : text.createTitle() }}
-          </h2>
-          <button
-            type="button"
-            (click)="close.emit()"
-            class="grid h-8 w-8 place-items-center rounded-lg text-muted transition-colors hover:bg-muted/10 hover:text-text
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-            [attr.aria-label]="text.closeAria()"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+        <div>
+          <sol-input
+            [label]="text.titleLabel()"
+            [placeholder]="text.titlePlaceholder()"
+            formControlName="title"
+          />
+          @if (showError('title')) {
+            <p class="mt-1 text-xs text-danger">{{ text.titleRequired() }}</p>
+          }
         </div>
 
-        <form
-          [formGroup]="form"
-          (ngSubmit)="onSubmit()"
-          class="flex flex-col gap-4"
-          novalidate
-        >
-          <label class="block">
-            <span class="mb-1.5 block text-sm font-medium text-text">{{ text.titleLabel() }}</span>
-            <input
-              formControlName="title"
-              [placeholder]="text.titlePlaceholder()"
-              [class]="fieldClass"
-            />
-            @if (showError('title')) {
-              <p class="mt-1 text-xs text-danger">{{ text.titleRequired() }}</p>
-            }
-          </label>
+        <sol-textarea
+          [label]="text.descriptionLabel()"
+          [placeholder]="text.descriptionPlaceholder()"
+          [rows]="3"
+          formControlName="description"
+        />
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <sol-select
+            [label]="text.statusLabel()"
+            [options]="statusOptions()"
+            formControlName="status"
+          />
+
+          <sol-select
+            [label]="text.priorityLabel()"
+            [options]="priorityOptions"
+            formControlName="priority"
+          />
+
+          <sol-select
+            [label]="text.assigneeLabel()"
+            [options]="assigneeOptions()"
+            [showAllOption]="true"
+            [allOptionLabel]="text.assigneeNone()"
+            formControlName="assignee_id"
+          />
+
+          <sol-select
+            [label]="text.typeLabel()"
+            [options]="taskTypeOptions"
+            formControlName="task_type"
+          />
+
+          @if (showPoints()) {
+            <label class="block">
+              <span class="mb-1.5 block text-sm font-medium text-text"
+                >{{ text.estimationPoints() }}</span
+              >
+              <sol-number-input
+                [min]="0"
+                [step]="1"
+                ariaLabelKey="taskModal.estimationPointsAria"
+                formControlName="estimation_points"
+              />
+            </label>
+          }
+
+          @if (showHours()) {
+            <label class="block">
+              <span class="mb-1.5 block text-sm font-medium text-text"
+                >{{ text.estimationHours() }}</span
+              >
+              <sol-number-input
+                [min]="0"
+                [step]="0.5"
+                ariaLabelKey="taskModal.estimationHoursAria"
+                formControlName="estimation_hours"
+              />
+            </label>
+          }
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
-              >{{ text.descriptionLabel() }}</span
+              >{{ text.dueDateLabel() }}</span
             >
-            <textarea
-              formControlName="description"
-              rows="3"
-              [placeholder]="text.descriptionPlaceholder()"
-              class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text
-                     placeholder:text-muted transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-            ></textarea>
+            <sol-date-picker formControlName="due_date" />
           </label>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.statusLabel() }}</span
-              >
-              <select formControlName="status" [class]="fieldClass">
-                @for (status of allowedStatuses(); track status) {
-                  <option [value]="status">{{ statusLabel(status) }}</option>
-                }
-              </select>
-            </label>
-
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.priorityLabel() }}</span
-              >
-              <select formControlName="priority" [class]="fieldClass">
-                @for (option of priorityOptions; track option.value) {
-                  <option [value]="option.value">{{ option.label }}</option>
-                }
-              </select>
-            </label>
-
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.assigneeLabel() }}</span
-              >
-              <select formControlName="assignee_id" [class]="fieldClass">
-                <option [ngValue]="null">{{ text.assigneeNone() }}</option>
-                @for (member of members(); track member.user_id) {
-                  <option [ngValue]="member.user_id">
-                    {{ member.full_name }}
-                  </option>
-                }
-              </select>
-            </label>
-
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.typeLabel() }}</span
-              >
-              <select formControlName="task_type" [class]="fieldClass">
-                @for (option of taskTypeOptions; track option.value) {
-                  <option [value]="option.value">{{ option.label }}</option>
-                }
-              </select>
-            </label>
-
-            @if (showPoints()) {
-              <label class="block">
-                <span class="mb-1.5 block text-sm font-medium text-text"
-                  >{{ text.estimationPoints() }}</span
-                >
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  formControlName="estimation_points"
-                  placeholder="0"
-                  [class]="fieldClass"
-                />
-              </label>
-            }
-
-            @if (showHours()) {
-              <label class="block">
-                <span class="mb-1.5 block text-sm font-medium text-text"
-                  >{{ text.estimationHours() }}</span
-                >
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  formControlName="estimation_hours"
-                  placeholder="0"
-                  [class]="fieldClass"
-                />
-              </label>
-            }
-
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.dueDateLabel() }}</span
-              >
-              <input type="date" formControlName="due_date" [class]="fieldClass" />
-            </label>
-
-            @if (sprintsEnabled()) {
-              <label class="block">
-                <span class="mb-1.5 block text-sm font-medium text-text"
-                  >{{ text.sprintLabel() }}</span
-                >
-                <select formControlName="sprint_id" [class]="fieldClass">
-                  <option [ngValue]="null">{{ text.backlogOption() }}</option>
-                  @for (sprint of sprints(); track sprint.id) {
-                    <option [ngValue]="sprint.id">{{ sprint.name }}</option>
-                  }
-                </select>
-              </label>
-            }
-          </div>
-
-          @if (error()) {
-            <div
-              role="alert"
-              class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {{ error() }}
-            </div>
+          @if (sprintsEnabled()) {
+            <sol-select
+              [label]="text.sprintLabel()"
+              [options]="sprintOptions()"
+              [showAllOption]="true"
+              [allOptionLabel]="text.backlogOption()"
+              formControlName="sprint_id"
+            />
           }
+        </div>
 
-          <div class="flex items-center justify-between gap-2 pt-1">
-            @if (task()) {
-              <sol-button
-                type="button"
-                variant="danger"
-                (click)="remove.emit(task()!.id)"
-              >
-                {{ text.remove() }}
-              </sol-button>
-            } @else {
-              <span></span>
-            }
-            <div class="flex items-center gap-2">
-              <sol-button type="button" variant="ghost" (click)="close.emit()">
-                {{ text.cancel() }}
-              </sol-button>
-              <sol-button type="submit" variant="primary" [disabled]="saving()">
-                {{ saving() ? text.saving() : text.save() }}
-              </sol-button>
-            </div>
+        @if (error()) {
+          <div
+            role="alert"
+            class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {{ error() }}
           </div>
-        </form>
-      </div>
-    </div>
+        }
+
+        <div class="flex items-center justify-between gap-2 pt-1">
+          @if (task()) {
+            <sol-button
+              type="button"
+              variant="danger"
+              (click)="remove.emit(task()!.id)"
+            >
+              {{ text.remove() }}
+            </sol-button>
+          } @else {
+            <span></span>
+          }
+          <div class="flex items-center gap-2">
+            <sol-button type="button" variant="ghost" (click)="closed.emit()">
+              {{ text.cancel() }}
+            </sol-button>
+            <sol-button type="submit" variant="primary" [disabled]="saving()">
+              {{ saving() ? text.saving() : text.save() }}
+            </sol-button>
+          </div>
+        </div>
+      </form>
+    </sol-modal>
   `,
 })
 export class TaskModalComponent implements OnInit {
@@ -263,11 +211,8 @@ export class TaskModalComponent implements OnInit {
 
   /** Static UI chrome resolved by i18n (reactive to language changes). */
   protected readonly text = {
-    editAria: this.i18n.t('taskModal.editAria'),
-    createAria: this.i18n.t('taskModal.createAria'),
     editTitle: this.i18n.t('taskModal.editTitle'),
     createTitle: this.i18n.t('taskModal.createTitle'),
-    closeAria: this.i18n.t('taskModal.closeAria'),
     titleLabel: this.i18n.t('taskModal.titleLabel'),
     titlePlaceholder: this.i18n.t('taskModal.titlePlaceholder'),
     titleRequired: this.i18n.t('taskModal.titleRequired'),
@@ -302,15 +247,38 @@ export class TaskModalComponent implements OnInit {
   readonly error = input<string | null>(null);
 
   readonly save = output<TaskFormResult>();
-  readonly close = output<void>();
+  readonly closed = output<void>();
   readonly remove = output<string>();
 
-  protected readonly priorityOptions = PRIORITY_OPTIONS;
-  protected readonly taskTypeOptions = TASK_TYPE_OPTIONS;
+  protected readonly priorityOptions = PRIORITY_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+  protected readonly taskTypeOptions = TASK_TYPE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
 
-  protected readonly fieldClass =
-    'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text ' +
-    'transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40';
+  protected readonly statusOptions = computed(() =>
+    this.allowedStatuses().map((status) => ({
+      value: status,
+      label: this.statusLabel(status),
+    })),
+  );
+
+  protected readonly assigneeOptions = computed(() =>
+    this.members().map((member) => ({
+      value: member.user_id,
+      label: member.full_name,
+    })),
+  );
+
+  protected readonly sprintOptions = computed(() =>
+    this.sprints().map((sprint) => ({
+      value: sprint.id,
+      label: sprint.name,
+    })),
+  );
 
   protected readonly form = this.fb.group({
     title: ['', [Validators.required]],
