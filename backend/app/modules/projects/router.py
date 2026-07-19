@@ -91,9 +91,23 @@ async def reparent_project(
 ) -> dict:
     """Reparent a project, or unlink it to root with ``parent_project_id: null``.
 
-    Requires ``admin`` or ``manager`` (structural mutation, R7). Rejects with
-    ``self_parent`` (422), ``parent_not_found`` (404), ``project_cycle``
-    (409) or ``max_depth_exceeded`` (422) — see
+    Requires ``admin`` or ``manager`` (structural mutation, R7); any other
+    role gets **403** (``forbidden``). ``payload.parent_project_id: null``
+    always succeeds (unlinking can only shorten the chain, never needs
+    validation). A non-null value runs the full hierarchy check
+    (``ProjectService.validate_parent``) and rejects with a DISTINCT ``code``
+    per cause (envelope ``{detail, code, status}``, R9):
+
+    - ``self_parent`` (**422**) — ``parent_project_id`` equals the project's
+      own id.
+    - ``parent_not_found`` (**404**) — the parent does not exist, belongs to
+      another organization, or is soft-deleted.
+    - ``project_cycle`` (**409**) — the parent is inside the project's own
+      subtree; the assignment would make it its own ancestor.
+    - ``max_depth_exceeded`` (**422**) — the resulting chain would exceed
+      ``PROJECT_HIERARCHY_MAX_DEPTH`` levels (default 5).
+
+    A rejected reparent leaves the existing hierarchy UNCHANGED — see
     ``specs/project-hierarchy/spec.md``.
     """
 
@@ -112,8 +126,11 @@ async def get_project_tree(
 ) -> dict:
     """Return ``project_id`` nested with every active descendant.
 
-    Available to any authenticated member of the organization (R7), same as
-    the rest of the ``projects`` reads.
+    Available to any authenticated member of the organization — no role
+    restriction (R7), same as the rest of the ``projects`` reads. Returns
+    **404** (``project_not_found``) when ``project_id`` does not exist, is
+    soft-deleted, or belongs to another organization — the tree NEVER
+    crosses the tenant boundary, even transitively through a descendant.
     """
 
     service = ProjectService(db)
@@ -129,9 +146,15 @@ async def get_project_progress(
 ) -> dict:
     """Return the consolidated (roll-up) progress of ``project_id``'s subtree.
 
-    ``self`` is the project's OWN task counts; ``rollup`` sums the project
-    and every active descendant (design.md Decision 1/2). Available to any
-    authenticated member of the organization (R7).
+    ``self`` is the project's OWN task counts (``done``/``total``/
+    ``percent_done``); ``rollup`` sums the project and every active
+    descendant of its subtree (design.md Decision 1/2). ``done`` is computed
+    per node against ITS OWN methodology's last board column — a
+    mixed-methodology subtree aggregates correctly. ``cancelled`` tasks are
+    excluded from both ``done`` and ``total``. Available to any authenticated
+    member of the organization — no role restriction (R7). Returns **404**
+    (``project_not_found``) when ``project_id`` does not exist, is
+    soft-deleted, or belongs to another organization.
     """
 
     service = ProjectService(db)

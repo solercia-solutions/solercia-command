@@ -1,0 +1,29 @@
+change: 21-project-hierarchy
+artifact_store: hybrid
+depends_on:
+  - 02-contrato-api
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+  apply: true
+capabilities:
+  new:
+    - project-hierarchy
+  modified:
+    - projects
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+last_updated: 2026-07-18
+
