@@ -1,0 +1,2 @@
+﻿Issue key,Summary,Issue Type,Status,Priority,Assignee,Labels,Labels,Sprint,Story Points,Created,Description
+PROJ-42,Implementar el inicio de sesion con SSO,Story,In Progress,High,5b10a2844c20165700ede21g,backend,auth,Sprint 3,5,2024-01-15T10:30:00.000+0000,Falta soportar el flujo SSO en el login.

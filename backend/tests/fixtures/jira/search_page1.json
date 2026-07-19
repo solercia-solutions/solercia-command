@@ -1,0 +1,53 @@
+{
+  "issues": [
+    {
+      "id": "10001",
+      "key": "PROJ-42",
+      "fields": {
+        "summary": "Implementar el inicio de sesion con SSO",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {"type": "text", "text": "Falta soportar el flujo SSO en el login."}
+              ]
+            }
+          ]
+        },
+        "issuetype": {"name": "Story", "subtask": false},
+        "status": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+        "priority": {"name": "High"},
+        "assignee": {
+          "accountId": "5b10a2844c20165700ede21g",
+          "displayName": "Mia Krystof",
+          "emailAddress": "mia@example.com"
+        },
+        "labels": ["backend", "auth"],
+        "customfield_10032": 5,
+        "customfield_10020": ["Sprint 3"],
+        "created": "2024-01-15T10:30:00.000+0000"
+      }
+    },
+    {
+      "id": "10002",
+      "key": "PROJ-43",
+      "fields": {
+        "summary": "Revisar el rendimiento del listado de tareas",
+        "description": null,
+        "issuetype": {"name": "Sub-task", "subtask": true},
+        "status": {"name": "Esperando aprobacion", "statusCategory": {"key": "indeterminate"}},
+        "priority": {"name": "Blocker"},
+        "assignee": null,
+        "labels": [],
+        "customfield_10032": null,
+        "customfield_10020": [{"id": 7, "name": "Sprint 4", "state": "active"}],
+        "created": "2024-01-16T08:00:00.000+0000"
+      }
+    }
+  ],
+  "isLast": false,
+  "nextPageToken": "CAEaAggD"
+}
