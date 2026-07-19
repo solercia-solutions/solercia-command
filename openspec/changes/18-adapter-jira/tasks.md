@@ -64,9 +64,9 @@ Chain strategy: size-exception
 
 ## Lote 3 — Normalizador (RED→GREEN) — R7, R8, convergencia (parte de R5)
 
-- [ ] 3.1 RED `backend/tests/test_jira_adapter_normalizer.py`: tipo desconocido→`task`+reporte; estado por `statusCategory`; prioridad desconocida→`medium`+reporte; `assignee`/`labels` crudos; ADF→texto; `subtask` soportado.
-- [ ] 3.2 RED: mismo issue (fixture 1.1 vs fila de 1.3) → `NormalizedJiraIssue` equivalente.
-- [ ] 3.3 GREEN `backend/app/integrations/adapters/jira/normalizer.py`.
+- [x] 3.1 RED `backend/tests/test_jira_adapter_normalizer.py`: tipo desconocido→`task`+reporte; estado por `statusCategory`; prioridad desconocida→`medium`+reporte; `assignee`/`labels` crudos; ADF→texto; `subtask` soportado.
+- [x] 3.2 RED: mismo issue (fixture 1.1 vs fila de 1.3) → `NormalizedJiraIssue` equivalente.
+- [x] 3.3 GREEN `backend/app/integrations/adapters/jira/normalizer.py`.
 
 ## Lote 4 — Parser de archivo (RED→GREEN) — R5, R6, guarda antibomba XLSX
 
