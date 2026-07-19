@@ -22,6 +22,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.boards.router import router as boards_router
 from app.modules.checklists.router import router as checklists_router
 from app.modules.comments.router import router as comments_router
+from app.modules.connectors.router import router as connectors_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.dependencies.router import router as dependencies_admin_router
 from app.modules.labels.router import router as labels_router
@@ -162,6 +163,7 @@ app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(notifications_prefs_router, prefix=API_PREFIX)
 app.include_router(reminders_router, prefix=API_PREFIX)
 app.include_router(assets_router, prefix=API_PREFIX)
+app.include_router(connectors_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:

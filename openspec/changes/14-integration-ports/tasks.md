@@ -63,14 +63,14 @@ Chain strategy: stacked-to-main
 
 ## Lote 3 — CRUD `/connectors` con RBAC (Commit 3)
 
-- [ ] 3.1 [Foundation] `app/modules/connectors/schemas.py`: `ConnectorCreate`/`ConnectorUpdate`/`ConnectorRead` (Pydantic v2; nunca expone tokens).
-- [ ] 3.2 [Foundation] `app/modules/connectors/repository.py`: `create`/`get`/`list`/`update`/`soft_delete` scoped por `organization_id` (patrón `assets/repository.py`).
-- [ ] 3.3 [Foundation] `app/modules/connectors/service.py` (parte CRUD): orquesta repository; `created_by`/`updated_by` = actor.
-- [ ] 3.4 RED `backend/tests/test_connectors_crud.py`: admin crea conector con `created_by`/`updated_by`; member `POST` → `403`; member `GET /connectors` lista sin rol admin/manager; manager también permitido en `POST`/`PATCH`/`DELETE`; `DELETE` es soft-delete; conector de otra organización → `404` en `GET`/`PATCH`/`DELETE`; `POST` responde `201` con `{"data":...,"message":...}`; `GET` lista responde `{"data":[...],"meta":{"total":n}}`. [C-R1, C-R2, C-R9]
-- [ ] 3.5 VERIFY confirmar T3.4 en ROJO (ruta inexistente) antes de GREEN.
-- [ ] 3.6 GREEN `app/modules/connectors/router.py`: `POST`/`GET`/`PATCH`/`DELETE /connectors[/{id}]` — escritura con `Depends(require_role(MemberRole.admin, MemberRole.manager))`, lectura con `Depends(get_current_membership)`; envelope estándar.
-- [ ] 3.7 GREEN `app/main.py`: `include_router(connectors_router, prefix=API_PREFIX)`.
-- [ ] 3.8 VERIFY `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/test_connectors_crud.py -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 3.1 [Foundation] `app/modules/connectors/schemas.py`: `ConnectorCreate`/`ConnectorUpdate`/`ConnectorRead` (Pydantic v2; nunca expone tokens).
+- [x] 3.2 [Foundation] `app/modules/connectors/repository.py`: `create`/`get`/`list_connectors`/`save` scoped por `organization_id` (patrón `assets/repository.py`).
+- [x] 3.3 [Foundation] `app/modules/connectors/service.py` (parte CRUD): orquesta repository; `created_by`/`updated_by` = actor.
+- [x] 3.4 RED `backend/tests/test_connectors_crud.py`: admin crea conector con `created_by`/`updated_by`; member `POST` → `403`; member `GET /connectors` lista sin rol admin/manager; manager también permitido en `POST`/`PATCH`/`DELETE`; `DELETE` es soft-delete; conector de otra organización → `404` en `GET`/`PATCH`/`DELETE`; `POST` responde `201` con `{"data":...,"message":...}`; `GET` lista responde `{"data":[...],"meta":{"total":n}}`. [C-R1, C-R2, C-R9]
+- [x] 3.5 VERIFY confirmado T3.4 en ROJO (ruta inexistente, `KeyError: 'data'`) antes de GREEN.
+- [x] 3.6 GREEN `app/modules/connectors/router.py`: `POST`/`GET`/`PATCH`/`DELETE /connectors[/{id}]` — escritura con `Depends(require_connector_write_role)` (singleton módulo de `require_role(MemberRole.admin, MemberRole.manager)`, ruff B008), lectura con `Depends(get_current_membership)`; envelope estándar.
+- [x] 3.7 GREEN `app/main.py`: `include_router(connectors_router, prefix=API_PREFIX)`.
+- [x] 3.8 VERIFY `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/test_connectors_crud.py -v` → 7/7 en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 4 — Flujo OAuth (authorize/callback) + seguridad (Commit 4)
 
