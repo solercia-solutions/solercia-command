@@ -200,7 +200,7 @@ actividades, con el avance roll-up del 21, navegable y limpia. Usa componentes d
 |------|----------|-------|--------|-------|-------|--------|---------|
 | 13-ui-component-audit | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 14-integration-ports | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
-| 15-adapter-microsoft365 | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
+| 15-adapter-microsoft365 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 16-adapter-google | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 17-adapter-glpi | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 18-adapter-jira | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |

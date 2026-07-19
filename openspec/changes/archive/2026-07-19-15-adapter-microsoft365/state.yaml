@@ -1,0 +1,49 @@
+change: 15-adapter-microsoft365
+artifact_store: hybrid
+depends_on:
+  - 14-integration-ports
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+  apply: true
+  verify: true
+  archive: true
+capabilities:
+  new:
+    - adapter-microsoft365
+  modified: []
+constraints:
+  - backend-only
+  - read-only
+  - strict-tdd
+  - rollback-required
+last_updated: 2026-07-19
+archived_at: 2026-07-19
+archived_path: openspec/changes/archive/2026-07-19-15-adapter-microsoft365
+engram_observations:
+  proposal: 1637
+  spec: 1645
+  design: 1648
+  tasks: 1660
+  verify_report: 1701
+  archive_report: null
+review_gate:
+  result: allow
+  transaction_id: review-3cd4e895bb13c963
+  terminal_state: approved
+  risk_level: high
+  selected_lenses:
+    - review-risk
+    - review-resilience
+    - review-readability
+    - review-reliability

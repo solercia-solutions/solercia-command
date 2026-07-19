@@ -11,7 +11,7 @@ Un paquete adaptador `app/integrations/adapters/microsoft365/` que implementa el
 | Correo | `MailReaderPort` | `/me/messages?$select&$top&$filter=receivedDateTime ge {since}` | `Mail.Read` | No |
 | Calendario | `CalendarReaderPort` | `/me/calendarView?startDateTime&endDateTime&$top` | `Calendars.Read` | No |
 | Tareas Planner | `ExternalTaskReaderPort` | `/me/planner/tasks` | `Tasks.Read` | No (exige pertenecer al plan) |
-| Notas Teams | `MeetingNotesReaderPort` | `/me/onlineMeetings/{id}/transcripts`, `.../transcripts/{tid}/content?$format=text/vtt` | `OnlineMeetingTranscript.Read.All` (+`OnlineMeetings.Read`) | **Sí** |
+| Notas Teams | `MeetingNotesReaderPort` | `/me/onlineMeetings/getAllTranscripts` [as-built; ver sección "As-Built Notes"] | `OnlineMeetingTranscript.Read.All` (+`OnlineMeetings.Read`) | **Sí** |
 
 Base OIDC/refresh: `openid profile email offline_access User.Read`. OAuth: `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/{authorize,token}`, `tenant=organizations` (config `M365_TENANT`).
 
@@ -118,7 +118,20 @@ N/A para los ejes formales (routing/shell, subprocess, automatización VCS/PR, c
 
 Sin migraciones (aditivo, reusa tablas del 14). El adaptador se registra en import-time; sin `M365_CLIENT_ID/SECRET` queda inerte (patrón `EMAIL_ENABLED`): `authorize`/`exchange` lanzan error de config claro, las lecturas no arrancan. Rollback = revertir el merge → `provider="microsoft365"` desaparece del registro.
 
+## As-Built Notes
+
+### Desviación: endpoint de transcripciones (`getAllTranscripts`)
+
+Design.md/tasks.md mencionaban un flujo per-reunión (`/me/onlineMeetings/{id}/transcripts`), que requeriría primero obtener la lista de reuniones del usuario. Durante el apply, se detectó que Graph no ofrece un endpoint directo para "listar todas mis reuniones sin filtro previo" a través de scopes delegados (exigiría `OnlineMeetings.ReadAll` o un ciclo de querys costoso). El as-built optó por `/me/onlineMeetings/getAllTranscripts`, un endpoint alternativo que devuelve un estado paginado de transcripciones sin necesidad de enumerar reuniones primero, manteniendo la misma cobertura de escenarios de spec (ambos escenarios de M365-R6 pasan). Esto queda documentado en el docstring de `ports.py::GraphMeetingNotesReader` y no rompe ningún requisito. **Clasificación**: WARNING documental en verify-report, no CRITICAL.
+
+### Desviación: Planner `assignee` y `url`
+
+- **assignee**: Planner devuelve una lista de `oid`s de asignados; el as-built mapea el primero. Graph no devuelve el email del oid sin usar `$expand`, que está fuera del presupuesto del lote. Si la ola 22 (clasificador/wiring del engine) necesita resolver oid→email, puede hacerlo mediante una llamada adicional a `GET /directoryObjects/{id}`. **Clasificación**: SUGGESTION en verify-report (mejora futura, no bloqueante).
+- **url**: Planner v1.0 no expone un `webUrl` para las tareas. Si es necesario en futuras olas, puede introducirse cuando Planner v2.0 esté disponible. **Clasificación**: documentado, no bloqueante.
+
 ## Open Questions
 
 - [ ] `AccessContext` del 14 (apply pendiente): confirmar que expone `scopes` y el sink `on_tokens_refreshed`. Si el sink falta, la persistencia de tokens rotados se difiere al consumidor (ola 22); la lectura no se bloquea.
 - [ ] PKCE: requiere que el `state_store` del 14 persista `code_verifier` (cambio al núcleo). Diferido; se usa confidential-client + `client_secret`.
+- [ ] Ola 22 (resolución oid→email para Planner): confirmado que es follow-up fuera de alcance del 15.
+- [ ] Wiring del sink `on_tokens_refreshed` a persistencia real en BD: confirmado que es follow-up del 22.
