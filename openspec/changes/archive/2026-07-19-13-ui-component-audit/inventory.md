@@ -8,8 +8,6 @@ Auditoría de cada `*.component.ts` bajo `pages/`, `widgets/` y `app/` (requisit
 
 ## Tabla de clasificación (16 archivos)
 
-> Nota: el inventario original de `tasks.md` contaba 15 archivos. `pages/auth-callback/auth-callback.component.ts` se agregó en el cambio 20 (SSO), posterior a la redacción de `tasks.md`; se incluye aquí para mantener la auditoría 1:1 vigente sobre el árbol real. Ya consume `SolCardComponent` y no tiene SVG inline.
-
 | Ruta | Categoría | Detalle |
 |------|-----------|---------|
 | `app/app.component.ts` | Reemplazar | 8 SVG inline → 6 migran a `SolIcon`, 2 de logout se conservan (sin equivalente) |
@@ -37,7 +35,7 @@ Auditoría de cada `*.component.ts` bajo `pages/`, `widgets/` y `app/` (requisit
 | `arrow-left` | `widgets/project-workspace/project-workspace.component.ts` | Enlace "Volver a proyectos" |
 | `flag` | `widgets/project-workspace/project-workspace.component.ts` | Indicador de tarea en riesgo (tarjeta del tablero) |
 
-Confirmado por inspección de `ICON_REGISTRY` en `frontend/node_modules/@solercia/ui/fesm2022/solercia-ui.mjs`: ninguno de los 4 nombres anteriores existe en el registro 0.3.0. Los 4 SVG se conservan sin cambios hasta que la librería los incorpore.
+Ninguno de los 4 nombres existe en el registro 0.3.0. Los 4 SVG se conservan sin cambios hasta que la librería los incorpore.
 
 ## Gap documentado: layout shell (R5)
 
@@ -49,9 +47,5 @@ Confirmado por inspección de `ICON_REGISTRY` en `frontend/node_modules/@solerci
 
 ## Pendientes de seguimiento (revisión 4R — fixes aplicados)
 
-- `SolModalComponent` no expone un input `aria-label` ni `role="dialog"` nativos: `task-modal.component.ts` los agrega manualmente en el elemento host (`role="dialog"`, `aria-modal="true"`, `[attr.aria-label]`). Pendiente de aporte a la librería para que `SolModal` los exponga de forma nativa y no dependa de que cada consumidor los repita.
+- `SolModalComponent` no expone un input `aria-label` ni `role="dialog"` nativos: `task-modal.component.ts` los agrega manualmente en el elemento host. Pendiente de aporte a la librería para que `SolModal` los exponga de forma nativa.
 - Deuda preexistente: `notification-panel` sin estado de error diferenciado del vacío — candidato a cambio futuro.
-
-## Trazabilidad
-
-Ver `openspec/changes/13-ui-component-audit/tasks.md` (Fases 1–6) y `design.md` (mapa de reemplazo por widget) para el detalle de la migración ejecutada por unidad de trabajo.

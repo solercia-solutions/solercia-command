@@ -83,8 +83,8 @@ N/A — sin routing, shell, subprocesos, automatización VCS/PR, clasificación 
 
 Refactor de solo frontend, aditivo, sin BD ni backend. Cada widget es un PR reversible en `feat/consume-solercia-ui`. Presupuesto estimado ~250–400 líneas autoras (task-modal ~150–200 domina). `Decision needed before apply: Yes` · `Chained PRs recommended: Yes` · `400-line budget risk: Medium`. Rollback: revertir el commit del widget restaura el chrome manual.
 
-## Open Questions
+## Open Questions (Resolved in Archive)
 
 - [x] `chart.js`/`@angular/cdk` — RESUELTO: son peer deps de `@solercia/ui`; se conservan (D2).
-- [ ] Confirmar que corregir el binding `close`→`closed` de `task-modal` (D4) es aceptable dentro de este cambio (corrige defecto latente, no solo migra).
-- [ ] Ratificar los 3 íconos faltantes (`arrow-right-on-rectangle`, `arrow-left`, `flag`) como pendientes de aporte a la librería (gaps conservados como SVG).
+- [x] Confirmar que corregir el binding `close`→`closed` de `task-modal` (D4) es aceptable dentro de este cambio (corrige defecto latente, no solo migra). — CONFIRMADO EN VERIFY: accepted & implemented in commit 0a35768 + fix in 9cfe894.
+- [x] Ratificar los 3 íconos faltantes (`arrow-right-on-rectangle`, `arrow-left`, `flag`) como pendientes de aporte a la librería (gaps conservados como SVG). — CONFIRMADO: documentados como gaps en inventory.md, ninguno se perdió, todos auditados (16 total: 12 migrados + 4 conservados).

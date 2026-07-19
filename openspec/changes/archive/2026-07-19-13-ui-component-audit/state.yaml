@@ -7,13 +7,15 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
   design: true
   tasks: true
+  verify_report: true
+  archive_report: true
 capabilities:
   new:
     - frontend-ui-consumption
@@ -23,7 +25,9 @@ target_capabilities:
 constraints:
   - frontend-only
   - consumes-solercia-ui
-last_updated: 2026-07-18
+last_updated: 2026-07-19
 delivery_strategy: exception-ok
 chain_strategy: size-exception
 400_line_budget_risk: medium
+archived_at: 2026-07-19
+archived_to: openspec/changes/archive/2026-07-19-13-ui-component-audit
