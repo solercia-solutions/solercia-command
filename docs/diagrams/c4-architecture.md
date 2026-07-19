@@ -164,6 +164,7 @@ flowchart TB
             i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estándar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
             i_glpi["adapters/glpi/ (change 17):<br/>GlpiClient httpx inyectable + api_token<br/>(initSession/killSession) + session_token<br/>cacheado en Redis + Ticket/Ticket_User/<br/>User/UserEmail, solo lectura"]
             i_jira["adapters/jira/ (change 18):<br/>JiraClient httpx inyectable + api_token<br/>(email:token Basic, GET /myself) +<br/>paginación nextPageToken + backoff 429 +<br/>normalizador único API/archivo (CSV/XLSX)<br/>-> NormalizedJiraIssue, solo lectura"]
+            i_mcp["adapters/mcp/ (change 19):<br/>SDK oficial mcp (ClientSession +<br/>streamablehttp_client), sesión efímera<br/>initialize-por-operación (sin cache) +<br/>guard anti-SSRF propio (allowlist +<br/>IP-pin) + tope de bytes/elementos,<br/>call_tool default-deny (allowlist ∩<br/>readOnlyHint), solo lectura"]
         end
         subgraph glpi_sync_e["app/modules/glpi_sync (change 17)"]
             gs_service["service.py: cascada de<br/>homologación correo→documento→<br/>nombre + run_sync/resolve/ignore"]
@@ -182,6 +183,7 @@ flowchart TB
     google_ext[["Google Workspace<br/>(Gmail/Calendar/Drive)"]]
     glpi_ext[["GLPI<br/>(apirest.php, por-conector)"]]
     jira_ext[["Jira Cloud<br/>(REST API v3, *.atlassian.net)"]]
+    mcp_ext[["Servidor MCP<br/>(Streamable HTTP remoto, por-conector)"]]
 
     http --> deps
     deps --> capas
@@ -231,6 +233,10 @@ flowchart TB
     r_jira_import -->|"reusa ConnectorRepository/<br/>ConnectedAccountRepository (sin repo propio)"| repo
     r_jira_import -->|"descifra credenciales del conector"| i_crypto
     r_jira_import -->|"import_issues()/parse_file()<br/>(DTO NormalizedJiraIssue, sin persistir)"| i_registry
+    i_registry --> i_mcp
+    i_mcp -->|"solo lectura: resources/list,<br/>resources/read, tools/list, tools/call<br/>(gateado allowlist ∩ readOnlyHint)"| mcp_ext
+    r_conn -->|"POST /connectors credencial directa<br/>(token estático o none, MISMO request,<br/>anti-SSRF antes de persistir)"| i_mcp
+    r_conn -->|"GET/POST .../mcp/* (resources, tools,<br/>tools/{name}/call) — cualquier miembro"| i_mcp
 ```
 
 Notas de componentes:
@@ -376,6 +382,39 @@ Notas de componentes:
   Jira solo aporta su propio `ApiTokenHandshake` (`_JiraApiTokenHandshake.connect`, valida
   contra `/myself` y cifra el JSON `{base_url, email, api_token}` con Fernet, igual que
   GLPI). Sin migración Alembic propia: no cambia esquema.
+- **Adaptador MCP (change 19-mcp-connector)**: sexto adaptador REAL sobre el núcleo del
+  14 — `app/integrations/adapters/mcp/` (`__init__`/`adapter`/`reader`/`session`/`ssrf`/
+  `mapping`/`errors`), auto-registrado en import-time (cero ediciones a `ports.py`/
+  `registry.py` del 14). Consume un servidor **Model Context Protocol** remoto vía el
+  **SDK oficial `mcp` de Python** (`ClientSession` + `streamablehttp_client`), transporte
+  EXCLUSIVO Streamable HTTP — sin opción `stdio`/subprocess. A diferencia de GLPI/Jira
+  (sesión/token cacheados), cada operación abre una **sesión efímera**
+  (`open_session`: `validate_mcp_url` → conectar → `initialize` → usar → cerrar), sin
+  caché de sesión (riesgo de fuga cross-tenant + expiración de `Mcp-Session-Id`). Puerto
+  nuevo read-only `ExternalResourceReaderPort` (capacidad `external_resources`,
+  `Capability`/DTOs agregados al núcleo del 14): `list_resources`/`read_resource`/
+  `list_tools`/`call_tool` con topes de tamaño (`MCP_MAX_RESOURCE_BYTES`) y de elementos
+  (`MCP_MAX_LIST_ITEMS`) por llamada. `credential_kind` es una elección **por-conector**
+  (`api_token` o `none`, valor `none` agregado al enum del 17) — el `IntegrationAdapter`
+  gana `credential_kinds: frozenset[CredentialKind]` (aditivo) para expresarlo, ya que el
+  campo singular existente asume un único valor fijo por adaptador. Guard anti-SSRF
+  propio (`ssrf.py`, `MCP_HOST_ALLOWLIST` default-deny + bloqueo de rangos privados +
+  IP-pin vía `getaddrinfo` + `https`-only en prod) corre **antes** de abrir cualquier
+  socket, tanto al registrar el conector como en cada sesión efímera. `call_tool` es la
+  ÚNICA excepción acotada a la frontera de solo lectura del núcleo (delta de
+  `integration-ports`): default-deny — solo ejecuta si la tool está en la allowlist
+  explícita del conector **y** el servidor la anota `readOnlyHint: true` (ninguno de los
+  dos por sí solo alcanza); fuera de la allowlist se rechaza **sin contactar al
+  servidor**. Registro: `POST /connectors` admite la credencial directa (token estático o
+  ninguna) en el **mismo request** — a diferencia de GLPI/Jira, MCP no usa el `POST
+  /connectors/{id}/credentials` separado ni ronda `initSession` contra el servidor real.
+  REST de lectura bajo `/connectors/{id}/mcp/{resources, resources/read, tools,
+  tools/{tool_name}/call}` (parte de `connectors/router.py`, sin módulo propio como
+  `glpi_sync`/`jira_import`), accesible por **cualquier miembro** (incluido
+  `call_tool`, ratificado por la spec ya que el enforcement de solo lectura vive en el
+  reader). Servidor MCP fake in-memory (`FastMCP` del propio SDK) es el harness de
+  pruebas de contrato — cero red real en CI. Sin migración Alembic propia: `settings.mcp`
+  vive en `connectors.settings JSONB` (columna del 17), sin columna ni esquema nuevo.
 
 ## Referencias
 

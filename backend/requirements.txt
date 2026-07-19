@@ -15,3 +15,15 @@ aiosmtplib==3.0.2
 cryptography==49.0.0
 httpx==0.28.1
 openpyxl==3.1.5
+# MCP adapter (change 19-mcp-connector). Verificado en vivo contra PyPI: la
+# última estable (mcp==1.28.1) exige pydantic>=2.11.0, lo que choca con el
+# pin pydantic==2.10.4 ya congelado arriba; mcp==1.12.0 es la última versión
+# compatible con pydantic<3.0.0,>=2.8.0 (satisface el pin actual) y ya
+# incluye streamablehttp_client estable. sse-starlette (transitivo de mcp)
+# se fija por separado porque su última versión exige starlette>=0.49.1,
+# incompatible con el techo starlette<0.42.0 de fastapi==0.115.6 — 2.2.1
+# exige solo starlette>=0.41.3, satisfecho por el starlette instalado hoy.
+# Arrastra transitivamente (sin pin propio, mismo criterio que el resto de
+# dependencias indirectas en este archivo): anyio, httpx-sse, jsonschema.
+mcp==1.12.0
+sse-starlette==2.2.1

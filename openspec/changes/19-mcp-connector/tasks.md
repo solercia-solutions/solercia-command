@@ -90,9 +90,9 @@ Chain strategy: size-exception
 
 ## Lote 7 — Dependencia runtime + documentación C4 + VERIFY final (Commit 7)
 
-- [ ] 7.1 `backend/requirements.txt`: agregar `mcp==<versión pinneada en 0.4>` (arrastra `httpx`/`anyio`/`httpx-sse`/`sse-starlette`/`jsonschema` si no están ya presentes).
-- [ ] 7.2 `docs/diagrams/c4-architecture.md`: nuevo nodo adaptador MCP en Integrations (C3) — cliente Streamable HTTP saliente + guard SSRF.
-- [ ] 7.3 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión; `ruff check .`/`mypy app` limpios en `app/integrations/adapters/mcp/` y `app/modules/connectors/`.
+- [x] 7.1 `backend/requirements.txt`: `mcp==1.12.0` + `sse-starlette==2.2.1` pinneados (ver DESVIACIÓN detallada en 0.4/apply-progress: la última estable de PyPI, 1.28.1, choca con `pydantic==2.10.4` ya congelado; 1.12.0 es la última compatible). `httpx`/`anyio`/`httpx-sse`/`jsonschema` arrastran transitivos sin pin propio (mismo criterio que el resto de dependencias indirectas del archivo). Verificado con instalación en venv limpio (`pip install -r requirements.txt` desde cero, sin conflictos).
+- [x] 7.2 `docs/diagrams/c4-architecture.md`: nuevo nodo `i_mcp` en el subgrafo `integrations_e` (C3) + nodo externo `mcp_ext` + 4 relaciones (`i_registry --> i_mcp`, lectura hacia el servidor externo, registro con credencial directa en `POST /connectors`, REST `/mcp/*`) + párrafo de prosa completo (mismo patrón que GLPI/Jira).
+- [x] 7.3 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — 1001 passed / 13 failed (las mismas 13 del baseline pre-existente, `httpx.LocalProtocolError` en `test_attachments`/`test_comments`/`test_sprint_close`/`test_subtasks`/`test_task_key`, no relacionadas con `mcp`/`connectors`/`integrations`); `ruff check .`/`mypy app` limpios (259 archivos); `alembic check` sin diff (confirmado vía `test_alembic_check_reports_no_diff_after_upgrade`, que corre `alembic upgrade head` contra la DB de test — el 19 no agrega migración, `alembic heads` sigue en `0017`).
 
 ## Trazabilidad de requisitos
 
