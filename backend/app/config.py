@@ -97,6 +97,25 @@ class Settings(BaseSettings):
     # authorize step (anti-SSRF/open-redirect, specs/connectors/spec.md).
     OAUTH_REDIRECT_ALLOWLIST: list[str] = ["http://localhost:4200/settings/connectors"]
 
+    # SSO (OIDC) — second login method, change 20-sso-keycloak. Master switch
+    # off by default: with it False every /auth/sso/* route stays inert
+    # (sso-oidc R6). ``SSO_AUTO_PROVISION`` off by default: no local account
+    # is EVER created from an unrecognized SSO email unless explicitly
+    # opted in (sso-oidc R4). ``SSO_POST_LOGIN_REDIRECT`` is the ONE
+    # allowlisted SPA landing the callback 302s to after issuing the refresh
+    # cookie — the access token never travels in the URL (sso-oidc R7).
+    #
+    # Per-provider ``OIDC_{PROVIDER}_ISSUER/CLIENT_ID/CLIENT_SECRET/
+    # REDIRECT_URI`` are DELIBERATELY NOT declared as fixed Settings fields
+    # here: they are read directly from the environment by provider name in
+    # ``app/modules/auth/oidc/config.py`` (``load_provider_config(provider)``)
+    # so a second IdP is wired by adding new env vars alone, zero code
+    # changes (sso-oidc R6, "agregar un segundo proveedor OIDC NO DEBE
+    # requerir cambios de código").
+    SSO_ENABLED: bool = False
+    SSO_AUTO_PROVISION: bool = False
+    SSO_POST_LOGIN_REDIRECT: str = "http://localhost:4200/auth/callback"
+
 
 @lru_cache
 def get_settings() -> Settings:

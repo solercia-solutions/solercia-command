@@ -20,6 +20,12 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User | No
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         return None
+    # A user created/linked only via SSO has no local password (auth R4,
+    # change 20-sso-keycloak): reject with the SAME generic outcome as a
+    # wrong password, never a distinct error that would leak the account's
+    # login method.
+    if user.hashed_password is None:
+        return None
     if not verify_password(password, user.hashed_password):
         return None
     return user

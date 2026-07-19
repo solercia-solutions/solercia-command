@@ -1,0 +1,25 @@
+change: 20-sso-keycloak
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - sso-oidc
+  modified:
+    - auth
+constraints:
+  - backend-only
+  - strict-tdd
+last_updated: 2026-07-18

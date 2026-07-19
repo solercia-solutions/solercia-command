@@ -44,7 +44,13 @@ class User(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
         nullable=True,
         index=True,
     )
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable since change 20-sso-keycloak: a user created/linked ONLY via
+    # SSO (auto-provisioned, sso-oidc R4) never gets a local password. Local
+    # credential login (``authenticate``, auth/service.py) rejects a NULL
+    # hash with the same generic invalid-credentials message (auth R4) —
+    # never a distinct error that would leak which login method the account
+    # uses.
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Read-only view of the user's RBAC roles, resolved through user_roles.
     roles: Mapped[list["Role"]] = relationship(

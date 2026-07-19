@@ -6,7 +6,7 @@ tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,
 de verdad es el **código**; este documento es su espejo navegable.
 
 **Fecha de línea base**: 2026-07-18 (estado del código en la rama `feat/consume-solercia-ui`,
-migraciones Alembic hasta `0015_add_connectors`).
+migraciones Alembic hasta `0016_add_federated_identities`).
 
 > **Regla de actualización**: todo cambio de base de datos (modelo nuevo, columna nueva,
 > enum nuevo, FK nueva o eliminada) debe actualizar este documento **en el mismo commit de la
@@ -15,7 +15,7 @@ migraciones Alembic hasta `0015_add_connectors`).
 > Nota: la imagen `docs/diagrams/erd.png` es una captura histórica anterior a esta línea base.
 > Se conserva como referencia, pero **este archivo es la fuente viva** del diagrama.
 
-**Total de tablas**: 34.
+**Total de tablas**: 35.
 
 ---
 
@@ -52,7 +52,7 @@ Relaciones entre dominios (cada caja se detalla en su propia sección):
 
 ```mermaid
 flowchart LR
-    subgraph AUTH["Auth / organizaciones / RBAC (8 tablas)"]
+    subgraph AUTH["Auth / organizaciones / RBAC (9 tablas)"]
         organizations
         users
     end
@@ -110,6 +110,7 @@ erDiagram
     ROLES         ||--o{ ROLE_MENUS : "concede"
     MENUS         ||--o{ ROLE_MENUS : "se incluye en"
     MENUS         |o--o{ MENUS : "es hijo de"
+    USERS         ||--o{ FEDERATED_IDENTITIES : "enlaza via SSO"
 
     ORGANIZATIONS {
         uuid id PK
@@ -125,7 +126,7 @@ erDiagram
         string primer_apellido
         string segundo_apellido "nullable"
         uuid dependency_id FK "nullable, SET NULL"
-        string hashed_password "nunca se expone"
+        string hashed_password "nullable desde 0016 - NULL en usuarios solo-SSO, nunca se expone"
     }
 
     ORGANIZATION_MEMBERS {
@@ -169,6 +170,15 @@ erDiagram
         uuid role_id FK
         uuid menu_id FK "unique(role_id, menu_id)"
     }
+
+    FEDERATED_IDENTITIES {
+        uuid id PK
+        uuid user_id FK "CASCADE, indexada"
+        string provider "alias de config, ej keycloak - NO participa del anclaje"
+        string issuer "anclaje: unique(issuer, subject)"
+        string subject "sub del IdP - anclaje: unique(issuer, subject)"
+        string email "nullable, informativo del enlace inicial"
+    }
 ```
 
 Notas del dominio:
@@ -178,6 +188,19 @@ Notas del dominio:
 - `menus` es **global** (sin `organization_id`); lo que varía por organización es qué roles
   conceden cada menú.
 - `roles` lleva `unique(organization_id, code)`.
+- `federated_identities` (change 20-sso-keycloak, migración `0016`) enlaza un `user` a una
+  identidad OIDC externa. El anclaje criptográfico es `UNIQUE(issuer, subject)` — `sub` solo es
+  único por `issuer` (correctitud OIDC); `provider` es solo el alias de configuración que enruta
+  qué proveedor usar, nunca participa del anclaje. Tras el primer enlace el `email` queda
+  desactualizado a propósito (informativo, no se usa para resolver el usuario de nuevo). Mixins
+  Pk/Timestamp/SoftDelete/Audit — **sin** `TenantMixin`: el aislamiento por organización llega
+  transitivamente vía `user_id -> organization_members`.
+- `users.hashed_password` es **nullable** desde la migración `0016`: un usuario creado o
+  enlazado únicamente por SSO (auto-provisión, `SSO_AUTO_PROVISION=true`) nunca recibe
+  contraseña local. El login por credenciales rechaza `hashed_password IS NULL` con el mismo
+  mensaje genérico de credenciales inválidas (nunca revela el método de login de la cuenta). La
+  migración `0016.downgrade()` se niega a restaurar `NOT NULL` si existe algún usuario
+  solo-SSO, para no corromper esas cuentas.
 
 ---
 
@@ -598,9 +621,10 @@ Notas del dominio:
 
 ## Módulos sin tablas propias
 
-`auth`, `dashboard` y `search` no definen modelos: operan sobre las tablas anteriores
-(autenticación sobre `users`/`organization_members`, vista ejecutiva y búsqueda global sobre
-`projects`/`tasks`/`task_comments` con índices GIN de trigramas).
+`dashboard` y `search` no definen modelos: operan sobre las tablas anteriores (vista ejecutiva y
+búsqueda global sobre `projects`/`tasks`/`task_comments` con índices GIN de trigramas). `auth`
+define un único modelo propio, `federated_identities` (change 20-sso-keycloak); el resto de su
+lógica opera sobre `users`/`organization_members`.
 
 ## Referencias
 
