@@ -76,11 +76,11 @@ Chain strategy: size-exception
 
 ## Lote 5 — Cliente API Jira (RED→GREEN) — R2, R3, R4, R9, anti-SSRF
 
-- [ ] 5.1 RED `backend/tests/test_jira_adapter_client.py`: paginación `nextPageToken` hasta `isLast`; resolución story_points/sprint por nombre vía `/field`; override por `settings.jira.story_points_field`/`sprint_field`; custom field ausente→`None` en reporte.
-- [ ] 5.2 RED: `429`+`Retry-After`→backoff exponencial acotado y reintento; reintentos agotados→error controlado sin perder páginas previas.
-- [ ] 5.3 RED: `401`→error controlado sin filtrar el token en excepción ni en log.
-- [ ] 5.4 RED: `settings.jira.base_url` fuera de `*.atlassian.net`→rechazado antes de la request (anti-SSRF).
-- [ ] 5.5 GREEN `backend/app/integrations/adapters/jira/client.py` (httpx Basic `email:token`, backoff, validación de host).
+- [x] 5.1 RED `backend/tests/test_jira_adapter_client.py`: paginación `nextPageToken` hasta `isLast`; resolución story_points/sprint por nombre vía `/field`; override por `settings.jira.story_points_field`/`sprint_field`; custom field ausente→`None` en reporte.
+- [x] 5.2 RED: `429`+`Retry-After`→backoff exponencial acotado y reintento; reintentos agotados→error controlado sin perder páginas previas.
+- [x] 5.3 RED: `401`→error controlado sin filtrar el token en excepción ni en log.
+- [x] 5.4 RED: `settings.jira.base_url` fuera de `*.atlassian.net`→rechazado antes de la request (anti-SSRF).
+- [x] 5.5 GREEN `backend/app/integrations/adapters/jira/client.py` (httpx Basic `email:token`, backoff, validación de host). Agrega `JIRA_BASE_URL_ALLOWED_SUFFIX`/`JIRA_TIMEOUT_SECONDS`/`JIRA_PAGE_SIZE`/`JIRA_MAX_PAGES`/`JIRA_MAX_RETRIES`/`JIRA_MAX_BACKOFF_SECONDS` a `Settings` y extiende `errors.py` con `JiraUnavailable`/`JiraAuthError`/`JiraConfigInvalid`/`JiraRateLimited`/`JiraRequestFailed`.
 
 ## Lote 6 — Registro del adaptador (RED→GREEN) — R1
 

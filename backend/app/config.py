@@ -207,6 +207,21 @@ class Settings(BaseSettings):
     # parcialmente (Threat Matrix, "Bomba de descompresión XLSX").
     JIRA_FILE_MAX_ROWS: int = 50_000
     JIRA_FILE_MAX_CELLS: int = 500_000
+    # Cliente HTTP de la vía API (Lote 5). A diferencia de GLPI
+    # (`GLPI_BASE_URL_ALLOWLIST`, una lista cerrada de instancias
+    # conocidas), un sitio Jira Cloud es por-tenant y prácticamente
+    # ilimitado (`https://<site>.atlassian.net`) — la frontera anti-SSRF
+    # aquí es un SUFIJO obligatorio en vez de una allowlist cerrada
+    # (design.md Threat Matrix, "host fuera de *.atlassian.net ->
+    # rechazado").
+    JIRA_BASE_URL_ALLOWED_SUFFIX: str = ".atlassian.net"
+    JIRA_TIMEOUT_SECONDS: float = 10.0
+    JIRA_PAGE_SIZE: int = 100
+    JIRA_MAX_PAGES: int = 20
+    JIRA_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429 — mismo criterio que
+    # `GLPI_MAX_BACKOFF_SECONDS`/`M365_MAX_BACKOFF_SECONDS`.
+    JIRA_MAX_BACKOFF_SECONDS: float = 30.0
 
 
 @lru_cache
