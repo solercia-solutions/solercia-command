@@ -1,0 +1,30 @@
+change: 18-adapter-jira
+artifact_store: hybrid
+depends_on:
+  - 14-integration-ports
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - jira-import
+  modified:
+    - connectors
+constraints:
+  - backend-only
+  - strict-tdd
+  - rollback-required
+  - read-only-import
+last_updated: 2026-07-18
+notes:
+  - "Ajuste de coordinación aplicado en tasks: connectors.settings ahora lo agrega el 17 (junto a credential_kind); el 18 no tiene migración Alembic propia. Mapeos Jira en namespace settings.jira.*"
