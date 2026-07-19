@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -15,6 +15,7 @@ artifacts:
   specs: true
   design: true
   tasks: true
+  apply: true
 capabilities:
   new:
     - google-adapter
@@ -24,5 +25,5 @@ constraints:
   - strict-tdd
   - rollback-required
   - read-only-ports
-last_updated: 2026-07-18
-last_updated_by: sdd-tasks
+last_updated: 2026-07-19
+last_updated_by: sdd-apply
