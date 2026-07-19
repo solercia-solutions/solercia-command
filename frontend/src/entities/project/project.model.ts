@@ -145,7 +145,6 @@ export interface TreeNodeVM {
   id: string;
   name: string;
   methodology: Methodology;
-  status: string;
   /** Undefined when the owning root's `/progress` call failed (R7). */
   rollup?: { done: number; total: number };
   /** Set only on the root of a branch whose `/progress` call failed (R7). */

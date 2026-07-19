@@ -6,8 +6,9 @@ import {
   signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, forkJoin, map, of } from 'rxjs';
+import { Observable, catchError, forkJoin, map, of, timeout } from 'rxjs';
 import { I18nService } from '@shared/i18n';
+import { SolSpinnerComponent } from '@shared/ui';
 import { ProjectTreeComponent } from '@widgets/project-tree';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
@@ -15,6 +16,9 @@ import {
   ProjectProgressNode,
   TreeNodeVM,
 } from '@entities/project/project.model';
+
+/** Tope por rama para `/progress`: una raíz lenta no debe congelar el resto (R7). */
+const PROGRESS_TIMEOUT_MS = 15_000;
 
 /**
  * Host de datos de la vista jerárquica: compone el bosque en el cliente a
@@ -26,7 +30,7 @@ import {
   selector: 'sol-hierarchy',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectTreeComponent],
+  imports: [ProjectTreeComponent, SolSpinnerComponent],
   template: `
     <section class="flex flex-col gap-6">
       <div>
@@ -35,7 +39,10 @@ import {
       </div>
 
       @if (loading()) {
-        <p class="text-sm text-muted" role="status">{{ text.loading() }}</p>
+        <div class="flex items-center gap-3 py-8" role="status">
+          <sol-spinner size="md" />
+          <span class="text-sm text-muted">{{ text.loading() }}</span>
+        </div>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -119,13 +126,15 @@ export class HierarchyComponent implements OnInit {
       return;
     }
 
-    // catchError individual por raíz: si el /progress de una rama falla, esa
-    // rama queda marcada con error mientras las demás se resuelven normal
-    // (R7 — "Falla parcial de una raíz" no bloquea el resto del bosque).
+    // timeout + catchError individual por raíz: si el /progress de una rama
+    // falla O se demora más de PROGRESS_TIMEOUT_MS, esa rama queda marcada
+    // con error mientras las demás se resuelven normal (R7 — "Falla parcial
+    // de una raíz" no bloquea el resto del bosque ni congela la vista).
     forkJoin(
       rootProjects.map(
         (root): Observable<ProgressOutcome> =>
           this.projectsService.progress(root.id).pipe(
+            timeout(PROGRESS_TIMEOUT_MS),
             map((res): ProgressOutcome => ({
               rootId: root.id,
               node: res.data,
@@ -180,7 +189,6 @@ export class HierarchyComponent implements OnInit {
       id: project.id,
       name: project.name,
       methodology: project.methodology,
-      status: project.status,
       rollup: rollupById.get(project.id),
       rollupError,
       // El error sólo se atribuye al nodo raíz de la rama fallida; los hijos

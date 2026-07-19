@@ -58,6 +58,10 @@ Cada nodo DEBE mostrar su avance consolidado como fracción `done/total` (estilo
 - CUANDO se renderiza su nodo
 - ENTONCES muestra `0/0` sin error visible
 
+(Errata: el nodo hoja sin tareas muestra "Sin tareas" en vez de "0/0" por
+decisión de diseño — Decisión 3; misma intención: estado vacío limpio sin
+error).
+
 ### Requirement: Indicador de metodología por proyecto
 
 Cada nodo DEBE mostrar la metodología del proyecto (`planner`, `kanban`, `scrum`, `custom`) con una insignia propia, independiente de la metodología de sus ancestros o descendientes.
