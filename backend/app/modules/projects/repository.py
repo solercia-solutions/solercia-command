@@ -108,12 +108,21 @@ class ProjectRepository:
     async def code_exists(
         self, organization_id: uuid.UUID, code: str, exclude_id: uuid.UUID | None = None
     ) -> bool:
-        """Return True if ``code`` is already used in the organization."""
+        """Return True if ``code`` is already used in the organization.
+
+        Deliberately NOT filtered by ``is_active`` (change 23-org-role-
+        templates, bugfix found via the "reconcilia el nodo faltante"
+        scenario): ``uq_project_code_per_org`` is a raw DB constraint that
+        does not care about soft-delete, so a soft-deleted project's code is
+        still physically taken — checking only active rows let auto-derived
+        codes collide with it and raise a bare ``IntegrityError`` (500)
+        instead of the friendly ``project_code_taken`` (409) this check
+        exists to produce.
+        """
 
         stmt = select(Project.id).where(
             Project.organization_id == organization_id,
             Project.code == code.upper(),
-            Project.is_active.is_(True),
         )
         if exclude_id is not None:
             stmt = stmt.where(Project.id != exclude_id)
