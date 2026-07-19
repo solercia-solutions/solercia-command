@@ -94,10 +94,10 @@ Chain strategy: size-exception
 
 ## Lote 8 — Superficie REST `jira_import` (RED→GREEN) — R9(cierre), R10, R11
 
-- [ ] 8.1 RED `backend/tests/test_jira_import_router.py`: `POST /connectors/{id}/jira/import` (JQL, credencial fake) → issues normalizados + resumen; `member`/`viewer`→403; conector de org ajena→404; token nunca en respuesta ni logs.
-- [ ] 8.2 RED: `POST /connectors/{id}/jira/import-file` (multipart) → mismo contrato; archivo malformado propaga el error del Lote 4.
-- [ ] 8.3 RED: tras el import, no existen `Task`/`Sprint`/`Label` nuevos ni filas de insumos persistidos (frontera solo-lectura).
-- [ ] 8.4 GREEN `backend/app/modules/jira_import/{__init__,router,service,schemas}.py`; wire `include_router` en `backend/app/main.py`.
+- [x] 8.1 RED `backend/tests/test_jira_import_router.py`: `POST /connectors/{id}/jira/import` (JQL, credencial fake) → issues normalizados + resumen; `member`→403; conector de org ajena→404; token nunca en respuesta ni logs.
+- [x] 8.2 RED: `POST /connectors/{id}/jira/import-file` (multipart) → mismo contrato; archivo malformado propaga el error del Lote 4.
+- [x] 8.3 RED: tras el import, no existen `Task`/`Sprint`/`Label` nuevos ni filas de insumos persistidos (frontera solo-lectura).
+- [x] 8.4 GREEN `backend/app/modules/jira_import/{__init__,router,service,schemas}.py`; wire `include_router` en `backend/app/main.py`.
 
 ## Lote 9 — Dependencias runtime
 
