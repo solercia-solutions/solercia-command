@@ -209,7 +209,7 @@ actividades, con el avance roll-up del 21, navegable y limpia. Usa componentes d
 | 21-project-hierarchy | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 22-intake-classifier | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 23-org-role-templates | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
-| 24-hierarchy-tree-view | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
+| 24-hierarchy-tree-view | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 
 > Nota de revisión (2026-07-18): la revisión 4R post-apply del 21 confirmó un hallazgo CRITICAL
 > (carrera en reparent + CTEs descendentes sin guarda de ciclo) corregido como seguimiento en la
