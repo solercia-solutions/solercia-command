@@ -85,6 +85,91 @@ async def test_login_with_wrong_password_returns_401(
 
 
 # ---------------------------------------------------------------------------
+# R4 — Usuario solo-SSO (hashed_password NULL) rechazado en login local
+# R7 — Convivencia de login local y SSO (change 20-sso-keycloak)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_login_with_null_hashed_password_returns_401_with_generic_message(
+    client: AsyncClient, session: AsyncSession, tenant: Organization
+) -> None:
+    """auth R4 — a user created/linked ONLY via SSO (``hashed_password IS
+    NULL``) is rejected on local login with the SAME generic message a
+    wrong password gets — never a distinct error that would leak the
+    account's login method."""
+
+    sso_only_user = User(
+        email="sso-only@example.com",
+        primer_nombre="Sso",
+        primer_apellido="Only",
+        hashed_password=None,
+    )
+    session.add(sso_only_user)
+    await session.flush()
+
+    response = await client.post(
+        "/auth/login", json={"email": sso_only_user.email, "password": "AnyPassword123*"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "invalid_credentials"
+    assert settings.REFRESH_COOKIE_NAME not in response.cookies
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_user_with_password_and_sso_link_authenticates_by_either_method(
+    client: AsyncClient, session: AsyncSession, tenant: Organization
+) -> None:
+    """auth R7 — a user with BOTH a local password and a linked SSO
+    identity authenticates successfully via credentials AND via the SSO
+    resolution path; neither method disables the other."""
+
+    from app.modules.auth.models import FederatedIdentity
+    from app.modules.auth.sso_service import resolve_or_provision_user
+    from app.shared.security import hash_password
+
+    dual_user = User(
+        email="dual-method@example.com",
+        primer_nombre="Dual",
+        primer_apellido="Method",
+        hashed_password=hash_password(_PASSWORD),
+    )
+    session.add(dual_user)
+    await session.flush()
+    session.add(
+        FederatedIdentity(
+            user_id=dual_user.id,
+            provider="keycloak",
+            issuer="https://idp.test/realms/demo",
+            subject="dual-user-sub",
+            email="dual-method@example.com",
+        )
+    )
+    await session.flush()
+
+    login_response = await client.post(
+        "/auth/login", json={"email": dual_user.email, "password": _PASSWORD}
+    )
+    assert login_response.status_code == 200, login_response.text
+    assert login_response.json()["user"]["id"] == str(dual_user.id)
+
+    sso_resolved_user = await resolve_or_provision_user(
+        session,
+        "keycloak",
+        {
+            "iss": "https://idp.test/realms/demo",
+            "sub": "dual-user-sub",
+            "email": "dual-method@example.com",
+            "email_verified": True,
+        },
+    )
+    assert sso_resolved_user.id == dual_user.id
+
+
+# ---------------------------------------------------------------------------
 # R3 — Rotación de refresh: jti nuevo + access nuevo en cada llamada
 # ---------------------------------------------------------------------------
 

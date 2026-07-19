@@ -10,6 +10,7 @@ would hide more than it saves.
 
 import base64
 import hashlib
+from functools import lru_cache
 from typing import Any
 from urllib.parse import urlencode
 
@@ -21,6 +22,20 @@ from app.modules.auth.oidc.config import OidcProviderConfig
 from app.modules.auth.oidc.jwks import JwksCache
 
 _SCOPE = "openid email profile"
+
+
+@lru_cache
+def get_http_client() -> httpx.AsyncClient:
+    """Process-wide async HTTP client for discovery/JWKS/token calls.
+
+    Same lazy ``@lru_cache`` singleton shape as
+    ``app/shared/redis.py::get_redis_client`` — importing this module never
+    opens a connection; the first real call does. Tests monkeypatch this
+    MODULE-qualified name (never ``from ... import get_http_client``) to
+    swap in an ``httpx.MockTransport``-backed client for a fake IdP.
+    """
+
+    return httpx.AsyncClient(timeout=10.0)
 
 
 class OidcTokenError(Exception):
