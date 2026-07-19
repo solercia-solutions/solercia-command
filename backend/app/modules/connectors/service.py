@@ -17,14 +17,17 @@ callback belongs to). ``oauth.build_authorize`` stays used as designed by
 is generated.
 """
 
+import json
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.integrations import crypto, oauth, state_store
+from app.integrations.ports import CredentialKind
 from app.integrations.registry import get_adapter
 from app.modules.connectors.models import Connector
 from app.modules.connectors.repository import ConnectedAccountRepository, ConnectorRepository
@@ -41,7 +44,7 @@ from app.shared.exceptions import AppException
 
 logger = logging.getLogger("solercia.connectors")
 
-_CONNECTOR_UPDATABLE_FIELDS = ("provider", "scopes", "status")
+_CONNECTOR_UPDATABLE_FIELDS = ("provider", "scopes", "status", "settings")
 
 
 class ConnectorService:
@@ -65,6 +68,8 @@ class ConnectorService:
             provider=data.provider,
             scopes=list(data.scopes) if data.scopes is not None else None,
             status=data.status,
+            credential_kind=data.credential_kind,
+            settings=data.settings,
             created_by=actor_id,
             updated_by=actor_id,
         )
@@ -129,9 +134,22 @@ class ConnectorService:
         404 if the connector does not exist or belongs to another
         organization (specs/connectors/spec.md, "Authorize sobre conector
         ajeno o inexistente") — raised BEFORE any ``state`` is generated.
+
+        400 if the connector's ``credential_kind`` is ``api_token`` (change
+        17-adapter-glpi, C17-R3, "Authorize sobre conector api_token") —
+        also raised BEFORE any ``state`` is generated; the core
+        (``app/integrations/oauth.py``) enforces the same rule as a second,
+        defense-in-depth layer.
         """
 
         connector = await self._require_connector(organization_id, connector_id)
+        if connector.credential_kind != CredentialKind.oauth:
+            raise AppException(
+                "Este conector usa registro directo de credenciales, no el "
+                "flujo OAuth. Usa POST /connectors/{id}/credentials.",
+                code="credential_kind_not_oauth",
+                status_code=400,
+            )
         adapter = get_adapter(connector.provider)
         if adapter is None:
             raise AppException(
@@ -215,8 +233,20 @@ class ConnectorService:
                 code="provider_not_registered",
                 status_code=404,
             )
+        if adapter.credential_kind != CredentialKind.oauth or adapter.oauth is None:
+            # Defense-in-depth: `authorize()` already rejects an api_token
+            # connector before any `state` exists, so this branch should be
+            # unreachable in the normal flow — kept so `handle_oauth_callback`
+            # never calls a handshake method the adapter does not declare
+            # (change 17, IP17-R2).
+            raise AppException(
+                "Este conector usa registro directo de credenciales, no el "
+                "flujo OAuth.",
+                code="credential_kind_not_oauth",
+                status_code=400,
+            )
 
-        tokens = await adapter.exchange_code(code, redirect_uri)
+        tokens = await adapter.oauth.exchange_code(code, redirect_uri)
 
         access_token_enc = crypto.encrypt(tokens.access_token)
         refresh_token_enc = (
@@ -263,6 +293,99 @@ class ConnectorService:
             "external_account_id": account.external_account_id,
             "status": account.status.value,
         }
+
+    # -- api_token direct credential registration --------------------------
+
+    async def register_api_token_credentials(
+        self,
+        organization_id: uuid.UUID,
+        connector_id: uuid.UUID,
+        raw: Mapping[str, str],
+        membership: OrganizationMember,
+    ) -> ConnectedAccountRead:
+        """Register direct ``api_token`` credentials for ``connector_id``
+        (change 17-adapter-glpi, C17-R2) — no ``state``, no redirection.
+
+        404 if the connector does not exist, belongs to another
+        organization, or its ``credential_kind`` is not ``api_token``
+        (tasks.md T3.2 — deliberately the SAME status as "connector
+        ajeno/inexistente": from this operation's perspective a wrong-kind
+        connector has no direct-registration route to speak of, mirroring
+        how ``authorize()`` treats an unknown connector).
+
+        The adapter's ``ApiTokenHandshake.connect(raw)`` VALIDATES the
+        credentials against the real provider (e.g. GLPI's
+        ``initSession``/``killSession``) before anything is persisted. The
+        entire ``raw`` mapping is encrypted as one opaque JSON blob into
+        ``ConnectionCredentials.access_token_enc`` — this service NEVER
+        interprets provider-specific key names (mirrors the core's "sin
+        lógica específica del proveedor"); the SAME adapter that validated
+        the credentials is the only place that later decodes them back out.
+        ``refresh_token_enc``/``expires_at`` stay ``None``: there is no
+        separate refresh-token concept for a directly-registered credential.
+
+        The connected account's ``user_id`` is the ACTING admin/manager
+        (``membership.user_id``) — an ``api_token`` credential is not tied
+        to any end-user's own account (unlike OAuth), so the registrant is
+        recorded as the owner for audit/ownership purposes.
+        """
+
+        connector = await self.repo.get(organization_id, connector_id)
+        if connector is None or connector.credential_kind != CredentialKind.api_token:
+            raise AppException(
+                "El conector no existe, no tienes acceso a él o no admite "
+                "el registro directo de credenciales.",
+                code="connector_not_found",
+                status_code=404,
+            )
+
+        adapter = get_adapter(connector.provider)
+        if (
+            adapter is None
+            or adapter.credential_kind != CredentialKind.api_token
+            or adapter.api_token is None
+        ):
+            raise AppException(
+                "El proveedor del conector no está disponible.",
+                code="provider_not_registered",
+                status_code=404,
+            )
+
+        account_ref = await adapter.api_token.connect(raw)
+        access_token_enc = crypto.encrypt(json.dumps(dict(raw)))
+
+        try:
+            account = await self.accounts.upsert_account(
+                organization_id=organization_id,
+                connector_id=connector.id,
+                user_id=membership.user_id,
+                external_account_id=account_ref.external_account_id,
+                display_name=account_ref.display_name,
+                actor_id=membership.user_id,
+                commit=False,
+            )
+            await self.accounts.save_credentials(
+                connected_account_id=account.id,
+                organization_id=organization_id,
+                access_token_enc=access_token_enc,
+                refresh_token_enc=None,
+                expires_at=None,
+                token_type=connector.provider,
+                scopes=None,
+                commit=False,
+            )
+            await self.accounts.db.commit()
+        except Exception:
+            await self.accounts.db.rollback()
+            raise
+
+        logger.info(
+            "Credenciales api_token registradas: connector_id=%s external_account_id=%s",
+            connector.id,
+            account_ref.external_account_id,
+        )
+
+        return ConnectedAccountRead.model_validate(account)
 
     # -- Connected accounts ------------------------------------------------
 

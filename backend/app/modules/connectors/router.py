@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership, require_role
-from app.modules.connectors.schemas import ConnectorCreate, ConnectorUpdate
+from app.modules.connectors.schemas import ApiTokenCredentials, ConnectorCreate, ConnectorUpdate
 from app.modules.connectors.service import ConnectorService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
@@ -103,6 +103,27 @@ async def delete_connector(
     service = ConnectorService(db)
     await service.delete_connector(membership.organization_id, connector_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/connectors/{connector_id}/credentials", status_code=status.HTTP_201_CREATED
+)
+async def register_api_token_credentials(
+    connector_id: uuid.UUID,
+    payload: ApiTokenCredentials,
+    membership: OrganizationMember = Depends(require_connector_write_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Register direct ``api_token`` credentials for a connector (admin or
+    manager only) — change 17-adapter-glpi, C17-R2. No ``state``, no
+    redirection: the payload is validated against the provider and
+    encrypted straight into ``ConnectionCredentials``, never echoed back."""
+
+    service = ConnectorService(db)
+    account = await service.register_api_token_credentials(
+        membership.organization_id, connector_id, payload.as_mapping(), membership
+    )
+    return {"data": account, "message": "Credenciales registradas."}
 
 
 @router.get("/connectors/{connector_id}/authorize")
