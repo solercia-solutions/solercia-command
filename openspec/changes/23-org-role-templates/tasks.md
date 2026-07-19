@@ -54,12 +54,13 @@ Nota: `Chained PRs recommended: No` se refiere a ausencia de cadena de Pull Requ
 
 ## Lote 3 — Repository + service de instanciación + seeder (Commit 3)
 
-- [ ] 3.1 RED `backend/tests/test_org_role_templates_service.py` (unit, sin BD): orden de recorrido padre→hijo del árbol; `lead_user_id` no-miembro rechaza antes de crear nada; mapeo nodo→proyecto (nombre, `default_methodology`, `parent_project_id` encadenado).
-- [ ] 3.2 [Repository] `app/modules/org_role_templates/repository.py`: queries de árbol por `template_id`/`parent_node_id`, ledger por `(org, template, lead)`, `is_org_member(organization_id, user_id)`.
-- [ ] 3.3 [Service] `app/modules/org_role_templates/service.py`: `instantiate(organization_id, template_id, lead_user_id, actor_id)` — recorre árbol padre→hijo; por nodo: ledger con `project.is_active=true` → reusa; sin fila o `is_active=false` → `ProjectService._create_project_unit()` + insert/actualiza fila del ledger (preserva `UNIQUE`); un único `commit` al final.
-- [ ] 3.4 RED `backend/tests/test_org_role_templates_service.py` (seeder): `db_init.seed_default()` deja sembradas exactamente 5 plantillas de sistema (`organization_id=null`, `is_system=true`); segunda corrida no duplica.
-- [ ] 3.5 [Seeder] Crear `app/modules/org_role_templates/seeder.py` con `ensure_system_templates(session)` (patrón `_ensure_*`, catálogo de las 5 plantillas del spec); invocar desde `app/db_init.py::seed_default()`.
-- [ ] 3.6 VERIFY `pytest tests/test_org_role_templates_service.py -v` → verde. Commit `feat(org-role-templates): agrega repository, service de instanciación y seeder de las 5 plantillas`.
+- [x] 3.1 RED `backend/tests/test_org_role_templates_service.py` (unit, sin BD): orden de recorrido padre→hijo del árbol; `lead_user_id` no-miembro rechaza antes de crear nada; mapeo nodo→proyecto (nombre, `default_methodology`, `parent_project_id` encadenado).
+- [x] 3.2 [Repository] `app/modules/org_role_templates/repository.py`: queries de árbol por `template_id`/`parent_node_id`, ledger por `(org, template, lead)`, `is_org_member(organization_id, user_id)`.
+- [x] 3.3 [Service] `app/modules/org_role_templates/service.py`: `instantiate(organization_id, template_id, lead_user_id, actor_id)` — recorre árbol padre→hijo; por nodo: ledger con `project.is_active=true` → reusa; sin fila o `is_active=false` → `ProjectService._create_project_unit()` + insert/actualiza fila del ledger (preserva `UNIQUE`); un único `commit` al final.
+- [x] 3.4 RED `backend/tests/test_org_role_templates_service.py` (seeder): `ensure_system_templates(session)` deja sembradas exactamente 5 plantillas de sistema (`organization_id=null`, `is_system=true`); segunda corrida no duplica.
+  DESVIACIÓN menor: el RED cubre `ensure_system_templates(session)` directamente (no `db_init.seed_default()` completo) — más enfocado, evita fixtures innecesarias de RBAC/demo; `seed_default()` sí invoca `ensure_system_templates` (T3.5) y toda la suite que usa el fixture `engine` (que importa `db_init`) confirma que el wiring no rompe el arranque.
+- [x] 3.5 [Seeder] Crear `app/modules/org_role_templates/seeder.py` con `ensure_system_templates(session)` (patrón `_ensure_*`, catálogo de las 5 plantillas del spec); invocado desde `app/db_init.py::seed_default()`.
+- [x] 3.6 VERIFY `pytest tests/test_org_role_templates_service.py -v` → verde (9/9). Commit `feat(org-role-templates): agrega repository, service de instanciación y seeder de las 5 plantillas`.
 
 ## Lote 4 — Router + schemas + wiring (Commit 4)
 

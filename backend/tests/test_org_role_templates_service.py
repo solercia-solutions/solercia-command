@@ -1,0 +1,314 @@
+"""Unit tests for the org-role-templates service (change 23-org-role-templates).
+
+R4 validaciones de instanciación (specs/org-role-templates/spec.md) at the
+UNIT layer — no DB: parent→child traversal order, lead-membership rejection
+BEFORE anything is created, and node→project mapping. R1 catálogo sembrado
+(T3.4) uses a real DB via the ``session`` fixture (idempotent seeder).
+"""
+
+import uuid
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.org_role_templates.models import OrgRoleTemplate, OrgRoleTemplateNode
+from app.modules.org_role_templates.seeder import ensure_system_templates
+from app.modules.org_role_templates.service import (
+    OrgRoleTemplateService,
+    build_project_create,
+    order_parent_first,
+)
+from app.shared.enums import Methodology
+from app.shared.exceptions import AppException
+
+try:
+    from tests.conftest import skip_no_db
+except ImportError:
+    skip_no_db = pytest.mark.skip(reason="conftest not found")
+
+
+def _node(
+    *, template_id: uuid.UUID, parent_node_id: uuid.UUID | None, name: str, order: int
+) -> OrgRoleTemplateNode:
+    return OrgRoleTemplateNode(
+        id=uuid.uuid4(),
+        template_id=template_id,
+        parent_node_id=parent_node_id,
+        name=name,
+        default_methodology=Methodology.planner,
+        order=order,
+    )
+
+
+# ---------------------------------------------------------------------------
+# order_parent_first — pure function, sin BD
+# ---------------------------------------------------------------------------
+
+
+def test_order_parent_first_orders_umbrella_before_branches_before_teams() -> None:
+    """Jefe OAP‑TI shape: umbrella -> 2 branches -> 4 teams each. The umbrella
+    MUST come first, both branches before any of their teams."""
+
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="OAP‑TI", order=0
+    )
+    planeacion = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Planeación", order=0
+    )
+    tecnologia = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Tecnología", order=1
+    )
+    mipg = _node(
+        template_id=template_id, parent_node_id=planeacion.id, name="MIPG", order=0
+    )
+    infraestructura = _node(
+        template_id=template_id,
+        parent_node_id=tecnologia.id,
+        name="Infraestructura tecnológica",
+        order=0,
+    )
+
+    # Deliberately shuffled input — the function must reconstruct the order.
+    ordered = order_parent_first(
+        [infraestructura, tecnologia, mipg, planeacion, umbrella]
+    )
+
+    assert [n.id for n in ordered] == [
+        umbrella.id,
+        planeacion.id,
+        tecnologia.id,
+        mipg.id,
+        infraestructura.id,
+    ]
+
+
+def test_order_parent_first_orders_flat_template_by_sibling_order() -> None:
+    """A flat template (e.g. "Jefe de Planeación"): umbrella first, then its
+    4 teams in ``order`` — a DIFFERENT shape than the 3-level test above,
+    forcing real sibling-ordering logic instead of a hardcoded 5-node path
+    (triangulation)."""
+
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="Planeación", order=0
+    )
+    piga = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="PIGA", order=1
+    )
+    mipg = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="MIPG", order=0
+    )
+
+    ordered = order_parent_first([piga, umbrella, mipg])
+
+    assert [n.id for n in ordered] == [umbrella.id, mipg.id, piga.id]
+
+
+# ---------------------------------------------------------------------------
+# build_project_create — pure function, sin BD
+# ---------------------------------------------------------------------------
+
+
+def test_build_project_create_maps_node_lead_and_parent() -> None:
+    template_id = uuid.uuid4()
+    node = _node(
+        template_id=template_id, parent_node_id=None, name="Tesorería", order=0
+    )
+    lead_user_id = uuid.uuid4()
+    parent_project_id = uuid.uuid4()
+
+    data = build_project_create(
+        node, lead_user_id=lead_user_id, parent_project_id=parent_project_id
+    )
+
+    assert data.name == "Tesorería"
+    assert data.methodology == Methodology.planner
+    assert data.lead_user_id == lead_user_id
+    assert data.parent_project_id == parent_project_id
+
+
+def test_build_project_create_root_node_has_no_parent_project() -> None:
+    """A DIFFERENT node (root, no parent) than the previous test — proves the
+    mapping is not hardcoded to always attach a parent (triangulation)."""
+
+    template_id = uuid.uuid4()
+    node = _node(
+        template_id=template_id,
+        parent_node_id=None,
+        name="Gestión Corporativa",
+        order=0,
+    )
+    lead_user_id = uuid.uuid4()
+
+    data = build_project_create(
+        node, lead_user_id=lead_user_id, parent_project_id=None
+    )
+
+    assert data.name == "Gestión Corporativa"
+    assert data.parent_project_id is None
+    assert data.lead_user_id == lead_user_id
+
+
+# ---------------------------------------------------------------------------
+# instantiate — lead membership validated BEFORE anything is created
+# ---------------------------------------------------------------------------
+
+
+class _FakeRepo:
+    """Stand-in for ``OrgRoleTemplateRepository`` — no DB, no session."""
+
+    def __init__(self, *, template: OrgRoleTemplate | None, is_member: bool) -> None:
+        self._template = template
+        self._is_member = is_member
+        self.nodes_for_template_called = False
+
+    async def get_visible(
+        self, organization_id: uuid.UUID, template_id: uuid.UUID
+    ) -> OrgRoleTemplate | None:
+        return self._template
+
+    async def is_org_member(
+        self, organization_id: uuid.UUID, user_id: uuid.UUID
+    ) -> bool:
+        return self._is_member
+
+    async def nodes_for_template(self, template_id: uuid.UUID) -> list:
+        # If instantiate() reaches this, membership rejection did NOT happen
+        # before touching the tree — the RED assertion (below) catches it.
+        self.nodes_for_template_called = True
+        return []
+
+
+@pytest.mark.asyncio
+async def test_instantiate_rejects_non_member_lead_before_touching_the_tree() -> None:
+    """R4: ``lead_user_id`` sin membresía activa rechaza la instanciación
+    ANTES de tocar el árbol de nodos — ningún proyecto se crea."""
+
+    organization_id = uuid.uuid4()
+    template = OrgRoleTemplate(
+        id=uuid.uuid4(), organization_id=None, name="Jefe de Planeación", is_system=True
+    )
+    service = OrgRoleTemplateService(db=None)  # type: ignore[arg-type]
+    fake_repo = _FakeRepo(template=template, is_member=False)
+    service.repo = fake_repo  # type: ignore[assignment]
+
+    with pytest.raises(AppException) as exc_info:
+        await service.instantiate(organization_id, template.id, uuid.uuid4())
+
+    assert exc_info.value.code == "lead_not_member"
+    assert exc_info.value.status_code == 422
+    assert fake_repo.nodes_for_template_called is False
+
+
+@pytest.mark.asyncio
+async def test_instantiate_rejects_unknown_template_before_checking_membership() -> None:
+    """A DIFFERENT rejection path (template not found, not lead) — proves the
+    guard clause is not hardcoded to a single error shape (triangulation)."""
+
+    organization_id = uuid.uuid4()
+    service = OrgRoleTemplateService(db=None)  # type: ignore[arg-type]
+    fake_repo = _FakeRepo(template=None, is_member=True)
+    service.repo = fake_repo  # type: ignore[assignment]
+
+    with pytest.raises(AppException) as exc_info:
+        await service.instantiate(organization_id, uuid.uuid4(), uuid.uuid4())
+
+    assert exc_info.value.code == "template_not_found"
+    assert exc_info.value.status_code == 404
+    assert fake_repo.nodes_for_template_called is False
+
+
+# ---------------------------------------------------------------------------
+# ensure_system_templates — R1 catálogo sembrado (T3.4), real DB
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_ensure_system_templates_seeds_exactly_five_system_templates(
+    session: AsyncSession,
+) -> None:
+    """R1: exactamente 5 plantillas de sistema, ``organization_id=NULL``,
+    ``is_system=True``."""
+
+    await ensure_system_templates(session)
+
+    result = await session.execute(
+        select(OrgRoleTemplate).where(OrgRoleTemplate.is_system.is_(True))
+    )
+    templates = result.scalars().all()
+
+    assert len(templates) == 5
+    assert all(t.organization_id is None for t in templates)
+    names = {t.name for t in templates}
+    assert names == {
+        "Jefe OAP‑TI",
+        "Jefe de Planeación",
+        "Jefe de Tecnología",
+        "Gerente de Gestión Corporativa",
+        "Equipo de desarrollo",
+    }
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_ensure_system_templates_second_run_does_not_duplicate(
+    session: AsyncSession,
+) -> None:
+    """Segunda corrida no duplica — ni plantillas ni nodos."""
+
+    await ensure_system_templates(session)
+    await ensure_system_templates(session)
+
+    template_count = await session.execute(
+        select(func.count())
+        .select_from(OrgRoleTemplate)
+        .where(OrgRoleTemplate.is_system.is_(True))
+    )
+    assert template_count.scalar_one() == 5
+
+    node_count = await session.execute(
+        select(func.count()).select_from(OrgRoleTemplateNode)
+    )
+    first_count = node_count.scalar_one()
+
+    await ensure_system_templates(session)
+
+    node_count_after_third_run = await session.execute(
+        select(func.count()).select_from(OrgRoleTemplateNode)
+    )
+    assert node_count_after_third_run.scalar_one() == first_count
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_jefe_oap_ti_template_has_umbrella_two_branches_and_eight_teams(
+    session: AsyncSession,
+) -> None:
+    """El árbol de "Jefe OAP‑TI" tiene 11 nodos: 1 sombrilla + 2 ramas + 8
+    equipos (4 por rama) — forma de 3 niveles distinta de las plantillas
+    planas (triangulación)."""
+
+    await ensure_system_templates(session)
+
+    template_result = await session.execute(
+        select(OrgRoleTemplate).where(OrgRoleTemplate.name == "Jefe OAP‑TI")
+    )
+    template = template_result.scalar_one()
+
+    nodes_result = await session.execute(
+        select(OrgRoleTemplateNode).where(
+            OrgRoleTemplateNode.template_id == template.id
+        )
+    )
+    nodes = nodes_result.scalars().all()
+
+    assert len(nodes) == 11
+    umbrella = next(n for n in nodes if n.parent_node_id is None)
+    assert umbrella.name == "OAP‑TI"
+    branches = [n for n in nodes if n.parent_node_id == umbrella.id]
+    assert {n.name for n in branches} == {"Planeación", "Tecnología"}
+    teams = [n for n in nodes if n.parent_node_id in {b.id for b in branches}]
+    assert len(teams) == 8

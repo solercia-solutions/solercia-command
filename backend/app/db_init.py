@@ -68,6 +68,7 @@ from app.modules.org_role_templates.models import (  # noqa: F401
     OrgRoleTemplateInstantiation,
     OrgRoleTemplateNode,
 )
+from app.modules.org_role_templates.seeder import ensure_system_templates
 from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,
@@ -335,6 +336,7 @@ async def seed_default() -> None:
         )
 
         await _ensure_alert_rules(session, organization)
+        await ensure_system_templates(session)
 
         task_count = await session.execute(select(func.count()).select_from(Task))
         if (task_count.scalar_one() or 0) == 0:
