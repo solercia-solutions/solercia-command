@@ -66,6 +66,31 @@ class ProjectRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_for_update(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> Project | None:
+        """``SELECT ... FOR UPDATE`` a single active project, or ``None``.
+
+        Serializes concurrent hierarchy writers on the SAME node (same
+        pattern as ``BoardRepository.lock_column``): whoever acquires the
+        row lock first validates and commits its reparent; the next
+        transaction blocks until the first commits, then re-validates
+        against the up-to-date, committed ``parent_project_id`` — closing
+        the TOCTOU window that could otherwise persist a cycle under READ
+        COMMITTED (change 21-project-hierarchy, judgment-day fix).
+        """
+
+        result = await self.db.execute(
+            select(Project)
+            .where(
+                Project.id == project_id,
+                Project.organization_id == organization_id,
+                Project.is_active.is_(True),
+            )
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_code(
         self, organization_id: uuid.UUID, code: str
     ) -> Project | None:
@@ -151,7 +176,11 @@ class ProjectRepository:
         ``0`` for a project with no active children. Small recursive CTE
         (design.md Decision 3, "altura_subárbol(C) ... con un CTE recursivo
         pequeño"); filters ``organization_id`` + ``is_active`` at every
-        level, same defensive posture as :meth:`fetch_subtree`.
+        level, same defensive posture as :meth:`fetch_subtree`. The
+        recursive term is ALSO bounded by
+        ``depth < settings.PROJECT_HIERARCHY_MAX_DEPTH`` (same guard as
+        :meth:`ancestor_ids`) so a pre-existing corrupted cycle can never
+        make this query recurse without bound.
         """
 
         base = select(
@@ -169,6 +198,7 @@ class ProjectRepository:
             .where(
                 child.organization_id == organization_id,
                 child.is_active.is_(True),
+                subtree_cte.c.depth < settings.PROJECT_HIERARCHY_MAX_DEPTH,
             )
         )
         subtree_cte = subtree_cte.union_all(recursive_step)
@@ -189,10 +219,16 @@ class ProjectRepository:
         recursive terms) — an inactive or cross-tenant row can never be a
         traversal hop, so its descendants are excluded transitively even if
         they are individually active/same-tenant (design.md Decision 3,
-        "filtra organization_id + is_active en cada nivel").
+        "filtra organization_id + is_active en cada nivel"). The recursive
+        term is ALSO bounded by
+        ``depth < settings.PROJECT_HIERARCHY_MAX_DEPTH`` (same guard as
+        :meth:`ancestor_ids`/:meth:`subtree_height`) so a pre-existing
+        corrupted cycle can never make this query recurse without bound.
         """
 
-        base = select(Project.id).where(
+        base = select(
+            Project.id, cast(literal(0), Integer).label("depth")
+        ).where(
             Project.id == project_id,
             Project.organization_id == organization_id,
             Project.is_active.is_(True),
@@ -200,11 +236,12 @@ class ProjectRepository:
         subtree_cte = base.cte(name="project_subtree_ids", recursive=True)
         child = aliased(Project)
         recursive_step = (
-            select(child.id)
+            select(child.id, (subtree_cte.c.depth + 1).label("depth"))
             .join(subtree_cte, child.parent_project_id == subtree_cte.c.id)
             .where(
                 child.organization_id == organization_id,
                 child.is_active.is_(True),
+                subtree_cte.c.depth < settings.PROJECT_HIERARCHY_MAX_DEPTH,
             )
         )
         subtree_cte = subtree_cte.union_all(recursive_step)
@@ -216,13 +253,17 @@ class ProjectRepository:
         """Return ``project_id`` and every active descendant of its subtree.
 
         Never crosses ``organization_id`` — see :meth:`_subtree_ids_select`.
-        Order is unspecified; the service layer nests the tree by
+        Ordered deterministically by ``created_at`` ascending, ``id``
+        ascending as a tie-breaker, so sibling order is stable across
+        repeated calls; the service layer nests the tree by
         ``parent_project_id``.
         """
 
         subtree_ids = self._subtree_ids_select(organization_id, project_id)
         result = await self.db.execute(
-            select(Project).where(Project.id.in_(subtree_ids))
+            select(Project)
+            .where(Project.id.in_(subtree_ids))
+            .order_by(Project.created_at.asc(), Project.id.asc())
         )
         return result.scalars().all()
 

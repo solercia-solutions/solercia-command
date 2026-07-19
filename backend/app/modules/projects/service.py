@@ -235,7 +235,24 @@ class ProjectService:
         Applies :meth:`validate_parent` when ``parent_project_id`` is given —
         unlinking to root never needs hierarchy validation, it can only
         SHORTEN the chain.
+
+        When reparenting under a real parent, BOTH endpoints of the move
+        (``project_id`` and ``parent_project_id``, locked in ascending-id
+        order to avoid a lock-ordering deadlock between two concurrent
+        reparents) are row-locked via ``ProjectRepository.get_for_update``
+        BEFORE validation runs. This serializes two concurrent reparents
+        that would otherwise both pass validation against a stale snapshot
+        and persist a 2-node cycle (A->parent=B, B->parent=A under READ
+        COMMITTED): the second transaction blocks on the lock and then
+        re-validates against the first transaction's already-committed
+        ``parent_project_id``.
         """
+
+        if parent_project_id is not None:
+            first_id, second_id = sorted((project_id, parent_project_id))
+            await self.repo.get_for_update(organization_id, first_id)
+            if second_id != first_id:
+                await self.repo.get_for_update(organization_id, second_id)
 
         project = await self.get_project(organization_id, project_id)
         if parent_project_id is not None:

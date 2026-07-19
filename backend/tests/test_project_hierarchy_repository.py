@@ -11,6 +11,7 @@ connection (recursive CTEs + FILTER), hence ``@skip_no_db`` like every other
 DB-touching test in this suite.
 """
 
+import asyncio
 import uuid
 
 import pytest
@@ -174,6 +175,34 @@ async def test_subtree_height_of_a_three_level_chain_is_two(
     assert height == 2
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_subtree_height_is_bounded_on_a_pre_existing_cycle(
+    session: AsyncSession, tenant
+) -> None:
+    """Triangulation (mirrors ``test_ancestor_ids_is_bounded_on_a_pre_existing_cycle``):
+    a persisted 2-node cycle A<->B must never make the descendant CTE recurse
+    without bound. ``asyncio.wait_for`` is a test-level safety net — if the
+    depth guard regresses, this fails fast (TimeoutError) instead of hanging
+    the suite (no ``statement_timeout`` is configured on the test engine)."""
+
+    from app.config import settings
+
+    project_a = await _make_project(session, tenant.id, "Height Cycle A")
+    project_b = await _make_project(
+        session, tenant.id, "Height Cycle B", parent_project_id=project_a.id
+    )
+    project_a.parent_project_id = project_b.id
+    await session.flush()
+
+    repo = ProjectRepository(session)
+    height = await asyncio.wait_for(
+        repo.subtree_height(tenant.id, project_a.id), timeout=5.0
+    )
+
+    assert height <= settings.PROJECT_HIERARCHY_MAX_DEPTH
+
+
 # ---------------------------------------------------------------------------
 # fetch_subtree
 # ---------------------------------------------------------------------------
@@ -253,6 +282,64 @@ async def test_fetch_subtree_never_crosses_organization_boundary(
     assert foreign_child.id not in ids
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_fetch_subtree_is_bounded_on_a_pre_existing_cycle(
+    session: AsyncSession, tenant
+) -> None:
+    """Same triangulation as ``test_subtree_height_is_bounded_on_a_pre_existing_cycle``
+    for ``fetch_subtree``: a persisted 2-node cycle resolves to the finite
+    ``{A, B}`` set instead of recursing without bound."""
+
+    project_a = await _make_project(session, tenant.id, "Subtree Cycle A")
+    project_b = await _make_project(
+        session, tenant.id, "Subtree Cycle B", parent_project_id=project_a.id
+    )
+    project_a.parent_project_id = project_b.id
+    await session.flush()
+
+    repo = ProjectRepository(session)
+    subtree = await asyncio.wait_for(
+        repo.fetch_subtree(tenant.id, project_a.id), timeout=5.0
+    )
+
+    ids = {project.id for project in subtree}
+    assert ids == {project_a.id, project_b.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_fetch_subtree_orders_siblings_deterministically(
+    session: AsyncSession, tenant
+) -> None:
+    """Two siblings under the same parent must come back in the SAME order
+    across repeated calls — ``_nest_tree``/``_nest_progress`` build
+    ``children`` by insertion order, so a missing ``ORDER BY`` on
+    ``fetch_subtree`` would let sibling order flap between requests."""
+
+    root = await _make_project(session, tenant.id, "Sibling Order Root")
+    first_child = await _make_project(
+        session, tenant.id, "Alpha Sibling", parent_project_id=root.id
+    )
+    second_child = await _make_project(
+        session, tenant.id, "Beta Sibling", parent_project_id=root.id
+    )
+
+    repo = ProjectRepository(session)
+
+    def _child_order(subtree):
+        return [
+            project.id for project in subtree if project.parent_project_id == root.id
+        ]
+
+    first_call = _child_order(await repo.fetch_subtree(tenant.id, root.id))
+    second_call = _child_order(await repo.fetch_subtree(tenant.id, root.id))
+    third_call = _child_order(await repo.fetch_subtree(tenant.id, root.id))
+
+    assert set(first_call) == {first_child.id, second_child.id}
+    assert first_call == second_call == third_call
+
+
 # ---------------------------------------------------------------------------
 # rollup_progress
 # ---------------------------------------------------------------------------
@@ -327,3 +414,28 @@ async def test_rollup_progress_excludes_cancelled_tasks_from_denominator(
     _, done, total = row
     assert done == 5
     assert total == 8
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_rollup_progress_is_bounded_on_a_pre_existing_cycle(
+    session: AsyncSession, tenant
+) -> None:
+    """Same triangulation as ``test_subtree_height_is_bounded_on_a_pre_existing_cycle``
+    for ``rollup_progress``: it terminates (via ``_subtree_ids_select``'s
+    depth guard) instead of recursing without bound over a corrupted cycle."""
+
+    project_a = await _make_project(session, tenant.id, "Rollup Cycle A")
+    project_b = await _make_project(
+        session, tenant.id, "Rollup Cycle B", parent_project_id=project_a.id
+    )
+    project_a.parent_project_id = project_b.id
+    await session.flush()
+
+    repo = ProjectRepository(session)
+    rows = await asyncio.wait_for(
+        repo.rollup_progress(tenant.id, project_a.id), timeout=5.0
+    )
+
+    project_ids = {row[0] for row in rows}
+    assert project_ids == {project_a.id, project_b.id}
