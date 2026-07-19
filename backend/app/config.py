@@ -246,6 +246,26 @@ class Settings(BaseSettings):
     # override this to False, same convention as `COOKIE_SECURE`.
     MCP_ALLOW_HTTP: bool = True
     MCP_BLOCK_PRIVATE_NETWORKS: bool = True
+    # `MCP_CONNECT_TIMEOUT_SECONDS` bounds ONLY the transport handshake +
+    # `initialize` (`session.open_session`); `MCP_TOTAL_TIMEOUT_SECONDS`
+    # bounds every SUBSEQUENT request on the same session
+    # (`ClientSession(..., read_timeout_seconds=...)`) — mirrors
+    # `GLPI_TIMEOUT_SECONDS`'s single-timeout shape, split in two because an
+    # ephemeral MCP session's `initialize` handshake and a `read_resource`
+    # call are separate round-trips with different failure semantics
+    # (MC-R3 vs MC-R6).
+    MCP_CONNECT_TIMEOUT_SECONDS: float = 10.0
+    MCP_TOTAL_TIMEOUT_SECONDS: float = 30.0
+    # `resources/list`/`tools/list` results are truncated to this many
+    # items — mirrors `GOOGLE_DEFAULT_LIMIT`/`GLPI_PAGE_SIZE`'s antibomba
+    # intent, applied client-side since MCP's list operations do not accept
+    # a caller-supplied page size (MC-R6).
+    MCP_MAX_LIST_ITEMS: int = 100
+    # `read_resource`/`call_tool` results exceeding this many bytes are
+    # rejected — the oversized content is NEVER mapped into the returned
+    # DTO (MC-R4; see `reader.py`'s docstring for the SDK's synchronous
+    # `resources/read` shape this tope is enforced against).
+    MCP_MAX_RESOURCE_BYTES: int = 1_048_576  # 1 MiB
 
 
 @lru_cache
