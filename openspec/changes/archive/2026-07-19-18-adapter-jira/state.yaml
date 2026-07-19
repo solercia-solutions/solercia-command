@@ -8,8 +8,8 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -26,6 +26,9 @@ constraints:
   - rollback-required
   - read-only-import
 last_updated: 2026-07-19
+last_updated_by: sdd-archive
 notes:
   - "Ajuste de coordinación aplicado en tasks: connectors.settings ahora lo agrega el 17 (junto a credential_kind); el 18 no tiene migración Alembic propia. Mapeos Jira en namespace settings.jira.*"
   - "Apply completado: 11 lotes (0-10), 11 commits sobre feat/consume-solercia-ui. Suite: 942 passed / 13 failed (legacy, sin relación con jira/connectors). ruff+mypy limpios. alembic check: 'No new upgrade operations detected' (cero migración, confirmado también por test_migrations_baseline.py). Desviaciones: httpx ya estaba en requirements.txt (no había diff que aplicar en 9.1); Lote 7 solo agregó los 2 escenarios NO cubiertos por el 17 (admin+/myself real, reenvío sin duplicar) para no duplicar member/403 y org-ajena/404 ya cubiertos genéricamente."
+  - "Verify completado: PASS. 949 passed / 13 failed (legacy exactas, sin relación con jira/connectors, mismo baseline que 17-adapter-glpi). 86/86 tests jira/connectors en ejecución aislada. ruff y mypy limpios. alembic heads único 0017 (sin migración propia del 18). 12/12 requisitos, 23/23 escenarios COMPLIANT (19 jira-import + 4 connectors delta). 0 CRITICAL, 0 WARNING bloqueante, 2 SUGGESTION informativas. Reporte completo en verify-report.md."
+  - "Archive completado: specs jira-import (NEW) fusionada a openspec/specs/jira-import/spec.md; delta connectors (ADDED) fusionada a openspec/specs/connectors/spec.md. Cambio archivado en openspec/changes/archive/2026-07-19-18-adapter-jira/ con todos los artefactos de fase (proposal, design, tasks, verify-report, state). OLA_2.md fila 18 actualizada: apply ☑, verify ☑, archive ☑."
