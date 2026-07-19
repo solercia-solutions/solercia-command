@@ -14,6 +14,7 @@ idempotente, conversión a tarea, sink).
 """
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -24,12 +25,14 @@ from app.integrations import crypto
 from app.integrations.ports import CredentialKind
 from app.modules.connectors.models import ConnectedAccount, ConnectionCredentials, Connector
 from app.modules.intake.models import IntakeItem, IntakeRule, IntakeSettings
+from app.modules.intake.schemas import IntakeConvertRequest
 from app.modules.intake.service import IntakeService
 from app.modules.organizations.models import Organization, OrganizationMember
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 from app.modules.users.models import User
-from app.shared.enums import AccountStatus, ConnectorStatus, MemberRole
+from app.shared.enums import AccountStatus, ConnectorStatus, IntakeItemType, MemberRole
+from app.shared.exceptions import AppException
 from app.shared.security import hash_password
 from tests.conftest import TwoOrgs, skip_no_db
 
@@ -610,6 +613,111 @@ async def test_reconverting_an_already_converted_item_is_rejected(
 
     get_response = await client.get(f"/intake/items/{item_id}", headers=_auth(two_orgs.a.token))
     assert get_response.json()["data"]["created_task_id"] == first_task_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_convert_manual_commits_so_a_fresh_session_rejects_reconversion(
+    engine: AsyncEngine,
+) -> None:
+    """Regresión: ``convert_manual`` DEBE confirmar (commit) sus escrituras
+    finales sobre el ítem (status/created_task_id/classified_at) — sin eso
+    la transacción queda pendiente y se pierde al cerrarse la sesión del
+    request (``TaskService.create_task`` YA comprometió la `Task`, pero el
+    ítem sigue `pending`), y un segundo ``convert_manual`` pasaría el guard
+    de "ya converted" creando una TAREA DUPLICADA. Verificado con sesiones
+    REALMENTE independientes ligadas directamente al ``engine`` (lección
+    savepoint): el fixture ``session``/``client`` reutiliza UNA sola sesión
+    entre requests y por eso no puede detectar este defecto."""
+
+    session_a = AsyncSession(engine, expire_on_commit=False)
+    organization_id: uuid.UUID | None = None
+    try:
+        organization = Organization(
+            name="Manual Convert Org", slug=f"manual-conv-{uuid.uuid4().hex[:12]}"
+        )
+        session_a.add(organization)
+        await session_a.flush()
+        organization_id = organization.id
+
+        admin = User(
+            email=f"manual-admin-{uuid.uuid4().hex[:12]}@example.com",
+            primer_nombre="Manual",
+            primer_apellido="Admin",
+            hashed_password=hash_password("Test123*"),
+        )
+        session_a.add(admin)
+        await session_a.flush()
+        session_a.add(
+            OrganizationMember(
+                organization_id=organization.id, user_id=admin.id, role=MemberRole.admin
+            )
+        )
+        await session_a.flush()
+
+        connector = await _seed_fake_connector(session_a, organization.id, admin.id)
+        item = IntakeItem(
+            organization_id=organization.id,
+            source_provider="fake",
+            connector_id=connector.id,
+            item_type=IntakeItemType.email,
+            external_id=f"manual-{uuid.uuid4().hex[:12]}",
+            title="Correo sin regla coincidente",
+            origin_actor="alguien@example.com",
+            occurred_at=datetime.now(UTC),
+            raw_payload={},
+        )
+        session_a.add(item)
+        await session_a.commit()
+        item_id = item.id
+
+        service_a = IntakeService(session_a)
+        converted = await service_a.convert_manual(
+            organization.id,
+            item_id,
+            IntakeConvertRequest(priority="medium"),
+            actor_id=admin.id,
+        )
+        assert converted.status == "converted"
+        first_task_id = converted.created_task_id
+        assert first_task_id is not None
+        await session_a.close()
+
+        session_b = AsyncSession(engine, expire_on_commit=False)
+        try:
+            item_result = await session_b.execute(
+                select(IntakeItem).where(IntakeItem.id == item_id)
+            )
+            persisted = item_result.scalar_one()
+            assert persisted.status == "converted"
+            assert persisted.created_task_id == first_task_id
+
+            service_b = IntakeService(session_b)
+            with pytest.raises(AppException) as exc_info:
+                await service_b.convert_manual(
+                    organization.id,
+                    item_id,
+                    IntakeConvertRequest(priority="medium"),
+                    actor_id=admin.id,
+                )
+            assert exc_info.value.code == "intake_item_already_converted"
+
+            tasks_result = await session_b.execute(
+                select(Task).where(Task.title == persisted.title)
+            )
+            assert len(tasks_result.scalars().all()) == 1
+        finally:
+            await session_b.close()
+    finally:
+        if organization_id is not None:
+            cleanup_session = AsyncSession(engine, expire_on_commit=False)
+            try:
+                await cleanup_session.execute(
+                    delete(Organization).where(Organization.id == organization_id)
+                )
+                await cleanup_session.commit()
+            finally:
+                await cleanup_session.close()
 
 
 @pytest.mark.asyncio(loop_scope="session")

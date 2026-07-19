@@ -103,10 +103,23 @@ class IntakeItemRepository:
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
-    async def save_item(self, item: IntakeItem) -> IntakeItem:
-        """Flush pending changes on an attached item (classification result)."""
+    async def save_item(self, item: IntakeItem, *, commit: bool = True) -> IntakeItem:
+        """Persist pending changes on an attached item (classification result).
 
-        await self.db.flush()
+        ``commit=True`` (default) commits — matches the sibling repositories
+        (``IntakeRuleRepository.save``/``IntakeSettingsRepository.save``) and
+        the "write flows seal their own transaction" convention
+        (``connectors/repository.py``'s ``_commit_or_flush``). ``commit=False``
+        only flushes: used by ``classify_and_convert``'s auto-ingest path,
+        whose caller (``pull``'s ``close_run``) seals items + run in ONE
+        commit — see ``IntakeService.classify_and_convert``.
+        """
+
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(item)
+        else:
+            await self.db.flush()
         return item
 
     # -- intake_runs ---------------------------------------------------------

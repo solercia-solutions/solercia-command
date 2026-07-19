@@ -516,9 +516,12 @@ class IntakeService:
         matches with ``convert_to_task=true``, create a real ``Task``
         (intake-classifier spec, "Conversión a tarea cuando una regla casa").
 
-        Mutates ``item`` in place and flushes via ``IntakeItemRepository.
-        save_item`` — the caller (``pull``'s outer commit, or
-        ``convert_manual`` in Fase 5) owns the transaction boundary.
+        Mutates ``item`` in place and flushes (``commit=False``) via
+        ``IntakeItemRepository.save_item`` — the caller (``pull``'s
+        ``close_run``, which commits items + run in ONE transaction) owns
+        the transaction boundary. ``convert_manual`` (Fase 5) is a
+        DIFFERENT call site that commits per item (``save_item``'s
+        default); see its own docstring.
         """
 
         active_rules = await self.rules.list_active_rules_ordered(organization_id)
@@ -527,14 +530,14 @@ class IntakeService:
         if matched_rule is None:
             # intake-classifier spec, "Ítems sin regla coincidente van a
             # triage manual" — stays pending, no matched_rule_id.
-            await self.items.save_item(item)
+            await self.items.save_item(item, commit=False)
             return
 
         if not matched_rule.convert_to_task:
             # intake-classifier spec, "Regla con convert_to_task=false no
             # crea tarea" — `ignored`, NEVER reaches the triage queue.
             item.status = IntakeItemStatus.ignored
-            await self.items.save_item(item)
+            await self.items.save_item(item, commit=False)
             return
 
         if matched_rule.assignee_id is not None:
@@ -550,7 +553,7 @@ class IntakeService:
                 # ineligible `assignee_id` — is fully queryable/consultable
                 # via this FK without a new migration).
                 item.matched_rule_id = matched_rule.id
-                await self.items.save_item(item)
+                await self.items.save_item(item, commit=False)
                 return
 
         project_id = matched_rule.target_project_id or await self._ensure_default_project(
@@ -573,7 +576,7 @@ class IntakeService:
         item.created_task_id = task.id
         item.matched_rule_id = matched_rule.id
         item.classified_at = datetime.now(UTC)
-        await self.items.save_item(item)
+        await self.items.save_item(item, commit=False)
 
     async def _ensure_default_project(self, organization_id: uuid.UUID) -> uuid.UUID:
         """Resolve the org's default project, creating it (lazily, ONCE)
@@ -612,6 +615,17 @@ class IntakeService:
         ``matched_rule_id`` stays ``None`` — this is the ONE signal that
         distinguishes a manual conversion from an automatic one (spec,
         "DEBE dejar matched_rule_id nulo").
+
+        Unlike ``classify_and_convert``, THIS call site has no outer commit
+        (the router returns straight after it) — ``save_item`` therefore
+        commits (its default), sealing ``item``'s ``converted`` status
+        durably before the request's session closes. Without it the
+        mutation only lived in a pending transaction that got rolled back
+        on session teardown, leaving the item ``pending`` while its `Task`
+        stayed committed (orphaned) — a second ``convert_manual`` call
+        would then pass the "already converted" guard and create a
+        DUPLICATE task (violates "un ítem converted NO DEBE poder
+        convertirse de nuevo").
         """
 
         item = await self.items.get_item(organization_id, item_id)
