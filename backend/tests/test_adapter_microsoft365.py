@@ -20,10 +20,12 @@ import json
 from pathlib import Path
 
 import httpx
+import jwt as pyjwt
 import pytest
 
 from app.config import Settings
 from app.integrations.ports import AccessContext
+from tests.conftest import TwoOrgs, skip_no_db
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "graph"
 
@@ -422,3 +424,201 @@ class TestGraphClientResilience:
         assert "super-secret-refresh-token" not in str(excinfo.value)
         assert "super-secret-access-token" not in caplog.text
         assert "super-secret-refresh-token" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Lote 3 — OAuth Entra ID + registro del adaptador
+# ---------------------------------------------------------------------------
+
+
+class TestOAuthAndRegistry:
+    def test_authorize_url_uses_organizations_tenant_by_default(self) -> None:
+        """Scenario: Tenant por defecto y override por configuración — no
+        tenant override → the authorize URL uses ``organizations``."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        settings = _settings(M365_CLIENT_ID="client-abc")
+
+        url = oauth.authorize_url(
+            "state-1", "https://app.test/callback", ["User.Read"], settings=settings
+        )
+
+        assert url.startswith(
+            "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
+        )
+        assert "state=state-1" in url
+        assert "client_id=client-abc" in url
+        assert "redirect_uri=https%3A%2F%2Fapp.test%2Fcallback" in url
+
+    def test_authorize_url_uses_the_configured_tenant_override(self) -> None:
+        """Scenario (continuación): un tenant fijo por variable de entorno
+        hace que la URL use ESE tenant en su lugar."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        settings = _settings(M365_TENANT="contoso.onmicrosoft.com")
+
+        url = oauth.authorize_url(
+            "state-1", "https://app.test/callback", ["User.Read"], settings=settings
+        )
+
+        assert url.startswith(
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com"
+            "/oauth2/v2.0/authorize"
+        )
+
+    @pytest.mark.asyncio
+    async def test_exchange_code_returns_tokens_with_oid_as_external_account_id(
+        self,
+    ) -> None:
+        """`OAuthTokens.external_account_id` is the token response's
+        ``id_token`` ``oid`` claim (design.md ADR #5 — stable, unlike the
+        UPN)."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        id_token = pyjwt.encode(
+            {"oid": "11111111-2222-3333-4444-555555555555", "upn": "ana@contoso.com"},
+            "unused-signing-secret",
+            algorithm="HS256",
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/organizations/oauth2/v2.0/token"
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "graph-access-token",
+                    "refresh_token": "graph-refresh-token",
+                    "id_token": id_token,
+                    "expires_in": 3600,
+                    "scope": "Mail.Read Calendars.Read",
+                },
+            )
+
+        tokens = await oauth.exchange_code(
+            "auth-code-1",
+            "https://app.test/callback",
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert tokens.external_account_id == "11111111-2222-3333-4444-555555555555"
+        assert tokens.access_token == "graph-access-token"
+        assert tokens.refresh_token == "graph-refresh-token"
+        assert tokens.scopes == ("Mail.Read", "Calendars.Read")
+        assert tokens.expires_at is not None
+
+    @pytest.mark.asyncio
+    async def test_refresh_returns_tokens_with_oid_as_external_account_id(self) -> None:
+        """Same ``oid`` extraction applies to the ``refresh_token`` grant."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+
+        id_token = pyjwt.encode(
+            {"oid": "99999999-8888-7777-6666-555555555555"},
+            "unused-signing-secret",
+            algorithm="HS256",
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "rotated-access-token",
+                    "refresh_token": "rotated-refresh-token",
+                    "id_token": id_token,
+                    "expires_in": 3600,
+                    "scope": "Mail.Read",
+                },
+            )
+
+        tokens = await oauth.refresh(
+            "some-refresh-token", transport=httpx.MockTransport(handler)
+        )
+
+        assert tokens.external_account_id == "99999999-8888-7777-6666-555555555555"
+        assert tokens.access_token == "rotated-access-token"
+
+    @pytest.mark.asyncio
+    async def test_no_token_leaks_in_caplog_or_exception_message_for_oauth(
+        self, caplog
+    ) -> None:
+        """Threat Matrix (oauth.py half): a token endpoint rejection never
+        surfaces the refresh token used in the request, in a log record or
+        in the raised exception's message."""
+
+        from app.integrations.adapters.microsoft365 import oauth
+        from app.shared.exceptions import AppException
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert "super-secret-refresh-token" in request.content.decode()
+            return httpx.Response(400, json={"error": "invalid_grant"})
+
+        with caplog.at_level("DEBUG"):
+            with pytest.raises(AppException) as excinfo:
+                await oauth.refresh(
+                    "super-secret-refresh-token",
+                    transport=httpx.MockTransport(handler),
+                )
+
+        assert "super-secret-refresh-token" not in str(excinfo.value)
+        assert "super-secret-refresh-token" not in caplog.text
+
+    def test_get_adapter_returns_microsoft365_instance_without_editing_the_core(
+        self,
+    ) -> None:
+        """Scenario: Registro sin tocar el núcleo ni declarar tickets — the
+        core's registry resolves ``provider="microsoft365"`` to this
+        adapter's instance purely because the adapter's OWN module ran
+        ``register_adapter(...)`` at import time (IP-R2)."""
+
+        import app.integrations.adapters.microsoft365  # noqa: F401
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.registry import get_adapter
+
+        resolved = get_adapter("microsoft365")
+
+        assert resolved is not None
+        assert isinstance(resolved, Microsoft365Adapter)
+
+    def test_tickets_capability_is_not_declared(self) -> None:
+        """Scenario (continuación): ``tickets`` no aparece entre sus
+        capacidades declaradas — 17-18 cover ticket providers, not this
+        adapter."""
+
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.ports import Capability
+
+        adapter = Microsoft365Adapter()
+
+        assert Capability.tickets not in adapter.capabilities
+        assert adapter.provider == "microsoft365"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_authorize_route_redirects_to_entra_id_for_a_microsoft365_connector(
+        self, client: httpx.AsyncClient, two_orgs: TwoOrgs, patched_redis
+    ) -> None:
+        """Runtime harness (Unit 3): a REAL ``microsoft365`` connector,
+        hitting the 14's EXISTING ``GET /connectors/{id}/authorize`` route,
+        302s straight to ``login.microsoftonline.com`` — proves the
+        registration end-to-end through the 14's own router, without
+        touching it."""
+
+        create_response = await client.post(
+            "/connectors",
+            json={"provider": "microsoft365"},
+            headers={"Authorization": f"Bearer {two_orgs.a.token}"},
+        )
+        assert create_response.status_code == 201, create_response.text
+        connector_id = create_response.json()["data"]["id"]
+
+        authorize_response = await client.get(
+            f"/connectors/{connector_id}/authorize",
+            headers={"Authorization": f"Bearer {two_orgs.a.token}"},
+        )
+
+        assert authorize_response.status_code == 302, authorize_response.text
+        location = authorize_response.headers["location"]
+        assert location.startswith("https://login.microsoftonline.com/")

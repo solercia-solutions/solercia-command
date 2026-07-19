@@ -54,13 +54,13 @@ Chain strategy: stacked-to-main
 
 ## Lote 3 — OAuth Entra ID + registro del adaptador (Commit 3)
 
-- [ ] 3.1 RED `TestOAuthAndRegistry`: `authorize_url` usa `tenant=organizations` por defecto y el de `M365_TENANT` si está configurado; `exchange_code`/`refresh` devuelven `OAuthTokens` con `external_account_id=oid` del id_token; `get_adapter("microsoft365")` retorna la instancia sin editar `ports.py`/`oauth.py`/`registry.py` del 14; `tickets` no aparece en `capabilities`; ningún token en `caplog`/`str(exception)` de `oauth.py`; URLs derivadas solo de `M365_LOGIN_BASE_URL`+tenant, `redirect_uri` validado por el allowlist del 14. [M365-R1, M365-R2; Threat Matrix: sin fuga de tokens (oauth), anti-SSRF/host fijo — mitad `oauth.py`]
-- [ ] 3.2 VERIFY confirmar T3.1 en ROJO antes de GREEN.
-- [ ] 3.3 GREEN `.../microsoft365/oauth.py`: constructores de URL `authorize`/`token`/`refresh` sobre `login.microsoftonline.com/{tenant}/oauth2/v2.0/*`.
-- [ ] 3.4 GREEN `.../microsoft365/adapter.py`: `Microsoft365Adapter` (`provider="microsoft365"`, `capabilities={mail,calendar,external_tasks,meeting_notes}`, `authorize_url`/`exchange_code`/`refresh` con `client_secret`, `port_for` con dict de puertos disponibles).
-- [ ] 3.5 GREEN `.../microsoft365/__init__.py`: `register_adapter(Microsoft365Adapter(settings))` en import-time.
-- [ ] 3.6 GREEN `app/db_init.py`: `import app.integrations.adapters.microsoft365` (precedente `adapters.fake`; NO es el núcleo `app/integrations/`).
-- [ ] 3.7 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestOAuthAndRegistry -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 3.1 RED `TestOAuthAndRegistry`: `authorize_url` usa `tenant=organizations` por defecto y el de `M365_TENANT` si está configurado; `exchange_code`/`refresh` devuelven `OAuthTokens` con `external_account_id=oid` del id_token; `get_adapter("microsoft365")` retorna la instancia sin editar `ports.py`/`oauth.py`/`registry.py` del 14; `tickets` no aparece en `capabilities`; ningún token en `caplog`/`str(exception)` de `oauth.py`; URLs derivadas solo de `M365_LOGIN_BASE_URL`+tenant, `redirect_uri` validado por el allowlist del 14. [M365-R1, M365-R2; Threat Matrix: sin fuga de tokens (oauth), anti-SSRF/host fijo — mitad `oauth.py`]
+- [x] 3.2 VERIFY confirmar T3.1 en ROJO antes de GREEN.
+- [x] 3.3 GREEN `.../microsoft365/oauth.py`: constructores de URL `authorize`/`token`/`refresh` sobre `login.microsoftonline.com/{tenant}/oauth2/v2.0/*`.
+- [x] 3.4 GREEN `.../microsoft365/adapter.py`: `Microsoft365Adapter` (`provider="microsoft365"`, `capabilities={mail,calendar,external_tasks,meeting_notes}`, `authorize_url`/`exchange_code`/`refresh` con `client_secret`, `port_for` con dict de puertos disponibles).
+- [x] 3.5 GREEN `.../microsoft365/__init__.py`: `register_adapter(Microsoft365Adapter(settings))` en import-time.
+- [x] 3.6 GREEN `app/db_init.py`: `import app.integrations.adapters.microsoft365` (precedente `adapters.fake`; NO es el núcleo `app/integrations/`).
+- [x] 3.7 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestOAuthAndRegistry -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 4 — Correo: `MailReaderPort` (Commit 4)
 
