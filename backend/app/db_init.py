@@ -22,6 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import every channel adapter so it registers itself in the hub (change 12).
 import app.email.outbox  # noqa: F401,E402
+
+# Import every integrations adapter so it registers itself in the core's
+# registry (change 14-integration-ports). Only the fake adapter exists in
+# this wave; changes 15-19 add real providers alongside it.
+import app.integrations.adapters.fake  # noqa: F401,E402
 import app.realtime.publisher  # noqa: F401,E402
 from app.database import AsyncSessionLocal, Base, engine
 
@@ -34,6 +39,11 @@ from app.modules.attachments.models import Attachment  # noqa: F401
 from app.modules.boards.models import Board, BoardColumn  # noqa: F401
 from app.modules.checklists.models import ChecklistItem, TaskChecklist  # noqa: F401
 from app.modules.comments.models import TaskComment  # noqa: F401
+from app.modules.connectors.models import (  # noqa: F401
+    ConnectedAccount,
+    ConnectionCredentials,
+    Connector,
+)
 from app.modules.dependencies.models import Dependency  # noqa: F401
 from app.modules.labels.models import Label, TaskLabel  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401

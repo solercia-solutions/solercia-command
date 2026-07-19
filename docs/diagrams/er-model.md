@@ -6,7 +6,7 @@ tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,
 de verdad es el **código**; este documento es su espejo navegable.
 
 **Fecha de línea base**: 2026-07-18 (estado del código en la rama `feat/consume-solercia-ui`,
-migraciones Alembic hasta `0014_add_project_parent_id`).
+migraciones Alembic hasta `0015_add_connectors`).
 
 > **Regla de actualización**: todo cambio de base de datos (modelo nuevo, columna nueva,
 > enum nuevo, FK nueva o eliminada) debe actualizar este documento **en el mismo commit de la
@@ -15,7 +15,7 @@ migraciones Alembic hasta `0014_add_project_parent_id`).
 > Nota: la imagen `docs/diagrams/erd.png` es una captura histórica anterior a esta línea base.
 > Se conserva como referencia, pero **este archivo es la fuente viva** del diagrama.
 
-**Total de tablas**: 31.
+**Total de tablas**: 34.
 
 ---
 
@@ -72,12 +72,18 @@ flowchart LR
         assets
     end
 
+    subgraph INTEGRATIONS["Conectores e integraciones (3 tablas)"]
+        connectors
+    end
+
     organizations -->|"organization_id en toda tabla tenant-scoped"| CORE
     organizations --> ALERTS
     organizations --> ASSETS
+    organizations --> INTEGRATIONS
     users -->|"assignee, author, actor, auditoría"| CORE
     users -->|"recipient, owner"| ALERTS
     users -->|"responsible_id"| ASSETS
+    users -->|"connected_accounts.user_id"| INTEGRATIONS
     tasks -->|"reminders.task_id"| ALERTS
     tasks -->|"asset_tasks"| ASSETS
 ```
@@ -523,6 +529,70 @@ Notas del dominio:
 
 ---
 
+## Dominio 5 — Conectores e integraciones
+
+Configuración de conectores OAuth por organización (change 14-integration-ports): `connectors`
+es la config del proveedor (p. ej. Microsoft 365, Google, GLPI, Jira — adaptadores reales en
+los cambios 15-19; esta ola solo registra un adaptador `fake` en memoria). `connected_accounts`
+es la cuenta que un usuario conectó bajo ese proveedor — la unicidad es por
+`external_account_id` **dentro del conector**, nunca por `(user_id, provider)`: un usuario
+puede conectar varias cuentas del mismo proveedor (ej. dos buzones de correo). Los tokens
+viven **aislados** en `connection_credentials` (1:1 con la cuenta, cifrados con Fernet),
+nunca junto a los campos que la API expone directamente sobre `connected_accounts`. El
+`state` OAuth (CSRF, single-use) vive en Redis con TTL, no en una tabla.
+
+```mermaid
+erDiagram
+    ORGANIZATIONS      ||--o{ CONNECTORS : "configura"
+    CONNECTORS         ||--o{ CONNECTED_ACCOUNTS : "agrupa cuentas via"
+    USERS              ||--o{ CONNECTED_ACCOUNTS : "conecta"
+    CONNECTED_ACCOUNTS ||--o| CONNECTION_CREDENTIALS : "cifra tokens via (1:1)"
+
+    CONNECTORS {
+        uuid id PK
+        uuid organization_id FK
+        string provider "String(50), no enum PG - extensible 15-19"
+        jsonb scopes "nullable"
+        enum status "active, inactive, error"
+    }
+
+    CONNECTED_ACCOUNTS {
+        uuid id PK
+        uuid organization_id FK
+        uuid connector_id FK "CASCADE"
+        uuid user_id FK "CASCADE"
+        string external_account_id "unique(connector_id, external_account_id)"
+        string display_name "nullable"
+        enum status "active, expired, revoked, error"
+    }
+
+    CONNECTION_CREDENTIALS {
+        uuid id PK
+        uuid organization_id FK
+        uuid connected_account_id FK "CASCADE, unique - 1:1"
+        text access_token_enc "cifrado Fernet"
+        text refresh_token_enc "nullable, cifrado Fernet"
+        timestamptz expires_at "nullable"
+        string token_type "nullable"
+        jsonb scopes "nullable"
+    }
+```
+
+Notas del dominio:
+
+- `connection_credentials` **no** lleva `SoftDeleteMixin`: es un hijo estrictamente
+  1:1 (`ondelete=CASCADE`) de `connected_accounts` — desconectar una cuenta hace soft-delete
+  explícito de AMBAS filas desde el service, nunca un DELETE físico en cascada.
+- El `state` OAuth (CSRF, anti-replay) NO es una tabla: vive en Redis
+  (`oauth:state:{state}`, `SETEX`+`GETDEL` single-use) — decisión ratificada, TTL nativo sin
+  necesidad de limpieza.
+- `AccessContext` (contrato de `app/integrations/ports.py`, no persistido) transporta el
+  token descifrado + `scopes` + un sink opcional `on_tokens_refreshed` para que un adaptador
+  que rota tokens en una lectura los devuelva sin conocer la persistencia — lo consumen los
+  adaptadores de los cambios 15/16 y el cambio 22.
+
+---
+
 ## Módulos sin tablas propias
 
 `auth`, `dashboard` y `search` no definen modelos: operan sobre las tablas anteriores
@@ -537,3 +607,5 @@ Notas del dominio:
 - `docs/DATA-MODEL.md` — documento narrativo anterior (parcialmente desactualizado; ver este
   archivo para el estado real).
 - `docs/diagrams/c4-architecture.md` — arquitectura C4 del sistema.
+- `backend/app/integrations/` — núcleo hexagonal de puertos de integración (ports, registro,
+  OAuth genérico, cifrado, state store).

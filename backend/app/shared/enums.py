@@ -151,6 +151,27 @@ class DeliveryStatus(str, Enum):
 EmailOutboxStatus = DeliveryStatus
 
 
+class ConnectorStatus(str, Enum):
+    """Lifecycle status of a ``Connector`` (provider configuration)."""
+
+    active = "active"
+    inactive = "inactive"
+    error = "error"
+
+
+class AccountStatus(str, Enum):
+    """Lifecycle status of a ``ConnectedAccount``, anchored to OAuth: ``expired``
+    means the access token expired (a refresh token may still be available),
+    ``revoked`` means the user or the provider revoked consent, ``error``
+    means the last token exchange/refresh failed.
+    """
+
+    active = "active"
+    expired = "expired"
+    revoked = "revoked"
+    error = "error"
+
+
 class DigestFrequency(str, Enum):
     """How often a user wants their non-urgent notifications summarized (D4/D7)."""
 

@@ -57,7 +57,7 @@ C4Container
         Container(frontend, "Frontend Angular", "Angular 20, @solercia/ui, puerto 4200", "SPA con Feature-Sliced Design. Consume la API REST y el WebSocket de notificaciones.")
         Container(backend, "Backend FastAPI", "Python 3.12, uvicorn, puerto 8000", "API REST /api/v1 + WebSocket /api/v1/ws/notifications. Incluye in-process el AsyncIOScheduler con los jobs de alertas (1 h), recordatorios (5 min) y entregas de correo (5/15 min).")
         ContainerDb(postgres, "PostgreSQL 16", "postgres:16-alpine, puerto 5432", "Datos multi-tenant por fila (organization_id). Esquema gestionado con Alembic (entrypoint ejecuta alembic upgrade head).")
-        ContainerDb(redis, "Redis 7", "redis:7-alpine, puerto 6379", "Declarado en compose y en Settings.REDIS_URL, pero SIN uso real en el codigo backend actual (solo un TODO de lock en el evaluador de alertas).")
+        ContainerDb(redis, "Redis 7", "redis:7-alpine, puerto 6379", "Store del state OAuth (CSRF, single-use, TTL) del motor de integraciones (change 14). Primer uso real: antes solo era un TODO de lock en el evaluador de alertas.")
     }
 
     System_Ext(smtp, "Servidor SMTP", "Solo con EMAIL_ENABLED=true y EMAIL_BACKEND=smtp.")
@@ -65,7 +65,7 @@ C4Container
     Rel(usuario, frontend, "Usa", "HTTPS")
     Rel(frontend, backend, "Consume", "JSON/HTTPS /api/v1 y WebSocket")
     Rel(backend, postgres, "Lee y escribe", "SQLAlchemy 2 async (asyncpg)")
-    Rel(backend, redis, "Configurado, sin uso actual", "REDIS_URL")
+    Rel(backend, redis, "Lee y escribe el state OAuth", "app/shared/redis.py, REDIS_URL")
     Rel(backend, smtp, "Envía correos", "SMTP/TLS")
 ```
 
@@ -96,6 +96,7 @@ flowchart TB
         r_negocio["Modulos de negocio:<br/>auth, projects, boards, tasks,<br/>comments, attachments, sprints,<br/>labels, checklists, task_links,<br/>time_logs, activity, dashboard, search"]
         r_admin["Modulos admin (rol ADMIN):<br/>dependencies, roles, menus, users,<br/>alerts (admin), alert_rules"]
         r_notif["Notificaciones y activos:<br/>notifications (+preferences),<br/>reminders, assets"]
+        r_conn["connectors<br/>CRUD + authorize/callback OAuth<br/>+ cuentas conectadas<br/>(RBAC require_role admin|manager)"]
         r_ws["realtime.router<br/>WS /ws/notifications<br/>(si WS_ENABLED)"]
     end
 
@@ -140,13 +141,22 @@ flowchart TB
             rt_mgr["manager (conexiones WS)"]
             rt_pub["publisher (push best-effort)"]
         end
+        subgraph integrations_e["app/integrations (change 14)"]
+            i_ports["ports.py: 5 protocolos read-only<br/>+ IntegrationAdapter + AccessContext"]
+            i_registry["registry.py: adaptadores por<br/>provider (import-time, sin tocar el nucleo)"]
+            i_oauth["oauth.py: build_authorize /<br/>handle_callback generico"]
+            i_crypto["crypto.py: Fernet<br/>(tokens cifrados en reposo)"]
+            i_state["state_store.py: state OAuth<br/>en Redis (SETEX + GETDEL single-use)"]
+            i_fake["adapters/fake.py: adaptador en<br/>memoria (unico registrado esta ola)"]
+        end
     end
 
     subgraph shared["app/shared"]
-        sh["base_model (mixins), enums,<br/>exceptions, pagination, security (JWT)"]
+        sh["base_model (mixins), enums,<br/>exceptions, pagination, security (JWT),<br/>redis (get_redis_client)"]
     end
 
     db[("PostgreSQL")]
+    redis_ext[("Redis")]
     smtp_ext[["Servidor SMTP"]]
 
     http --> deps
@@ -169,6 +179,13 @@ flowchart TB
     rt_mgr --> r_ws
     capas --> shared
     engines --> db
+    r_conn --> capas
+    r_conn -->|"authorize/callback"| i_oauth
+    i_oauth --> i_state
+    i_oauth --> i_registry
+    i_registry --> i_fake
+    r_conn -->|"cifra/descifra tokens"| i_crypto
+    i_state --> redis_ext
 ```
 
 Notas de componentes:
@@ -187,6 +204,18 @@ Notas de componentes:
   tablas de otros módulos.
 - **Seed**: `app/db_init.py` puebla datos por defecto al arrancar (después de que el
   entrypoint ejecute `alembic upgrade head`).
+- **Integraciones (change 14-integration-ports)**: `app/integrations/` es un motor
+  hermano de `notify`/`alerts`/`email`/`realtime` — puertos de lectura por capacidad
+  (correo, calendario, tareas externas, notas, tickets), registro de adaptadores por
+  `provider` en import-time (sin `if provider == ...` regado por el código) y handshake
+  OAuth genérico (`authorize`/`callback`) que delega el canje de tokens al adaptador. Esta
+  ola solo registra el adaptador `fake` en memoria — los adaptadores reales (Microsoft 365,
+  Google, GLPI, Jira, MCP) llegan en los cambios 15-19 sin tocar el núcleo. El módulo
+  `app/modules/connectors` (router→service→repository, mismo patrón que `assets`) expone el
+  CRUD y el flujo OAuth vía REST, con RBAC `require_role(admin, manager)` para configurar
+  conectores. Es el **primer consumidor real** de `require_role` (`app/dependencies.py`, ya
+  existía sin uso) y del cliente Redis (`app/shared/redis.py`, nuevo — el state OAuth es el
+  primer dato que realmente pasa por Redis).
 
 ## Referencias
 
