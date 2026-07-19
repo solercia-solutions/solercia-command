@@ -48,9 +48,9 @@ Chain strategy: stacked-to-main
 
 ## Lote 3 — oauth.py: handshake OAuth de Google (Commit 3)
 
-- [ ] 3.1 [Foundation] `app/integrations/adapters/google/oauth.py`: `authorize_url(state, redirect_uri, scopes)`, `exchange_code(code, redirect_uri) -> OAuthTokens` (GET `userinfo`→`external_account_id`=email), `refresh(refresh_token) -> OAuthTokens`.
-- [ ] 3.2 RED `backend/tests/test_adapter_google_oauth.py`: `authorize_url` solo contiene scopes `*.readonly`; `exchange_code` con `code` válido devuelve `OAuthTokens.external_account_id`=correo autenticado; `refresh` con `refresh_token` en la respuesta devuelve `OAuthTokens` actualizado; `refresh` SIN `refresh_token` en la respuesta (fixture del gotcha) conserva el `refresh_token` anterior en el `OAuthTokens` resultante. [GA-R2]
-- [ ] 3.3 VERIFY confirmar T3.2 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_oauth.py -v` en verde.
+- [x] 3.1 [Foundation] `app/integrations/adapters/google/oauth.py`: `authorize_url(state, redirect_uri, scopes)`, `exchange_code(code, redirect_uri) -> OAuthTokens` (GET `userinfo`→`external_account_id`=email), `refresh(refresh_token) -> OAuthTokens`.
+- [x] 3.2 RED `backend/tests/test_adapter_google_oauth.py`: `authorize_url` solo contiene scopes `*.readonly`; `exchange_code` con `code` válido devuelve `OAuthTokens.external_account_id`=correo autenticado; `refresh` con `refresh_token` en la respuesta devuelve `OAuthTokens` actualizado; `refresh` SIN `refresh_token` en la respuesta (fixture del gotcha) conserva el `refresh_token` anterior en el `OAuthTokens` resultante. [GA-R2]
+- [x] 3.3 VERIFY confirmar T3.2 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_oauth.py -v` en verde.
 
 ## Lote 4 — mime.py + mail.py: Gmail (Commit 4)
 
