@@ -89,8 +89,8 @@ Chain strategy: size-exception
 
 ## Lote 7 — Delta `connectors`: credenciales por `api_token` (RED→GREEN) — CR1
 
-- [ ] 7.1 RED `backend/tests/test_connectors_credentials.py`: admin provee `email`+`api_token`→`ConnectedAccount`+`ConnectionCredentials` cifrada (`credential_kind=api_token`), respuesta sin token; `member`→403; conector de otra organización→404; reenvío del mismo token→actualiza sin duplicar.
-- [ ] 7.2 GREEN `POST /connectors/{id}/credentials` en `backend/app/modules/connectors/router.py` + `service.py` (consume `credential_kind`/`settings` del 17, no los redefine).
+- [x] 7.1 RED `backend/tests/test_connectors_credentials.py`: admin provee `email`+`api_token`→`ConnectedAccount`+`ConnectionCredentials` cifrada (`credential_kind=api_token`), respuesta sin token; reenvío del mismo token→actualiza sin duplicar. **Ajuste as-built**: `member`→403, conector de otra organización→404 y conector `oauth`→404 YA están cubiertos genéricamente por `tests/test_connectors_api_token.py` (del 17, contra un adaptador fake) — NO se duplican; este archivo solo agrega los 2 escenarios que ejercitan la implementación REAL de `_JiraApiTokenHandshake.connect()` (vía `/myself`) que ningún otro test cubre.
+- [x] 7.2 GREEN — **ya existente**: `POST /connectors/{id}/credentials` en `backend/app/modules/connectors/router.py` + `service.py` fueron creados por el 17 y consumen `credential_kind`/`settings` sin redefinirlos; el 18 no modifica esos archivos, solo aporta `JiraAdapter.api_token` (Lote 6) como el proveedor concreto que la ruta ya sabe invocar.
 
 ## Lote 8 — Superficie REST `jira_import` (RED→GREEN) — R9(cierre), R10, R11
 
