@@ -7,13 +7,15 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
   design: true
   tasks: true
+  apply-progress: true
+  verify-report: true
 capabilities:
   new:
     - integration-ports
@@ -23,4 +25,5 @@ constraints:
   - backend-only
   - strict-tdd
   - rollback-required
+archived_date: 2026-07-18
 last_updated: 2026-07-18

@@ -582,7 +582,10 @@ Notas del dominio:
 
 - `connection_credentials` **no** lleva `SoftDeleteMixin`: es un hijo estrictamente
   1:1 (`ondelete=CASCADE`) de `connected_accounts` — desconectar una cuenta hace soft-delete
-  explícito de AMBAS filas desde el service, nunca un DELETE físico en cascada.
+  de `ConnectedAccount` (respeta auditoría vía `SoftDeleteMixin`) y **DELETE físico (purga)** de
+  `ConnectionCredentials` (postura conservadora de seguridad: los tokens cifrados no permanecen
+  en la base tras la desconexión, incluso como borrados lógicos). Reconectar la misma cuenta
+  externa reactiva la fila soft-deleted de la cuenta y guarda credenciales nuevas.
 - El `state` OAuth (CSRF, anti-replay) NO es una tabla: vive en Redis
   (`oauth:state:{state}`, `SETEX`+`GETDEL` single-use) — decisión ratificada, TTL nativo sin
   necesidad de limpieza.

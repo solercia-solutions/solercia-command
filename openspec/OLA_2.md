@@ -199,7 +199,7 @@ actividades, con el avance roll-up del 21, navegable y limpia. Usa componentes d
 | Spec | proposal | specs | design | tasks | apply | verify | archive |
 |------|----------|-------|--------|-------|-------|--------|---------|
 | 13-ui-component-audit | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
-| 14-integration-ports | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
+| 14-integration-ports | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 15-adapter-microsoft365 | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 16-adapter-google | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
 | 17-adapter-glpi | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
