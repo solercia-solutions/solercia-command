@@ -109,6 +109,7 @@ flowchart TB
         r_conn["connectors<br/>CRUD + authorize/callback OAuth<br/>+ registro directo api_token<br/>+ cuentas conectadas<br/>(RBAC require_role admin|manager)"]
         r_glpi_sync["glpi_sync<br/>POST run + cola cabecera/detalle<br/>resolve/ignore + links CRUD<br/>(RBAC require_role admin|manager)"]
         r_jira_import["jira_import (change 18)<br/>POST jira/import (JQL) +<br/>jira/import-file (multipart)<br/>solo-lectura, sin repository propio<br/>(RBAC require_role admin|manager)"]
+        r_intake["intake (change 22)<br/>POST pull (RBAC admin|manager) +<br/>GET items/runs + CRUD rules +<br/>POST items/{id}/convert +<br/>GET/PATCH settings<br/>(cualquier miembro salvo pull/rules write)"]
         r_ws["realtime.router<br/>WS /ws/notifications<br/>(si WS_ENABLED)"]
     end
 
@@ -169,6 +170,11 @@ flowchart TB
         subgraph glpi_sync_e["app/modules/glpi_sync (change 17)"]
             gs_service["service.py: cascada de<br/>homologación correo→documento→<br/>nombre + run_sync/resolve/ignore"]
             gs_repo["repository.py: glpi_user_links<br/>+ cola glpi_unmatched_assignees<br/>(cabecera) 1:N glpi_unmatched_cases"]
+        end
+        subgraph intake_e["app/modules/intake (change 22)"]
+            ik_service["service.py: pull() por cuenta →<br/>upsert_item idempotente →<br/>classify_and_convert() automatico<br/>+ convert_manual() triage +<br/>_ensure_default_project() perezoso"]
+            ik_repo["repository.py: intake_items/<br/>intake_rules/intake_runs/<br/>intake_settings"]
+            ik_classifier["classifier.py: ClassifierPort +<br/>RuleBasedClassifier puro<br/>(sin BD/HTTP) — matcher<br/>unicodedata NFKD+casefold"]
         end
     end
 
@@ -237,6 +243,14 @@ flowchart TB
     i_mcp -->|"solo lectura: resources/list,<br/>resources/read, tools/list, tools/call<br/>(gateado allowlist ∩ readOnlyHint)"| mcp_ext
     r_conn -->|"POST /connectors credencial directa<br/>(token estático o none, MISMO request,<br/>anti-SSRF antes de persistir)"| i_mcp
     r_conn -->|"GET/POST .../mcp/* (resources, tools,<br/>tools/{name}/call) — cualquier miembro"| i_mcp
+    r_intake --> ik_service
+    ik_service --> ik_repo
+    ik_repo --> db
+    ik_service -->|"port_for(cap).list_*(ctx, limit)"| i_registry
+    ik_service -->|"classify_and_convert()"| ik_classifier
+    ik_service -->|"conversion real (TaskService.create_task)<br/>+ proyecto por defecto (ProjectService.create_project)"| capas
+    ik_service -->|"sink on_tokens_refreshed →<br/>cifra credenciales rotadas"| i_crypto
+    ik_service -->|"save_refreshed_credentials<br/>(reusa ConnectorRepository, sin repo propio)"| repo
 ```
 
 Notas de componentes:
@@ -415,10 +429,38 @@ Notas de componentes:
   reader). Servidor MCP fake in-memory (`FastMCP` del propio SDK) es el harness de
   pruebas de contrato — cero red real en CI. Sin migración Alembic propia: `settings.mcp`
   vive en `connectors.settings JSONB` (columna del 17), sin columna ni esquema nuevo.
+- **Clasificador de insumos (change 22-intake-classifier, módulo `app/modules/intake`)**:
+  `router → service → repository` (mismo patrón que `assets`/`connectors`), más un motor
+  de reglas **puro** en `classifier.py` (`ClassifierPort`/`RuleBasedClassifier`, patrón
+  Strategy — precedente `app/methodology/`, sin BD ni HTTP). `POST /intake/pull`
+  (`require_role admin|manager`) lee por cuenta conectada vía los puertos del 14
+  (`adapter.port_for(cap).list_*(ctx, limit=INTAKE_PULL_MAX_ITEMS)`, opera contra `fake`
+  en TDD y 15-19 sin acople), `upsert_item` idempotente
+  (`UNIQUE(organization_id, connector_id, external_id)`) y al cierre de cada cuenta
+  ejecuta `classify_and_convert()` automáticamente sobre los ítems nuevos `pending` —
+  ninguna llamada adicional del usuario. La primera `IntakeRule` activa por `rule_order`
+  que casa gana; si `convert_to_task=true` la conversión usa el **service real**
+  `TaskService.create_task` (nunca INSERT directo) en `target_project_id` o el proyecto
+  por defecto de la organización, resuelto perezosamente vía `ProjectService.
+  create_project` (`planner`, nombre configurable por `PATCH /intake/settings`, por
+  defecto "Tareas Outlook") y cacheado en `IntakeSettings`. Un `assignee_id` de regla que
+  NO es miembro de la organización (`TaskRepository.is_org_member`, mismo chequeo que
+  `TaskService._verify_assignee`) NUNCA bloquea con error ni muta membresías: el ítem
+  queda `pending` en la cola de triage (`GET /intake/items?status=pending`),
+  reclasificable manualmente vía `POST /intake/items/{id}/convert` (cualquier miembro).
+  El sink `on_tokens_refreshed` de `AccessContext` (adenda aditiva del 14, consumida
+  también por los adaptadores 15/16) se **materializa** aquí: antes de leer con un token
+  vencido, el adaptador refresca y este módulo persiste las credenciales rotadas
+  reusando `ConnectorRepository` (`save_refreshed_credentials`, cifrado Fernet vía
+  `i_crypto`, mismo mecanismo que el callback OAuth) — sin repository propio para
+  credenciales, mismo criterio que `jira_import` reusando `ConnectorRepository`/
+  `ConnectedAccountRepository`. Sin adaptadores reales conectados, el pull queda inerte
+  (opera contra `fake`).
 
 ## Referencias
 
 - `backend/app/main.py` — registro de routers, lifespan y schedulers.
 - `backend/app/config.py` — flags (`WS_ENABLED`, `EMAIL_ENABLED`, intervalos de jobs).
+- `backend/app/modules/intake/` — clasificador de insumos (change 22-intake-classifier).
 - `docs/diagrams/er-model.md` — modelo entidad-relación vivo.
 - `docs/ARCHITECTURE.md` — narrativa extendida de la arquitectura.

@@ -270,6 +270,18 @@ class Settings(BaseSettings):
     # `resources/read` shape this tope is enforced against).
     MCP_MAX_RESOURCE_BYTES: int = 1_048_576  # 1 MiB
 
+    # Intake classifier (change 22-intake-classifier) — storage + rules engine
+    # over the 14's read-only ports. ``INTAKE_DEFAULT_PROJECT_NAME`` seeds
+    # ``IntakeSettings.default_project_name`` the FIRST time an organization
+    # needs its lazy default project (design.md "Proyecto por defecto");
+    # `PATCH /intake/settings` overrides it per-organization afterwards.
+    # ``INTAKE_PULL_MAX_ITEMS`` bounds every `list_*` call a `POST
+    # /intake/pull` makes per account (same antibomba intent as
+    # `M365_MAX_PAGES`/`GLPI_PAGE_SIZE`) — pull is synchronous in the
+    # request, never a background job (design.md Architecture Decisions).
+    INTAKE_DEFAULT_PROJECT_NAME: str = "Tareas Outlook"
+    INTAKE_PULL_MAX_ITEMS: int = 50
+
 
 @lru_cache
 def get_settings() -> Settings:

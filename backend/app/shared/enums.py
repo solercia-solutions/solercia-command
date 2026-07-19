@@ -201,3 +201,42 @@ class UnmatchedStatus(str, Enum):
     pending = "pending"
     resolved = "resolved"
     ignored = "ignored"
+
+
+class IntakeItemType(str, Enum):
+    """Taxonomy of an ``IntakeItem`` (change 22-intake-classifier), mapped
+    1:1 to the 5 read capabilities of ``app/integrations/ports.py``'s
+    ``Capability`` — issue-tracker providers without a dedicated capability
+    (e.g. GLPI, Jira) enter as ``ticket``.
+    """
+
+    email = "email"
+    calendar_event = "calendar_event"
+    external_task = "external_task"
+    meeting_note = "meeting_note"
+    ticket = "ticket"
+
+
+class IntakeItemStatus(str, Enum):
+    """Lifecycle status of an ``IntakeItem`` (change 22-intake-classifier).
+
+    ``pending`` — awaiting classification or sitting in manual triage.
+    ``converted`` — a ``Task`` was created (automatic or manual).
+    ``ignored`` — a matching rule explicitly declared ``convert_to_task=false``
+    (NEVER reaches the triage queue). ``error`` — reserved for a future
+    ingestion failure state, not raised by this change.
+    """
+
+    pending = "pending"
+    converted = "converted"
+    ignored = "ignored"
+    error = "error"
+
+
+class IntakeRunStatus(str, Enum):
+    """Lifecycle status of an ``IntakeRun`` (change 22-intake-classifier) —
+    one row per connector/account processed by a ``POST /intake/pull``."""
+
+    running = "running"
+    completed = "completed"
+    error = "error"

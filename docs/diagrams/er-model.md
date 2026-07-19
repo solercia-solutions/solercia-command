@@ -6,7 +6,7 @@ tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,
 de verdad es el **código**; este documento es su espejo navegable.
 
 **Fecha de línea base**: 2026-07-19 (estado del código en la rama `feat/consume-solercia-ui`,
-migraciones Alembic hasta `0018_add_org_role_templates`).
+migraciones Alembic hasta `0019_add_intake`).
 
 > **Regla de actualización**: todo cambio de base de datos (modelo nuevo, columna nueva,
 > enum nuevo, FK nueva o eliminada) debe actualizar este documento **en el mismo commit de la
@@ -84,22 +84,31 @@ flowchart LR
         org_role_templates
     end
 
+    subgraph INTAKE["Clasificador de insumos (4 tablas)"]
+        intake_items
+    end
+
     organizations -->|"organization_id en toda tabla tenant-scoped"| CORE
     organizations --> ALERTS
     organizations --> ASSETS
     organizations --> INTEGRATIONS
     organizations --> GLPISYNC
     organizations -->|"opcional en org_role_templates - NULL = sistema"| ORGTEMPLATES
+    organizations --> INTAKE
     users -->|"assignee, author, actor, auditoría"| CORE
     users -->|"recipient, owner"| ALERTS
     users -->|"responsible_id"| ASSETS
     users -->|"connected_accounts.user_id"| INTEGRATIONS
     users -->|"glpi_user_links.user_id"| GLPISYNC
     users -->|"lead_user_id via instantiations"| ORGTEMPLATES
+    users -->|"intake_rules.assignee_id"| INTAKE
     tasks -->|"reminders.task_id"| ALERTS
     tasks -->|"asset_tasks"| ASSETS
+    tasks -->|"intake_items.created_task_id"| INTAKE
     connectors -->|"glpi_user_links.connector_id"| GLPISYNC
+    connectors -->|"intake_items.connector_id"| INTAKE
     ORGTEMPLATES -->|"instantiation crea proyectos"| CORE
+    INTAKE -->|"TaskService.create_task / proyecto por defecto"| CORE
 ```
 
 ---
@@ -797,6 +806,112 @@ Notas del dominio:
 
 ---
 
+## Dominio 8 — Clasificador de insumos
+
+Change 22-intake-classifier: almacenamiento e idempotencia de insumos leídos vía los puertos
+de solo lectura del 14 (correo, calendario, tareas externas, notas de reunión, tickets), motor
+de reglas tema→respondiente puro (`app/modules/intake/classifier.py`, sin BD ni HTTP) y
+conversión real a `Task` (Dominio 2) vía `TaskService.create_task`. `intake_items` es
+idempotente por `UNIQUE(organization_id, connector_id, external_id)` — releer el mismo insumo
+nunca duplica la fila ni la tarea ya creada. `intake_runs` es la bitácora por
+cuenta/conector de cada `POST /intake/pull` (sin soft delete: un log se consulta, nunca se
+"des-borra"). `intake_settings` guarda el proyecto por defecto de la organización, creado
+perezosamente (`planner`, nombre configurable, por defecto "Tareas Outlook").
+
+```mermaid
+erDiagram
+    ORGANIZATIONS   ||--o{ INTAKE_ITEMS : "almacena insumos de"
+    CONNECTORS      ||--o{ INTAKE_ITEMS : "origina via"
+    CONNECTED_ACCOUNTS |o--o{ INTAKE_ITEMS : "opcional - GLPI sin cuenta individual"
+    INTAKE_RULES    |o--o{ INTAKE_ITEMS : "clasifica via (matched_rule_id)"
+    TASKS           |o--o{ INTAKE_ITEMS : "genera (created_task_id)"
+    ORGANIZATIONS   ||--o{ INTAKE_RULES : "configura reglas tema-respondiente"
+    PROJECTS        |o--o{ INTAKE_RULES : "destino opcional (target_project_id)"
+    USERS           |o--o{ INTAKE_RULES : "asignado opcional (assignee_id)"
+    ORGANIZATIONS   ||--o{ INTAKE_RUNS : "bitacora por pull"
+    CONNECTORS      ||--o{ INTAKE_RUNS : "procesa via"
+    ORGANIZATIONS   ||--o| INTAKE_SETTINGS : "configura (unique 1:1)"
+    PROJECTS        |o--o| INTAKE_SETTINGS : "proyecto por defecto (default_project_id)"
+
+    INTAKE_ITEMS {
+        uuid id PK
+        uuid organization_id FK
+        string source_provider
+        uuid connector_id FK "CASCADE"
+        uuid connected_account_id FK "SET NULL, nullable"
+        enum item_type "email, calendar_event, external_task, meeting_note, ticket"
+        string external_id "unique(organization_id, connector_id, external_id)"
+        string title
+        text snippet "nullable"
+        string origin_actor
+        timestamptz occurred_at
+        jsonb raw_payload "payload original, trazabilidad"
+        enum status "pending, converted, ignored, error"
+        uuid matched_rule_id FK "SET NULL, nullable"
+        uuid created_task_id FK "SET NULL, nullable"
+        timestamptz classified_at "nullable"
+    }
+
+    INTAKE_RULES {
+        uuid id PK
+        uuid organization_id FK
+        string name
+        jsonb criteria "lista {field, operator, value}, AND intra-regla"
+        bool convert_to_task
+        uuid target_project_id FK "SET NULL, nullable - null = proyecto por defecto"
+        enum task_priority "low, medium, high, critical"
+        uuid assignee_id FK "SET NULL, nullable"
+        int rule_order "precedencia ascendente"
+    }
+
+    INTAKE_RUNS {
+        uuid id PK
+        uuid organization_id FK
+        uuid connector_id FK "CASCADE"
+        uuid connected_account_id FK "SET NULL, nullable"
+        int items_fetched
+        int items_new
+        int items_duplicated
+        int items_converted
+        enum status "running, completed, error"
+        timestamptz started_at
+        timestamptz finished_at "nullable"
+    }
+
+    INTAKE_SETTINGS {
+        uuid id PK
+        uuid organization_id FK "unique(organization_id)"
+        uuid default_project_id FK "SET NULL, nullable"
+        string default_project_name "nullable - fallback INTAKE_DEFAULT_PROJECT_NAME"
+    }
+```
+
+Notas del dominio:
+
+- `intake_rules.is_active` **no** redeclara un campo propio: es el `is_active` de
+  `SoftDeleteMixin` — desactivar una regla (`PATCH is_active=false`) y eliminarla
+  (`DELETE`, soft delete) comparten exactamente el mismo contrato de exclusión (evaluación
+  del clasificador + listados), así que una sola columna sirve para ambos en vez de un
+  segundo flag de negocio que colisionaría con el nombre del mixin.
+- `intake_runs` **no** lleva `SoftDeleteMixin` (mismo criterio que `activity_log`/bitácoras):
+  un log de ejecución se consulta, nunca se "des-borra".
+- La primera regla activa por `rule_order` ascendente que casa GANA; ninguna regla posterior
+  se evalúa para ese ítem (`app/modules/intake/classifier.py`, `RuleBasedClassifier` puro
+  detrás de `ClassifierPort`, patrón Strategy — precedente `app/methodology/`).
+- `intake_settings.default_project_id` se resuelve **perezosamente**: la primera vez que una
+  regla sin `target_project_id` o una conversión manual lo necesita, el servicio crea un
+  `Project` `planner` (Dominio 2) vía `ProjectService.create_project` y lo persiste aquí;
+  usos posteriores reutilizan el mismo proyecto.
+- Un asignado (`intake_rules.assignee_id`) que NO es miembro activo de la organización nunca
+  bloquea con un error ni muta membresías: el `IntakeItem` simplemente permanece
+  `status=pending` en la cola de triage (mismo criterio `_verify_assignee`/`is_org_member`
+  que `TaskService.create_task`, Dominio 2).
+- La conversión a `Task` (automática o manual) usa el **service real** `TaskService.
+  create_task` — nunca INSERT directo — así la tarea nace normal, editable por los endpoints
+  vigentes de `tasks` sin romper `created_task_id`/`matched_rule_id`.
+
+---
+
 ## Módulos sin tablas propias
 
 `dashboard` y `search` no definen modelos: operan sobre las tablas anteriores (vista ejecutiva y
@@ -814,3 +929,5 @@ lógica opera sobre `users`/`organization_members`.
 - `docs/diagrams/c4-architecture.md` — arquitectura C4 del sistema.
 - `backend/app/integrations/` — núcleo hexagonal de puertos de integración (ports, registro,
   OAuth genérico, cifrado, state store).
+- `backend/app/modules/intake/` — módulo router→service→repository del clasificador de
+  insumos, más `classifier.py` (motor de reglas puro, patrón Strategy).

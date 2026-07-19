@@ -57,6 +57,12 @@ from app.modules.glpi_sync.models import (  # noqa: F401
     GlpiUnmatchedCase,
     GlpiUserLink,
 )
+from app.modules.intake.models import (  # noqa: F401
+    IntakeItem,
+    IntakeRule,
+    IntakeRun,
+    IntakeSettings,
+)
 from app.modules.labels.models import Label, TaskLabel  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
 from app.modules.notifications.models import (  # noqa: F401
