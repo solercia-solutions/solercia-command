@@ -265,6 +265,28 @@ Para conectores cuyo proveedor NO usa el baile OAuth `authorize`/`callback` (ej.
 - WHEN se repite la operación con un token nuevo para la MISMA cuenta externa
 - THEN se actualizan las credenciales existentes sin crear una fila duplicada
 
+### Requirement: Persistencia de credenciales rotadas tras refresco en lectura (sink)
+
+Cuando un puerto de lectura del 14 se invoca sobre una cuenta cuyo token de acceso está vencido (`expires_at` pasado), el adaptador DEBE ejecutar su intercambio de refresco (`refresh`) ANTES de leer, y el sistema DEBE cifrar y persistir las credenciales rotadas resultantes en `ConnectionCredentials` (mismo mecanismo de cifrado Fernet que el callback OAuth), actualizando `expires_at`. Esta persistencia DEBE ocurrir de forma transparente al llamador del puerto (ej. `intake-items` durante un pull), sin requerir una llamada adicional del usuario.
+
+#### Scenario: Token vencido se refresca y persiste antes de leer
+
+- Dado una `ConnectedAccount` cuyo `expires_at` ya venció
+- Cuando `intake-items` invoca el puerto de lectura para esa cuenta
+- Entonces el adaptador refresca el token, las nuevas credenciales cifradas quedan persistidas en `ConnectionCredentials`, y la lectura procede con el token nuevo
+
+#### Scenario: Refresco fallido no persiste credenciales corruptas
+
+- Dado una `ConnectedAccount` cuyo refresco de token falla (ej. `refresh_token` revocado por el proveedor)
+- Cuando se intenta leer a través del puerto
+- Entonces las credenciales existentes NO se sobrescriben, la cuenta queda marcada en un estado de error recuperable, y el `IntakeRun` de esa cuenta cierra con `status=error`
+
+#### Scenario: Token vigente no dispara refresco
+
+- Dado una `ConnectedAccount` cuyo `expires_at` aún no vence
+- Cuando se invoca el puerto de lectura para esa cuenta
+- Entonces no se ejecuta `refresh` ni se modifica `ConnectionCredentials`
+
 ## Preguntas abiertas para design
 
 - **Visibilidad de `GET /connectors/{id}/accounts` por rol**: el proposal solo confirma "admin/manager configura; member conecta su cuenta"; no especifica si un miembro sin rol admin/manager puede ver cuentas conectadas de OTROS miembros o solo las propias. Este spec asume "solo propias" para member (ver tabla de alcance); el diseño DEBE ratificar esta regla.
@@ -274,6 +296,7 @@ Para conectores cuyo proveedor NO usa el baile OAuth `authorize`/`callback` (ej.
 ## Referencias
 
 - `openspec/changes/14-integration-ports/proposal.md`
+- `openspec/changes/22-intake-classifier/proposal.md` (sink de credenciales rotadas)
 - `openspec/specs/integration-ports/spec.md` (puertos, registro, adaptador fake, cifrado)
 - `openspec/specs/api-conventions/spec.md` (envelope, formato de errores)
 - `openspec/specs/multi-tenancy/spec.md` (aislamiento por `organization_id`, `require_role`)

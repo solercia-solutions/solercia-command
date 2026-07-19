@@ -1,6 +1,6 @@
 # intake-classifier Specification
 
-> **Origen**: cambio [22-intake-classifier](../../proposal.md)
+> **Origen**: cambio [22-intake-classifier](../../changes/22-intake-classifier/proposal.md)
 
 ## Propósito
 
@@ -134,5 +134,5 @@ La `Task` creada por el clasificador (automática o manual) DEBE ser una `Task` 
 
 - `openspec/changes/22-intake-classifier/specs/intake-items/spec.md`
 - `openspec/changes/22-intake-classifier/specs/intake-rules/spec.md`
-- `openspec/changes/21-project-hierarchy/specs/project-hierarchy/spec.md` (árbol de proyectos donde caen las tareas)
+- `openspec/specs/project-hierarchy/spec.md` (árbol de proyectos donde caen las tareas)
 - `openspec/specs/tasks/spec.md` (`Task` normal, editable por los endpoints vigentes)

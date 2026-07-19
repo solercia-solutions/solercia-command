@@ -1,6 +1,6 @@
 # intake-rules Specification
 
-> **Origen**: cambio [22-intake-classifier](../../proposal.md)
+> **Origen**: cambio [22-intake-classifier](../../changes/22-intake-classifier/proposal.md)
 
 ## Propósito
 
@@ -22,7 +22,7 @@ Modelo (Pk+Timestamp+SoftDelete+Audit+Tenant): `IntakeRule`: `name`, `criteria J
 
 ### Requirement: CRUD de reglas con permisos por rol
 
-`POST`/`PATCH`/`DELETE /api/v1/intake/rules` DEBEN estar restringidos a `admin` o `manager`. `GET /intake/rules` y `GET /intake/rules/{id}` DEBEN ser accesibles a cualquier miembro autenticado de la organización. `DELETE` DEBE ser borrado suave y la regla eliminada DEBE excluirse de la evaluación del clasificador.
+`POST`/`PATCH`/`DELETE /api/v1/intake/rules` DEBEN estar restringidos a `admin` o `manager` (`require_role`). `GET /intake/rules` y `GET /intake/rules/{id}` DEBEN ser accesibles a cualquier miembro autenticado de la organización. `DELETE` DEBE ser borrado suave y la regla eliminada DEBE excluirse de la evaluación del clasificador.
 
 #### Scenario: Manager crea una regla
 

@@ -1,6 +1,6 @@
 # intake-items Specification
 
-> **Origen**: cambio [22-intake-classifier](../../proposal.md)
+> **Origen**: cambio [22-intake-classifier](../../changes/22-intake-classifier/proposal.md)
 
 ## Propósito
 

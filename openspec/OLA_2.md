@@ -207,7 +207,7 @@ actividades, con el avance roll-up del 21, navegable y limpia. Usa componentes d
 | 19-mcp-connector | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 20-sso-keycloak | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 21-project-hierarchy | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
-| 22-intake-classifier | ☑ | ☑ | ☑ | ☑ | ☐ | ☐ | ☐ |
+| 22-intake-classifier | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 23-org-role-templates | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 | 24-hierarchy-tree-view | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ |
 
@@ -215,3 +215,24 @@ actividades, con el avance roll-up del 21, navegable y limpia. Usa componentes d
 > (carrera en reparent + CTEs descendentes sin guarda de ciclo) corregido como seguimiento en la
 > misma rama, más 2 WARNINGs de confiabilidad (orden de hermanos sin ORDER BY — corregido;
 > invariante de soft-delete de padre con hijos sin implementación — deuda trazada en el spec del 21).
+
+## Cierre de la OLA 2 (2026-07-19)
+
+Los **12 cambios de la OLA 2** (13-24) completaron su ciclo SDD+TDD íntegro (**proposal → spec → design → tasks → apply → revisión 4R → verify → archive**). Hitos alcanzados:
+
+- **Backend**: 1082 pruebas, todas en verde. 13 fallas preexistentes ajenas (no relacionadas con OLA 2).
+- **Suite de cambios**: 19 hallazgos de revisión 4R atrapados y corregidos antes del merge (1 CRITICAL en 22-intake-classifier, asegurado en d8bfc41; 3 HIGH; resto INFO/SUGGESTION).
+- **Diagramas vivos**: ER model (8 dominios), C4 architecture (C1 contexto, C2 contenedores, C3 componentes del backend) actualizados en cada apply.
+- **Especificaciones nuevas**: 13 capabilities nuevas definidas, 4 specs existentes extendidas (deltas). Total: 48 requisitos, 209 escenarios.
+- **Deuda trazada**: 3 pendientes identificadas (cifrado raw_payload, scheduler APScheduler, clasificador LLM) con justificación en archive-reports.
+
+**Cambios archivados** (todos con state.yaml: todas fases done):
+- 14-integration-ports (base: puertos hexagonales, conectores, OAuth)
+- 15-adapter-microsoft365, 16-adapter-google, 17-adapter-glpi, 18-adapter-jira, 19-mcp-connector (adaptadores)
+- 20-sso-keycloak (autenticación)
+- 21-project-hierarchy (árbol de proyectos)
+- 22-intake-classifier (clasificador de insumos)
+- 23-org-role-templates (plantillas organizacionales)
+- 24-hierarchy-tree-view (vista jerárquica UI)
+
+**Próxima fase**: QA interactiva de navegador del 24 antes del merge a main; validación de receipts pre-commit/pre-push de todos los cambios.
