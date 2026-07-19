@@ -8,8 +8,8 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -27,4 +27,5 @@ constraints:
   - strict-tdd
   - rollback-required
 last_updated: 2026-07-19
-last_updated_by: sdd-apply
+last_updated_by: sdd-archive
+archived_at: 2026-07-19T00:00:00Z

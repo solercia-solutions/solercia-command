@@ -1,6 +1,6 @@
 # user-homologation Specification
 
-> **Origen**: cambio [17-adapter-glpi](../../proposal.md)
+> **Origen**: cambio [17-adapter-glpi](../../changes/archive/2026-07-19-17-adapter-glpi/proposal.md)
 
 ## Propósito
 
@@ -127,6 +127,6 @@ El sistema DEBE exponer un endpoint de sincronización manual (`POST`) por conec
 
 ## Referencias
 
-- `openspec/changes/17-adapter-glpi/proposal.md`
-- `openspec/changes/17-adapter-glpi/specs/glpi-adapter/spec.md` (extracción de tickets + `assignees`)
+- `openspec/changes/archive/2026-07-19-17-adapter-glpi/proposal.md`
+- `openspec/specs/glpi-adapter/spec.md` (extracción de tickets + `assignees`)
 - `openspec/specs/multi-tenancy/spec.md` (aislamiento por `organization_id`)

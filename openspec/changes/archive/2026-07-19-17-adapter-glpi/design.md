@@ -59,7 +59,6 @@ Ratificado (gana el spec): la sync **dispara por caso** pero la cola **consolida
           → Ticket(assignees=[ExternalPerson])   ← DTO agnóstico
       → por asignado: link existente? skip : cascada email→documento→nombre
           email/documento exacto → glpi_user_link (auto) ; nombre → candidatos → upsert cabecera(glpi_user_id) + append caso al detalle
-    GET /glpi-sync/unmatched → cabeceras+detalle ; POST /unmatched/{id}/resolve → link + cabecera resolved (detalle = histórico)
 
 ## File Changes
 
@@ -80,65 +79,6 @@ Ratificado (gana el spec): la sync **dispara por caso** pero la cola **consolida
 | `app/config.py` | Modify | `GLPI_SESSION_TTL_SECONDS` (default conservador < vida de sesión GLPI); `GLPI_BASE_URL_ALLOWLIST` (anti-SSRF, análogo a `OAUTH_REDIRECT_ALLOWLIST` del 14) |
 | `requirements.txt` | Modify | **`httpx`** — hoy solo en `requirements-dev.txt`; primer adaptador HTTP real lo exige en runtime |
 | `docs/diagrams/{er-model,c4-architecture}.md` | Modify | **Obligatorio en el apply** (ver Docs) |
-
-## Interfaces / Contracts
-
-```python
-# Delta 14 — app/integrations/ports.py
-class CredentialKind(StrEnum): oauth = "oauth"; api_token = "api_token"
-class ApiTokenHandshake(Protocol):
-    async def connect(self, raw: Mapping[str, str]) -> "AccountRef": ...  # initSession+killSession valida
-# app/integrations/dtos.py
-@dataclass(frozen=True)
-class ExternalPerson: external_id: str; display_name: str | None; email: str | None; document: str | None
-# Ticket += assignees: tuple[ExternalPerson, ...]
-
-# GLPI apirest.php (anclado a v9.5+/10.x — VERIFICAR contra instancia destino, tarea):
-#   POST {base}/initSession   headers: App-Token, Authorization: "user_token <tok>"  -> {session_token}
-#   GET  {base}/killSession   headers: Session-Token, App-Token
-#   GET  {base}/Ticket        header Range: 0-99 -> 206 + Content-Range: a-b/total ; fields id,name,content,status,priority,date
-#   GET  {base}/Ticket/{id}/Ticket_User -> [{users_id, type}]  (type: 1=solicitante, 2=ASIGNADO, 3=observador)
-#   GET  {base}/User/{id}     -> {id, name, realname, firstname, registration_number}
-#   GET  {base}/User/{id}/UserEmail -> [{email, is_default}]
-```
-
-**Tablas nuevas** (mixins de `app/shared/base_model.py`):
-
-| Tabla | Mixins | Campos clave | Unicidad |
-|-------|--------|--------------|----------|
-| `glpi_user_links` | Pk+Timestamp+SoftDelete+Audit+Tenant | `connector_id FK→connectors CASCADE`, `glpi_user_id String(64)`, `user_id FK→users CASCADE`, `match_method Enum(email\|document\|name\|manual, native_enum=False)`, `glpi_username?`, `glpi_email?` | `UNIQUE(connector_id, glpi_user_id)` |
-| `glpi_unmatched_assignees` (cabecera) | Pk+Timestamp+Audit+Tenant | `connector_id FK→connectors CASCADE`, `glpi_user_id String(64)`, `glpi_username?`, `glpi_email?`, `glpi_document?`, `candidates JSONB`, `status Enum(pending\|resolved\|ignored, native_enum=False) default pending`, `resolved_user_id FK→users SET NULL?`, `resolved_at?` | `UNIQUE(connector_id, glpi_user_id)` (una fila por persona) |
-| `glpi_unmatched_cases` (detalle 1:N) | Pk+Timestamp | `unmatched_assignee_id FK→glpi_unmatched_assignees CASCADE`, `glpi_ticket_id String(64)`, `glpi_ticket_title?`, `glpi_ticket_status?` | `UNIQUE(unmatched_assignee_id, glpi_ticket_id)` (idempotente por caso) |
-
-**Columnas modificadas**: `users.numero_documento String(32)?` + único parcial; `connectors.credential_kind`, `connectors.settings JSONB NULL` (config genérica no-secreta: `base_url`, `document_field`). El 17 es **dueño** de `connectors.settings` (primer apply de la serie 17→18→19; 18 y 19 NO agregan columna, solo consumen `settings` con su propio namespace). Secretos GLPI reutilizan `connection_credentials`: `access_token_enc`=user_token, `refresh_token_enc`=App-Token, `token_type="glpi"`, `expires_at=NULL` (la vida de sesión la maneja Redis).
-
-## Algoritmo de homologación (por asignado)
-
-```
-norm_email(e)   = e.strip().lower()
-norm_doc(d)     = ''.join(c for c in d if c.isdigit())
-norm_name(s)    = collapse_ws(strip_accents(s).lower())   # unicodedata NFKD
-1. link(connector, glpi_user_id) existe?        -> skip (ya homologado)
-2. norm_email == norm_email(user.email)?         -> link(match_method=email)     [auto]
-3. norm_doc  == user.numero_documento?           -> link(match_method=document)  [auto]
-4. difflib ratio(norm_name GLPI, norm_name user) sobre usuarios activos de la org
-   -> candidates=[{user_id, score, reason}] ordenados desc
-   -> upsert cabecera(connector, glpi_user_id) + append caso al detalle, status=pending  [NUNCA auto]
-```
-Homónimos: dos usuarios con el mismo nombre normalizado → ambos como candidatos, la fila **permanece `pending`** (confirmación manual obligatoria). Nombre GLPI = `firstname + realname`; nombre plataforma = `primer_nombre segundo_nombre primer_apellido segundo_apellido`.
-
-## Endpoints (`/api/v1/glpi-sync`) + RBAC
-
-| Método | Ruta | Permiso |
-|--------|------|---------|
-| POST | `/glpi-sync/run` | `require_role(admin, manager)` |
-| GET | `/glpi-sync/unmatched` | `require_role(admin, manager)` (visibilidad manager+) |
-| POST | `/glpi-sync/unmatched/{id}/resolve` (body: `user_id`) | `require_role(admin, manager)` |
-| POST | `/glpi-sync/unmatched/{id}/ignore` | `require_role(admin, manager)` |
-| GET | `/glpi-sync/links` | `require_role(admin, manager)` |
-| DELETE | `/glpi-sync/links/{id}` | `require_role(admin, manager)` |
-
-Coherente con el 14: `require_role(MemberRole.admin, MemberRole.manager)` sobre `OrganizationMember.role` [14: `app/dependencies.py:149`]. Tokens/documentos JAMÁS en respuestas ni logs.
 
 ## Testing Strategy (TDD estricto)
 

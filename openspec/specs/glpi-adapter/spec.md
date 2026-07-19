@@ -1,6 +1,6 @@
 # glpi-adapter Specification
 
-> **Origen**: cambio [17-adapter-glpi](../../proposal.md)
+> **Origen**: cambio [17-adapter-glpi](../../changes/archive/2026-07-19-17-adapter-glpi/proposal.md)
 
 ## Propósito
 
@@ -97,6 +97,6 @@ El adaptador DEBE operar únicamente con las credenciales del conector de la org
 
 ## Referencias
 
-- `openspec/changes/17-adapter-glpi/proposal.md`
-- `openspec/changes/17-adapter-glpi/specs/integration-ports/spec.md` (DTO `Ticket.assignees`, `credential_kind`)
-- `openspec/changes/17-adapter-glpi/specs/connectors/spec.md` (registro directo de credenciales `api_token`)
+- `openspec/changes/archive/2026-07-19-17-adapter-glpi/proposal.md`
+- `openspec/specs/integration-ports/spec.md` (DTO `Ticket.assignees`, `credential_kind`)
+- `openspec/specs/connectors/spec.md` (registro directo de credenciales `api_token`)
