@@ -85,14 +85,14 @@ Chain strategy: stacked-to-main
 
 ## Lote 5 — Cuentas conectadas: listar/desconectar + verificación final (Commit 5)
 
-- [ ] 5.1 [Foundation] `app/modules/connectors/schemas.py` (ampliar): `ConnectedAccountRead` (sin campos de token).
-- [ ] 5.2 [Foundation] `app/modules/connectors/repository.py` (ampliar): `list_accounts(connector_id, org_id, *, only_user_id=None)`, `soft_delete_account(id, org_id)` (cascada lógica sobre `ConnectionCredentials`).
-- [ ] 5.3 [Foundation] `app/modules/connectors/service.py` (ampliar): `list_accounts(...)` — admin/manager ven todas, member solo las propias; `disconnect_account(id, membership)` — dueño o admin/manager, si no → `403`.
-- [ ] 5.4 RED `backend/tests/test_connected_accounts.py`: member ve solo sus propias cuentas en `GET /connectors/{id}/accounts`, admin/manager ven todas; tokens ausentes en la respuesta (ni cifrados ni en claro); dueño desconecta su cuenta (`DELETE /connected-accounts/{id}`) → soft-delete de cuenta+credenciales; admin desconecta cuenta de otro member de su organización; member distinto intenta desconectar cuenta ajena → `403`; cuenta de otra organización → `404` en `GET`/`DELETE`. [C-R1, C-R7, C-R8]
-- [ ] 5.5 VERIFY confirmar T5.4 en ROJO antes de GREEN.
-- [ ] 5.6 GREEN `app/modules/connectors/router.py` (ampliar): `GET /connectors/{id}/accounts`, `DELETE /connected-accounts/{id}` (ruta plana, precedente `assets/router.py:157,175`).
-- [ ] 5.7 VERIFY `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/test_connected_accounts.py -v` en verde; `ruff check .`/`mypy app` limpios.
-- [ ] 5.8 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión; `ruff check .`/`mypy app` limpios en `app/integrations/`, `app/modules/connectors/` y `app/shared/redis.py` (si se creó en el Lote 1).
+- [x] 5.1 [Foundation] `app/modules/connectors/schemas.py` (ampliar): `ConnectedAccountRead` (sin campos de token).
+- [x] 5.2 [Foundation] `app/modules/connectors/repository.py` (ampliar): `ConnectedAccountRepository.list_accounts(connector_id, org_id, *, only_user_id=None)`, `get_account(org_id, account_id)`, `soft_delete_account(account, *, actor_id=None)` — soft-delete de la cuenta + PURGA física (hard delete) de `ConnectionCredentials`, dado que esa tabla no lleva `SoftDeleteMixin` (design.md "Tablas": Pk+Timestamp+Tenant únicamente); corregido también el docstring del modelo `ConnectionCredentials` (Lote 2) que describía incorrectamente un soft-delete de ambas filas.
+- [x] 5.3 [Foundation] `app/modules/connectors/service.py` (ampliar): `list_connected_accounts(...)` — admin/manager ven todas, member solo las propias; `disconnect_account(org_id, account_id, membership)` — dueño o admin/manager, si no → `403`.
+- [x] 5.4 RED `backend/tests/test_connected_accounts.py`: member ve solo sus propias cuentas en `GET /connectors/{id}/accounts`, admin/manager (y manager explícito) ven todas; tokens ausentes en la respuesta (ni cifrados ni en claro); dueño desconecta su cuenta (`DELETE /connected-accounts/{id}`) → soft-delete de cuenta + purga de credenciales; admin desconecta cuenta de otro member de su organización; member distinto intenta desconectar cuenta ajena → `403`; cuenta de otra organización → `404` en `GET`/`DELETE`. [C-R1, C-R7, C-R8]
+- [x] 5.5 VERIFY confirmado T5.4 en ROJO (6/7 fallaron por rutas inexistentes; 1 caso 404-esperado coincidió por accidente, re-verificado GREEN real tras el GREEN) antes de GREEN.
+- [x] 5.6 GREEN `app/modules/connectors/router.py` (ampliar): `GET /connectors/{id}/accounts`, `DELETE /connected-accounts/{id}` (ruta plana, precedente `assets/router.py:157,175`).
+- [x] 5.7 VERIFY `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/test_connected_accounts.py -v` → 7/7 en verde; `ruff check .`/`mypy app` limpios.
+- [x] 5.8 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa: 13 fallas preexistentes documentadas (entorno httpx/conftest, ninguna del cambio 14) + 636 pasan, cero regresión; `ruff check .`/`mypy app` (repo completo) limpios; ciclo `alembic upgrade head`/`downgrade -1`/`upgrade head` verificado manualmente contra BD desechable además del test automatizado.
 
 ## Trazabilidad de requisitos
 

@@ -30,10 +30,13 @@ from app.modules.connectors.models import Connector
 from app.modules.connectors.repository import ConnectedAccountRepository, ConnectorRepository
 from app.modules.connectors.schemas import (
     AuthorizeResponse,
+    ConnectedAccountRead,
     ConnectorCreate,
     ConnectorRead,
     ConnectorUpdate,
 )
+from app.modules.organizations.models import OrganizationMember
+from app.shared.enums import MemberRole
 from app.shared.exceptions import AppException
 
 logger = logging.getLogger("solercia.connectors")
@@ -248,6 +251,65 @@ class ConnectorService:
             "external_account_id": account.external_account_id,
             "status": account.status.value,
         }
+
+    # -- Connected accounts ------------------------------------------------
+
+    async def list_connected_accounts(
+        self,
+        organization_id: uuid.UUID,
+        connector_id: uuid.UUID,
+        membership: OrganizationMember,
+    ) -> list[ConnectedAccountRead]:
+        """List a connector's connected accounts.
+
+        Admin/manager see every account of the connector; a plain member
+        sees only their OWN (specs/connectors/spec.md, "Listado y
+        desconexión de cuentas conectadas").
+        """
+
+        await self._require_connector(organization_id, connector_id)
+        only_user_id = (
+            None
+            if membership.role in (MemberRole.admin, MemberRole.manager)
+            else membership.user_id
+        )
+        rows = await self.accounts.list_accounts(
+            connector_id, organization_id, only_user_id=only_user_id
+        )
+        return [ConnectedAccountRead.model_validate(row) for row in rows]
+
+    async def disconnect_account(
+        self,
+        organization_id: uuid.UUID,
+        account_id: uuid.UUID,
+        membership: OrganizationMember,
+    ) -> None:
+        """Disconnect (soft-delete) a connected account.
+
+        Only the account's OWNER or an admin/manager of the org may
+        disconnect it; any other member gets ``403``
+        (specs/connectors/spec.md, "Member no puede desconectar la cuenta
+        de otro").
+        """
+
+        account = await self.accounts.get_account(organization_id, account_id)
+        if account is None:
+            raise AppException(
+                "La cuenta conectada no existe o no tienes acceso a ella.",
+                code="connected_account_not_found",
+                status_code=404,
+            )
+
+        is_owner = account.user_id == membership.user_id
+        is_privileged = membership.role in (MemberRole.admin, MemberRole.manager)
+        if not is_owner and not is_privileged:
+            raise AppException(
+                "No tienes permisos para desconectar esta cuenta.",
+                code="forbidden",
+                status_code=403,
+            )
+
+        await self.accounts.soft_delete_account(account, actor_id=membership.user_id)
 
     # -- helpers -------------------------------------------------------------
 

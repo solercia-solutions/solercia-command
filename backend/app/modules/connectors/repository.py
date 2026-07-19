@@ -7,9 +7,9 @@ at creation, never joined for scoping).
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.connectors.models import ConnectedAccount, ConnectionCredentials, Connector
@@ -177,3 +177,65 @@ class ConnectedAccountRepository:
         await self.db.commit()
         await self.db.refresh(credentials)
         return credentials
+
+    async def list_accounts(
+        self,
+        connector_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        *,
+        only_user_id: uuid.UUID | None = None,
+    ) -> Sequence[ConnectedAccount]:
+        """Return the connector's active accounts, newest first.
+
+        ``only_user_id`` scopes the result to a single user's own accounts
+        (member visibility, specs/connectors/spec.md) — ``None`` (admin
+        or manager) returns every account of the connector.
+        """
+
+        stmt = select(ConnectedAccount).where(
+            ConnectedAccount.connector_id == connector_id,
+            ConnectedAccount.organization_id == organization_id,
+            ConnectedAccount.is_active.is_(True),
+        )
+        if only_user_id is not None:
+            stmt = stmt.where(ConnectedAccount.user_id == only_user_id)
+        stmt = stmt.order_by(ConnectedAccount.created_at.desc())
+
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def get_account(
+        self, organization_id: uuid.UUID, account_id: uuid.UUID
+    ) -> ConnectedAccount | None:
+        """Return a single active account scoped to the organization, or ``None``."""
+
+        result = await self.db.execute(
+            select(ConnectedAccount).where(
+                ConnectedAccount.id == account_id,
+                ConnectedAccount.organization_id == organization_id,
+                ConnectedAccount.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def soft_delete_account(
+        self, account: ConnectedAccount, *, actor_id: uuid.UUID | None = None
+    ) -> None:
+        """Soft-delete ``account`` and PURGE its isolated credentials.
+
+        ``ConnectionCredentials`` has no soft-delete columns
+        (Pk+Timestamp+Tenant only, design.md "Tablas") — disconnecting hard
+        deletes the token material immediately (the account row survives
+        soft-deleted for audit trail; the secret does not).
+        """
+
+        account.is_active = False
+        account.deleted_at = datetime.now(UTC)
+        account.updated_by = actor_id
+        await self.db.execute(
+            delete(ConnectionCredentials).where(
+                ConnectionCredentials.connected_account_id == account.id
+            )
+        )
+        await self.db.commit()
+        await self.db.refresh(account)

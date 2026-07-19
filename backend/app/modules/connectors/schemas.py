@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import ConnectorStatus
+from app.shared.enums import AccountStatus, ConnectorStatus
 
 
 class ConnectorCreate(BaseModel):
@@ -52,3 +52,23 @@ class ConnectorRead(BaseModel):
     updated_at: datetime
     created_by: uuid.UUID | None = None
     updated_by: uuid.UUID | None = None
+
+
+class ConnectedAccountRead(BaseModel):
+    """A connected account as returned by the API.
+
+    Never exposes tokens — those live isolated in ``ConnectionCredentials``,
+    a table this schema never touches (specs/connectors/spec.md, "Tokens
+    ausentes en la respuesta de la API").
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    connector_id: uuid.UUID
+    user_id: uuid.UUID
+    external_account_id: str
+    display_name: str | None = None
+    status: AccountStatus
+    created_at: datetime
+    updated_at: datetime

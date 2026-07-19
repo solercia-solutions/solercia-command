@@ -86,9 +86,14 @@ class ConnectedAccount(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Ten
 class ConnectionCredentials(PkMixin, TimestampMixin, TenantMixin, Base):
     """Encrypted OAuth tokens for a ``ConnectedAccount`` (1:1, isolated table).
 
-    No ``SoftDeleteMixin``: credentials are hard-scoped to the lifetime of
-    their ``ConnectedAccount`` (``ondelete="CASCADE"``); disconnecting an
-    account soft-deletes BOTH rows explicitly from the service layer.
+    No ``SoftDeleteMixin`` — there are no ``is_active``/``deleted_at``
+    columns to flip here. Disconnecting a ``ConnectedAccount``
+    (``ConnectedAccountRepository.soft_delete_account``) soft-deletes the
+    ACCOUNT row (audit trail survives) but PURGES this table's row via a
+    hard delete: token material is removed immediately on disconnect rather
+    than retained "soft-deleted" — the more conservative choice for a
+    secret. ``ondelete="CASCADE"`` on the FK is the backstop for the case
+    the account itself is ever hard-deleted directly.
     """
 
     __tablename__ = "connection_credentials"

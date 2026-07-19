@@ -142,3 +142,42 @@ async def oauth_callback(
         code=code, state=state, error=error
     )
     return {"data": account_summary, "message": "Cuenta conectada."}
+
+
+@router.get("/connectors/{connector_id}/accounts")
+async def list_connected_accounts(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List a connector's connected accounts.
+
+    Admin/manager see every account; a plain member sees only their OWN
+    (specs/connectors/spec.md). 404 if the connector does not exist or
+    belongs to another organization.
+    """
+
+    service = ConnectorService(db)
+    accounts = await service.list_connected_accounts(
+        membership.organization_id, connector_id, membership
+    )
+    return {"data": accounts, "meta": {"total": len(accounts)}}
+
+
+@router.delete(
+    "/connected-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def disconnect_account(
+    account_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Disconnect a connected account — flat route, precedent
+    ``assets/router.py`` (``/asset-licenses/{license_id}``). The account's
+    OWNER or an admin/manager of the org may disconnect it; any other
+    member gets ``403``. 404 if the account belongs to another organization.
+    """
+
+    service = ConnectorService(db)
+    await service.disconnect_account(membership.organization_id, account_id, membership)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
