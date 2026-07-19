@@ -1,0 +1,8 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#generic",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/generic?$skip=2",
+  "value": [
+    { "id": "generic-item-1" },
+    { "id": "generic-item-2" }
+  ]
+}

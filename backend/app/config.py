@@ -116,6 +116,24 @@ class Settings(BaseSettings):
     SSO_AUTO_PROVISION: bool = False
     SSO_POST_LOGIN_REDIRECT: str = "http://localhost:4200/auth/callback"
 
+    # Microsoft 365 adapter (change 15-adapter-microsoft365) — first REAL
+    # provider over the 14's read-only ports, delegated OAuth (Entra ID).
+    # ``M365_TENANT`` defaults to the multi-tenant "organizations" endpoint;
+    # a fixed tenant ID overrides it per-deployment. Both base URLs MUST be
+    # ``https://`` — ``GraphClient`` fails fast otherwise (anti-SSRF/TLS
+    # obligatorio, design.md Threat Matrix).
+    M365_CLIENT_ID: str = ""
+    M365_CLIENT_SECRET: str = ""
+    M365_TENANT: str = "organizations"
+    M365_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"
+    M365_LOGIN_BASE_URL: str = "https://login.microsoftonline.com"
+    M365_TIMEOUT_SECONDS: float = 10.0
+    M365_MAX_RETRIES: int = 3
+    M365_DEFAULT_SINCE_DAYS: int = 30
+    M365_CALENDAR_FUTURE_DAYS: int = 90
+    M365_MAX_PAGES: int = 20
+    M365_MAX_LIMIT: int = 200
+
 
 @lru_cache
 def get_settings() -> Settings:

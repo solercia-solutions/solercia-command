@@ -1,0 +1,28 @@
+change: 15-adapter-microsoft365
+artifact_store: hybrid
+depends_on:
+  - 14-integration-ports
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - adapter-microsoft365
+  modified: []
+constraints:
+  - backend-only
+  - read-only
+  - strict-tdd
+  - rollback-required
+last_updated: 2026-07-18
+
