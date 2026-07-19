@@ -84,8 +84,8 @@ Chain strategy: size-exception
 
 ## Lote 6 — Registro del adaptador (RED→GREEN) — R1
 
-- [ ] 6.1 RED `backend/tests/test_jira_adapter_registry.py`: `get_adapter("jira")` tras importar el paquete; excluido de puertos no soportados.
-- [ ] 6.2 GREEN `backend/app/integrations/adapters/jira/adapter.py` + `__init__.py` (`register_adapter`); wire en `backend/app/db_init.py`.
+- [x] 6.1 RED `backend/tests/test_jira_adapter_registry.py`: `get_adapter("jira")` tras importar el paquete; excluido de puertos no soportados.
+- [x] 6.2 GREEN `backend/app/integrations/adapters/jira/adapter.py` + `__init__.py` (`register_adapter`); wire en `backend/app/db_init.py`. `JiraAdapter` implementa `port_for(tickets)` con el `Ticket` fino (decisión de diseño) además de `import_issues()`/`parse_file()` con el DTO rico, consumidos directamente por `jira_import` (Lote 8).
 
 ## Lote 7 — Delta `connectors`: credenciales por `api_token` (RED→GREEN) — CR1
 
