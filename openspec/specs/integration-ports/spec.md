@@ -54,12 +54,28 @@ El DTO `Ticket` DEBE incluir una colección `assignees` con la identidad de cada
 - Cuando el adaptador lo traduce al DTO `Ticket`
 - Entonces `assignees` es una lista vacía, nunca `null`
 
+### Requirement: Puerto de solo lectura de recursos externos (`external_resources`)
+
+El núcleo DEBE exponer un puerto de solo lectura `ExternalResourceReaderPort` para la capacidad `external_resources`, con las operaciones `list_resources`, `read_resource(uri)` y `list_tools` (descubrimiento), y DTOs agnósticos del proveedor: `ExternalResource`, `ExternalTool`, `ExternalResourceContent`. El puerto PUEDE declarar `call_tool`, pero esta operación DEBE quedar gateada por el enforcement de solo lectura del adaptador (default-deny + `readOnlyHint` + allowlist); el puerto en sí NUNCA ejecuta ni interpreta el contenido devuelto por el proveedor.
+
+#### Scenario: El puerto expone descubrimiento y lectura sin credenciales de escritura
+- Dado un adaptador que implementa la capacidad `external_resources`
+- Cuando el núcleo invoca `list_resources`, `read_resource` o `list_tools` a través del puerto
+- Entonces recibe DTOs agnósticos del proveedor (`ExternalResource`/`ExternalTool`/`ExternalResourceContent`), sin exponer detalles del transporte concreto
+
+#### Scenario: `call_tool` solo está disponible si el adaptador declara enforcement de solo lectura
+- Dado un adaptador que implementa `external_resources` y declara `call_tool`
+- Cuando el núcleo intenta invocar `call_tool` sin que el adaptador aplique default-deny + `readOnlyHint` + allowlist
+- Entonces el adaptador queda fuera de contrato para esa operación; el núcleo no expone `call_tool` sin ese enforcement
+
 ### Requirement: Protocolo de adaptador uniforme
 
-Todo adaptador DEBE declarar: `provider`, las capacidades que soporta (subconjunto de correo/calendario/tareas externas/notas/tickets), su `credential_kind` (`oauth` o `api_token`) y los puertos de lectura que implementa. Para `credential_kind=oauth`, el adaptador DEBE declarar el intercambio de tokens OAuth (canje de código por tokens) y el núcleo orquesta `authorize`/`callback` invocándolo. Para `credential_kind=api_token`, el adaptador DEBE declarar un método de validación/inicio de sesión directo con las credenciales ya registradas (ej. `initSession` de GLPI), sin `authorize_url` ni `exchange_code`; el núcleo NO DEBE generar `state` ni redirección de navegador para este tipo de credencial.
+Todo adaptador DEBE declarar: `provider`, las capacidades que soporta (subconjunto de correo/calendario/tareas externas/notas/tickets/**recursos externos**), el modo de adquisición de credencial y los puertos de lectura que implementa. El modo de adquisición de credencial PUEDE ser **intercambio de tokens OAuth** (el núcleo orquesta `authorize`/`callback` invocando al adaptador, sin conocer los detalles del proveedor) O **adquisición directa** (token estático o sin credencial, declarada explícitamente por el adaptador), en cuyo caso el núcleo NO orquesta `authorize`/`callback` para ese adaptador.
+
+Para `credential_kind=oauth`, el adaptador DEBE declarar el intercambio de tokens OAuth (canje de código por tokens) y el núcleo orquesta `authorize`/`callback` invocándolo. Para `credential_kind=api_token`, el adaptador DEBE declarar un método de validación/inicio de sesión directo con las credenciales ya registradas (ej. `initSession` de GLPI), sin `authorize_url` ni `exchange_code`; el núcleo NO DEBE generar `state` ni redirección de navegador para este tipo de credencial. Para adaptadores con **adquisición directa de credencial** (token/none), el núcleo acepta la credencial en el registro sin orquestar `authorize`/`callback`.
 
 #### Scenario: El núcleo delega el canje de tokens al adaptador
-- Dado un adaptador `oauth` que declara soporte de intercambio de tokens
+- Dado un adaptador que declara soporte de intercambio de tokens OAuth
 - Cuando el núcleo recibe el código de autorización en el callback
 - Entonces delega el canje de tokens al adaptador correspondiente por su `provider`, sin lógica específica del proveedor en el núcleo
 
@@ -68,10 +84,10 @@ Todo adaptador DEBE declarar: `provider`, las capacidades que soporta (subconjun
 - Cuando el núcleo intenta usarlo para el puerto de "calendario"
 - Entonces el adaptador no aparece disponible para ese puerto
 
-#### Scenario: Adaptador `api_token` no participa del flujo OAuth
-- Dado un adaptador registrado con `credential_kind=api_token`
-- Cuando el núcleo intenta iniciar `authorize`/`callback` sobre él
-- Entonces el núcleo rechaza la operación porque el adaptador no declara intercambio de tokens OAuth
+#### Scenario: Adaptador con adquisición directa de credencial omite authorize/callback
+- Dado un adaptador (ej. `mcp`) que declara adquisición directa de credencial (token estático o sin credencial)
+- Cuando se registra un conector para ese adaptador
+- Entonces el núcleo acepta la credencial directamente en el registro, sin generar `state` ni exigir el flujo `authorize`/`callback`
 
 ### Requirement: Adaptador fake en memoria para pruebas de contrato
 
@@ -89,17 +105,22 @@ El sistema DEBE incluir un adaptador `fake` en memoria, sin llamadas HTTP reales
 
 ### Requirement: Frontera solo-lectura estricta en esta ola
 
-Ningún puerto, adaptador ni el núcleo de integraciones DEBE exponer operaciones de escritura hacia el proveedor externo (crear evento, responder correo, crear ticket, etc.) en esta ola. Esa capacidad queda explícitamente fuera de alcance.
+Ningún puerto, adaptador ni el núcleo de integraciones DEBE exponer operaciones de escritura hacia el proveedor externo (crear evento, responder correo, crear ticket, mutar un recurso, etc.) en esta ola. La única excepción acotada es `call_tool` del puerto `external_resources`, y SOLO cuando el adaptador aplica default-deny + `readOnlyHint` + allowlist explícita por conector; esa excepción nunca habilita una operación cuyo propósito declarado sea escribir o mutar el servicio externo.
 
 #### Scenario: Los puertos no tienen método de escritura que invocar
 - Dado los puertos definidos en `ports.py`
-- Cuando se busca un método de escritura hacia el proveedor (crear, editar, responder)
-- Entonces no existe tal método en ningún puerto del núcleo
+- Cuando se busca un método de escritura hacia el proveedor (crear, editar, responder, mutar)
+- Entonces no existe tal método en ningún puerto del núcleo, salvo `call_tool` gateado de `external_resources`
 
 #### Scenario: El protocolo de adaptador no declara operaciones de escritura
 - Dado el protocolo de adaptador definido para esta ola
 - Cuando un adaptador nuevo lo implementa
-- Entonces solo puede declarar capacidades de lectura y el intercambio de tokens OAuth, nunca una operación de escritura hacia el proveedor
+- Entonces solo puede declarar capacidades de lectura y el modo de adquisición de credencial, nunca una operación de escritura hacia el proveedor
+
+#### Scenario: `call_tool` sin enforcement de solo lectura no cuenta como excepción válida
+- Dado un adaptador que declara `call_tool` sin default-deny, sin `readOnlyHint` o sin allowlist explícita
+- Cuando se evalúa contra la frontera de solo lectura
+- Entonces esa declaración viola la frontera y no queda amparada por la excepción de `external_resources`
 
 ## Referencias
 

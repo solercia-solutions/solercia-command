@@ -25,7 +25,7 @@ El anti-SSRF NO se delega al SDK: es un guard propio pre-conexión, así que ele
 | `credential_kind` | 17 es el ÚNICO dueño de la columna/enum (`oauth\|api_token`); el delta legítimo de 19 es SOLO el VALOR `none` (extensión de datos, no de columna). Modo de auth MCP en `settings.mcp.auth_mode`; `api_token` marca la fila `ConnectionCredentials`, `none` NO crea fila (ausencia ⇒ none) | Que 19 cree/duplique la columna: PROHIBIDO. Orden estricto **17→18→19** con verificación de head en vivo; si `credential_kind`/`settings` no existen al apply del 19, el apply queda **BLOQUEADO** y lo reporta, nunca los crea |
 | Adquisición de credencial | Protocolo declara `credential_kinds: frozenset[CredentialKind]`; token en el MISMO `POST /connectors` (spec `connectors` del 19), campo redactado en logs/respuestas; `authorize`/`callback` sobre conector directo → error controlado | `PUT /credential` separado: la spec ratificada exige el token en el request de creación; la fuga en logs se mitiga por redacción del campo, no por endpoint aparte |
 | Enforcement read-only | `call_tool` = default-deny: `name ∈ tools_allowlist` (autoritativo, admin) **∩** `readOnlyHint == true` (secundario, no confiable). No en allowlist ⇒ deny SIN contactar al servidor | Confiar solo en `readOnlyHint`: el hint lo controla el servidor no confiable. Allowlist ∩ hint cubre servidor mentiroso Y error del admin |
-| Anti-SSRF | `MCP_HOST_ALLOWLIST` default-deny + `getaddrinfo` + bloqueo de rangos privados/reservados + IP-pin (httpx conecta a la IP validada preservando Host/SNI) + https-only en prod | Solo allowlist de host: no cierra DNS-rebinding (TOCTOU); el IP-pin fija la IP resuelta y validada al conectar |
+| Anti-SSRF | **IP-pin** (httpx conecta a la IP validada preservando Host/SNI) + `MCP_HOST_ALLOWLIST` default-deny + `https`-only en prod. El bloqueo de rangos privados/reservados es evaluado ANTES del DNS pero es un **no-op documentado** para hosts EN la allowlist explícita (el spec MC-R7 EXIGE permitir rangos privados si están allowlisted); el IP-pin es el mecanismo que cierra DNS-rebinding sin relación con ese bloqueo | Solo allowlist de host: no cierra DNS-rebinding (TOCTOU); el IP-pin fija la IP resuelta y validada al conectar. La evaluación de rangos privados se simplificó tras verificar que hosts allowlisted no son re-evaluados por ese filtro en el flujo real |
 
 ## Data Flow
 
@@ -56,7 +56,7 @@ El anti-SSRF NO se delega al SDK: es un guard propio pre-conexión, así que ele
 | `app/config.py` | Modify | `MCP_HOST_ALLOWLIST`, `MCP_ALLOW_HTTP`, `MCP_BLOCK_PRIVATE_NETWORKS`, `MCP_CONNECT_TIMEOUT_SECONDS`, `MCP_TOTAL_TIMEOUT_SECONDS`, `MCP_MAX_LIST_ITEMS`, `MCP_MAX_RESOURCE_BYTES` |
 | `requirements.txt` | Modify | `mcp` (pin exacto al apply; ≥ versión con `streamablehttp_client` estable; arrastra `httpx`/`anyio`/`httpx-sse`/`sse-starlette`/`jsonschema`) |
 | _(ninguna migración)_ | — | El 19 NO agrega esquema: config MCP en el namespace `settings.mcp` (columna `connectors.settings` del 17); valor de enum `none` = extensión de datos sobre `credential_kind` del 17 |
-| `docs/diagrams/c4-architecture.md` | Modify | Adaptador MCP en Integrations (C3): cliente Streamable HTTP saliente + guard SSRF |
+| `docs/diagrams/c4-architecture.md` | Modify | Adaptador MCP en Integrations (C3): cliente Streamable HTTP saliente + guard SSRF (IP-pin y allowlist, sin bloqueo independiente de rangos privados) |
 | `docs/diagrams/er-model.md` | — | Sin cambio por parte del 19 (no agrega columna; `connectors.settings` la documenta el 17) |
 
 ## Interfaces / Contracts
@@ -111,5 +111,5 @@ Ejes formales (rutas doc-like, selección de repo Git, estado de commit/push, co
 
 - [ ] **Versión del SDK `mcp` y revisión de spec**: no verificable desde este ejecutor (sin WebFetch/context7); confirmar en el apply la versión estable en PyPI (≥ la que estabiliza `streamablehttp_client`) y la `protocolVersion` vigente, y pinnearla exacta como el resto de `requirements.txt`.
 - [x] **`credential_kind` / `settings` (coordinación)**: RESUELTO por el orquestador — 17 dueño único de `credential_kind` Y de `connectors.settings` (ambas en su migración, primer apply de la serie); el 19 solo aporta el valor `none` y el namespace `settings.mcp`. Orden estricto 17→18→19 con verificación de head en vivo; el apply del 19 BLOQUEA si faltan, nunca los crea.
-- [ ] **DNS-rebinding**: el IP-pin cierra el TOCTOU; si se difiere, queda como riesgo residual documentado (allowlist de host lo acota).
+- [x] **DNS-rebinding**: el IP-pin cierra el TOCTOU; verificado en auditoría independiente de seguridad (verify-report 639cda4) — no queda como riesgo residual.
 - [x] **RBAC de `call_tool`**: la spec `mcp-connector` ratifica `cualquier miembro` (es read-only enforced); resuelto.

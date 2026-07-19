@@ -8,8 +8,8 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -27,3 +27,4 @@ constraints:
   - rollback-required
   - read-only-mvp
 last_updated: 2026-07-19
+archived: 2026-07-19
