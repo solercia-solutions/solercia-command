@@ -372,3 +372,28 @@ class TestNormalizeBatchConvergence:
         assert report.source == "file"
         assert report.story_points_field is None
         assert len(issues) == 1
+
+
+class TestNormalizeBatchIsolation:
+    """A malformed item (non-``Mapping`` ``assignee``) is isolated into
+    ``report.skipped_malformed`` instead of aborting the whole batch."""
+
+    def test_a_malformed_api_issue_is_skipped_and_reported(self) -> None:
+        from app.integrations.adapters.jira.normalizer import normalize_api_batch
+
+        raw_issues = [
+            {"key": "PROJ-1", "fields": {"summary": "A", "assignee": None}},
+            {"key": "PROJ-2", "fields": {"summary": "B", "assignee": "not-a-mapping"}},
+            {"key": "PROJ-3", "fields": {"summary": "C", "assignee": {"accountId": "x"}}},
+        ]
+
+        issues, report = normalize_api_batch(
+            raw_issues, mappings=_mappings(), story_points_field=None, sprint_field=None
+        )
+
+        assert [issue.key for issue in issues] == ["PROJ-1", "PROJ-3"]
+        assert report.total == 3
+        assert report.normalized == 2
+        assert len(report.skipped_malformed) == 1
+        assert report.skipped_malformed[0]["index"] == 1
+        assert report.skipped_malformed[0]["key"] == "PROJ-2"

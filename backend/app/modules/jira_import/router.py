@@ -11,18 +11,22 @@ import uuid
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings as default_settings
 from app.database import get_db
 from app.dependencies import require_role
 from app.modules.jira_import.schemas import JiraImportRequest
 from app.modules.jira_import.service import JiraImportService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
+from app.shared.exceptions import AppException
 
 router = APIRouter(tags=["jira-import"])
 
 # Module-level singleton (ruff B008, same precedent as
 # `connectors/router.py`'s `require_connector_write_role`).
 require_jira_import_role = require_role(MemberRole.admin, MemberRole.manager)
+
+_FILE_TOO_LARGE_MESSAGE = "El archivo excede el tamaño máximo permitido de 10 MB."
 
 
 @router.post("/connectors/{connector_id}/jira/import", status_code=status.HTTP_200_OK)
@@ -52,6 +56,11 @@ async def import_via_file(
     only). Same response contract as :func:`import_via_api`."""
 
     content = await file.read()
+    if len(content) > default_settings.JIRA_FILE_MAX_BYTES:
+        # Rejected BEFORE the parser ever runs (413, never a partial parse).
+        raise AppException(
+            _FILE_TOO_LARGE_MESSAGE, code="jira_file_upload_too_large", status_code=413
+        )
     service = JiraImportService(db)
     result = await service.import_via_file(
         membership.organization_id, connector_id, file.filename or "", content

@@ -9,6 +9,7 @@ these strings ARE what a caller may log or surface to the user (Threat
 Matrix, "Secreto api_token nunca expuesto").
 """
 
+from app.integrations.adapters.jira.dtos import NormalizationReport, NormalizedJiraIssue
 from app.shared.exceptions import AppException
 
 _FILE_FORMAT_MESSAGE = (
@@ -104,6 +105,11 @@ class JiraRateLimited(AppException):
     ) -> None:
         super().__init__(detail, code="jira_rate_limited", status_code=503)
         self.partial_issues: list[dict] = partial_issues if partial_issues is not None else []
+        # Filled in by `JiraAdapter.import_issues` once caught mid-pagination
+        # — `JiraImportService` reads these to answer 200 with
+        # `truncated=true` instead of discarding them.
+        self.normalized_partial_issues: list[NormalizedJiraIssue] = []
+        self.partial_report: NormalizationReport | None = None
 
 
 class JiraRequestFailed(AppException):

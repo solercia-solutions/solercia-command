@@ -163,7 +163,7 @@ flowchart TB
             i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
             i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estándar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
             i_glpi["adapters/glpi/ (change 17):<br/>GlpiClient httpx inyectable + api_token<br/>(initSession/killSession) + session_token<br/>cacheado en Redis + Ticket/Ticket_User/<br/>User/UserEmail, solo lectura"]
-            i_jira["adapters/jira/ (change 18):<br/>JiraClient httpx inyectable + api_token<br/>(email:token Basic, GET /myself) +<br/>paginacion nextPageToken + backoff 429 +<br/>normalizador unico API/archivo (CSV/XLSX)<br/>-> NormalizedJiraIssue, solo lectura"]
+            i_jira["adapters/jira/ (change 18):<br/>JiraClient httpx inyectable + api_token<br/>(email:token Basic, GET /myself) +<br/>paginación nextPageToken + backoff 429 +<br/>normalizador único API/archivo (CSV/XLSX)<br/>-> NormalizedJiraIssue, solo lectura"]
         end
         subgraph glpi_sync_e["app/modules/glpi_sync (change 17)"]
             gs_service["service.py: cascada de<br/>homologación correo→documento→<br/>nombre + run_sync/resolve/ignore"]

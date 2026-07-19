@@ -266,20 +266,29 @@ def normalize_api_batch(
     sprint_field: str | None,
 ) -> tuple[list[NormalizedJiraIssue], NormalizationReport]:
     """Normalize a full page/batch of raw API issues into
-    ``(issues, report)``."""
+    ``(issues, report)`` — a structurally malformed issue (e.g. a
+    non-``Mapping`` ``assignee``) is isolated into
+    ``report.skipped_malformed`` instead of aborting the whole batch."""
 
     issues: list[NormalizedJiraIssue] = []
     unmapped_types: dict[str, int] = {}
     unmapped_statuses: dict[str, int] = {}
     unmapped_priorities: dict[str, int] = {}
+    skipped_malformed: list[dict[str, Any]] = []
 
-    for raw_issue in raw_issues:
-        issue, flags = normalize_api_issue(
-            raw_issue,
-            mappings=mappings,
-            story_points_field=story_points_field,
-            sprint_field=sprint_field,
-        )
+    for index, raw_issue in enumerate(raw_issues):
+        try:
+            issue, flags = normalize_api_issue(
+                raw_issue,
+                mappings=mappings,
+                story_points_field=story_points_field,
+                sprint_field=sprint_field,
+            )
+        except (AttributeError, TypeError, ValueError, KeyError) as exc:
+            skipped_malformed.append(
+                {"index": index, "key": raw_issue.get("key"), "error": str(exc)}
+            )
+            continue
         issues.append(issue)
         _accumulate(unmapped_types, flags.type_raw)
         _accumulate(unmapped_statuses, flags.status_raw)
@@ -294,6 +303,7 @@ def normalize_api_batch(
         story_points_field=story_points_field,
         sprint_field=sprint_field,
         source="api",
+        skipped_malformed=tuple(skipped_malformed),
     )
     return issues, report
 
@@ -303,15 +313,23 @@ def normalize_file_batch(
 ) -> tuple[list[NormalizedJiraIssue], NormalizationReport]:
     """Normalize every parsed file row into ``(issues, report)`` — a file
     import never resolves custom field ids (``story_points_field``/
-    ``sprint_field`` stay ``None`` in the report, design.md Data Flow)."""
+    ``sprint_field`` stay ``None`` in the report, design.md Data Flow) —
+    same ``skipped_malformed`` isolation as :func:`normalize_api_batch`."""
 
     issues: list[NormalizedJiraIssue] = []
     unmapped_types: dict[str, int] = {}
     unmapped_statuses: dict[str, int] = {}
     unmapped_priorities: dict[str, int] = {}
+    skipped_malformed: list[dict[str, Any]] = []
 
-    for row in rows:
-        issue, flags = normalize_file_row(row, mappings=mappings)
+    for index, row in enumerate(rows):
+        try:
+            issue, flags = normalize_file_row(row, mappings=mappings)
+        except (AttributeError, TypeError, ValueError, KeyError) as exc:
+            skipped_malformed.append(
+                {"index": index, "key": row.get("Issue key"), "error": str(exc)}
+            )
+            continue
         issues.append(issue)
         _accumulate(unmapped_types, flags.type_raw)
         _accumulate(unmapped_statuses, flags.status_raw)
@@ -326,5 +344,6 @@ def normalize_file_batch(
         story_points_field=None,
         sprint_field=None,
         source="file",
+        skipped_malformed=tuple(skipped_malformed),
     )
     return issues, report

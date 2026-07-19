@@ -207,6 +207,9 @@ class Settings(BaseSettings):
     # parcialmente (Threat Matrix, "Bomba de descompresión XLSX").
     JIRA_FILE_MAX_ROWS: int = 50_000
     JIRA_FILE_MAX_CELLS: int = 500_000
+    # Techo de bytes del upload crudo, rechazado (413) ANTES de parsear —
+    # mismo criterio que `attachments/service.py`'s `_MAX_UPLOAD_BYTES`.
+    JIRA_FILE_MAX_BYTES: int = 10 * 1024 * 1024
     # Cliente HTTP de la vía API (Lote 5). A diferencia de GLPI
     # (`GLPI_BASE_URL_ALLOWLIST`, una lista cerrada de instancias
     # conocidas), un sitio Jira Cloud es por-tenant y prácticamente

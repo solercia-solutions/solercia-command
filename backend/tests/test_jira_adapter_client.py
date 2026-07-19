@@ -6,6 +6,7 @@ fixtures under `tests/fixtures/jira/` — ZERO real network in CI (design.md
 
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -218,6 +219,49 @@ class TestJiraClientPagination:
 
         assert len(issues) == 3  # 2 from page1 + 1 from page2
         assert calls == [None, "CAEaAggD"]
+        await client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# `since` -> effective JQL (`(jql) AND updated >= "YYYY-MM-DD HH:MM"`)
+# ---------------------------------------------------------------------------
+
+
+class TestJiraClientSinceFilter:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("jql", "expected"),
+        [
+            ("", '() AND updated >= "2024-01-01 08:30"'),
+            (
+                'project = "PROJ X"',
+                '(project = "PROJ X") AND updated >= "2024-01-01 08:30"',
+            ),
+        ],
+    )
+    async def test_since_wraps_the_jql_into_a_well_formed_updated_clause(
+        self, jql: str, expected: str
+    ) -> None:
+        page = _load_fixture("search_page2.json")  # isLast=true -> single page
+        seen_jql: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_jql.append(request.url.params.get("jql"))
+            return httpx.Response(200, json=page)
+
+        from app.integrations.adapters.jira.client import JiraClient
+
+        client = JiraClient(
+            _ALLOWED_BASE_URL,
+            "user@acme.com",
+            "secret-token",
+            transport=httpx.MockTransport(handler),
+            settings=_settings(),
+        )
+
+        await client.list_issues(jql, ["summary"], since=datetime(2024, 1, 1, 8, 30))
+
+        assert seen_jql == [expected]
         await client.aclose()
 
 

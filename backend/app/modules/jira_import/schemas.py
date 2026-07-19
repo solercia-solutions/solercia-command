@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict
 
 class JiraImportRequest(BaseModel):
     """Payload to trigger an import via the API vía (design.md Data Flow,
-    ``POST /connectors/{id}/jira/import {jql,since,fields}``)."""
+    ``POST /connectors/{id}/jira/import {jql,since}``)."""
 
     jql: str
     since: datetime | None = None
@@ -56,12 +56,16 @@ class NormalizationReportRead(BaseModel):
     story_points_field: str | None = None
     sprint_field: str | None = None
     source: str
+    skipped_malformed: list[dict] = []
 
 
 class JiraImportResponse(BaseModel):
     """The response contract BOTH vías (API/archivo) share (specs/
-    jira-import/spec.md "Import por archivo devuelve el mismo
-    contrato")."""
+    jira-import/spec.md "Import por archivo devuelve el mismo contrato").
+    ``truncated``/``truncation_reason`` default to ``false``/``None`` — set
+    when a rate-limited API import still answers 200 with a partial result."""
 
     issues: list[NormalizedJiraIssueRead]
     report: NormalizationReportRead
+    truncated: bool = False
+    truncation_reason: str | None = None

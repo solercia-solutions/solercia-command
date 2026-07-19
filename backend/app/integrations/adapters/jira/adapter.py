@@ -256,6 +256,8 @@ class JiraAdapter:
         mappings = build_mappings(jira_settings)
 
         client: JiraClient | None = None
+        story_points_field: str | None = None
+        sprint_field: str | None = None
         try:
             client = JiraClient(
                 base_url, email, api_token, transport=self._transport, settings=self._settings
@@ -271,6 +273,19 @@ class JiraAdapter:
             )
         except JiraConfigError as exc:
             raise errors.JiraConfigInvalid(str(exc)) from exc
+        except errors.JiraRateLimited as exc:
+            # specs/jira-import/spec.md "Reintentos agotados": normalize the
+            # PREVIOUS pages' issues so `JiraImportService` can answer 200
+            # with `truncated=true` instead of losing them behind a 503.
+            partial_issues, partial_report = normalize_api_batch(
+                exc.partial_issues,
+                mappings=mappings,
+                story_points_field=story_points_field,
+                sprint_field=sprint_field,
+            )
+            exc.normalized_partial_issues = partial_issues
+            exc.partial_report = partial_report
+            raise
         finally:
             if client is not None:
                 await client.aclose()

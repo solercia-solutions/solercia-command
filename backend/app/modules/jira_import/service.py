@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations import crypto
+from app.integrations.adapters.jira import errors
 from app.integrations.adapters.jira.adapter import JiraAdapter
 from app.integrations.adapters.jira.dtos import NormalizationReport, NormalizedJiraIssue
 from app.integrations.registry import get_adapter
@@ -29,12 +30,30 @@ from app.shared.exceptions import AppException
 
 
 def _to_response(
-    issues: Sequence[NormalizedJiraIssue], report: NormalizationReport
+    issues: Sequence[NormalizedJiraIssue],
+    report: NormalizationReport,
+    *,
+    truncated: bool = False,
+    truncation_reason: str | None = None,
 ) -> JiraImportResponse:
     return JiraImportResponse(
         issues=[NormalizedJiraIssueRead.model_validate(issue) for issue in issues],
         report=NormalizationReportRead.model_validate(report),
+        truncated=truncated,
+        truncation_reason=truncation_reason,
     )
+
+
+_EMPTY_RATE_LIMITED_REPORT = NormalizationReport(
+    total=0,
+    normalized=0,
+    unmapped_types={},
+    unmapped_statuses={},
+    unmapped_priorities={},
+    story_points_field=None,
+    sprint_field=None,
+    source="api",
+)
 
 
 class JiraImportService:
@@ -59,14 +78,24 @@ class JiraImportService:
         email, api_token, base_url = await self._decrypt_credentials(connector)
         adapter = self._require_adapter()
 
-        issues, report = await adapter.import_issues(
-            base_url=base_url,
-            email=email,
-            api_token=api_token,
-            jql=payload.jql,
-            jira_settings=self._jira_settings(connector),
-            since=payload.since,
-        )
+        try:
+            issues, report = await adapter.import_issues(
+                base_url=base_url,
+                email=email,
+                api_token=api_token,
+                jql=payload.jql,
+                jira_settings=self._jira_settings(connector),
+                since=payload.since,
+            )
+        except errors.JiraRateLimited as exc:
+            # "Reintentos agotados": pages already extracted survive as a
+            # partial, successful import instead of a 503 that discards them.
+            return _to_response(
+                exc.normalized_partial_issues,
+                exc.partial_report or _EMPTY_RATE_LIMITED_REPORT,
+                truncated=True,
+                truncation_reason="rate_limited",
+            )
         return _to_response(issues, report)
 
     async def import_via_file(

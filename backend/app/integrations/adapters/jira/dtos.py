@@ -11,6 +11,7 @@ issue/row, never mutated after construction — same discipline as
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,9 @@ class NormalizationReport:
     field id, or ``None`` when the Jira instance has no field matching
     that name and no override was configured (specs/jira-import/spec.md
     "Resolución configurable de custom fields").
+
+    ``skipped_malformed`` tracks per-item normalization failures (e.g. a
+    malformed ``assignee``) — isolated here instead of aborting the batch.
     """
 
     total: int
@@ -63,3 +67,4 @@ class NormalizationReport:
     story_points_field: str | None
     sprint_field: str | None
     source: str
+    skipped_malformed: tuple[dict[str, Any], ...] = ()
