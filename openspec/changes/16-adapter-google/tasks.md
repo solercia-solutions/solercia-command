@@ -42,9 +42,9 @@ Chain strategy: stacked-to-main
 
 ## Lote 2 — client.py: transporte HTTP + reintentos + paginación (Commit 2)
 
-- [ ] 2.1 [Foundation] `app/integrations/adapters/google/client.py`: `httpx.AsyncClient` con transporte inyectable, header `Authorization: Bearer`, paginación por `nextPageToken`/`pageToken` con tope `limit`.
-- [ ] 2.2 RED `backend/tests/test_adapter_google_client.py`: toda request incluye `Authorization: Bearer`; `401`→invoca `refresh`→reintenta la operación una única vez (`oauth_token_invalid` si el refresh falla); `429`→backoff respetando `Retry-After` (`sleep` inyectado, sin espera real); `403 rateLimitExceeded/userRateLimitExceeded`→backoff; `5xx`→`provider_unavailable`; `nextPageToken` se recorre hasta agotar o alcanzar `limit`; ningún token en logs ni en `str(exception)`. [GA-R3, GA-R9]
-- [ ] 2.3 VERIFY confirmar T2.2 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_client.py -v` en verde; `ruff check .`/`mypy app` limpios en `client.py`.
+- [x] 2.1 [Foundation] `app/integrations/adapters/google/client.py`: `httpx.AsyncClient` con transporte inyectable, header `Authorization: Bearer`, paginación por `nextPageToken`/`pageToken` con tope `limit`.
+- [x] 2.2 RED `backend/tests/test_adapter_google_client.py`: toda request incluye `Authorization: Bearer`; `401`→invoca `refresh`→reintenta la operación una única vez (`oauth_token_invalid` si el refresh falla); `429`→backoff respetando `Retry-After` (`sleep` inyectado, sin espera real); `403 rateLimitExceeded/userRateLimitExceeded`→backoff; `5xx`→`provider_unavailable`; `nextPageToken` se recorre hasta agotar o alcanzar `limit`; ningún token en logs ni en `str(exception)`. [GA-R3, GA-R9]
+- [x] 2.3 VERIFY confirmar T2.2 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_client.py -v` en verde; `ruff check .`/`mypy app` limpios en `client.py`.
 
 ## Lote 3 — oauth.py: handshake OAuth de Google (Commit 3)
 
