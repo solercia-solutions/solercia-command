@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -25,6 +25,7 @@ constraints:
   - strict-tdd
   - rollback-required
   - read-only-import
-last_updated: 2026-07-18
+last_updated: 2026-07-19
 notes:
   - "Ajuste de coordinación aplicado en tasks: connectors.settings ahora lo agrega el 17 (junto a credential_kind); el 18 no tiene migración Alembic propia. Mapeos Jira en namespace settings.jira.*"
+  - "Apply completado: 11 lotes (0-10), 11 commits sobre feat/consume-solercia-ui. Suite: 942 passed / 13 failed (legacy, sin relación con jira/connectors). ruff+mypy limpios. alembic check: 'No new upgrade operations detected' (cero migración, confirmado también por test_migrations_baseline.py). Desviaciones: httpx ya estaba en requirements.txt (no había diff que aplicar en 9.1); Lote 7 solo agregó los 2 escenarios NO cubiertos por el 17 (admin+/myself real, reenvío sin duplicar) para no duplicar member/403 y org-ajena/404 ya cubiertos genéricamente."
