@@ -19,7 +19,12 @@ from app.integrations.adapters.google.calendar import GoogleCalendarReader
 from app.integrations.adapters.google.mail import GmailMailReader
 from app.integrations.adapters.google.meeting_notes import DriveMeetingNotesReader
 from app.integrations.dtos import OAuthTokens
-from app.integrations.ports import Capability
+from app.integrations.ports import (
+    ApiTokenHandshake,
+    Capability,
+    CredentialKind,
+    OAuthHandshake,
+)
 
 
 class GoogleAdapter:
@@ -34,6 +39,8 @@ class GoogleAdapter:
         }
     )
 
+    credential_kind = CredentialKind.oauth
+
     def __init__(self, settings: Settings = default_settings) -> None:
         self._settings = settings
         self._ports: dict[Capability, object] = {
@@ -41,6 +48,11 @@ class GoogleAdapter:
             Capability.calendar: GoogleCalendarReader(settings=settings),
             Capability.meeting_notes: DriveMeetingNotesReader(settings=settings),
         }
+        # See `adapters/fake.py`'s identical comment: `oauth = self` exposes
+        # the OAuth methods below through the `IntegrationAdapter.oauth`
+        # slot the core now reads (change 17, IP17-R2). Never `api_token`.
+        self.oauth: OAuthHandshake | None = self
+        self.api_token: ApiTokenHandshake | None = None
 
     def authorize_url(
         self, state: str, redirect_uri: str, scopes: Sequence[str]

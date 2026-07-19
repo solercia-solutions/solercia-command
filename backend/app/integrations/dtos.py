@@ -58,8 +58,26 @@ class MeetingNote:
 
 
 @dataclass(frozen=True)
+class ExternalPerson:
+    """A person identity resolved from an external provider (change
+    17-adapter-glpi, specs/integration-ports/spec.md IP17-R1) — e.g. GLPI's
+    technician assigned to a ``Ticket``. ``email``/``document`` are optional:
+    not every provider (or every person record) exposes both."""
+
+    external_id: str
+    display_name: str | None
+    email: str | None
+    document: str | None
+
+
+@dataclass(frozen=True)
 class Ticket:
-    """A ticket/case read from a ticketing provider (e.g. GLPI, Jira)."""
+    """A ticket/case read from a ticketing provider (e.g. GLPI, Jira).
+
+    ``assignees`` (change 17-adapter-glpi, IP17-R1) defaults to an empty
+    tuple — NEVER ``None`` — so every caller can iterate it unconditionally
+    regardless of whether the provider populated any assigned person.
+    """
 
     external_id: str
     key: str
@@ -68,6 +86,7 @@ class Ticket:
     priority: str | None
     requester: str | None
     created_at: datetime
+    assignees: tuple[ExternalPerson, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,3 +98,20 @@ class OAuthTokens:
     refresh_token: str | None
     expires_at: datetime | None
     scopes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AccountRef:
+    """Identity of a connected account resolved by an ``ApiTokenHandshake``
+    (change 17-adapter-glpi) — the api_token analogue of ``OAuthTokens``.
+
+    Carries just enough to create/reactivate a ``ConnectedAccount`` row; it
+    NEVER carries secret material — the raw credentials the caller already
+    holds are encrypted directly into ``ConnectionCredentials`` by the
+    connectors service, never round-tripped through this DTO (mirrors
+    ``OAuthTokens``, which also never carries anything beyond what the
+    OAuth exchange itself returns).
+    """
+
+    external_account_id: str
+    display_name: str | None = None

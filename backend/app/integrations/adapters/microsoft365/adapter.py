@@ -21,7 +21,12 @@ from app.integrations.adapters.microsoft365.ports import (
     GraphMeetingNotesReader,
 )
 from app.integrations.dtos import OAuthTokens
-from app.integrations.ports import Capability
+from app.integrations.ports import (
+    ApiTokenHandshake,
+    Capability,
+    CredentialKind,
+    OAuthHandshake,
+)
 
 
 class Microsoft365Adapter:
@@ -37,6 +42,8 @@ class Microsoft365Adapter:
         }
     )
 
+    credential_kind = CredentialKind.oauth
+
     def __init__(self, settings: Settings = default_settings) -> None:
         self._settings = settings
         self._ports: dict[Capability, object] = {
@@ -45,6 +52,11 @@ class Microsoft365Adapter:
             Capability.external_tasks: GraphExternalTaskReader(settings=settings),
             Capability.meeting_notes: GraphMeetingNotesReader(settings=settings),
         }
+        # See `adapters/fake.py`'s identical comment: `oauth = self` exposes
+        # the OAuth methods below through the `IntegrationAdapter.oauth`
+        # slot the core now reads (change 17, IP17-R2). Never `api_token`.
+        self.oauth: OAuthHandshake | None = self
+        self.api_token: ApiTokenHandshake | None = None
 
     def authorize_url(
         self, state: str, redirect_uri: str, scopes: Sequence[str]

@@ -17,7 +17,13 @@ from app.integrations.dtos import (
     OAuthTokens,
     Ticket,
 )
-from app.integrations.ports import AccessContext, Capability
+from app.integrations.ports import (
+    AccessContext,
+    ApiTokenHandshake,
+    Capability,
+    CredentialKind,
+    OAuthHandshake,
+)
 from app.integrations.registry import register_adapter
 
 
@@ -116,6 +122,7 @@ class FakeAdapter:
             Capability.tickets,
         }
     )
+    credential_kind = CredentialKind.oauth
 
     def __init__(self) -> None:
         self._ports: dict[Capability, object] = {
@@ -125,6 +132,13 @@ class FakeAdapter:
             Capability.meeting_notes: _FakeMeetingNotesPort(),
             Capability.tickets: _FakeTicketPort(),
         }
+        # OAuth handshake methods live directly on `self` (unchanged since
+        # before change 17) — `self.oauth = self` just exposes them through
+        # the new `IntegrationAdapter.oauth` slot the core now reads
+        # (`app/integrations/oauth.py`, IP17-R2). `api_token` stays `None`:
+        # `fake` is (and stays) an `oauth`-kind adapter.
+        self.oauth: OAuthHandshake | None = self
+        self.api_token: ApiTokenHandshake | None = None
 
     def authorize_url(self, state: str, redirect_uri: str, scopes: Sequence[str]) -> str:
         """Build a fake authorize URL — no real network call."""
