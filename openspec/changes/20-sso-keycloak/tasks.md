@@ -47,9 +47,9 @@ Nota: sin PR de GitHub; el volumen (~900-1000 líneas, > 2× el presupuesto) se 
 
 ## Lote C — sso_service (Commit 3)
 
-- [ ] T12 RED `backend/tests/test_sso_service.py`: enlace por `(issuer,subject)` existente; enlace por correo verificado; rechazo sin `SSO_AUTO_PROVISION`; aprovisión (`hashed_password NULL`, sin roles); rechazo `email_verified=false` (R3/R4 sso-oidc). Estado en `fakeredis`, TTL 300s, single-use.
-- [ ] T13 [Core] `backend/app/modules/auth/sso_service.py`: `sso_login`/`sso_callback` — genera/persiste `state+nonce+code_verifier`, orquesta `OidcClient`, resuelve usuario (orden R4), reutiliza `create_access_token`/`create_refresh_token`.
-- [ ] T14 VERIFY `pytest tests/test_sso_service.py -v` → verde. Commit `feat(auth): agrega sso_service (estado Redis + enlace/aprovisión)`.
+- [x] T12 RED `backend/tests/test_sso_service.py`: enlace por `(issuer,subject)` existente; enlace por correo verificado; rechazo sin `SSO_AUTO_PROVISION`; aprovisión (`hashed_password NULL`, sin roles); rechazo `email_verified=false` (R3/R4 sso-oidc). Estado en `fakeredis`, TTL 300s, single-use. Rojo confirmado (`ModuleNotFoundError: app.modules.auth.sso_service`) antes de crear el módulo. Se agregó cobertura extra de `require_provider_config` (R6: deshabilitado/proveedor sin configurar/config completa).
+- [x] T13 [Core] `backend/app/modules/auth/sso_service.py`: `sso_login`/`sso_callback` — genera/persiste `state+nonce+code_verifier`, orquesta `OidcClient`, resuelve usuario (orden R4), reutiliza `create_access_token`/`create_refresh_token`. `resolve_or_provision_user(db, provider, claims)` implementa el orden R4 de forma testable sin Redis/HTTP; `put_state`/`pop_state` viven en el mismo archivo (sin submódulo aparte, mismo patrón que `app/integrations/state_store.py` pero bajo el prefijo `sso:state:`).
+- [x] T14 VERIFY `pytest tests/test_sso_service.py -v` → verde (11/11). `ruff check`/`mypy app` limpios. Nota de mantenimiento: `solercia_test` tenía `users.hashed_password` todavía `NOT NULL` (el fixture `engine` usa `create_all`, que no altera columnas existentes — brecha ya documentada en `test_migrations_baseline.py`, "Brecha residual aceptada"); se corrigió con `ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL` directo sobre `solercia_test` para igualar el modelo. Commit `feat(auth): agrega sso_service (estado Redis + enlace/aprovisión)`.
 
 ## Lote D — Endpoints e integración (Commit 4)
 
