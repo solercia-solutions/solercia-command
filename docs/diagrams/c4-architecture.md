@@ -106,7 +106,8 @@ flowchart TB
         r_negocio["Modulos de negocio:<br/>auth, projects, boards, tasks,<br/>comments, attachments, sprints,<br/>labels, checklists, task_links,<br/>time_logs, activity, dashboard, search"]
         r_admin["Modulos admin (rol ADMIN):<br/>dependencies, roles, menus, users,<br/>alerts (admin), alert_rules"]
         r_notif["Notificaciones y activos:<br/>notifications (+preferences),<br/>reminders, assets"]
-        r_conn["connectors<br/>CRUD + authorize/callback OAuth<br/>+ cuentas conectadas<br/>(RBAC require_role admin|manager)"]
+        r_conn["connectors<br/>CRUD + authorize/callback OAuth<br/>+ registro directo api_token<br/>+ cuentas conectadas<br/>(RBAC require_role admin|manager)"]
+        r_glpi_sync["glpi_sync<br/>POST run + cola cabecera/detalle<br/>resolve/ignore + links CRUD<br/>(RBAC require_role admin|manager)"]
         r_ws["realtime.router<br/>WS /ws/notifications<br/>(si WS_ENABLED)"]
     end
 
@@ -160,6 +161,11 @@ flowchart TB
             i_fake["adapters/fake.py: adaptador en<br/>memoria"]
             i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
             i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estándar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
+            i_glpi["adapters/glpi/ (change 17):<br/>GlpiClient httpx inyectable + api_token<br/>(initSession/killSession) + session_token<br/>cacheado en Redis + Ticket/Ticket_User/<br/>User/UserEmail, solo lectura"]
+        end
+        subgraph glpi_sync_e["app/modules/glpi_sync (change 17)"]
+            gs_service["service.py: cascada de<br/>homologación correo→documento→<br/>nombre + run_sync/resolve/ignore"]
+            gs_repo["repository.py: glpi_user_links<br/>+ cola glpi_unmatched_assignees<br/>(cabecera) 1:N glpi_unmatched_cases"]
         end
     end
 
@@ -172,6 +178,7 @@ flowchart TB
     smtp_ext[["Servidor SMTP"]]
     graph_ext[["Microsoft 365<br/>(Graph + Entra ID)"]]
     google_ext[["Google Workspace<br/>(Gmail/Calendar/Drive)"]]
+    glpi_ext[["GLPI<br/>(apirest.php, por-conector)"]]
 
     http --> deps
     deps --> capas
@@ -206,6 +213,16 @@ flowchart TB
     i_google -->|"OAuth 2.0 (authorize/token/refresh/userinfo)"| google_ext
     r_conn -->|"cifra/descifra tokens"| i_crypto
     i_state --> redis_ext
+    i_registry --> i_glpi
+    i_glpi -->|"solo lectura: GET Ticket/Ticket_User/<br/>User/UserEmail"| glpi_ext
+    i_glpi -->|"api_token: POST initSession /<br/>GET killSession"| glpi_ext
+    i_glpi -->|"session_token cacheado<br/>(TTL, por connector_id)"| redis_ext
+    r_conn -->|"registro directo api_token<br/>(POST /connectors/{id}/credentials)"| i_registry
+    r_glpi_sync --> gs_service
+    gs_service --> gs_repo
+    gs_repo --> db
+    gs_service -->|"port_for(tickets).list_tickets(ctx)"| i_registry
+    gs_service -->|"descifra credenciales del conector"| i_crypto
 ```
 
 Notas de componentes:
@@ -278,6 +295,47 @@ Notas de componentes:
   (Google Tasks queda fuera de este cambio) ni `tickets`. Frontera solo-lectura estricta:
   la única escritura HTTP del paquete es el `POST` de `oauth.py` contra el endpoint de
   token de Google (oauth2.googleapis.com), nunca hacia Gmail/Calendar/Drive.
+- **Adaptador GLPI (change 17-adapter-glpi)**: tercer adaptador REAL sobre el núcleo del
+  14 y el PRIMERO con `credential_kind=api_token` en vez de OAuth delegado —
+  `app/integrations/adapters/glpi/` (6 módulos: `__init__`/`adapter`/`client`/`session`/
+  `mapper`/`errors`), auto-registrado en import-time (cero ediciones a `ports.py`/
+  `oauth.py`/`registry.py` del 14). El delta del 14 que este cambio aterriza:
+  `CredentialKind` (`oauth`|`api_token`) + `OAuthHandshake`/`ApiTokenHandshake` como
+  Protocols separados (`authorize_url`/`exchange_code`/`refresh` salen de
+  `IntegrationAdapter` hacia `OAuthHandshake`) y `Ticket.assignees`/`ExternalPerson`
+  nuevos en `dtos.py` — GLPI nunca implementa métodos OAuth "opcionales". `GlpiClient`
+  (httpx inyectable, cero red en tests) valida `base_url` (por-conector, no un host fijo
+  como M365/Google) contra el allowlist `GLPI_BASE_URL_ALLOWLIST` **antes** de cualquier
+  request (anti-SSRF); pagina `GET /Ticket` por header `Range` hasta agotar
+  `Content-Range`. `session.py` cachea el `session_token` de `initSession` en Redis
+  (`glpi:session:{connector_id}`, TTL `GLPI_SESSION_TTL_SECONDS`, aislado por conector) y
+  reinicia sesión UNA vez ante un `401`. Por cada ticket resuelve sus asignados via
+  `Ticket_User` (`type=2`), excluyendo solicitante `type=1` y observador `type=3`, contra
+  `User`/`UserEmail` — el documento de identidad se lee del campo configurable
+  (`connectors.settings.document_field`, default `registration_number`). Frontera
+  solo-lectura estricta: únicamente `GET` y el ciclo de sesión (`POST /initSession` +
+  `GET /killSession`), verificado por introspección estática de que ningún `POST`/`PUT`/
+  `DELETE` toca un recurso de negocio GLPI. `AccessContext` del núcleo NUNCA se extiende
+  con campos GLPI: `adapter.py` empaqueta `connector_id`/`base_url`/`app_token`/
+  `user_token`/`document_field` como JSON opaco en `AccessContext.access_token`, decodificado
+  solo dentro del propio paquete.
+- **Homologación de usuarios GLPI (change 17-adapter-glpi, módulo `app/modules/
+  glpi_sync`)**: `router → service → repository` (mismo patrón que `assets`/
+  `connectors`), RBAC `require_role(admin, manager)`. `service.py` combina dos
+  responsabilidades: la cascada PURA de homologación (`match_assignee`: correo exacto
+  normalizado → documento exacto normalizado (`users.numero_documento`, único parcial
+  global desde la migración `0017`) → nombre normalizado vía `difflib.SequenceMatcher`
+  — el nivel de nombre NUNCA auto-confirma, solo sugiere candidatos, homónimos incluidos)
+  y la orquestación de sync (`run_sync`: resuelve el conector GLPI de la org, descifra sus
+  credenciales `api_token`, llama `get_adapter("glpi").port_for(tickets).list_tickets(ctx)`
+  y persiste el resultado por asignado). La cola de pendientes se consolida **por
+  persona**: `glpi_unmatched_assignees` es la cabecera (`UNIQUE(connector_id,
+  glpi_user_id)`) y `glpi_unmatched_cases` el detalle 1:N (`UNIQUE(unmatched_assignee_id,
+  glpi_ticket_id)`, idempotente) — un segundo caso sin homologar de la misma persona se
+  agrega al detalle existente en vez de duplicar la cabecera. `POST /glpi-sync/unmatched/
+  {id}/resolve` crea el `glpi_user_link` (`match_method=manual`) y pasa la cabecera a
+  `resolved` (el detalle queda histórico); toda sincronización futura de esa persona
+  resuelve directo contra el link, sin repetir la cascada ni volver a aparecer en la cola.
 
 ## Referencias
 

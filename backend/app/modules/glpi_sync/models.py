@@ -22,7 +22,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, Uuid
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.shared.base_model import (
@@ -109,6 +109,16 @@ class GlpiUnmatchedAssignee(PkMixin, TimestampMixin, AuditMixin, TenantMixin, Ba
     )
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # 1:N to the detail table (Lote 8) — eager `selectin` so
+    # `UnmatchedAssigneeRead.cases` (schemas.py) serializes without an
+    # extra explicit query per header (mirrors `User.roles`' `lazy=
+    # "selectin"`, app/modules/users/models.py).
+    cases: Mapped[list["GlpiUnmatchedCase"]] = relationship(
+        "GlpiUnmatchedCase",
+        lazy="selectin",
+        order_by="GlpiUnmatchedCase.created_at",
+        cascade="all, delete-orphan",
     )
 
 
