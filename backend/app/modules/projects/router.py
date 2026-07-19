@@ -10,14 +10,27 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_actor_id, get_current_membership
+from app.dependencies import get_actor_id, get_current_membership, require_role
 from app.modules.organizations.models import OrganizationMember
-from app.modules.projects.schemas import ProjectCreate, ProjectRead
+from app.modules.projects.schemas import (
+    ProjectCreate,
+    ProjectProgressNode,
+    ProjectRead,
+    ProjectTreeNode,
+    ReparentRequest,
+)
 from app.modules.projects.service import ProjectService
 from app.modules.sprints.service import SprintService
+from app.shared.enums import MemberRole
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# Module-level dependency instance (not built inline in a default) — avoids
+# calling `require_role(...)` as a function-argument default, which ruff's
+# B008 flags since `require_role` itself is not in the FastAPI marker
+# whitelist (see pyproject.toml, extend-immutable-calls).
+_require_hierarchy_write_role = require_role(MemberRole.admin, MemberRole.manager)
 
 
 @router.get("")
@@ -67,6 +80,63 @@ async def get_project(
     service = ProjectService(db)
     project = await service.get_project(membership.organization_id, project_id)
     return {"data": ProjectRead.model_validate(project)}
+
+
+@router.patch("/{project_id}/parent")
+async def reparent_project(
+    project_id: uuid.UUID,
+    payload: ReparentRequest,
+    membership: OrganizationMember = Depends(_require_hierarchy_write_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Reparent a project, or unlink it to root with ``parent_project_id: null``.
+
+    Requires ``admin`` or ``manager`` (structural mutation, R7). Rejects with
+    ``self_parent`` (422), ``parent_not_found`` (404), ``project_cycle``
+    (409) or ``max_depth_exceeded`` (422) — see
+    ``specs/project-hierarchy/spec.md``.
+    """
+
+    service = ProjectService(db)
+    project = await service.reparent(
+        membership.organization_id, project_id, payload.parent_project_id
+    )
+    return {"data": ProjectRead.model_validate(project), "message": "Proyecto reasignado."}
+
+
+@router.get("/{project_id}/tree")
+async def get_project_tree(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return ``project_id`` nested with every active descendant.
+
+    Available to any authenticated member of the organization (R7), same as
+    the rest of the ``projects`` reads.
+    """
+
+    service = ProjectService(db)
+    tree = await service.get_tree(membership.organization_id, project_id)
+    return {"data": ProjectTreeNode.model_validate(tree)}
+
+
+@router.get("/{project_id}/progress")
+async def get_project_progress(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the consolidated (roll-up) progress of ``project_id``'s subtree.
+
+    ``self`` is the project's OWN task counts; ``rollup`` sums the project
+    and every active descendant (design.md Decision 1/2). Available to any
+    authenticated member of the organization (R7).
+    """
+
+    service = ProjectService(db)
+    progress = await service.get_progress(membership.organization_id, project_id)
+    return {"data": ProjectProgressNode.model_validate(progress)}
 
 
 @router.get("/{project_id}/velocity")

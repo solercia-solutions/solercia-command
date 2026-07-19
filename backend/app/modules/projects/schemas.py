@@ -20,6 +20,9 @@ class ProjectCreate(BaseModel):
     # Optional explicit code (2-10 uppercase alphanumeric). Auto-generated from
     # the project name when omitted.
     code: str | None = Field(default=None, max_length=10)
+    # Optional parent in the hierarchy (change 21-project-hierarchy). When
+    # omitted the project is created as a root, unchanged from before.
+    parent_project_id: uuid.UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -70,3 +73,48 @@ class ProjectRead(BaseModel):
     # written before the audit migration or outside a request context.
     created_by: uuid.UUID | None = None
     updated_by: uuid.UUID | None = None
+    # Parent in the hierarchy (change 21-project-hierarchy); null = root.
+    parent_project_id: uuid.UUID | None = None
+
+
+class ProjectTreeNode(BaseModel):
+    """A node of ``GET /{id}/tree``: the project nested with its descendants."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    code: str | None = None
+    methodology: Methodology
+    status: ProjectStatus
+    children: list["ProjectTreeNode"] = Field(default_factory=list)
+
+
+class ReparentRequest(BaseModel):
+    """Payload for ``PATCH /{id}/parent``. ``null`` unlinks the project to root."""
+
+    parent_project_id: uuid.UUID | None
+
+
+class ProjectProgressCounts(BaseModel):
+    """``{done, total, percent_done}`` — shared shape for ``self``/``rollup``."""
+
+    done: int
+    total: int
+    percent_done: int
+
+
+class ProjectProgressNode(BaseModel):
+    """A node of ``GET /{id}/progress``: own vs. consolidated subtree counts."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    project_id: uuid.UUID
+    name: str
+    # Own tasks only (this project, excluding its subtree).
+    self: ProjectProgressCounts
+    # This project's own counts PLUS every active descendant's (design.md,
+    # "el valor consolidado ... DEBE sumar done y total de él mismo más
+    # todos los proyectos activos de su subárbol").
+    rollup: ProjectProgressCounts
+    children: list["ProjectProgressNode"] = Field(default_factory=list)
