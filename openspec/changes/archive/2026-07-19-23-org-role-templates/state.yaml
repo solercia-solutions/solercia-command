@@ -1,0 +1,44 @@
+change: 23-org-role-templates
+artifact_store: hybrid
+depends_on:
+  - 21-project-hierarchy
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+  verify_report: true
+capabilities:
+  new:
+    - org-role-templates
+  modified:
+    - projects
+constraints:
+  - backend-only
+  - frontend-frozen
+  - strict-tdd
+last_updated: 2026-07-19
+archived_date: 2026-07-19
+commits:
+  - 2d5fd3d  # Lote 1: migración, modelos, ER
+  - 954dbba  # Lote 2: refactor _create_project_unit
+  - 2529051  # Lote 3: repository+service+seeder
+  - 8194c38  # Lote 4: router+schemas+wiring
+  - a515b1b  # Lote 5: idempotencia+multi-tenant
+  - f3969c9  # Correcciones 4R
+test_counts:
+  total_passed: 1041
+  total_failed: 13
+  legacy_failed: 13
+  change_tests_added: 31
+spec_compliance:
+  requirements_implemented: 6
+  scenarios_verified: 15

@@ -15,7 +15,7 @@ Plantillas organizacionales de alto cargo: perfiles predefinidos, sembrados como
 ## Catálogo de plantillas de sistema (seed: `organization_id=NULL`, `is_system=true`)
 
 | Plantilla | Sombrilla | Ramas intermedias | Equipos |
-|-----------|-----------|--------------------|---------|
+|-----------|-----------|--------------------|---------| 
 | Jefe OAP‑TI | OAP‑TI | Planeación, Tecnología | Planeación: MIPG, PIGA, Políticas, planes y proyectos, Planeación presupuestal. Tecnología: Infraestructura tecnológica, Desarrollo de software, Gobierno digital, Seguridad de la información |
 | Jefe de Planeación | Planeación | — | MIPG, PIGA, Políticas, planes y proyectos, Planeación presupuestal |
 | Jefe de Tecnología | Tecnología | — | Infraestructura tecnológica, Desarrollo de software, Gobierno digital, Seguridad de la información |
@@ -106,5 +106,5 @@ Las plantillas de sistema DEBEN ser de solo lectura y visibles para cualquier or
 
 ## Referencias
 
-- `openspec/changes/21-project-hierarchy/specs/project-hierarchy/spec.md` (parent_project_id, ciclos, profundidad, roll-up)
+- `openspec/specs/project-hierarchy/spec.md` (parent_project_id, ciclos, profundidad, roll-up)
 - `openspec/changes/23-org-role-templates/proposal.md`

@@ -2,7 +2,7 @@
 
 ## Technical Approach
 
-Módulo nuevo `org_role_templates/` (models → repository → service → router) con **tres tablas** + columna aditiva `projects.lead_user_id`. La plantilla es dato: `org_role_templates` (cabecera, `organization_id` nullable + `is_system`) y `org_role_template_nodes` (árbol nombre/metodología/orden/padre). La instanciación recorre el árbol y crea cada proyecto con el núcleo de `ProjectService` del 21 (encadenando `parent_project_id`, respetando `PROJECT_HIERARCHY_MAX_DEPTH=5`, ya en `config.py:52`) y `lead_user_id` = la persona seleccionada. La idempotencia se resuelve con un **ledger** `org_role_template_instantiations` (no por nombre). Migración `0015` (encadena a `0014` del 21). Las 5 plantillas de sistema se siembran en `db_init.seed_default` (patrón del repo: el catálogo RBAC se siembra ahí, no en migración). TDD estricto.
+Módulo nuevo `org_role_templates/` (models → repository → service → router) con **tres tablas** + columna aditiva `projects.lead_user_id`. La plantilla es dato: `org_role_templates` (cabecera, `organization_id` nullable + `is_system`) y `org_role_template_nodes` (árbol nombre/metodología/orden/padre). La instanciación recorre el árbol y crea cada proyecto con el núcleo de `ProjectService` del 21 (encadenando `parent_project_id`, respetando `PROJECT_HIERARCHY_MAX_DEPTH=5`, ya en `config.py:52`) y `lead_user_id` = la persona seleccionada. La idempotencia se resuelve con un **ledger** `org_role_template_instantiations` (no por nombre). Migración `0018` (encadena a `0017` del 21). Las 5 plantillas de sistema se siembran en `db_init.seed_default` (patrón del repo: el catálogo RBAC se siembra ahí, no en migración). TDD estricto.
 
 ## Architecture Decisions
 
@@ -51,7 +51,7 @@ Evidencia: `ProjectRepository.create/save` hacen `db.commit()` (`repository.py:9
 | `app/modules/projects/schemas.py` | Modify | `ProjectCreate.lead_user_id?`; `ProjectRead.lead_user_id` |
 | `app/modules/projects/service.py` | Modify | extraer `_create_project_unit`; validar membresía del lead |
 | `app/db_init.py` | Modify | importar modelos nuevos + `ensure_system_templates(session)` en `seed_default` |
-| `alembic/versions/0015_add_org_role_templates.py` | Create | 3 tablas + `projects.lead_user_id`; `down_revision="0014"`; downgrade completo |
+| `alembic/versions/0018_add_org_role_templates.py` | Create | 3 tablas + `projects.lead_user_id`; `down_revision="0017"`; downgrade completo |
 | `docs/diagrams/er-model.md` (o `docs/DATA-MODEL.md`) | Modify (apply) | 3 tablas + relación de cabeza |
 
 ## Interfaces / Contracts
@@ -88,13 +88,13 @@ N/A — sin routing dinámico, shell, subprocess, automatización VCS/PR, clasif
 
 ## Migration / Rollout
 
-Aditiva `0015` (`down_revision="0014"`). `upgrade`: `create_table` de las 3 tablas + `add_column`/`create_foreign_key`/`create_index` de `projects.lead_user_id`. `downgrade`: drop de `lead_user_id` (índice→fk→columna) y de las 3 tablas en orden inverso. Los modelos declaran los mismos índices (`index=True`) para paridad `create_all`/migración. Rollback: revertir merge + `downgrade`; los proyectos generados quedan como proyectos normales del 21 (pierden la marca de cabeza), ninguna tarea se altera.
+Aditiva `0018` (`down_revision="0017"`). `upgrade`: `create_table` de las 3 tablas + `add_column`/`create_foreign_key`/`create_index` de `projects.lead_user_id`. `downgrade`: drop de `lead_user_id` (índice→fk→columna) y de las 3 tablas en orden inverso. Los modelos declaran los mismos índices (`index=True`) para paridad `create_all`/migración. Rollback: revertir merge + `downgrade`; los proyectos generados quedan como proyectos normales del 21 (pierden la marca de cabeza), ninguna tarea se altera.
 
 ## Open Questions
 
 - [ ] Ruta del doc ER (`docs/diagrams/er-model.md` vs `docs/DATA-MODEL.md`): el apply usa la primera si existe.
-- [ ] `down_revision` exacto: `0014` es el head hoy; **verificar head en vivo** en apply — si las migraciones de 14/20 aterrizan antes, rebasar `down_revision` al head real (cadena lineal).
+- [x] `down_revision` exacto: `0017` (verificado en vivo en apply, el head real después de que las migraciones de connectors/federated-identities/GLPI aterrizaran).
 
 ## Forecast de tamaño (para sdd-tasks)
 
-Estimado ~430 líneas (migración+modelos ~120, service/reconciliación ~120, seeder ~90, router/schemas ~60, delta `projects` ~40). **400-line budget risk: Medium.** `Decision needed before apply: No`. `Chained PRs recommended: No` (slice único autónomo; si crece, separar seeder+migración como PR previo).
+Estimado ~430 líneas. **400-line budget risk: Medium.** `Decision needed before apply: No`. `Chained PRs recommended: No` (slice único autónomo; si crece, separar seeder+migración como PR previo).

@@ -69,6 +69,18 @@ Modelo `Project` (Pk + Timestamp + SoftDelete + Tenant):
 - Y cuando se consulta `GET /projects/{id}` para un proyecto raíz
 - Entonces la respuesta incluye `parent_project_id: null`
 
+**R7 — Responsable del proyecto**
+- Dado un proyecto creado por la instanciación de una plantilla organizacional
+- Cuando se consulta `GET /projects/{id}`
+- Entonces la respuesta incluye `lead_user_id` con el id de la persona responsable
+- Y dado un usuario que crea un proyecto vía `POST /projects` sin pasar por una plantilla
+- Cuando se consulta el proyecto creado
+- Entonces `lead_user_id` es `null`, sin romper el contrato actual
+
+## Requisitos adicionales
+
+- **R7**: `Project` DEBE soportar un campo opcional `lead_user_id` (referencia a `User`, `ON DELETE SET NULL`) que identifica al responsable/cabeza del proyecto. La instanciación de plantillas organizacionales (`org-role-templates`) DEBE poblarlo en TODOS los proyectos que genera. Los proyectos creados sin plantilla (flujo actual de `POST /projects`) mantienen `lead_user_id = null`.
+
 ## Limitaciones y deuda conocida
 
 - NO hay PATCH ni DELETE de proyectos vía API (no se puede editar, archivar ni cambiar la metodología después de crear).
