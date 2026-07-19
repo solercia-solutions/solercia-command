@@ -1,6 +1,8 @@
 """Pydantic schemas for the connectors module (change 14-integration-ports;
 ``credential_kind``/``settings``/``ApiTokenCredentials`` are a delta of
-change 17-adapter-glpi, specs/connectors/spec.md)."""
+change 17-adapter-glpi, specs/connectors/spec.md; ``token``/
+``ExternalResourceOut``/``ExternalToolOut``/``ExternalResourceContentOut``/
+``McpToolCallRequest`` are a delta of change 19-mcp-connector)."""
 
 import uuid
 from datetime import datetime
@@ -24,6 +26,15 @@ class ConnectorCreate(BaseModel):
     status: ConnectorStatus = ConnectorStatus.active
     credential_kind: CredentialKind = CredentialKind.oauth
     settings: dict | None = None
+    # Change 19-mcp-connector, specs/connectors/spec.md delta ("Registro de
+    # conector con credencial directa") — a static bearer token for
+    # adapters whose protocol declares direct credential acquisition (e.g.
+    # `mcp` with `credential_kind=api_token`), supplied in THIS SAME
+    # request instead of the separate `POST /connectors/{id}/credentials`
+    # GLPI/Jira use. `repr=False` keeps it out of any accidental
+    # `repr(payload)` in a log line; `ConnectorRead` below never declares
+    # this field at all, so it can never round-trip into a response.
+    token: str | None = Field(default=None, repr=False)
 
 
 class ConnectorUpdate(BaseModel):
@@ -110,3 +121,47 @@ class ConnectedAccountRead(BaseModel):
     status: AccountStatus
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Change 19-mcp-connector — REST envelope for the `/mcp/*` read routes.
+# Mirror `app.integrations.dtos`' frozen dataclasses field-for-field, kept
+# as SEPARATE Pydantic models (not the dataclasses themselves) so the
+# `/mcp/*` routes get normal FastAPI/OpenAPI schema documentation, same as
+# every other connectors response.
+# ---------------------------------------------------------------------------
+
+
+class ExternalResourceOut(BaseModel):
+    """A resource published by the MCP server (mirrors `ExternalResource`)."""
+
+    uri: str
+    name: str
+    mime_type: str | None = None
+    description: str | None = None
+
+
+class ExternalToolOut(BaseModel):
+    """A tool published by the MCP server (mirrors `ExternalTool`)."""
+
+    name: str
+    description: str | None = None
+    read_only: bool
+    input_schema: dict
+
+
+class ExternalResourceContentOut(BaseModel):
+    """The content of a resource read or a `call_tool` result (mirrors
+    `ExternalResourceContent`)."""
+
+    uri: str | None = None
+    mime_type: str | None = None
+    text: str | None = None
+    blob_b64: str | None = None
+    truncated: bool = False
+
+
+class McpToolCallRequest(BaseModel):
+    """Payload for `POST /connectors/{id}/mcp/tools/{tool_name}/call`."""
+
+    arguments: dict = Field(default_factory=dict)

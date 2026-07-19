@@ -6,6 +6,7 @@ Streamable HTTP remote — there is no ``stdio``/subprocess option (MC-R2,
 """
 
 from app.integrations.adapters.mcp.reader import McpResourceReader
+from app.integrations.adapters.mcp.session import TransportFactory, streamable_http_default
 from app.integrations.ports import ApiTokenHandshake, Capability, CredentialKind, OAuthHandshake
 
 
@@ -30,7 +31,7 @@ class McpAdapter:
     credential_kind = CredentialKind.api_token
     credential_kinds = frozenset({CredentialKind.api_token, CredentialKind.none})
 
-    def __init__(self) -> None:
+    def __init__(self, *, transport_factory: TransportFactory = streamable_http_default) -> None:
         # Neither handshake Protocol applies: MCP's credential (token or
         # none) travels in the SAME `POST /connectors` request the
         # connector is created with (specs/connectors/spec.md delta,
@@ -39,8 +40,15 @@ class McpAdapter:
         # credentials` endpoint GLPI/Jira use.
         self.oauth: OAuthHandshake | None = None
         self.api_token: ApiTokenHandshake | None = None
+        # `transport_factory` is injectable so the REST layer's tests
+        # (`test_connectors_mcp_reader.py`, Lote 6) can swap the registered
+        # singleton for one bound to the in-memory fake server — the SAME
+        # dependency-injection seam `McpResourceReader`/`open_session`
+        # already expose, just threaded one level up so a test can
+        # `register_adapter(McpAdapter(transport_factory=fake))` for the
+        # duration of a single test and restore the real one afterward.
         self._ports: dict[Capability, object] = {
-            Capability.external_resources: McpResourceReader(),
+            Capability.external_resources: McpResourceReader(transport_factory=transport_factory),
         }
 
     def port_for(self, capability: Capability) -> object | None:

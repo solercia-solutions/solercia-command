@@ -11,6 +11,15 @@ browser navigation (membership only, ``302`` to the IdP); ``GET
 /connectors/oauth/callback`` is a GLOBAL, UNAUTHENTICATED route validated
 entirely by ``state`` (design.md, "redirect_uri OAuth debe ser estático").
 Responses follow the standard ``{data[, message][, meta]}`` envelope.
+
+MCP read routes (``/{connector_id}/mcp/*``, change 19-mcp-connector,
+mcp-connector/spec.md "Alcance REST propuesto") are the ONE deliberate
+exception to the "reads open, writes admin/manager" split above: even
+``POST .../tools/{tool_name}/call`` is open to ANY authenticated member
+(design.md Open Questions, "RBAC de `call_tool`: la spec ratifica cualquier
+miembro — es read-only enforced") — the read-only enforcement itself lives
+in ``McpResourceReader.call_tool`` (default-deny: allowlist ∩
+``readOnlyHint``), not in a role check here.
 """
 
 import uuid
@@ -21,7 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership, require_role
-from app.modules.connectors.schemas import ApiTokenCredentials, ConnectorCreate, ConnectorUpdate
+from app.modules.connectors.schemas import (
+    ApiTokenCredentials,
+    ConnectorCreate,
+    ConnectorUpdate,
+    McpToolCallRequest,
+)
 from app.modules.connectors.service import ConnectorService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
@@ -41,11 +55,20 @@ async def create_connector(
     actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Create a connector — provider configuration (admin or manager only)."""
+    """Create a connector — provider configuration (admin or manager only).
+
+    For ``provider="mcp"`` the credential (a static bearer ``token``, or
+    none) travels in THIS SAME request (change 19-mcp-connector,
+    specs/connectors/spec.md delta) — never through the separate
+    ``POST .../credentials`` step GLPI/Jira use.
+    """
 
     service = ConnectorService(db)
     connector = await service.create_connector(
-        membership.organization_id, payload, actor_id=actor_id
+        membership.organization_id,
+        payload,
+        actor_id=actor_id,
+        registrant_user_id=membership.user_id,
     )
     return {"data": connector, "message": "Conector creado."}
 
@@ -203,3 +226,72 @@ async def disconnect_account(
     service = ConnectorService(db)
     await service.disconnect_account(membership.organization_id, account_id, membership)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# MCP read routes (change 19-mcp-connector, mcp-connector/spec.md "Alcance
+# REST propuesto") — any authenticated member, including the gated
+# `call_tool`; 404 for a foreign-org or non-`mcp` connector (module
+# docstring above).
+# ---------------------------------------------------------------------------
+
+
+@router.get("/connectors/{connector_id}/mcp/resources")
+async def list_mcp_resources(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List an MCP server's published resources (any authenticated member)."""
+
+    service = ConnectorService(db)
+    resources = await service.list_mcp_resources(membership.organization_id, connector_id)
+    return {"data": resources, "meta": {"total": len(resources)}}
+
+
+@router.get("/connectors/{connector_id}/mcp/resources/read")
+async def read_mcp_resource(
+    connector_id: uuid.UUID,
+    uri: str = Query(...),
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Read a single MCP resource by ``uri`` (any member; capped by
+    ``MCP_MAX_RESOURCE_BYTES``, mcp-connector/spec.md MC-R4)."""
+
+    service = ConnectorService(db)
+    content = await service.read_mcp_resource(membership.organization_id, connector_id, uri)
+    return {"data": content}
+
+
+@router.get("/connectors/{connector_id}/mcp/tools")
+async def list_mcp_tools(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List an MCP server's discovered tools, with ``read_only`` mirroring
+    the provider's own ``readOnlyHint`` (any authenticated member)."""
+
+    service = ConnectorService(db)
+    tools = await service.list_mcp_tools(membership.organization_id, connector_id)
+    return {"data": tools, "meta": {"total": len(tools)}}
+
+
+@router.post("/connectors/{connector_id}/mcp/tools/{tool_name}/call")
+async def call_mcp_tool(
+    connector_id: uuid.UUID,
+    tool_name: str,
+    payload: McpToolCallRequest,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Invoke an allowlisted, read-only MCP tool (any authenticated member —
+    the read-only gate is enforced server-side, mcp-connector/spec.md
+    MC-R5, never by a role check here)."""
+
+    service = ConnectorService(db)
+    result = await service.call_mcp_tool(
+        membership.organization_id, connector_id, tool_name, payload.arguments
+    )
+    return {"data": result}
