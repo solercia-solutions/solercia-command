@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { SolCardComponent } from '@shared/ui';
+import { SolCardComponent, SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import {
   PRIORITY_CHIP_CLASS,
@@ -27,7 +27,7 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
   selector: 'sol-executive',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SolCardComponent],
+  imports: [SolCardComponent, SolIconComponent],
   template: `
     <section class="flex flex-col gap-6">
       <div>
@@ -156,25 +156,8 @@ import { ExecutiveDashboard } from '@entities/executive/executive.model';
                 <ul class="flex flex-col divide-y divide-border">
                   @for (task of dash.at_risk; track task.id) {
                     <li class="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                      <span
-                        class="shrink-0 text-danger"
-                        aria-hidden="true"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                          <line x1="12" y1="9" x2="12" y2="13" />
-                          <line x1="12" y1="17" x2="12.01" y2="17" />
-                        </svg>
+                      <span class="shrink-0 text-danger" aria-hidden="true">
+                        <sol-icon name="exclamation-triangle" size="sm" />
                       </span>
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-medium text-text">
