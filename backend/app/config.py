@@ -226,6 +226,27 @@ class Settings(BaseSettings):
     # `GLPI_MAX_BACKOFF_SECONDS`/`M365_MAX_BACKOFF_SECONDS`.
     JIRA_MAX_BACKOFF_SECONDS: float = 30.0
 
+    # MCP adapter (change 19-mcp-connector) — read-only client over the
+    # Model Context Protocol's Streamable HTTP transport, `credential_kind
+    # ∈ {api_token, none}` (a per-CONNECTOR choice, not fixed per-adapter
+    # like GLPI/Jira — see `IntegrationAdapter.credential_kinds`).
+    #
+    # Anti-SSRF (`adapters/mcp/ssrf.py`, MC-R7) is DEFAULT-DENY: unlike
+    # GLPI's `GLPI_BASE_URL_ALLOWLIST` (full base URLs), `MCP_HOST_ALLOWLIST`
+    # holds bare HOSTS — ANY host not literally present here is rejected,
+    # private range or not. A host that IS present is explicitly trusted by
+    # the admin and may resolve to a private/reserved range on purpose (e.g.
+    # a local test server) — `MCP_BLOCK_PRIVATE_NETWORKS` only ever adds a
+    # SECOND, defense-in-depth rejection for hosts that somehow are not
+    # allowlisted (kept as an independent toggle rather than folded into the
+    # allowlist check, so a misconfigured allowlist pattern is not the ONLY
+    # thing standing between an admin and SSRF into `169.254.169.254`, etc.).
+    MCP_HOST_ALLOWLIST: list[str] = ["localhost", "127.0.0.1"]
+    # Off by default (dev/test convenience) — production deployments MUST
+    # override this to False, same convention as `COOKIE_SECURE`.
+    MCP_ALLOW_HTTP: bool = True
+    MCP_BLOCK_PRIVATE_NETWORKS: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

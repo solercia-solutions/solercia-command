@@ -58,9 +58,9 @@ Chain strategy: size-exception
 
 ## Lote 3 — Guard anti-SSRF con IP-pin (Commit 3)
 
-- [ ] 3.1 RED `backend/tests/test_mcp_ssrf.py`: host fuera de `MCP_HOST_ALLOWLIST` → rechazado; `127.0.0.1`/`10.*`/`192.168.*`/`169.254.*`/`::1`/`fc00::/7` rechazados por defecto; host en la allowlist explícita permitido aunque resuelva a rango privado; `http://` rechazado en producción; `https://` permitido. [MC-R7]
-- [ ] 3.2 VERIFY confirmar T3.1 en ROJO antes de GREEN.
-- [ ] 3.3 GREEN `app/integrations/adapters/mcp/ssrf.py`: `validate_mcp_url(url) -> ip_pinned` vía `getaddrinfo` + bloqueo de rangos privados/reservados + `https`-only en prod. VERIFY T3.1 en verde.
+- [x] 3.1 RED `backend/tests/test_mcp_ssrf.py`: host fuera de `MCP_HOST_ALLOWLIST` → rechazado; `127.0.0.1`/`10.*`/`192.168.*`/`169.254.*`/`::1`/`fc00::/7` rechazados por defecto; host en la allowlist explícita permitido aunque resuelva a rango privado; `http://` rechazado en producción; `https://` permitido. [MC-R7]
+- [x] 3.2 VERIFY confirmar T3.1 en ROJO antes de GREEN. CONFIRMADO: `ModuleNotFoundError: No module named 'app.integrations.adapters.mcp.ssrf'` (13/13 fallando) antes de la implementación.
+- [x] 3.3 GREEN `app/integrations/adapters/mcp/ssrf.py`: `validate_mcp_url(url) -> PinnedTarget` (IP-pin) vía `getaddrinfo` + bloqueo de rangos privados/reservados (`MCP_BLOCK_PRIVATE_NETWORKS`) + `https`-only en prod (`MCP_ALLOW_HTTP`). VERIFY T3.1 en verde (13/13 passed). AJUSTE de orden no previsto: `MCP_HOST_ALLOWLIST`/`MCP_ALLOW_HTTP`/`MCP_BLOCK_PRIVATE_NETWORKS` se agregaron a `app/config.py` en este lote (en vez del Lote 4, tarea 4.1) porque `ssrf.py` los necesita para existir; el resto de las constantes (`MCP_CONNECT_TIMEOUT_SECONDS`, `MCP_TOTAL_TIMEOUT_SECONDS`, `MCP_MAX_LIST_ITEMS`, `MCP_MAX_RESOURCE_BYTES`) queda para el Lote 4 como estaba previsto. Se agregó además `app/integrations/adapters/mcp/errors.py` (taxonomía de errores de dominio, usada por Lotes 3/4/6) y un `__init__.py` mínimo de paquete (sin registro aún — eso es el Lote 5).
 
 ## Lote 4 — Sesión efímera + reader contra el fake (Commit 4)
 
