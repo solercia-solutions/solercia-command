@@ -24,6 +24,7 @@ from datetime import timedelta
 import httpx
 from mcp import ClientSession, McpError
 from mcp.client.streamable_http import streamablehttp_client
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.config import settings as default_settings
@@ -158,6 +159,17 @@ async def open_session(
     network/timeout failure is translated into a controlled
     :class:`app.shared.exceptions.AppException` subclass — never an
     unhandled exception (MC-R3, MC-R6).
+
+    ``pydantic.ValidationError`` is caught HERE too — the caller's
+    `await session.list_resources()`/etc. (``reader.py``) run while this
+    generator is suspended at `yield session`, so an exception raised there
+    is thrown BACK into this `try`. It degrades to
+    :class:`errors.McpProtocolError` (502), never an unhandled 500.
+    Per-item isolation is NOT attempted: the SDK parses a whole
+    `resources/list`/`read`/`list_tools` JSON-RPC response into ONE
+    `pydantic` model atomically, so a single malformed entry fails the WHOLE
+    response before this adapter sees individual items — unreachable
+    without patching the SDK itself.
     """
 
     pinned = await validate_mcp_url(ctx.base_url, settings=settings)
@@ -172,5 +184,7 @@ async def open_session(
         if exc.error.code == httpx.codes.REQUEST_TIMEOUT:
             raise errors.McpTimeoutError() from exc
         raise errors.McpOperationError() from exc
+    except ValidationError as exc:
+        raise errors.McpProtocolError() from exc
     except (httpx.HTTPError, OSError) as exc:
         raise errors.McpServerUnreachableError() from exc

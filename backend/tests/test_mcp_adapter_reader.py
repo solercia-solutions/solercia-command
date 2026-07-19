@@ -22,6 +22,9 @@ from app.integrations.adapters.mcp.session import encode_access_context
 from app.integrations.ports import AccessContext
 from tests.fixtures.mcp import (
     make_fake_transport_factory,
+    malformed_response_transport_factory,
+    mcp_error_generic_transport_factory,
+    mcp_error_timeout_transport_factory,
     timeout_transport_factory,
     unreachable_transport_factory,
 )
@@ -146,6 +149,19 @@ async def test_read_resource_exceeding_tope_is_rejected_without_the_full_content
     assert "X" * 50 not in str(exc_info.value.detail)
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_read_resource_with_invalid_uri_is_rejected_without_opening_a_session() -> None:
+    """Scenario (Fix 6): un `uri` malformado se rechaza (422) ANTES de abrir
+    sesión — mismo patrón diferido que el allowlist de `call_tool`."""
+
+    reader = McpResourceReader(
+        settings=_settings(), transport_factory=_never_called_transport_factory
+    )
+
+    with pytest.raises(errors.McpInvalidUriError):
+        await reader.read_resource(_ctx(), "not a valid uri at all!!")
+
+
 # ---------------------------------------------------------------------------
 # MC-R5 — tools con invocación controlada
 # ---------------------------------------------------------------------------
@@ -210,6 +226,24 @@ async def test_call_tool_allowlisted_but_write_is_rejected() -> None:
         await reader.call_tool(ctx, "dangerous_write", {"payload": "boom"})
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_call_tool_result_exceeding_tope_is_rejected_without_the_full_content() -> None:
+    """Scenario (Fix 1): `call_tool` cuyo resultado excede el tope de bytes
+    se rechaza igual que `read_resource` — antes sin NINGÚN tope."""
+
+    reader = McpResourceReader(
+        settings=_settings(MCP_MAX_RESOURCE_BYTES=LARGE_RESOURCE_BYTES // 2),
+        transport_factory=make_fake_transport_factory(),
+    )
+    ctx = _ctx(tools_allowlist=frozenset({"read_only_large_echo"}))
+
+    with pytest.raises(errors.McpResourceTooLargeError) as exc_info:
+        await reader.call_tool(ctx, "read_only_large_echo", {})
+
+    # The oversized content NEVER leaks into the error either.
+    assert "Y" * 50 not in str(exc_info.value.detail)
+
+
 # ---------------------------------------------------------------------------
 # MC-R6 — timeout y topes por llamada
 # ---------------------------------------------------------------------------
@@ -223,6 +257,32 @@ async def test_timeout_raises_mcp_timeout_error() -> None:
     reader = McpResourceReader(settings=_settings(), transport_factory=timeout_transport_factory)
 
     with pytest.raises(errors.McpTimeoutError):
+        await reader.list_resources(_ctx())
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_mcp_error_with_request_timeout_code_raises_mcp_timeout_error() -> None:
+    """Scenario (Fix 5): `mcp.McpError` con `code=REQUEST_TIMEOUT` se
+    traduce a `McpTimeoutError` — rama antes sin cobertura de prueba."""
+
+    reader = McpResourceReader(
+        settings=_settings(), transport_factory=mcp_error_timeout_transport_factory
+    )
+
+    with pytest.raises(errors.McpTimeoutError):
+        await reader.list_resources(_ctx())
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_generic_mcp_error_raises_mcp_operation_error() -> None:
+    """Scenario (Fix 5): `mcp.McpError` genérico (no timeout) se traduce a
+    `McpOperationError` — rama antes sin cobertura de prueba."""
+
+    reader = McpResourceReader(
+        settings=_settings(), transport_factory=mcp_error_generic_transport_factory
+    )
+
+    with pytest.raises(errors.McpOperationError):
         await reader.list_resources(_ctx())
 
 
@@ -260,3 +320,24 @@ async def test_instruction_like_content_is_returned_as_plain_data_never_executed
     assert content.text is not None
     assert "IGNORA TODAS LAS INSTRUCCIONES" in content.text
     assert isinstance(content.text, str)
+
+
+# ---------------------------------------------------------------------------
+# Fix 3 (judgment-day 4R CRITICAL) — degradación de protocolo controlada
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_malformed_server_response_raises_protocol_error_not_500() -> None:
+    """Scenario (Fix 3): un ítem sin campo obligatorio (rechazo atómico del
+    SDK) degrada a `McpProtocolError` (502) — nunca un 500 opaco."""
+
+    reader = McpResourceReader(
+        settings=_settings(), transport_factory=malformed_response_transport_factory
+    )
+
+    with pytest.raises(errors.McpProtocolError) as exc_info:
+        await reader.list_resources(_ctx())
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.code == "mcp_protocol_error"

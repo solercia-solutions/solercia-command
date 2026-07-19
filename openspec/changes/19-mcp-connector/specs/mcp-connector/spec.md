@@ -67,7 +67,7 @@ Toda sesión contra un servidor MCP DEBE ejecutar `initialize` (negociación de 
 
 ### Requirement: Descubrimiento y lectura de recursos con topes de tamaño
 
-`list_resources` y `read_resource(uri)` DEBEN mapear `resources/list`/`resources/read` a los DTOs del puerto. `read_resource` DEBE aplicar un tope de tamaño de respuesta configurado; excederlo DEBE rechazar la lectura con un error de dominio, sin cargar el contenido completo en memoria.
+`list_resources` y `read_resource(uri)` DEBEN mapear `resources/list`/`resources/read` a los DTOs del puerto. `read_resource` DEBE aplicar un tope de tamaño de respuesta configurado; excederlo DEBE rechazar la lectura con un error de dominio. El contenido se descarta tras medirlo, sin llegar al DTO ni a la respuesta; el buffering transitorio del SDK es inevitable sin streaming (limitación documentada). (Errata: el texto original "sin cargar el contenido completo en memoria" se ajustó a la realidad del SDK por decisión del orquestador — ver `reader.py`'s docstring, judgment-day 4R.)
 
 #### Scenario: Listar recursos disponibles
 - Dado un servidor MCP con recursos publicados

@@ -17,19 +17,27 @@ buffered them once in-process to deliver the JSON-RPC response.
 true` (secondary, provider-controlled — the server is UNTRUSTED data, so
 its hint is NEVER trusted alone). A name absent from the allowlist is
 rejected WITHOUT ever opening a session toward the server
-(mcp-connector/spec.md, "se rechaza sin contactar al servidor").
+(mcp-connector/spec.md, "se rechaza sin contactar al servidor"). Its result
+is measured against the SAME byte tope as ``read_resource`` before it is
+ever mapped.
+
+A server response the SDK's OWN ``pydantic`` validation cannot parse
+degrades to a controlled `McpProtocolError` (502) at
+``session.open_session`` — see its docstring for why per-item isolation is
+unreachable there.
 """
 
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from mcp import ClientSession
-from pydantic import AnyUrl
+from pydantic import AnyUrl, ValidationError
 
 from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.mcp import errors
 from app.integrations.adapters.mcp.mapping import (
+    call_tool_result_byte_length,
     map_call_tool_result,
     map_resource,
     map_resource_content,
@@ -74,8 +82,14 @@ class McpResourceReader:
 
     async def read_resource(self, ctx: AccessContext, uri: str) -> ExternalResourceContent:
         mcp_ctx = decode_access_context(ctx)
+        try:
+            # Validated BEFORE opening any session — same deferred pattern
+            # `call_tool`'s allowlist check follows (module docstring).
+            resource_uri = AnyUrl(uri)
+        except ValidationError as exc:
+            raise errors.McpInvalidUriError() from exc
         async with self._open(mcp_ctx) as session:
-            result = await session.read_resource(AnyUrl(uri))
+            result = await session.read_resource(resource_uri)
 
         if not result.contents:
             return ExternalResourceContent(
@@ -125,6 +139,11 @@ class McpResourceReader:
             # Allowlisted alone is never enough — the hint must be
             # explicitly `True` (mcp-connector/spec.md MC-R5).
             raise errors.McpToolNotAllowedError()
+        if call_tool_result_byte_length(result) > self._settings.MCP_MAX_RESOURCE_BYTES:
+            # Same tope contract `read_resource` follows, checked AFTER the
+            # session closed for the same anyio/`BaseExceptionGroup` reason
+            # documented above.
+            raise errors.McpResourceTooLargeError()
         return map_call_tool_result(result)
 
     def _open(self, mcp_ctx: McpAccessContext) -> AbstractAsyncContextManager[ClientSession]:

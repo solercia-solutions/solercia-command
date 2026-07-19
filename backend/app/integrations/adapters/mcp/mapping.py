@@ -8,9 +8,11 @@ evaluate, execute or interpolate anything from the provider's response.
 """
 
 import base64
+import binascii
 
 from mcp import types as mcp_types
 
+from app.integrations.adapters.mcp import errors
 from app.integrations.dtos import ExternalResource, ExternalResourceContent, ExternalTool
 
 
@@ -51,11 +53,16 @@ def resource_content_byte_length(
     """The actual byte size of ``content`` — text is UTF-8 encoded, a blob's
     ``blob`` field is already base64 (MCP spec) and is decoded back to raw
     bytes so the tope compares against the REAL size, not the inflated
-    base64 length."""
+    base64 length. A ``blob`` that is NOT valid base64 raises
+    :class:`errors.McpProtocolError` — never an unguarded ``binascii.Error``.
+    """
 
     if isinstance(content, mcp_types.TextResourceContents):
         return len(content.text.encode("utf-8"))
-    return len(base64.b64decode(content.blob))
+    try:
+        return len(base64.b64decode(content.blob, validate=True))
+    except binascii.Error as exc:
+        raise errors.McpProtocolError() from exc
 
 
 def map_resource_content(
@@ -86,6 +93,18 @@ def map_resource_content(
         blob_b64=content.blob,
         truncated=False,
     )
+
+
+def call_tool_result_byte_length(result: mcp_types.CallToolResult) -> int:
+    """UTF-8 byte size of the TEXT parts :func:`map_call_tool_result` would
+    join — mirrors ``resource_content_byte_length``'s "measure before
+    returning it" contract, applied to ``call_tool``'s result."""
+
+    text_parts = [
+        block.text for block in result.content if isinstance(block, mcp_types.TextContent)
+    ]
+    text = "\n".join(text_parts) if text_parts else ""
+    return len(text.encode("utf-8"))
 
 
 def map_call_tool_result(result: mcp_types.CallToolResult) -> ExternalResourceContent:

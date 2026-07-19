@@ -17,8 +17,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from mcp import ClientSession
+import httpx
+
+from mcp import ClientSession, McpError
+from mcp import types as mcp_types
 from mcp.shared.memory import create_connected_server_and_client_session
+from mcp.types import ErrorData
 from tests.fixtures.mcp.fake_server import build_fake_mcp_app
 
 TransportFactory = Callable[[Any, Any], "AsyncIterator[ClientSession]"]
@@ -63,3 +67,44 @@ async def timeout_transport_factory(ctx: object, pinned: object) -> AsyncIterato
 
     raise TimeoutError("Fake MCP server no respondió a tiempo (simulado).")
     yield  # pragma: no cover - unreachable, required for async-generator shape
+
+
+@asynccontextmanager
+async def mcp_error_timeout_transport_factory(
+    ctx: object, pinned: object
+) -> AsyncIterator[ClientSession]:
+    """Raises `mcp.McpError` with `code=REQUEST_TIMEOUT` — maps to
+    ``McpTimeoutError`` in ``session.open_session`` (Fix 5 coverage)."""
+
+    raise McpError(
+        ErrorData(code=httpx.codes.REQUEST_TIMEOUT, message="Fake MCP timeout (simulado).")
+    )
+    yield  # pragma: no cover - unreachable, required for async-generator shape
+
+
+@asynccontextmanager
+async def mcp_error_generic_transport_factory(
+    ctx: object, pinned: object
+) -> AsyncIterator[ClientSession]:
+    """Raises a GENERIC `mcp.McpError` (not a timeout code) — maps to
+    ``McpOperationError`` in ``session.open_session`` (Fix 5 coverage)."""
+
+    raise McpError(ErrorData(code=-32000, message="Fake MCP protocol error (simulado)."))
+    yield  # pragma: no cover - unreachable, required for async-generator shape
+
+
+@asynccontextmanager
+async def malformed_response_transport_factory(
+    ctx: object, pinned: object
+) -> AsyncIterator[Any]:
+    """Yielded session raises a REAL `pydantic.ValidationError` from
+    `list_resources()` — an out-of-spec response the SDK's own atomic
+    validation rejects (Fix 3; maps to `McpProtocolError`)."""
+
+    class _MalformedSession:
+        async def list_resources(self) -> mcp_types.Resource:
+            # Missing required fields (`uri`, `name`) -> a REAL
+            # `pydantic.ValidationError`.
+            return mcp_types.Resource.model_validate({})
+
+    yield _MalformedSession()

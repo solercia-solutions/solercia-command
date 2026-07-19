@@ -234,13 +234,11 @@ class Settings(BaseSettings):
     # Anti-SSRF (`adapters/mcp/ssrf.py`, MC-R7) is DEFAULT-DENY: unlike
     # GLPI's `GLPI_BASE_URL_ALLOWLIST` (full base URLs), `MCP_HOST_ALLOWLIST`
     # holds bare HOSTS — ANY host not literally present here is rejected,
-    # private range or not. A host that IS present is explicitly trusted by
-    # the admin and may resolve to a private/reserved range on purpose (e.g.
-    # a local test server) — `MCP_BLOCK_PRIVATE_NETWORKS` only ever adds a
-    # SECOND, defense-in-depth rejection for hosts that somehow are not
-    # allowlisted (kept as an independent toggle rather than folded into the
-    # allowlist check, so a misconfigured allowlist pattern is not the ONLY
-    # thing standing between an admin and SSRF into `169.254.169.254`, etc.).
+    # private range or not, BEFORE any DNS lookup is attempted. A host that
+    # IS present is explicitly trusted by the admin and may resolve to a
+    # private/reserved range on purpose (e.g. a local test server).
+    # `MCP_BLOCK_PRIVATE_NETWORKS` is kept for `Settings` shape/backward
+    # compatibility but is presently a no-op — see `ssrf.py`'s docstring.
     MCP_HOST_ALLOWLIST: list[str] = ["localhost", "127.0.0.1"]
     # Off by default (dev/test convenience) — production deployments MUST
     # override this to False, same convention as `COOKIE_SECURE`.
@@ -256,6 +254,11 @@ class Settings(BaseSettings):
     # (MC-R3 vs MC-R6).
     MCP_CONNECT_TIMEOUT_SECONDS: float = 10.0
     MCP_TOTAL_TIMEOUT_SECONDS: float = 30.0
+    # Bounds ONLY the `getaddrinfo` lookup `validate_mcp_url` performs for an
+    # ALLOWLISTED host (`ssrf.py`) — a non-allowlisted host is rejected
+    # BEFORE any lookup, so this only guards against a hanging/malicious
+    # resolver for a host the admin already trusts.
+    MCP_DNS_TIMEOUT_SECONDS: float = 5.0
     # `resources/list`/`tools/list` results are truncated to this many
     # items — mirrors `GOOGLE_DEFAULT_LIMIT`/`GLPI_PAGE_SIZE`'s antibomba
     # intent, applied client-side since MCP's list operations do not accept

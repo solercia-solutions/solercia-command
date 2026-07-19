@@ -382,7 +382,7 @@ Notas de componentes:
   Jira solo aporta su propio `ApiTokenHandshake` (`_JiraApiTokenHandshake.connect`, valida
   contra `/myself` y cifra el JSON `{base_url, email, api_token}` con Fernet, igual que
   GLPI). Sin migración Alembic propia: no cambia esquema.
-- **Adaptador MCP (change 19-mcp-connector)**: sexto adaptador REAL sobre el núcleo del
+- **Adaptador MCP (change 19-mcp-connector)**: quinto adaptador REAL sobre el núcleo del
   14 — `app/integrations/adapters/mcp/` (`__init__`/`adapter`/`reader`/`session`/`ssrf`/
   `mapping`/`errors`), auto-registrado en import-time (cero ediciones a `ports.py`/
   `registry.py` del 14). Consume un servidor **Model Context Protocol** remoto vía el

@@ -19,6 +19,8 @@ _TIMEOUT_MESSAGE = "El servidor MCP no respondió dentro del tiempo configurado.
 _TOO_LARGE_MESSAGE = "El recurso solicitado excede el tope de tamaño configurado."
 _TOOL_NOT_ALLOWED_MESSAGE = "La tool solicitada no está permitida para este conector."
 _OPERATION_MESSAGE = "El servidor MCP reportó un error al procesar la solicitud."
+_PROTOCOL_MESSAGE = "El servidor MCP devolvió una respuesta fuera de especificación."
+_INVALID_URI_MESSAGE = "El URI del recurso solicitado no es válido."
 
 
 class McpSsrfRejected(AppException):
@@ -74,3 +76,21 @@ class McpOperationError(AppException):
 
     def __init__(self, detail: str = _OPERATION_MESSAGE) -> None:
         super().__init__(detail, code="mcp_operation_error", status_code=502)
+
+
+class McpProtocolError(AppException):
+    """The SDK's OWN ``pydantic`` validation rejected a payload it could not
+    parse — a controlled 502 degradation of an out-of-spec server, never an
+    unhandled 500. Per-item isolation is unreachable (see ``session.py``'s
+    ``open_session`` docstring)."""
+
+    def __init__(self, detail: str = _PROTOCOL_MESSAGE) -> None:
+        super().__init__(detail, code="mcp_protocol_error", status_code=502)
+
+
+class McpInvalidUriError(AppException):
+    """``read_resource``'s ``uri`` failed ``pydantic.AnyUrl`` validation —
+    rejected BEFORE any session is opened toward the server."""
+
+    def __init__(self, detail: str = _INVALID_URI_MESSAGE) -> None:
+        super().__init__(detail, code="mcp_uri_invalid", status_code=422)

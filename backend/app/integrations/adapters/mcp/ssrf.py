@@ -15,18 +15,20 @@ Model (default-deny, two independent checks — see ``app/config.py``'s
 1. Scheme: ``http``/``https`` only; ``http`` further gated by
    ``MCP_ALLOW_HTTP`` (off in production).
 2. Host: ``MCP_HOST_ALLOWLIST`` is the ONE authoritative gate — ANY host not
-   literally present there is rejected, public or private. A host that IS
-   allowlisted may resolve to a private/reserved range on purpose (e.g. a
-   local test server) and is still permitted.
-3. ``MCP_BLOCK_PRIVATE_NETWORKS`` (default on) adds a SECOND, independent
-   rejection for a private/reserved resolution on a host that is NOT
-   allowlisted — defense-in-depth so the allowlist is never the ONLY thing
-   standing between a misconfiguration and SSRF into e.g.
-   ``169.254.169.254`` (cloud metadata endpoints).
+   literally present there is rejected, public or private, BEFORE any DNS
+   lookup is even attempted. A host that IS allowlisted may resolve to a
+   private/reserved range on purpose (e.g. a local test server) and is
+   still permitted.
+3. Because a non-allowlisted host is now rejected WITHOUT ever resolving it,
+   ``MCP_BLOCK_PRIVATE_NETWORKS``'s only remaining branch never applies —
+   the allowlist alone already settles that host's fate. Kept for
+   ``Settings`` shape/backward compatibility; presently a no-op.
+4. Resolution itself is bounded by ``MCP_DNS_TIMEOUT_SECONDS`` (default 5s)
+   — a hanging/malicious resolver for an ALLOWLISTED host can no longer
+   stall the caller indefinitely.
 """
 
 import asyncio
-import ipaddress
 import socket
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -50,27 +52,17 @@ class PinnedTarget:
     ip: str
 
 
-def _is_private_or_reserved(ip_str: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(ip_str)
-    except ValueError:
-        # Unparsable — fail closed, never treat an address we cannot even
-        # classify as "safe".
-        return True
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
-
-
-async def _resolve_first_ip(host: str, port: int) -> str:
+async def _resolve_first_ip(host: str, port: int, *, timeout: float) -> str:
     running_loop = asyncio.get_running_loop()
     try:
-        infos = await running_loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        infos = await asyncio.wait_for(
+            running_loop.getaddrinfo(host, port, type=socket.SOCK_STREAM), timeout=timeout
+        )
+    except TimeoutError as exc:
+        raise McpSsrfRejected(
+            f"Tiempo de espera agotado al resolver el host del servidor MCP: {host!r}.",
+            code="mcp_host_resolution_timeout",
+        ) from exc
     except OSError as exc:
         raise McpSsrfRejected(
             f"No fue posible resolver el host del servidor MCP: {host!r}.",
@@ -113,19 +105,16 @@ async def validate_mcp_url(url: str, *, settings: Settings = default_settings) -
         )
     port = parsed.port or _DEFAULT_PORT_BY_SCHEME[parsed.scheme]
 
-    allowlisted = host in settings.MCP_HOST_ALLOWLIST
-    ip = await _resolve_first_ip(host, port)
-
-    if settings.MCP_BLOCK_PRIVATE_NETWORKS and not allowlisted and _is_private_or_reserved(ip):
-        raise McpSsrfRejected(
-            f"El host {host!r} resuelve a un rango de red privado/reservado "
-            "y no está en la allowlist.",
-            code="mcp_private_network_blocked",
-        )
-    if not allowlisted:
+    if host not in settings.MCP_HOST_ALLOWLIST:
+        # Rejected WITHOUT ever resolving DNS (judgment-day 4R CRITICAL fix:
+        # the allowlist gate now runs strictly BEFORE any lookup, closing
+        # the no-timeout-DNS-against-an-attacker-controlled-name surface for
+        # every non-allowlisted host).
         raise McpSsrfRejected(
             f"El host {host!r} no está en MCP_HOST_ALLOWLIST.",
             code="mcp_host_not_allowlisted",
         )
+
+    ip = await _resolve_first_ip(host, port, timeout=settings.MCP_DNS_TIMEOUT_SECONDS)
 
     return PinnedTarget(scheme=parsed.scheme, host=host, port=port, ip=ip)

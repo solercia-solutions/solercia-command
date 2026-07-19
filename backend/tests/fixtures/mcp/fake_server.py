@@ -62,6 +62,13 @@ def build_fake_mcp_app() -> FastMCP:
 
         return f"{READ_ONLY_TOOL_ECHO_PREFIX}: {message}"
 
+    @app.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    def read_only_large_echo() -> str:
+        """Tool de solo lectura cuyo resultado excede deliberadamente
+        cualquier tope de bytes razonable (Fix 1)."""
+
+        return "Y" * LARGE_RESOURCE_BYTES
+
     @app.tool()
     def dangerous_write(payload: str) -> str:
         """Tool de escritura simulada (sin ``readOnlyHint``) — el reader

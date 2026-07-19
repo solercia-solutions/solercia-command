@@ -183,3 +183,57 @@ async def test_unsupported_scheme_is_rejected() -> None:
         await validate_mcp_url("ftp://127.0.0.1/mcp", settings=settings)
 
     assert exc_info.value.code == "mcp_scheme_invalid"
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — allowlist ANTES de resolver DNS, con timeout de resolución
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_host_outside_allowlist_is_rejected_without_dns_resolution(monkeypatch) -> None:
+    """Un host fuera de la allowlist se rechaza SIN resolver DNS (antes
+    `getaddrinfo` corría para TODO host, allowlisted o no)."""
+
+    import asyncio
+
+    from app.integrations.adapters.mcp.errors import McpSsrfRejected
+    from app.integrations.adapters.mcp.ssrf import validate_mcp_url
+
+    async def _failing_getaddrinfo(*args: object, **kwargs: object) -> object:
+        raise AssertionError(
+            "getaddrinfo NO debe invocarse para un host fuera de la allowlist."
+        )
+
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _failing_getaddrinfo)
+    settings = _settings(MCP_HOST_ALLOWLIST=["allowed.example.test"])
+
+    with pytest.raises(McpSsrfRejected) as exc_info:
+        await validate_mcp_url("https://8.8.8.8/mcp", settings=settings)
+
+    assert exc_info.value.code == "mcp_host_not_allowlisted"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dns_resolution_hanging_past_timeout_raises_domain_error(monkeypatch) -> None:
+    """La resolución DNS de un host ALLOWLISTED que cuelga se rechaza al
+    vencer `MCP_DNS_TIMEOUT_SECONDS` (antes sin timeout propio)."""
+
+    import asyncio
+
+    from app.integrations.adapters.mcp.errors import McpSsrfRejected
+    from app.integrations.adapters.mcp.ssrf import validate_mcp_url
+
+    async def _hanging_getaddrinfo(*args: object, **kwargs: object) -> object:
+        await asyncio.sleep(10)
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _hanging_getaddrinfo)
+    settings = _settings(MCP_HOST_ALLOWLIST=["127.0.0.1"], MCP_DNS_TIMEOUT_SECONDS=0.05)
+
+    with pytest.raises(McpSsrfRejected) as exc_info:
+        await validate_mcp_url("https://127.0.0.1/mcp", settings=settings)
+
+    assert exc_info.value.code == "mcp_host_resolution_timeout"
