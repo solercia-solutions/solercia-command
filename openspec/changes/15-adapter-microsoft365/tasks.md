@@ -82,12 +82,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 6 — Tareas Planner: `ExternalTaskReaderPort` (Commit 6)
 
-- [ ] 6.1 [Fixtures] `tests/fixtures/graph/planner_tasks.json`, `planner_empty.json`.
-- [ ] 6.2 RED `TestPlannerPort`: `/me/planner/tasks` con tareas → DTOs mapeados; tenant sin grupos/planes → `[]` sin error; filtro `since`/`limit` client-side por `createdDateTime` (Graph no lo soporta en este endpoint). [M365-R5]
-- [ ] 6.3 VERIFY confirmar T6.2 en ROJO antes de GREEN.
-- [ ] 6.4 GREEN `mappers.py` (ampliar): `map_external_task` (Planner).
-- [ ] 6.5 GREEN `ports.py` (ampliar): `GraphExternalTaskReader` (scope `Tasks.Read`); wired en `Capability.external_tasks`; NO implementa Microsoft To Do.
-- [ ] 6.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestPlannerPort -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 6.1 [Fixtures] `tests/fixtures/graph/planner_tasks.json`, `planner_empty.json`.
+- [x] 6.2 RED `TestPlannerPort`: `/me/planner/tasks` con tareas → DTOs mapeados; tenant sin grupos/planes → `[]` sin error; filtro `since`/`limit` client-side por `createdDateTime` (Graph no lo soporta en este endpoint). [M365-R5]
+- [x] 6.3 VERIFY confirmar T6.2 en ROJO antes de GREEN.
+- [x] 6.4 GREEN `mappers.py` (ampliar): `map_external_task` (Planner).
+- [x] 6.5 GREEN `ports.py` (ampliar): `GraphExternalTaskReader` (scope `Tasks.Read`); wired en `Capability.external_tasks`; NO implementa Microsoft To Do.
+- [x] 6.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestPlannerPort -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 7 — Notas de reunión + degradación por consentimiento (Commit 7)
 

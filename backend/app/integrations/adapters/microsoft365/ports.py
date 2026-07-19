@@ -23,10 +23,12 @@ from app.config import settings as default_settings
 from app.integrations.adapters.microsoft365 import oauth
 from app.integrations.adapters.microsoft365.client import GraphClient
 from app.integrations.adapters.microsoft365.mappers import (
+    graph_datetime,
     map_calendar_event,
+    map_external_task,
     map_mail_message,
 )
-from app.integrations.dtos import CalendarEvent, MailMessage, OAuthTokens
+from app.integrations.dtos import CalendarEvent, ExternalTask, MailMessage, OAuthTokens
 from app.integrations.ports import AccessContext
 
 
@@ -127,3 +129,32 @@ class GraphCalendarReader(_GraphPortBase):
             "endDateTime": _iso_z(end),
         }
         return f"/me/calendarView?{urlencode(query)}"
+
+
+class GraphExternalTaskReader(_GraphPortBase):
+    """``ExternalTaskReaderPort`` over Microsoft Graph's
+    ``/me/planner/tasks`` ONLY (scope ``Tasks.Read``) — Microsoft To Do is
+    explicitly OUT of scope for this wave (spec.md, "sin Microsoft To
+    Do").
+
+    Graph's Planner endpoint accepts no server-side date filter, so
+    ``since``/``limit`` are applied CLIENT-side, by ``createdDateTime``,
+    AFTER every page is fetched (spec.md, "filtro client-side")."""
+
+    async def list_tasks(
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+    ) -> list[ExternalTask]:
+        bounded_limit = self._bounded_limit(limit)
+        effective_since = self._since_or_default(since)
+        client = self._client(ctx)
+
+        raw_items = await client.paginate(
+            "/me/planner/tasks", limit=self._settings.M365_MAX_LIMIT
+        )
+
+        recent = [
+            raw
+            for raw in raw_items
+            if graph_datetime(raw["createdDateTime"]) >= effective_since
+        ]
+        return [map_external_task(raw) for raw in recent[:bounded_limit]]

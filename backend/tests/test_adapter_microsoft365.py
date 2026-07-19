@@ -17,6 +17,7 @@ target a single batch's RED/GREEN cycle:
 """
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -841,3 +842,131 @@ class TestCalendarPort:
         port = adapter.port_for(Capability.calendar)
 
         assert isinstance(port, GraphCalendarReader)
+
+
+# ---------------------------------------------------------------------------
+# Lote 6 — Tareas Planner: `ExternalTaskReaderPort`
+# ---------------------------------------------------------------------------
+
+
+class TestPlannerPort:
+    @pytest.mark.asyncio
+    async def test_list_tasks_maps_dtos_and_filters_by_the_default_since_window(
+        self,
+    ) -> None:
+        """Scenario: Tenant con Planner — every fixture task maps to a
+        DTO; the default (no explicit `since`) 30-day window is applied
+        CLIENT-side by `createdDateTime` (Graph does not support a
+        server-side date filter on this endpoint, spec.md)."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphExternalTaskReader
+        from app.integrations.dtos import ExternalTask
+
+        fixture = _load_fixture("planner_tasks.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/v1.0/me/planner/tasks"
+            return httpx.Response(200, json=fixture)
+
+        port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
+
+        tasks = await port.list_tasks(_ctx(), limit=10)
+
+        # planner-task-3 was created 2025-01-01 — outside the default 30-day
+        # window from "today" — filtered out client-side.
+        assert [t.external_id for t in tasks] == ["planner-task-1", "planner-task-2"]
+        assert all(isinstance(t, ExternalTask) for t in tasks)
+
+        in_progress, completed = tasks
+        assert in_progress.title == "Actualizar la documentación de la API"
+        assert in_progress.status == "in_progress"
+        assert in_progress.assignee == "user-guid-1"
+        assert in_progress.due_at is not None
+        assert in_progress.due_at.year == 2026 and in_progress.due_at.month == 7
+
+        assert completed.status == "completed"
+        assert completed.assignee is None
+        assert completed.due_at is None
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_with_an_explicit_since_includes_older_tasks(
+        self,
+    ) -> None:
+        """Triangulation: an explicit `since` far enough in the past
+        includes `planner-task-3`, proving the filter really uses
+        `since`, not a hardcoded window."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphExternalTaskReader
+
+        fixture = _load_fixture("planner_tasks.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=fixture)
+
+        port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
+
+        tasks = await port.list_tasks(
+            _ctx(), since=datetime(2024, 1, 1, tzinfo=UTC), limit=10
+        )
+
+        assert {t.external_id for t in tasks} == {
+            "planner-task-1",
+            "planner-task-2",
+            "planner-task-3",
+        }
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_respects_limit_after_client_side_filtering(self) -> None:
+        """`limit` truncates the CLIENT-side filtered result, not the raw
+        Graph page."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphExternalTaskReader
+
+        fixture = _load_fixture("planner_tasks.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=fixture)
+
+        port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
+
+        tasks = await port.list_tasks(_ctx(), limit=1)
+
+        assert [t.external_id for t in tasks] == ["planner-task-1"]
+
+    @pytest.mark.asyncio
+    async def test_list_tasks_returns_empty_list_when_tenant_has_no_plans(
+        self,
+    ) -> None:
+        """Scenario: Tenant sin Planner/Grupos M365 — an empty `value`
+        never raises, it returns `[]` (spec.md, "NUNCA error")."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphExternalTaskReader
+
+        empty = _load_fixture("planner_empty.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=empty)
+
+        port = GraphExternalTaskReader(transport=httpx.MockTransport(handler))
+
+        tasks = await port.list_tasks(_ctx(), limit=10)
+
+        assert tasks == []
+
+    def test_planner_reader_is_wired_into_the_adapter_external_tasks_capability(
+        self,
+    ) -> None:
+        """The adapter's `port_for(Capability.external_tasks)` resolves to a
+        REAL `GraphExternalTaskReader`, not `None`."""
+
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.adapters.microsoft365.ports import (
+            GraphExternalTaskReader,
+        )
+        from app.integrations.ports import Capability
+
+        adapter = Microsoft365Adapter()
+
+        port = adapter.port_for(Capability.external_tasks)
+
+        assert isinstance(port, GraphExternalTaskReader)

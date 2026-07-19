@@ -1,0 +1,36 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#planner/tasks",
+  "value": [
+    {
+      "id": "planner-task-1",
+      "planId": "plan-guid-1",
+      "title": "Actualizar la documentación de la API",
+      "percentComplete": 50,
+      "dueDateTime": "2026-07-25T00:00:00Z",
+      "createdDateTime": "2026-07-10T10:00:00Z",
+      "assignments": {
+        "user-guid-1": { "assignedDateTime": "2026-07-10T10:05:00Z" }
+      }
+    },
+    {
+      "id": "planner-task-2",
+      "planId": "plan-guid-1",
+      "title": "Preparar la demo del sprint",
+      "percentComplete": 100,
+      "dueDateTime": null,
+      "createdDateTime": "2026-07-05T08:00:00Z",
+      "assignments": {}
+    },
+    {
+      "id": "planner-task-3",
+      "planId": "plan-guid-2",
+      "title": "Revisar accesos del equipo",
+      "percentComplete": 0,
+      "dueDateTime": "2026-08-01T00:00:00Z",
+      "createdDateTime": "2025-01-01T08:00:00Z",
+      "assignments": {
+        "user-guid-2": { "assignedDateTime": "2025-01-01T08:05:00Z" }
+      }
+    }
+  ]
+}
