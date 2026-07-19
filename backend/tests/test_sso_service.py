@@ -11,8 +11,8 @@ unverified email (R3). Pure DB-level unit tests — no HTTP, no OidcClient.
 import uuid
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.modules.auth.models import FederatedIdentity
 from app.modules.auth.oidc.config import OidcProviderConfig
@@ -266,3 +266,53 @@ async def test_resolve_auto_provisions_a_user_without_password_or_roles(
     )
     link = link_result.scalar_one()
     assert link.user_id == resolved.id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_resolve_commits_so_a_new_request_session_sees_the_provisioned_user(
+    engine: AsyncEngine, monkeypatch
+) -> None:
+    """Regresión: ``resolve_or_provision_user`` DEBE confirmar (commit) sus
+    escrituras — ``get_db()`` (app/database.py) abre una sesión nueva por
+    request sin auto-commit, así que un flush sin commit se pierde al
+    cerrarse la sesión. Usa sesiones ligadas DIRECTAMENTE al engine real
+    (evitando el fixture ``session``, que envuelve en un SAVEPOINT y hace
+    visible el flush sin necesitar commit, enmascarando este defecto)."""
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SSO_AUTO_PROVISION", True)
+
+    subject = f"regression-sub-{uuid.uuid4().hex[:8]}"
+    email = f"regression-{uuid.uuid4().hex[:8]}@example.com"
+
+    request_session = AsyncSession(bind=engine, expire_on_commit=False)
+    try:
+        resolved = await resolve_or_provision_user(
+            request_session, "keycloak", _claims(sub=subject, email=email)
+        )
+        provisioned_user_id = resolved.id
+    finally:
+        await request_session.close()
+
+    fresh_session = AsyncSession(bind=engine, expire_on_commit=False)
+    try:
+        user_result = await fresh_session.execute(
+            select(User).where(User.id == provisioned_user_id)
+        )
+        assert user_result.scalar_one_or_none() is not None
+
+        link_result = await fresh_session.execute(
+            select(FederatedIdentity).where(FederatedIdentity.subject == subject)
+        )
+        link = link_result.scalar_one_or_none()
+        assert link is not None
+        assert link.user_id == provisioned_user_id
+    finally:
+        await fresh_session.execute(
+            delete(FederatedIdentity).where(FederatedIdentity.subject == subject)
+        )
+        await fresh_session.execute(delete(User).where(User.id == provisioned_user_id))
+        await fresh_session.commit()
+        await fresh_session.close()

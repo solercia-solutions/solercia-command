@@ -184,16 +184,26 @@ async def resolve_or_provision_user(
         db.add(user)
         await db.flush()
 
-    db.add(
-        FederatedIdentity(
-            user_id=user.id,
-            provider=provider,
-            issuer=issuer,
-            subject=subject,
-            email=email,
+    # Persist user + FederatedIdentity as ONE transaction (mirrors
+    # connectors/service.py::handle_oauth_callback): a single commit
+    # closes it, and a failure rolls back everything flushed above too —
+    # without a commit, ``get_db()``'s per-request session (app/database.py,
+    # no auto-commit) discards both writes when the request ends.
+    try:
+        db.add(
+            FederatedIdentity(
+                user_id=user.id,
+                provider=provider,
+                issuer=issuer,
+                subject=subject,
+                email=email,
+            )
         )
-    )
-    await db.flush()
+        await db.flush()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     return user
 
 
