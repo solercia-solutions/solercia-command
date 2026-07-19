@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.org_role_templates.models import (
+    OrgRoleTemplate,
     OrgRoleTemplateInstantiation,
     OrgRoleTemplateNode,
 )
@@ -69,6 +70,53 @@ class OrgRoleTemplateService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.repo = OrgRoleTemplateRepository(db)
+
+    async def list_templates(
+        self, organization_id: uuid.UUID
+    ) -> Sequence[OrgRoleTemplate]:
+        """Return every template visible to ``organization_id``."""
+
+        return await self.repo.list_visible(organization_id)
+
+    async def get_template_tree(
+        self, organization_id: uuid.UUID, template_id: uuid.UUID
+    ) -> tuple[OrgRoleTemplate, dict]:
+        """Return ``(template, tree)`` — ``tree`` is the nested umbrella node
+        with its descendants, shaped like ``OrgRoleTemplateNodeRead``."""
+
+        template = await self.repo.get_visible(organization_id, template_id)
+        if template is None:
+            raise AppException(
+                "La plantilla no existe o no está disponible para tu organización.",
+                code="template_not_found",
+                status_code=404,
+            )
+        nodes = await self.repo.nodes_for_template(template_id)
+        return template, self._nest_nodes(nodes)
+
+    @staticmethod
+    def _nest_nodes(nodes: Sequence[OrgRoleTemplateNode]) -> dict:
+        """Build a nested ``OrgRoleTemplateNodeRead``-shaped dict from a flat
+        node list — same nesting pattern as ``ProjectService._nest_tree``."""
+
+        children_by_parent: dict[uuid.UUID | None, list[OrgRoleTemplateNode]] = {}
+        for node in nodes:
+            children_by_parent.setdefault(node.parent_node_id, []).append(node)
+        for siblings in children_by_parent.values():
+            siblings.sort(key=lambda n: n.order)
+
+        def _build(node: OrgRoleTemplateNode) -> dict:
+            return {
+                "id": node.id,
+                "name": node.name,
+                "default_methodology": node.default_methodology,
+                "children": [
+                    _build(child) for child in children_by_parent.get(node.id, [])
+                ],
+            }
+
+        roots = children_by_parent.get(None, [])
+        return _build(roots[0]) if roots else {}
 
     async def instantiate(
         self,

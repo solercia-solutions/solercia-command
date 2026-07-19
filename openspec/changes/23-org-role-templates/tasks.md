@@ -64,11 +64,11 @@ Nota: `Chained PRs recommended: No` se refiere a ausencia de cadena de Pull Requ
 
 ## Lote 4 — Router + schemas + wiring (Commit 4)
 
-- [ ] 4.1 RED `backend/tests/test_org_role_templates_api.py`: `GET /org-role-templates` lista 5; `GET /{id}` expone árbol completo (OAP-TI: sombrilla + 2 ramas + 8 equipos); `POST /{id}/instantiate` plana → 5 proyectos con `lead_user_id`+`methodology=planner`; OAP-TI → 11 proyectos en 3 niveles; `member` → 403, `manager`/`admin` → 200.
-- [ ] 4.2 [Schemas] `app/modules/org_role_templates/schemas.py`: `OrgRoleTemplateRead`, `OrgRoleTemplateNodeRead` (árbol), `InstantiateRequest{lead_user_id}`.
-- [ ] 4.3 [Router] `app/modules/org_role_templates/router.py`: `GET ""`, `GET "/{id}"` (cualquier miembro autenticado), `POST "/{id}/instantiate"` (`require_role(admin, manager)`); errores `lead_not_member` 422, `template_not_found` 404, `forbidden` 403.
-- [ ] 4.4 [Wiring] `app/main.py`: `app.include_router(org_role_templates_router, prefix=API_PREFIX)`.
-- [ ] 4.5 VERIFY `pytest tests/test_org_role_templates_api.py -v` → verde. Commit `feat(org-role-templates): expone GET/POST de plantillas e instanciación vía API`.
+- [x] 4.1 RED `backend/tests/test_org_role_templates_api.py`: `GET /org-role-templates` lista 5; `GET /{id}` expone árbol completo (OAP-TI: sombrilla + 2 ramas + 8 equipos); `POST /{id}/instantiate` plana → 5 proyectos con `lead_user_id`+`methodology=planner`; OAP-TI → 11 proyectos en 3 niveles; `member` → 403, `manager`/`admin` → 200.
+- [x] 4.2 [Schemas] `app/modules/org_role_templates/schemas.py`: `OrgRoleTemplateRead`, `OrgRoleTemplateNodeRead` (árbol), `InstantiateRequest{lead_user_id}`, `InstantiatedProjectRead` (respuesta de la instanciación).
+- [x] 4.3 [Router] `app/modules/org_role_templates/router.py`: `GET ""`, `GET "/{id}"` (cualquier miembro autenticado), `POST "/{id}/instantiate"` (`require_role(admin, manager)`); errores `lead_not_member` 422, `template_not_found` 404, `forbidden` 403.
+- [x] 4.4 [Wiring] `app/main.py`: `app.include_router(org_role_templates_router, prefix=API_PREFIX)`.
+- [x] 4.5 VERIFY `pytest tests/test_org_role_templates_api.py -v` → verde (6/6), primer intento GREEN sin ajustes (confirma que el árbol de 3 niveles/11 proyectos y `_nest_nodes`/`instantiate` quedaron correctos desde el Lote 3). Commit `feat(org-role-templates): expone GET/POST de plantillas e instanciación vía API`.
 
 ## Lote 5 — Idempotencia + multi-tenant + checkpoint final (Commit 5)
 
