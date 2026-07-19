@@ -108,6 +108,7 @@ flowchart TB
         r_notif["Notificaciones y activos:<br/>notifications (+preferences),<br/>reminders, assets"]
         r_conn["connectors<br/>CRUD + authorize/callback OAuth<br/>+ registro directo api_token<br/>+ cuentas conectadas<br/>(RBAC require_role admin|manager)"]
         r_glpi_sync["glpi_sync<br/>POST run + cola cabecera/detalle<br/>resolve/ignore + links CRUD<br/>(RBAC require_role admin|manager)"]
+        r_jira_import["jira_import (change 18)<br/>POST jira/import (JQL) +<br/>jira/import-file (multipart)<br/>solo-lectura, sin repository propio<br/>(RBAC require_role admin|manager)"]
         r_ws["realtime.router<br/>WS /ws/notifications<br/>(si WS_ENABLED)"]
     end
 
@@ -162,6 +163,7 @@ flowchart TB
             i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
             i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estándar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
             i_glpi["adapters/glpi/ (change 17):<br/>GlpiClient httpx inyectable + api_token<br/>(initSession/killSession) + session_token<br/>cacheado en Redis + Ticket/Ticket_User/<br/>User/UserEmail, solo lectura"]
+            i_jira["adapters/jira/ (change 18):<br/>JiraClient httpx inyectable + api_token<br/>(email:token Basic, GET /myself) +<br/>paginacion nextPageToken + backoff 429 +<br/>normalizador unico API/archivo (CSV/XLSX)<br/>-> NormalizedJiraIssue, solo lectura"]
         end
         subgraph glpi_sync_e["app/modules/glpi_sync (change 17)"]
             gs_service["service.py: cascada de<br/>homologación correo→documento→<br/>nombre + run_sync/resolve/ignore"]
@@ -179,6 +181,7 @@ flowchart TB
     graph_ext[["Microsoft 365<br/>(Graph + Entra ID)"]]
     google_ext[["Google Workspace<br/>(Gmail/Calendar/Drive)"]]
     glpi_ext[["GLPI<br/>(apirest.php, por-conector)"]]
+    jira_ext[["Jira Cloud<br/>(REST API v3, *.atlassian.net)"]]
 
     http --> deps
     deps --> capas
@@ -223,6 +226,11 @@ flowchart TB
     gs_repo --> db
     gs_service -->|"port_for(tickets).list_tickets(ctx)"| i_registry
     gs_service -->|"descifra credenciales del conector"| i_crypto
+    i_registry --> i_jira
+    i_jira -->|"solo lectura: GET /myself, /field,<br/>/search/jql (paginado, backoff 429)"| jira_ext
+    r_jira_import -->|"reusa ConnectorRepository/<br/>ConnectedAccountRepository (sin repo propio)"| repo
+    r_jira_import -->|"descifra credenciales del conector"| i_crypto
+    r_jira_import -->|"import_issues()/parse_file()<br/>(DTO NormalizedJiraIssue, sin persistir)"| i_registry
 ```
 
 Notas de componentes:
@@ -336,6 +344,38 @@ Notas de componentes:
   {id}/resolve` crea el `glpi_user_link` (`match_method=manual`) y pasa la cabecera a
   `resolved` (el detalle queda histórico); toda sincronización futura de esa persona
   resuelve directo contra el link, sin repetir la cascada ni volver a aparecer en la cola.
+- **Adaptador Jira (change 18-adapter-jira)**: cuarto adaptador REAL sobre el núcleo del
+  14, segundo con `credential_kind=api_token` (junto a GLPI) — `app/integrations/
+  adapters/jira/` (7 módulos: `__init__`/`adapter`/`client`/`file_parser`/`normalizer`/
+  `mappings`/`dtos`/`errors`), auto-registrado en import-time (cero ediciones a `ports.py`/
+  `registry.py` del 14). Solo-lectura y **no persiste**: entrega los issues normalizados
+  en memoria en la propia respuesta HTTP — la conversión a `Task` y su almacenamiento son
+  del change 22. Dos vías convergen en un **único normalizador**
+  (`normalizer.normalize_api_issue`/`normalize_file_row`, ambas delegan al mismo
+  `_build_issue`): la API REST v3 de Jira Cloud (`JiraClient` httpx inyectable, Basic
+  `email:api_token`, valida contra `GET /rest/api/3/myself`, resuelve `story_points`/
+  `sprint` por nombre vía `GET /field` con override configurable, pagina `/search/jql` por
+  `nextPageToken` hasta `isLast` con backoff acotado ante `429`) y un archivo CSV/XLSX
+  exportado (`file_parser.py`: BOM UTF-8, columnas `Labels`/`Sprint` repetidas fusionadas
+  a listas, `openpyxl(read_only=True)` en streaming con guarda antibomba de
+  `JIRA_FILE_MAX_ROWS`/`JIRA_FILE_MAX_CELLS`). Ambas vías emiten el mismo
+  `NormalizedJiraIssue` + `NormalizationReport` (homologación tipo/estado/prioridad con
+  fallback seguro y conteo de no homologados, nunca descarta un issue). A diferencia de
+  GLPI (`base_url` fijo por-conector contra un allowlist cerrado), el sitio Jira Cloud es
+  por-tenant y prácticamente ilimitado — el anti-SSRF aquí es un sufijo obligatorio
+  (`JIRA_BASE_URL_ALLOWED_SUFFIX=.atlassian.net`) validado en el constructor de
+  `JiraClient` **antes** de cualquier request. Frontera solo-lectura estricta: únicamente
+  `GET` contra Jira (`/myself`, `/field`, `/search/jql`); el módulo `app/modules/
+  jira_import` (`router → service`, **sin repository propio** — reusa
+  `ConnectorRepository`/`ConnectedAccountRepository` de `connectors` para leer el conector
+  y descifrar sus credenciales) expone `POST /connectors/{id}/jira/import` (JQL) y `POST
+  /connectors/{id}/jira/import-file` (multipart), RBAC `require_role(admin, manager)`,
+  devolviendo issues normalizados + resumen sin crear `Task`/`Sprint`/`Label` ni persistir
+  ninguna fila de insumo. El delta que este cambio consume del 17 (no lo redefine): la
+  ruta `POST /connectors/{id}/credentials` y `credential_kind=api_token` ya existentes —
+  Jira solo aporta su propio `ApiTokenHandshake` (`_JiraApiTokenHandshake.connect`, valida
+  contra `/myself` y cifra el JSON `{base_url, email, api_token}` con Fernet, igual que
+  GLPI). Sin migración Alembic propia: no cambia esquema.
 
 ## Referencias
 

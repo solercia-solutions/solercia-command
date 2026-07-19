@@ -106,7 +106,7 @@ Chain strategy: size-exception
 
 ## Lote 10 — Documentación C4
 
-- [ ] 10.1 `docs/diagrams/c4-architecture.md`: nodo `jira` en el motor `app/integrations` (C3) + módulo `jira_import` en la capa HTTP.
+- [x] 10.1 `docs/diagrams/c4-architecture.md`: nodo `jira` en el motor `app/integrations` (C3) + módulo `jira_import` en la capa HTTP.
 
 ## Trazabilidad Requisito → Lote
 
