@@ -184,6 +184,16 @@ def test_upgrade_creates_templates_tables_and_lead_user_id_without_losing_rows()
                 }
                 assert "uq_org_role_template_instantiation" in unique_names
 
+                index_names = {
+                    r["indexname"]
+                    for r in await conn.fetch(
+                        "SELECT indexname FROM pg_indexes "
+                        "WHERE tablename = 'org_role_templates'"
+                    )
+                }
+                assert "uq_org_role_templates_system_name" in index_names
+                assert "uq_org_role_templates_org_name" in index_names
+
                 # Pre-existing rows survive the migration untouched.
                 project_row = await conn.fetchrow(
                     "SELECT id, lead_user_id FROM projects WHERE id = $1",

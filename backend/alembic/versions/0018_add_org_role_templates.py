@@ -12,7 +12,10 @@ Four additive pieces, all in this ONE migration:
 
 1. ``org_role_templates`` — template header. ``organization_id`` nullable
    (NULL = system template, seeded via ``db_init.seed_default`` ->
-   ``ensure_system_templates``, design.md Decision 1).
+   ``ensure_system_templates``, design.md Decision 1). Backed by two partial
+   unique indexes on the seeder's natural key: ``name`` alone when NULL
+   (system templates), ``(organization_id, name)`` otherwise — judgment-day
+   fix, "sin UNIQUE natural key".
 2. ``org_role_template_nodes`` — the tree (umbrella/branch/team) of a
    template, self-referencing ``parent_node_id``.
 3. ``org_role_template_instantiations`` — the idempotency ledger
@@ -76,6 +79,25 @@ def upgrade() -> None:
         op.f("ix_org_role_templates_organization_id"),
         "org_role_templates",
         ["organization_id"],
+    )
+    # PARTIAL unique indexes backing the seeder's check-then-insert natural
+    # key (same idempotency pattern as ``uq_users_numero_documento``,
+    # migration 0017): a plain ``UNIQUE(organization_id, name)`` would NOT
+    # catch a duplicate SYSTEM template name — Postgres treats every NULL
+    # as distinct in a regular unique constraint.
+    op.create_index(
+        "uq_org_role_templates_system_name",
+        "org_role_templates",
+        ["name"],
+        unique=True,
+        postgresql_where=sa.text("organization_id IS NULL"),
+    )
+    op.create_index(
+        "uq_org_role_templates_org_name",
+        "org_role_templates",
+        ["organization_id", "name"],
+        unique=True,
+        postgresql_where=sa.text("organization_id IS NOT NULL"),
     )
 
     # -- 2. org_role_template_nodes (tree) ------------------------------------
@@ -246,6 +268,8 @@ def downgrade() -> None:
     )
     op.drop_table("org_role_template_nodes")
 
+    op.drop_index("uq_org_role_templates_org_name", table_name="org_role_templates")
+    op.drop_index("uq_org_role_templates_system_name", table_name="org_role_templates")
     op.drop_index(
         op.f("ix_org_role_templates_organization_id"), table_name="org_role_templates"
     )

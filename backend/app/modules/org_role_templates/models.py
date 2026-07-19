@@ -9,7 +9,7 @@ Three tables: ``org_role_templates`` (header), ``org_role_template_nodes``
 import uuid
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,6 +28,27 @@ class OrgRoleTemplate(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base
     """
 
     __tablename__ = "org_role_templates"
+    __table_args__ = (
+        # Partial unique indexes backing the seeder's check-then-insert
+        # natural key (same idempotency pattern as
+        # ``uq_users_numero_documento``, migration 0017): a plain
+        # ``UNIQUE(organization_id, name)`` would NOT catch a duplicate
+        # SYSTEM template name — Postgres treats every NULL as distinct.
+        # Declared here too so ``Base.metadata.create_all`` (tests) enforces it.
+        Index(
+            "uq_org_role_templates_system_name",
+            "name",
+            unique=True,
+            postgresql_where=text("organization_id IS NULL"),
+        ),
+        Index(
+            "uq_org_role_templates_org_name",
+            "organization_id",
+            "name",
+            unique=True,
+            postgresql_where=text("organization_id IS NOT NULL"),
+        ),
+    )
 
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,

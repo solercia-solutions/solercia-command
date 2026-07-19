@@ -745,13 +745,13 @@ generado.
 
 ```mermaid
 erDiagram
-    ORGANIZATIONS ||--o{ ORG_ROLE_TEMPLATES : "opcional - NULL = plantilla de sistema"
+    ORGANIZATIONS |o--o{ ORG_ROLE_TEMPLATES : "opcional - NULL = plantilla de sistema"
     ORG_ROLE_TEMPLATES ||--o{ ORG_ROLE_TEMPLATE_NODES : "define árbol"
     ORG_ROLE_TEMPLATE_NODES |o--o{ ORG_ROLE_TEMPLATE_NODES : "es hijo de"
     ORG_ROLE_TEMPLATES ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "registra instanciación via"
     ORG_ROLE_TEMPLATE_NODES ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "genera"
     USERS         ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "es responsable via"
-    PROJECTS      |o--|| ORG_ROLE_TEMPLATE_INSTANTIATIONS : "referencia (project_id)"
+    PROJECTS      ||--o{ ORG_ROLE_TEMPLATE_INSTANTIATIONS : "referencia (project_id)"
 
     ORG_ROLE_TEMPLATES {
         uuid id PK

@@ -5,6 +5,7 @@ project tree with a responsible person (change 23-org-role-templates).
 import uuid
 from collections.abc import Sequence
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.org_role_templates.models import (
@@ -144,6 +145,14 @@ class OrgRoleTemplateService:
         ``UNIQUE(organization_id, template_id, node_id, lead_user_id)``. ONE
         commit closes the whole operation (design.md Decision 3): a failure
         partway through leaves NO project persisted.
+
+        Two concurrent calls for the SAME ``(organization_id, template_id,
+        lead_user_id)`` build the SAME tree; the loser's flush/commit
+        collides (``uq_project_code_per_org`` and/or ``uq_org_role_template_
+        instantiation``) and raises ``IntegrityError`` — instead of a bare
+        500, the loser rolls back and retries ONCE against the now-committed
+        ledger, reusing every node the winner already created (judgment-day
+        fix, "doble clic da 500").
         """
 
         template = await self.repo.get_visible(organization_id, template_id)
@@ -164,6 +173,35 @@ class OrgRoleTemplateService:
         nodes = order_parent_first(await self.repo.nodes_for_template(template_id))
         if not nodes:
             return []
+
+        try:
+            return await self._reconcile_and_commit(
+                organization_id, template_id, lead_user_id, nodes, actor_id=actor_id
+            )
+        except IntegrityError:
+            await self.db.rollback()
+            # Re-read ``nodes``: rollback expires every attached ORM
+            # instance, and touching an expired attribute outside an
+            # awaited context raises ``MissingGreenlet``.
+            nodes = order_parent_first(await self.repo.nodes_for_template(template_id))
+            return await self._reconcile_and_commit(
+                organization_id, template_id, lead_user_id, nodes, actor_id=actor_id
+            )
+
+    async def _reconcile_and_commit(
+        self,
+        organization_id: uuid.UUID,
+        template_id: uuid.UUID,
+        lead_user_id: uuid.UUID,
+        nodes: Sequence[OrgRoleTemplateNode],
+        *,
+        actor_id: uuid.UUID | None,
+    ) -> list[Project]:
+        """Read the ledger, reuse/create each node's project and commit once.
+
+        Extracted so :meth:`instantiate` can retry it with a FRESH ledger
+        read after a concurrency collision.
+        """
 
         ledger = await self.repo.ledger_for(organization_id, template_id, lead_user_id)
 

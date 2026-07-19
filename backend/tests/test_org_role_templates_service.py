@@ -9,8 +9,8 @@ BEFORE anything is created, and node→project mapping. R1 catálogo sembrado
 import uuid
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.modules.org_role_templates.models import OrgRoleTemplate, OrgRoleTemplateNode
 from app.modules.org_role_templates.seeder import ensure_system_templates
@@ -312,3 +312,97 @@ async def test_jefe_oap_ti_template_has_umbrella_two_branches_and_eight_teams(
     assert {n.name for n in branches} == {"Planeación", "Tecnología"}
     teams = [n for n in nodes if n.parent_node_id in {b.id for b in branches}]
     assert len(teams) == 8
+
+
+# ---------------------------------------------------------------------------
+# instantiate — dos llamadas CONCURRENTES reconcilian, nunca 500
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_instantiate_concurrent_calls_reconcile_instead_of_500(
+    engine: AsyncEngine,
+) -> None:
+    """Two REAL concurrent ``instantiate()`` calls for the SAME
+    ``(organization, template, lead)`` collide (project ``code`` and/or the
+    ledger's ``uq_org_role_template_instantiation``) — both must reconcile
+    to the SAME tree, never surface a raw ``IntegrityError`` as a 500. Same
+    real-connections pattern as ``test_move_to_column_wip_serializes_
+    concurrent_movers_via_row_lock``.
+    """
+
+    import asyncio
+
+    # Local imports: importing User/Organization before org_role_templates
+    # .service's chain (which configures ALL mappers via projects.repository's
+    # module-level SORTABLE_FIELDS) poisons the session if Role isn't loaded
+    # yet — same lazy-import pattern as test_board_move_to_column.py.
+    from app.modules.organizations.models import Organization, OrganizationMember
+    from app.modules.users.models import User
+    from app.shared.enums import MemberRole
+    from app.shared.security import hash_password
+
+    setup_session = AsyncSession(bind=engine, expire_on_commit=False)
+    organization = Organization(
+        name="Concurrency Org", slug=f"concurrency-{uuid.uuid4().hex[:12]}"
+    )
+    try:
+        await ensure_system_templates(setup_session)
+        template_result = await setup_session.execute(
+            select(OrgRoleTemplate).where(
+                OrgRoleTemplate.name == "Jefe de Planeación"
+            )
+        )
+        template = template_result.scalar_one()
+
+        setup_session.add(organization)
+        await setup_session.flush()
+
+        lead = User(
+            email=f"lead-{uuid.uuid4().hex[:12]}@example.com",
+            primer_nombre="Lead",
+            primer_apellido="Responsable",
+            hashed_password=hash_password("Test123*"),
+        )
+        setup_session.add(lead)
+        await setup_session.flush()
+        setup_session.add(
+            OrganizationMember(
+                organization_id=organization.id,
+                user_id=lead.id,
+                role=MemberRole.admin,
+            )
+        )
+        await setup_session.commit()
+
+        organization_id, template_id, lead_id = (
+            organization.id,
+            template.id,
+            lead.id,
+        )
+
+        async def _instantiator() -> str:
+            async with AsyncSession(
+                bind=engine, expire_on_commit=False
+            ) as inst_session:
+                service = OrgRoleTemplateService(inst_session)
+                try:
+                    projects = await service.instantiate(
+                        organization_id, template_id, lead_id
+                    )
+                    return f"ok:{len(projects)}"
+                except Exception as exc:  # noqa: BLE001 — the RED assertion below
+                    return f"error:{type(exc).__name__}"
+
+        results = await asyncio.gather(_instantiator(), _instantiator())
+
+        assert all(r.startswith("ok:") for r in results), results
+        assert results[0] == results[1]  # both reconcile to the SAME tree size
+    finally:
+        await setup_session.execute(
+            text("DELETE FROM organizations WHERE id = :id"),
+            {"id": str(organization.id)},
+        )
+        await setup_session.commit()
+        await setup_session.close()

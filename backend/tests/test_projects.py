@@ -226,6 +226,72 @@ async def test_projects_listing_exposes_lead_user_id_per_element(
     assert all("lead_user_id" in row for row in rows)
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_post_projects_ignores_explicit_lead_user_id_of_other_org(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """The plain ``POST /projects`` flow IGNORES any ``lead_user_id`` sent in
+    the payload — it always persists ``null``, even when the caller submits
+    a user id belonging to ANOTHER organization. Only template instantiation
+    (which validates membership) may set ``lead_user_id``."""
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Con Lead Ajeno",
+            "methodology": "planner",
+            "lead_user_id": str(two_orgs.b.user.id),
+        },
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["lead_user_id"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_post_projects_rejects_explicit_code_of_soft_deleted_project(
+    client: AsyncClient, session, tenant, user
+) -> None:
+    """Forward-looking (no soft-delete endpoint exists yet): ``code_exists``
+    deliberately checks EVERY row regardless of ``is_active`` — a
+    soft-deleted project's ``code`` is still physically taken by
+    ``uq_project_code_per_org``. Seeding one by ORM proves the friendly 409
+    fires instead of a bare 500 once soft-delete ships."""
+
+    from app.modules.projects.models import Project
+    from app.shared.enums import Methodology, ProjectStatus
+
+    _, token = user
+
+    deleted_project = Project(
+        organization_id=tenant.id,
+        name="Proyecto Archivado",
+        methodology=Methodology.kanban,
+        status=ProjectStatus.active,
+        code="ARCHV",
+        task_counter=0,
+        is_active=False,
+    )
+    session.add(deleted_project)
+    await session.flush()
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Nuevo Con Código Repetido",
+            "methodology": "planner",
+            "code": "ARCHV",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "project_code_taken"
+
+
 # ---------------------------------------------------------------------------
 # No-regresión — extracción de _create_project_unit() (Lote 2, tasks.md T2.1)
 # ---------------------------------------------------------------------------

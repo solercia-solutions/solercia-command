@@ -92,7 +92,18 @@ class ProjectService:
         save`) — the extraction below (change 23-org-role-templates, design.md
         Decision 3) only splits WHERE the commit happens, never removes it
         from this path.
+
+        ``data.lead_user_id`` is ALWAYS forced to ``None`` here: the plain
+        ``POST /projects`` flow never validates that the submitted id is an
+        active member of the caller's organization, so trusting it verbatim
+        would let a member pin an arbitrary (even cross-org) user as lead.
+        Only template instantiation may set ``lead_user_id`` — it validates
+        membership first (``OrgRoleTemplateService.instantiate``) and calls
+        :meth:`_create_project_unit` directly, bypassing this method.
         """
+
+        if data.lead_user_id is not None:
+            data = data.model_copy(update={"lead_user_id": None})
 
         project = await self._create_project_unit(
             organization_id, data, actor_id=actor_id
