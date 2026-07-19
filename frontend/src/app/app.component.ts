@@ -354,6 +354,7 @@ export class AppComponent {
     this.i18n.activeLang();
     return [
       { path: '/projects', label: this.i18n.translate('nav.links.projects') },
+      { path: '/hierarchy', label: this.i18n.translate('nav.links.hierarchy') },
       { path: '/executive', label: this.i18n.translate('nav.links.executive') },
       { path: '/performance', label: this.i18n.translate('nav.links.performance') },
     ];

@@ -324,6 +324,7 @@
     "closeNotifications": "Cierra las notificaciones",
     "links": {
       "executive": "Vista de jefe",
+      "hierarchy": "Árbol de proyectos",
       "performance": "Rendimiento",
       "projects": "Proyectos"
     },

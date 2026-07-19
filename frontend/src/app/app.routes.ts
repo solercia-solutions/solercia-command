@@ -34,6 +34,14 @@ export const routes: Routes = [
       ).then((m) => m.ProjectWorkspaceComponent),
   },
   {
+    path: 'hierarchy',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@pages/hierarchy/hierarchy.component').then(
+        (m) => m.HierarchyComponent,
+      ),
+  },
+  {
     path: 'executive',
     canActivate: [authGuard],
     loadComponent: () =>
