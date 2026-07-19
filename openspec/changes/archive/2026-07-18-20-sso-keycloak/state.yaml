@@ -7,8 +7,8 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
-  archive: pending
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -22,4 +22,4 @@ capabilities:
 constraints:
   - backend-only
   - strict-tdd
-last_updated: 2026-07-18
+last_updated: 2026-07-19
