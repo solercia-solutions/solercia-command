@@ -324,6 +324,120 @@ async def test_future_sync_of_resolved_person_resolves_direct_via_link(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
+async def test_resolve_with_user_id_from_a_foreign_org_is_rejected_without_creating_link(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, monkeypatch
+) -> None:
+    """CRITICAL (revisión 4R, fix 1): un admin de la organización A resuelve
+    una entrada de la cola de A pasando un `user_id` que pertenece a la
+    organización B — se rechaza SIN crear ningún link (cruce de tenant)."""
+
+    connector = await _create_glpi_connector(
+        session, two_orgs.a.organization.id, two_orgs.a.user.id
+    )
+    unmatched_person = _person("133", display_name="Persona Cruzada")
+    _install_glpi_stub(monkeypatch, [_ticket("1101", assignees=(unmatched_person,))])
+    await client.post(
+        "/glpi-sync/run",
+        json={"connector_id": str(connector.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    header_id = (
+        (await client.get("/glpi-sync/unmatched", headers=_auth(two_orgs.a.token)))
+        .json()["data"][0]["id"]
+    )
+
+    response = await client.post(
+        f"/glpi-sync/unmatched/{header_id}/resolve",
+        json={"user_id": str(two_orgs.b.user.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code in (404, 422), response.text
+    link_result = await session.execute(
+        select(GlpiUserLink).where(GlpiUserLink.glpi_user_id == "133")
+    )
+    assert link_result.scalar_one_or_none() is None
+    active_queue = await client.get("/glpi-sync/unmatched", headers=_auth(two_orgs.a.token))
+    assert active_queue.json()["meta"]["total"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_resolve_twice_on_the_same_entry_returns_409(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, monkeypatch
+) -> None:
+    """WARNING (revisión 4R, fix 5): resolver una entrada YA resuelta
+    responde 409 en lugar de crear un segundo link."""
+
+    connector = await _create_glpi_connector(
+        session, two_orgs.a.organization.id, two_orgs.a.user.id
+    )
+    unmatched_person = _person("144", display_name="Persona Doble Resuelta")
+    _install_glpi_stub(monkeypatch, [_ticket("1201", assignees=(unmatched_person,))])
+    await client.post(
+        "/glpi-sync/run",
+        json={"connector_id": str(connector.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    header_id = (
+        (await client.get("/glpi-sync/unmatched", headers=_auth(two_orgs.a.token)))
+        .json()["data"][0]["id"]
+    )
+
+    first = await client.post(
+        f"/glpi-sync/unmatched/{header_id}/resolve",
+        json={"user_id": str(two_orgs.a.user.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    assert first.status_code == 201, first.text
+
+    second = await client.post(
+        f"/glpi-sync/unmatched/{header_id}/resolve",
+        json={"user_id": str(two_orgs.a.user.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    assert second.status_code == 409, second.text
+    assert second.json()["code"] == "glpi_unmatched_already_processed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_ignore_after_resolve_returns_409(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, monkeypatch
+) -> None:
+    """WARNING (revisión 4R, fix 5): ignorar una entrada YA resuelta
+    responde 409."""
+
+    connector = await _create_glpi_connector(
+        session, two_orgs.a.organization.id, two_orgs.a.user.id
+    )
+    unmatched_person = _person("155", display_name="Persona Resuelta Luego Ignorada")
+    _install_glpi_stub(monkeypatch, [_ticket("1301", assignees=(unmatched_person,))])
+    await client.post(
+        "/glpi-sync/run",
+        json={"connector_id": str(connector.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    header_id = (
+        (await client.get("/glpi-sync/unmatched", headers=_auth(two_orgs.a.token)))
+        .json()["data"][0]["id"]
+    )
+    resolve_response = await client.post(
+        f"/glpi-sync/unmatched/{header_id}/resolve",
+        json={"user_id": str(two_orgs.a.user.id)},
+        headers=_auth(two_orgs.a.token),
+    )
+    assert resolve_response.status_code == 201, resolve_response.text
+
+    ignore_response = await client.post(
+        f"/glpi-sync/unmatched/{header_id}/ignore", headers=_auth(two_orgs.a.token)
+    )
+    assert ignore_response.status_code == 409, ignore_response.text
+    assert ignore_response.json()["code"] == "glpi_unmatched_already_processed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
 async def test_ignore_removes_entry_without_creating_link(
     client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, monkeypatch
 ) -> None:

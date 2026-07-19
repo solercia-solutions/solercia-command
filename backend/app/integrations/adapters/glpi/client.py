@@ -18,6 +18,8 @@ ALLOWLIST (``GLPI_BASE_URL_ALLOWLIST``, analogous to
 is ever attempted (Threat Matrix, "SSRF").
 """
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -74,9 +76,11 @@ class GlpiClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         settings: Settings = default_settings,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         _validate_base_url(base_url, settings)
         self._settings = settings
+        self._sleep = sleep
         self._base_url = base_url.rstrip("/")
         self._http = httpx.AsyncClient(
             base_url=self._base_url,
@@ -84,19 +88,46 @@ class GlpiClient:
             transport=transport,
         )
 
+    async def _retry_5xx(
+        self, request: Callable[[], Awaitable[httpx.Response]]
+    ) -> httpx.Response:
+        """Issue ``request()`` with retry-with-backoff on a transient 5xx
+        GLPI response — up to ``GLPI_MAX_RETRIES`` extra attempts, sleeping
+        ``min(2 ** attempt, GLPI_MAX_BACKOFF_SECONDS)`` seconds between
+        attempts (mirrors ``GraphClient``'s 429 backoff loop,
+        ``microsoft365/client.py``'s resilience boundary shape). A non-5xx
+        response — success or a non-retryable 4xx — is returned/raised on
+        the first attempt, exactly like every call site did before."""
+
+        attempt = 0
+        while True:
+            response = await request()
+            if response.status_code < 500:
+                response.raise_for_status()
+                return response
+            attempt += 1
+            if attempt > self._settings.GLPI_MAX_RETRIES:
+                response.raise_for_status()
+            await self._sleep(min(2**attempt, self._settings.GLPI_MAX_BACKOFF_SECONDS))
+
+    async def _get(self, url: str, *, headers: dict[str, str]) -> httpx.Response:
+        return await self._retry_5xx(lambda: self._http.get(url, headers=headers))
+
+    async def _post(self, url: str, *, headers: dict[str, str]) -> httpx.Response:
+        return await self._retry_5xx(lambda: self._http.post(url, headers=headers))
+
     async def init_session(self, app_token: str, user_token: str) -> str:
         """``POST {base}/initSession`` — exchanges the connector's App-Token
         + user_token for a ``session_token``. Never logs/echoes either
         token (GA-R6, "sin credenciales ni tokens en el mensaje")."""
 
-        response = await self._http.post(
+        response = await self._post(
             "/initSession",
             headers={
                 "App-Token": app_token,
                 "Authorization": f"user_token {user_token}",
             },
         )
-        response.raise_for_status()
         payload: dict[str, Any] = response.json()
         return str(payload["session_token"])
 
@@ -104,11 +135,10 @@ class GlpiClient:
         """``GET {base}/killSession`` — invalidates ``session_token`` on the
         GLPI server side."""
 
-        response = await self._http.get(
+        await self._get(
             "/killSession",
             headers={"Session-Token": session_token, "App-Token": app_token},
         )
-        response.raise_for_status()
 
     async def list_tickets(
         self,
@@ -134,7 +164,7 @@ class GlpiClient:
 
         while start <= range_end and pages < self._settings.GLPI_MAX_PAGES:
             end = min(start + page_size - 1, range_end)
-            response = await self._http.get(
+            response = await self._get(
                 "/Ticket",
                 headers={
                     "Session-Token": session_token,
@@ -142,7 +172,6 @@ class GlpiClient:
                     "Range": f"{start}-{end}",
                 },
             )
-            response.raise_for_status()
             page_items = response.json()
             page_items = page_items if isinstance(page_items, list) else []
             items.extend(page_items)
@@ -165,11 +194,10 @@ class GlpiClient:
         — ``type``: 1=solicitante, 2=ASIGNADO, 3=observador (mapper.py/
         adapter.py resolve which role each entry plays)."""
 
-        response = await self._http.get(
+        response = await self._get(
             f"/Ticket/{ticket_id}/Ticket_User",
             headers={"Session-Token": session_token, "App-Token": app_token},
         )
-        response.raise_for_status()
         payload = response.json()
         return payload if isinstance(payload, list) else []
 
@@ -179,11 +207,10 @@ class GlpiClient:
         """``GET {base}/User/{id}`` -> ``{id, name, realname, firstname,
         registration_number, ...}``."""
 
-        response = await self._http.get(
+        response = await self._get(
             f"/User/{user_id}",
             headers={"Session-Token": session_token, "App-Token": app_token},
         )
-        response.raise_for_status()
         payload: dict[str, Any] = response.json()
         return payload
 
@@ -192,11 +219,10 @@ class GlpiClient:
     ) -> list[dict[str, Any]]:
         """``GET {base}/User/{id}/UserEmail`` -> ``[{email, is_default}, ...]``."""
 
-        response = await self._http.get(
+        response = await self._get(
             f"/User/{user_id}/UserEmail",
             headers={"Session-Token": session_token, "App-Token": app_token},
         )
-        response.raise_for_status()
         payload = response.json()
         return payload if isinstance(payload, list) else []
 

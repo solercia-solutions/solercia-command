@@ -258,8 +258,33 @@ class GlpiUnmatchedRepository:
         self, header: GlpiUnmatchedAssignee, *, actor_id: uuid.UUID | None
     ) -> None:
         header.status = UnmatchedStatus.ignored
+        # WARNING (revisión 4R, fix 5): limpia los campos del estado
+        # contrario (``resolved``) — defensivo ante un futuro flujo de
+        # reapertura, hoy inalcanzable porque el servicio ya exige
+        # ``status == pending`` antes de llegar aquí.
+        header.resolved_user_id = None
+        header.resolved_at = None
         header.updated_by = actor_id
         await self.db.flush()
+
+
+async def is_org_member(
+    db: AsyncSession, organization_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    """Return whether ``user_id`` belongs to ``organization_id`` (CRITICAL,
+    revisión 4R fix 1 — mirrors ``tasks/repository.py``'s
+    ``TaskRepository.is_org_member``): the membership gate a manual
+    resolution's ``user_id`` MUST pass before a ``glpi_user_links`` row is
+    ever created for it, so an admin of one organization can never link a
+    GLPI person to a user from a DIFFERENT organization."""
+
+    result = await db.execute(
+        select(OrganizationMember.id).where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def list_org_user_candidates(

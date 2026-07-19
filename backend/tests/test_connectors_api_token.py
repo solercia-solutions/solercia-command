@@ -226,6 +226,40 @@ async def test_register_credentials_against_oauth_connector_returns_404(
     assert credentials_response.status_code == 404
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_register_credentials_with_base_url_outside_allowlist_returns_structured_error(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """CRITICAL/WARNING (revisión 4R del cambio 17-adapter-glpi, fix 6): un
+    `base_url` fuera de `GLPI_BASE_URL_ALLOWLIST` hace que `GlpiClient`
+    lance `GlpiConfigError` en su constructor — debe surgir como un error
+    de dominio estructurado (422), nunca como un 500 sin controlar."""
+
+    import app.integrations.adapters.glpi  # noqa: F401 - registra el adaptador real
+
+    connector_response = await client.post(
+        "/connectors",
+        json={"provider": "glpi", "credential_kind": "api_token"},
+        headers=_auth(two_orgs.a.token),
+    )
+    assert connector_response.status_code == 201, connector_response.text
+    connector_id = connector_response.json()["data"]["id"]
+
+    response = await client.post(
+        f"/connectors/{connector_id}/credentials",
+        json={
+            "base_url": "http://169.254.169.254/apirest.php",
+            "app_token": "app-token-x",
+            "user_token": "user-token-y",
+        },
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "glpi_config_invalid"
+
+
 # ---------------------------------------------------------------------------
 # C17-R3 — authorize distingue oauth/api_token
 # ---------------------------------------------------------------------------

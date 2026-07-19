@@ -19,19 +19,37 @@ import logging
 from collections.abc import Awaitable, Callable
 
 import httpx
+from redis.exceptions import RedisError
 
 from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.glpi.client import GlpiClient
 from app.shared import redis as shared_redis
+from app.shared.exceptions import AppException
 
 logger = logging.getLogger("solercia.glpi.session")
 
 _KEY_PREFIX = "glpi:session:"
 
+_UNAVAILABLE_MESSAGE = (
+    "El servicio de sesión GLPI no está disponible en este momento. "
+    "Inténtalo de nuevo en unos minutos."
+)
+
 
 def _key(connector_id: str) -> str:
     return f"{_KEY_PREFIX}{connector_id}"
+
+
+def _unavailable(exc: Exception) -> AppException:
+    """Translate a raw ``RedisError`` into the SAME domain-error shape
+    ``app/integrations/state_store.py`` uses (WARNING, revisión 4R fix 4) —
+    a 503 ``AppException``, never a raw ``RedisError`` escaping to the
+    caller."""
+
+    return AppException(
+        _UNAVAILABLE_MESSAGE, code="glpi_session_unavailable", status_code=503
+    )
 
 
 async def get_or_init_session(
@@ -52,7 +70,10 @@ async def get_or_init_session(
     """
 
     redis_client = shared_redis.get_redis_client()
-    cached: str | None = await redis_client.get(_key(connector_id))
+    try:
+        cached: str | None = await redis_client.get(_key(connector_id))
+    except RedisError as exc:
+        raise _unavailable(exc) from exc
     if cached is not None:
         return cached
 
@@ -61,9 +82,12 @@ async def get_or_init_session(
         connector_id,
     )
     session_token = await client.init_session(app_token, user_token)
-    await redis_client.set(
-        _key(connector_id), session_token, ex=settings.GLPI_SESSION_TTL_SECONDS
-    )
+    try:
+        await redis_client.set(
+            _key(connector_id), session_token, ex=settings.GLPI_SESSION_TTL_SECONDS
+        )
+    except RedisError as exc:
+        raise _unavailable(exc) from exc
     return session_token
 
 
@@ -71,7 +95,10 @@ async def invalidate_session(connector_id: str) -> None:
     """Delete the cached ``session_token`` for ``connector_id``, if any."""
 
     redis_client = shared_redis.get_redis_client()
-    await redis_client.delete(_key(connector_id))
+    try:
+        await redis_client.delete(_key(connector_id))
+    except RedisError as exc:
+        raise _unavailable(exc) from exc
 
 
 async def with_session_retry[T](
@@ -114,7 +141,10 @@ async def with_session_retry[T](
         # token is left cached regardless of what happens next.
         session_token = await client.init_session(app_token, user_token)
         redis_client = shared_redis.get_redis_client()
-        await redis_client.set(
-            _key(connector_id), session_token, ex=settings.GLPI_SESSION_TTL_SECONDS
-        )
+        try:
+            await redis_client.set(
+                _key(connector_id), session_token, ex=settings.GLPI_SESSION_TTL_SECONDS
+            )
+        except RedisError as exc:
+            raise _unavailable(exc) from exc
         return await operation(session_token)

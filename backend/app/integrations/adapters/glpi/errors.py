@@ -18,6 +18,10 @@ _AUTH_MESSAGE = (
     "Las credenciales de GLPI no son válidas o fueron revocadas. Verifica "
     "el App-Token y el user_token del conector."
 )
+_CONFIG_MESSAGE = (
+    "La configuración del conector GLPI (base_url) no es válida o no está "
+    "permitida. Verifica GLPI_BASE_URL_ALLOWLIST."
+)
 
 
 class GlpiUnavailable(AppException):
@@ -37,3 +41,14 @@ class GlpiAuthError(AppException):
 
     def __init__(self, detail: str = _AUTH_MESSAGE) -> None:
         super().__init__(detail, code="glpi_auth_error", status_code=401)
+
+
+class GlpiConfigInvalid(AppException):
+    """The connector's ``base_url`` failed ``GlpiClient``'s constructor
+    validation (``GlpiConfigError`` — missing ``http(s)://`` scheme or
+    absent from ``GLPI_BASE_URL_ALLOWLIST``, Threat Matrix "SSRF") — a
+    CONFIGURATION error, never transient, so it is translated here instead
+    of escaping as an unhandled 500 (WARNING/CRITICAL, revisión 4R fix 6)."""
+
+    def __init__(self, detail: str = _CONFIG_MESSAGE) -> None:
+        super().__init__(detail, code="glpi_config_invalid", status_code=422)

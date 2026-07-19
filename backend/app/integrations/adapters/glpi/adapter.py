@@ -25,7 +25,7 @@ from app.config import Settings
 from app.config import settings as default_settings
 from app.integrations.adapters.glpi import errors
 from app.integrations.adapters.glpi import session as glpi_session
-from app.integrations.adapters.glpi.client import GlpiClient
+from app.integrations.adapters.glpi.client import GlpiClient, GlpiConfigError
 from app.integrations.adapters.glpi.mapper import map_person, map_ticket
 from app.integrations.dtos import AccountRef, Ticket
 from app.integrations.ports import (
@@ -132,14 +132,18 @@ class _GlpiApiTokenHandshake:
                 "credenciales de GLPI."
             )
 
-        client = GlpiClient(base_url, transport=self._transport, settings=self._settings)
+        client: GlpiClient | None = None
         try:
+            client = GlpiClient(base_url, transport=self._transport, settings=self._settings)
             session_token = await client.init_session(app_token, user_token)
             await client.kill_session(session_token, app_token)
+        except GlpiConfigError as exc:
+            raise errors.GlpiConfigInvalid(str(exc)) from exc
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:
             await _translate_transport_errors(exc)
         finally:
-            await client.aclose()
+            if client is not None:
+                await client.aclose()
 
         # A public, non-secret identifier: a one-way hash of the
         # user_token, never the raw secret itself (mirrors the fake test
@@ -178,8 +182,9 @@ class _GlpiTicketReader:
             payload.get("document_field") or self._settings.GLPI_DEFAULT_DOCUMENT_FIELD
         )
 
-        client = GlpiClient(base_url, transport=self._transport, settings=self._settings)
+        client: GlpiClient | None = None
         try:
+            client = GlpiClient(base_url, transport=self._transport, settings=self._settings)
             return await self._list_tickets_with_client(
                 client,
                 connector_id=connector_id,
@@ -188,10 +193,13 @@ class _GlpiTicketReader:
                 document_field=document_field,
                 limit=limit,
             )
+        except GlpiConfigError as exc:
+            raise errors.GlpiConfigInvalid(str(exc)) from exc
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:
             await _translate_transport_errors(exc)
         finally:
-            await client.aclose()
+            if client is not None:
+                await client.aclose()
 
     async def _list_tickets_with_client(
         self,
@@ -221,57 +229,70 @@ class _GlpiTicketReader:
             ) -> list[dict[str, Any]]:
                 return await client.get_ticket_users(tid, token, app_token)
 
-            ticket_users = await glpi_session.with_session_retry(
-                connector_id,
-                client,
-                app_token,
-                user_token,
-                _fetch_ticket_users,
-                settings=self._settings,
-            )
-
-            assignees = []
-            requester_name: str | None = None
-            for entry in ticket_users:
-                role_type = entry.get("type")
-                user_id = str(entry.get("users_id") or "")
-                if not user_id or role_type not in (_ASSIGNEE_TYPE, _REQUESTER_TYPE):
-                    continue
-
-                async def _fetch_user(token: str, uid: str = user_id) -> dict[str, Any]:
-                    return await client.get_user(uid, token, app_token)
-
-                user_json = await glpi_session.with_session_retry(
+            # CRITICAL (revisión 4R, fix 2): un ticket cuyo lookup de
+            # usuario/email falle (ej. usuario borrado en GLPI, 404) se
+            # OMITE del listado sin tumbar el resto del sync — mismo patrón
+            # de aislamiento N+1 del 16 en google/mail.py. Nunca se loguea
+            # ningún token, solo el `ticket_id`.
+            try:
+                ticket_users = await glpi_session.with_session_retry(
                     connector_id,
                     client,
                     app_token,
                     user_token,
-                    _fetch_user,
+                    _fetch_ticket_users,
                     settings=self._settings,
                 )
 
-                if role_type == _ASSIGNEE_TYPE:
+                assignees = []
+                requester_name: str | None = None
+                for entry in ticket_users:
+                    role_type = entry.get("type")
+                    user_id = str(entry.get("users_id") or "")
+                    if not user_id or role_type not in (_ASSIGNEE_TYPE, _REQUESTER_TYPE):
+                        continue
 
-                    async def _fetch_user_email(
-                        token: str, uid: str = user_id
-                    ) -> list[dict[str, Any]]:
-                        return await client.get_user_email(uid, token, app_token)
+                    async def _fetch_user(token: str, uid: str = user_id) -> dict[str, Any]:
+                        return await client.get_user(uid, token, app_token)
 
-                    emails_json = await glpi_session.with_session_retry(
+                    user_json = await glpi_session.with_session_retry(
                         connector_id,
                         client,
                         app_token,
                         user_token,
-                        _fetch_user_email,
+                        _fetch_user,
                         settings=self._settings,
                     )
-                    assignees.append(
-                        map_person(user_json, emails_json, document_field=document_field)
-                    )
-                else:  # _REQUESTER_TYPE
-                    requester_name = map_person(
-                        user_json, [], document_field=document_field
-                    ).display_name
+
+                    if role_type == _ASSIGNEE_TYPE:
+
+                        async def _fetch_user_email(
+                            token: str, uid: str = user_id
+                        ) -> list[dict[str, Any]]:
+                            return await client.get_user_email(uid, token, app_token)
+
+                        emails_json = await glpi_session.with_session_retry(
+                            connector_id,
+                            client,
+                            app_token,
+                            user_token,
+                            _fetch_user_email,
+                            settings=self._settings,
+                        )
+                        assignees.append(
+                            map_person(user_json, emails_json, document_field=document_field)
+                        )
+                    else:  # _REQUESTER_TYPE
+                        requester_name = map_person(
+                            user_json, [], document_field=document_field
+                        ).display_name
+            except (httpx.HTTPStatusError, httpx.RequestError):
+                logger.warning(
+                    "No fue posible resolver los usuarios del ticket GLPI %s; "
+                    "se omite del listado.",
+                    ticket_id,
+                )
+                continue
 
             tickets.append(map_ticket(raw_ticket, assignees=assignees, requester=requester_name))
 

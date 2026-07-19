@@ -30,13 +30,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations import crypto
 from app.integrations.adapters.glpi.adapter import encode_access_context
-from app.integrations.dtos import ExternalPerson
+from app.integrations.dtos import ExternalPerson, Ticket
 from app.integrations.ports import AccessContext, Capability, TicketReaderPort
 from app.integrations.registry import get_adapter
 from app.modules.connectors.repository import ConnectedAccountRepository, ConnectorRepository
 from app.modules.glpi_sync.repository import (
     GlpiUnmatchedRepository,
     GlpiUserLinkRepository,
+    is_org_member,
     list_org_user_candidates,
 )
 from app.modules.glpi_sync.schemas import (
@@ -45,12 +46,12 @@ from app.modules.glpi_sync.schemas import (
     UnmatchedAssigneeRead,
 )
 from app.modules.organizations.models import OrganizationMember
-from app.shared.enums import MatchMethod
+from app.shared.enums import MatchMethod, UnmatchedStatus
 from app.shared.exceptions import AppException
 
 if TYPE_CHECKING:
     from app.modules.connectors.models import Connector
-    from app.modules.glpi_sync.models import GlpiUserLink
+    from app.modules.glpi_sync.models import GlpiUnmatchedAssignee, GlpiUserLink
     from app.modules.users.models import User
 
 logger = logging.getLogger("solercia.glpi_sync")
@@ -285,7 +286,7 @@ class GlpiSyncService:
         organization_id: uuid.UUID,
         connector_id: uuid.UUID,
         person: ExternalPerson,
-        ticket: object,
+        ticket: Ticket,
         org_users: Sequence["User"],
         membership: OrganizationMember,
     ) -> tuple[int, int]:
@@ -328,9 +329,9 @@ class GlpiSyncService:
         )
         appended = await self.unmatched.append_case(
             header.id,
-            glpi_ticket_id=ticket.external_id,  # type: ignore[attr-defined]
-            glpi_ticket_title=ticket.summary,  # type: ignore[attr-defined]
-            glpi_ticket_status=ticket.status,  # type: ignore[attr-defined]
+            glpi_ticket_id=ticket.external_id,
+            glpi_ticket_title=ticket.summary,
+            glpi_ticket_status=ticket.status,
         )
         return (0, 1 if appended is not None else 0)
 
@@ -398,6 +399,18 @@ class GlpiSyncService:
                 code="unmatched_not_found",
                 status_code=404,
             )
+        self._require_pending(header)
+
+        # CRITICAL (revisión 4R, fix 1): `user_id` viene del request — sin
+        # esta comprobación, un admin de `organization_id` podría enlazar
+        # una persona GLPI de SU organización a un `user_id` de OTRA
+        # organización (cruce de tenant). Rechazado ANTES de crear nada.
+        if not await is_org_member(self.db, organization_id, user_id):
+            raise AppException(
+                "El usuario indicado no pertenece a esta organización.",
+                code="glpi_resolve_user_not_member",
+                status_code=422,
+            )
 
         try:
             link = await self.links.create(
@@ -434,8 +447,23 @@ class GlpiSyncService:
                 code="unmatched_not_found",
                 status_code=404,
             )
+        self._require_pending(header)
         await self.unmatched.mark_ignored(header, actor_id=membership.user_id)
         await self.db.commit()
+
+    @staticmethod
+    def _require_pending(header: "GlpiUnmatchedAssignee") -> None:
+        """WARNING (revisión 4R, fix 5): resolve/ignore SOLO proceden sobre
+        una entrada ``pending`` — una entrada ya resuelta o ignorada
+        responde 409 en lugar de crear un segundo link o cambiar el estado
+        de nuevo (máquina de estados)."""
+
+        if header.status != UnmatchedStatus.pending:
+            raise AppException(
+                "Esta entrada de la cola ya fue procesada (resuelta o ignorada).",
+                code="glpi_unmatched_already_processed",
+                status_code=409,
+            )
 
     # -- Confirmed links ---------------------------------------------------
 

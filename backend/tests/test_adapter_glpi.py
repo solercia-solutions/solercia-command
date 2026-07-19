@@ -231,6 +231,70 @@ class TestGlpiClientBase:
         assert len(tickets) == 2
         assert call_count == 1
 
+    @pytest.mark.asyncio
+    async def test_transient_5xx_is_retried_with_backoff_until_success(self) -> None:
+        """WARNING (revisión 4R, fix 3): un 500 transitorio se reintenta con
+        backoff (`GLPI_MAX_RETRIES`/`GLPI_MAX_BACKOFF_SECONDS`) hasta tener
+        éxito — el `sleep` inyectado nunca espera de verdad en el test."""
+
+        from app.integrations.adapters.glpi.client import GlpiClient
+
+        payload = _load_fixture("init_session.json")
+        call_count = 0
+        sleeps: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            sleeps.append(seconds)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(500, json={"error": "internal"})
+            return httpx.Response(200, json=payload)
+
+        client = GlpiClient(
+            _ALLOWED_BASE_URL,
+            transport=httpx.MockTransport(handler),
+            settings=_settings(GLPI_MAX_RETRIES=3, GLPI_MAX_BACKOFF_SECONDS=1.0),
+            sleep=fake_sleep,
+        )
+
+        session_token = await client.init_session("app-token-xyz", "user-token-abc")
+
+        assert session_token == "glpi-session-token-abc123"
+        assert call_count == 2
+        assert len(sleeps) == 1
+
+    @pytest.mark.asyncio
+    async def test_persistent_5xx_raises_after_max_retries(self) -> None:
+        """WARNING (revisión 4R, fix 3): un 5xx persistente agota
+        `GLPI_MAX_RETRIES` reintentos y finalmente propaga el error."""
+
+        from app.integrations.adapters.glpi.client import GlpiClient
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            return None
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(503, json={"error": "unavailable"})
+
+        client = GlpiClient(
+            _ALLOWED_BASE_URL,
+            transport=httpx.MockTransport(handler),
+            settings=_settings(GLPI_MAX_RETRIES=2, GLPI_MAX_BACKOFF_SECONDS=1.0),
+            sleep=fake_sleep,
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.init_session("app-token-xyz", "user-token-abc")
+
+        assert call_count == 3  # 1 intento inicial + 2 reintentos
+
 
 # ---------------------------------------------------------------------------
 # Lote 5 — Cache de session_token en Redis + reinicio ante 401
@@ -401,6 +465,40 @@ class TestGlpiSessionCache:
 
         cached = await fake_redis.get(_session_key(_CONNECTOR_ID))
         assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_redis_failure_on_get_or_init_session_raises_503_app_exception(
+        self, patched_redis, fake_redis, monkeypatch
+    ) -> None:
+        """WARNING (revisión 4R, fix 4): un Redis caído durante
+        `get_or_init_session` se traduce a un 503 `AppException` de
+        dominio — nunca deja escapar el `RedisError` crudo (mismo patrón
+        que `app/integrations/state_store.py`)."""
+
+        from redis.exceptions import ConnectionError as RedisConnectionError
+
+        from app.integrations.adapters.glpi import session as glpi_session
+        from app.integrations.adapters.glpi.client import GlpiClient
+        from app.shared.exceptions import AppException
+
+        async def _boom(*args, **kwargs):
+            raise RedisConnectionError("connection refused")
+
+        monkeypatch.setattr(fake_redis, "get", _boom)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"session_token": _FRESH_TOKEN})
+
+        client = GlpiClient(
+            _ALLOWED_BASE_URL, transport=httpx.MockTransport(handler), settings=_settings()
+        )
+
+        with pytest.raises(AppException) as exc_info:
+            await glpi_session.get_or_init_session(
+                _CONNECTOR_ID, client, "app-token-xyz", "user-token-abc", settings=_settings()
+            )
+
+        assert exc_info.value.status_code == 503
 
     @pytest.mark.asyncio
     async def test_no_secret_leaks_in_logs_or_exception_text(
@@ -672,6 +770,51 @@ class TestGlpiAdapterListTickets:
         assert ticket.assignees == ()
         assert ticket.requester == "Diana Páez"
 
+    @pytest.mark.asyncio
+    async def test_ticket_whose_assignee_lookup_fails_is_skipped_others_continue(
+        self, patched_redis
+    ) -> None:
+        """CRITICAL (revisión 4R, fix 2): 3 tickets, el segundo con un
+        usuario asignado borrado en GLPI (404 en `/User/{id}`) — se omite
+        SOLO ese ticket (con `logger.warning`, sin tokens) y los otros 2 se
+        procesan con normalidad (patrón del 16 en google/mail.py)."""
+
+        from app.integrations.ports import Capability
+
+        tickets_json = [
+            {"id": 301, "name": "Caso 301", "status": 1, "priority": 1},
+            {"id": 302, "name": "Caso 302 (usuario borrado)", "status": 1, "priority": 1},
+            {"id": 303, "name": "Caso 303", "status": 1, "priority": 1},
+        ]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            path = request.url.path
+            if path.endswith("/initSession"):
+                return httpx.Response(200, json={"session_token": _FRESH_TOKEN})
+            if path.endswith("/killSession"):
+                return httpx.Response(200, json={})
+            if path.endswith("/Ticket_User"):
+                ticket_id = path.rsplit("/", 2)[1]
+                users_id = {"301": 55, "302": 66, "303": 55}[ticket_id]
+                return httpx.Response(200, json=[{"users_id": users_id, "type": 2}])
+            if path.endswith("/UserEmail"):
+                return httpx.Response(200, json=_load_fixture("user_email.json"))
+            if path.endswith("/User/66"):
+                return httpx.Response(404, json={"error": "user not found"})
+            if "/User/" in path:
+                return httpx.Response(200, json=_load_fixture("user.json"))
+            if path.endswith("/Ticket"):
+                return httpx.Response(
+                    206, json=tickets_json, headers={"Content-Range": "0-2/3"}
+                )
+            return httpx.Response(404, json={"error": "not_found"})
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        tickets = await port.list_tickets(_ctx_for("conn-skip"), limit=50)
+
+        assert [t.external_id for t in tickets] == ["301", "303"]
+
 
 class TestGlpiWriteBoundary:
     def test_no_write_http_verb_used_anywhere_except_init_session(self) -> None:
@@ -730,6 +873,64 @@ class TestGlpiErrors:
 
         cached = await fake_redis.get(_session_key("conn-d"))
         assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_base_url_outside_allowlist_raises_domain_error_not_500(
+        self, patched_redis
+    ) -> None:
+        """CRITICAL/WARNING (revisión 4R, fix 6): un `base_url` fuera de
+        `GLPI_BASE_URL_ALLOWLIST` hace que `GlpiClient.__init__` lance
+        `GlpiConfigError` — la lista de tickets debe traducirlo a un error
+        de dominio (`GlpiConfigInvalid`, 422), nunca dejarlo escapar como
+        un `ValueError`/500 sin controlar."""
+
+        from app.integrations.adapters.glpi import errors
+        from app.integrations.adapters.glpi.adapter import GlpiAdapter, encode_access_context
+        from app.integrations.ports import AccessContext, Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+            raise AssertionError("no debería hacerse ninguna petición HTTP")
+
+        adapter = GlpiAdapter(settings=_settings(), transport=httpx.MockTransport(handler))
+        payload = encode_access_context(
+            connector_id="conn-bad-url",
+            base_url="http://169.254.169.254/apirest.php",
+            app_token="app-token-xyz",
+            user_token="user-token-abc",
+        )
+        ctx = AccessContext(access_token=payload, refresh_token=None, scopes=())
+
+        port = adapter.port_for(Capability.tickets)
+        with pytest.raises(errors.GlpiConfigInvalid) as exc_info:
+            await port.list_tickets(ctx, limit=50)
+
+        assert exc_info.value.status_code == 422
+        assert exc_info.value.code == "glpi_config_invalid"
+
+    @pytest.mark.asyncio
+    async def test_api_token_connect_with_base_url_outside_allowlist_raises_domain_error(
+        self,
+    ) -> None:
+        """Same boundary as above but through `ApiTokenHandshake.connect`
+        (used by `POST /connectors/{id}/credentials`, C17-R2)."""
+
+        from app.integrations.adapters.glpi import errors
+
+        def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+            raise AssertionError("no debería hacerse ninguna petición HTTP")
+
+        adapter = _glpi_adapter_for(handler)
+
+        with pytest.raises(errors.GlpiConfigInvalid) as exc_info:
+            await adapter.api_token.connect(
+                {
+                    "base_url": "http://169.254.169.254/apirest.php",
+                    "app_token": "app-token-xyz",
+                    "user_token": "user-token-abc",
+                }
+            )
+
+        assert exc_info.value.status_code == 422
 
 
 class TestGlpiMultiTenant:
