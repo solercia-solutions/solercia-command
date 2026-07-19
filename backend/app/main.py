@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import engine
 from app.db_init import seed_default
 from app.email.scheduler import register_delivery_jobs
+from app.integrations import crypto as integrations_crypto
 from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.assets.router import router as assets_router
@@ -83,6 +84,11 @@ async def lifespan(app: FastAPI):
     exists (see ADR 0003 and design.md Decision 1 of change 01-fundacion-tdd).
     """
 
+    # Fail fast on a misconfigured Fernet key — before any DB/scheduler work
+    # so a bad INTEGRATIONS_FERNET_KEY never limps into "serving traffic
+    # with a broken crypto layer" (only surfaced today on the first OAuth
+    # callback that tries to encrypt a token).
+    integrations_crypto.validate_key(settings.INTEGRATIONS_FERNET_KEY)
     await _wait_for_db()
     await seed_default()
     # The alert scheduler must never block app startup: a failure here is logged

@@ -1,9 +1,10 @@
 """Connector routes: CRUD + OAuth flow with RBAC (change 14-integration-ports).
 
 Writes (``POST``/``PATCH``/``DELETE`` on ``/connectors``) require
-``require_role(admin, manager)`` — the PRIMER consumidor real de esta
-dependencia (``app/dependencies.py``, distinta del RBAC ``require_admin``
-que usan ``assets``). Reads (``GET``) are open to any authenticated member
+``require_role(admin, manager)`` — el SEGUNDO consumidor cableado de esta
+dependencia (``app/dependencies.py``; el primero fue ``projects/router.py``,
+cambio 21), distinta del RBAC ``require_admin`` que usan ``assets``. Reads
+(``GET``) are open to any authenticated member
 (``get_current_membership``) — a member needs to know what it CAN connect
 before it has admin/manager rights. ``GET /connectors/{id}/authorize`` is a
 browser navigation (membership only, ``302`` to the IdP); ``GET

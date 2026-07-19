@@ -40,3 +40,54 @@ async def test_pop_after_ttl_expiry_returns_none(patched_redis) -> None:
     await asyncio.sleep(1.2)
 
     assert await state_store.pop("state-expiring") is None
+
+
+# ---------------------------------------------------------------------------
+# Redis caído — traducción a AppException 503 (Fix WARNING 14-integration-ports,
+# revisión 4R). Both `put` and `pop` must never leak a raw ``RedisError``.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_put_translates_redis_errors_to_a_503_app_exception(
+    patched_redis, monkeypatch
+) -> None:
+    """A Redis connection failure on ``put()`` surfaces as a 503
+    ``AppException`` with a stable code, never a raw ``ConnectionError``."""
+
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from app.shared.exceptions import AppException
+
+    async def _boom(*args, **kwargs):
+        raise RedisConnectionError("connection refused")
+
+    monkeypatch.setattr(patched_redis, "set", _boom)
+
+    with pytest.raises(AppException) as exc_info:
+        await state_store.put("state-unavailable", {"connector_id": "conn-1"}, ttl=60)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "integration_state_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_pop_translates_redis_errors_to_a_503_app_exception(
+    patched_redis, monkeypatch
+) -> None:
+    """Same translation on ``pop()`` — the OAuth callback's read path."""
+
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from app.shared.exceptions import AppException
+
+    async def _boom(*args, **kwargs):
+        raise RedisConnectionError("connection refused")
+
+    monkeypatch.setattr(patched_redis, "getdel", _boom)
+
+    with pytest.raises(AppException) as exc_info:
+        await state_store.pop("state-unavailable")
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "integration_state_unavailable"

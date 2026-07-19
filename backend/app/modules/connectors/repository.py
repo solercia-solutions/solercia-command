@@ -73,17 +73,28 @@ class ConnectedAccountRepository:
         self.db = db
 
     async def get_by_external_id(
-        self, connector_id: uuid.UUID, external_account_id: str
+        self,
+        connector_id: uuid.UUID,
+        external_account_id: str,
+        *,
+        include_inactive: bool = False,
     ) -> ConnectedAccount | None:
-        """Return the active account for ``(connector_id, external_account_id)``."""
+        """Return the account for ``(connector_id, external_account_id)``.
 
-        result = await self.db.execute(
-            select(ConnectedAccount).where(
-                ConnectedAccount.connector_id == connector_id,
-                ConnectedAccount.external_account_id == external_account_id,
-                ConnectedAccount.is_active.is_(True),
-            )
-        )
+        ``include_inactive=True`` also matches a soft-deleted row —
+        ``upsert_account`` needs it to REACTIVATE a previously disconnected
+        account instead of colliding with
+        ``uq_connected_accounts_connector_external``, which does NOT exclude
+        soft-deleted rows.
+        """
+
+        conditions = [
+            ConnectedAccount.connector_id == connector_id,
+            ConnectedAccount.external_account_id == external_account_id,
+        ]
+        if not include_inactive:
+            conditions.append(ConnectedAccount.is_active.is_(True))
+        result = await self.db.execute(select(ConnectedAccount).where(*conditions))
         return result.scalar_one_or_none()
 
     async def upsert_account(
@@ -95,21 +106,36 @@ class ConnectedAccountRepository:
         external_account_id: str,
         display_name: str | None = None,
         actor_id: uuid.UUID | None = None,
+        commit: bool = True,
     ) -> ConnectedAccount:
-        """Create or update the ``ConnectedAccount`` for ``external_account_id``.
+        """Create, update or REACTIVATE the ``ConnectedAccount`` for
+        ``external_account_id``.
 
         Unicidad por ``external_account_id`` DENTRO del conector (decisión
         ratificada #1): repeating the OAuth flow for the SAME external
-        account updates the existing row in place — never a duplicate.
+        account updates the existing row in place — never a duplicate. A
+        previously disconnected (soft-deleted) row is REACTIVATED in place
+        for the same reason: the UNIQUE constraint on
+        ``(connector_id, external_account_id)`` does not exclude
+        soft-deleted rows, so inserting a new one would collide.
+
+        ``commit=False`` flushes instead of committing so callers needing
+        atomicity across multiple writes (the OAuth callback, which also
+        persists ``ConnectionCredentials``) can commit once at the end.
         """
 
-        existing = await self.get_by_external_id(connector_id, external_account_id)
+        existing = await self.get_by_external_id(
+            connector_id, external_account_id, include_inactive=True
+        )
         if existing is not None:
             existing.status = AccountStatus.active
             existing.updated_by = actor_id
+            if not existing.is_active:
+                existing.is_active = True
+                existing.deleted_at = None
             if display_name is not None:
                 existing.display_name = display_name
-            await self.db.commit()
+            await self._commit_or_flush(commit)
             await self.db.refresh(existing)
             return existing
 
@@ -124,9 +150,19 @@ class ConnectedAccountRepository:
             updated_by=actor_id,
         )
         self.db.add(account)
-        await self.db.commit()
+        await self._commit_or_flush(commit)
         await self.db.refresh(account)
         return account
+
+    async def _commit_or_flush(self, commit: bool) -> None:
+        """``commit=True`` commits; ``commit=False`` only flushes (caller
+        owns the transaction boundary — see ``upsert_account``/
+        ``save_credentials``'s ``commit`` parameter)."""
+
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
 
     async def get_credentials(
         self, connected_account_id: uuid.UUID
@@ -150,8 +186,14 @@ class ConnectedAccountRepository:
         expires_at: datetime | None,
         token_type: str | None,
         scopes: list[str] | None,
+        commit: bool = True,
     ) -> ConnectionCredentials:
-        """Create or update (1:1) the encrypted credentials for an account."""
+        """Create or update (1:1) the encrypted credentials for an account.
+
+        ``commit=False`` flushes instead of committing — see
+        ``upsert_account``'s docstring: the OAuth callback commits both
+        writes together, once, for atomicity.
+        """
 
         existing = await self.get_credentials(connected_account_id)
         if existing is not None:
@@ -160,7 +202,7 @@ class ConnectedAccountRepository:
             existing.expires_at = expires_at
             existing.token_type = token_type
             existing.scopes = scopes
-            await self.db.commit()
+            await self._commit_or_flush(commit)
             await self.db.refresh(existing)
             return existing
 
@@ -174,7 +216,7 @@ class ConnectedAccountRepository:
             scopes=scopes,
         )
         self.db.add(credentials)
-        await self.db.commit()
+        await self._commit_or_flush(commit)
         await self.db.refresh(credentials)
         return credentials
 

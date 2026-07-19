@@ -31,6 +31,7 @@ el router nunca usa SQLAlchemy directamente.
 | `DATABASE_URL`                | `postgresql+asyncpg://app:app@postgres:5432/solercia`      |
 | `REDIS_URL`                   | `redis://redis:6379/0`                                      |
 | `JWT_SECRET`                  | `dev-secret-change-me` (cámbialo en producción)            |
+| `INTEGRATIONS_FERNET_KEY`     | llave de desarrollo fija (cámbiala en producción — genera una con `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`) |
 | `JWT_ALG`                     | `HS256`                                                     |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `480`                                                      |
 | `CORS_ORIGINS`                | `["http://localhost:4200"]`                                |

@@ -223,21 +223,33 @@ class ConnectorService:
             crypto.encrypt(tokens.refresh_token) if tokens.refresh_token else None
         )
 
-        account = await self.accounts.upsert_account(
-            organization_id=organization_id,
-            connector_id=connector.id,
-            user_id=user_id,
-            external_account_id=tokens.external_account_id,
-        )
-        await self.accounts.save_credentials(
-            connected_account_id=account.id,
-            organization_id=organization_id,
-            access_token_enc=access_token_enc,
-            refresh_token_enc=refresh_token_enc,
-            expires_at=tokens.expires_at,
-            token_type="Bearer",
-            scopes=list(tokens.scopes) if tokens.scopes else None,
-        )
+        # Persist the account + its credentials as ONE transaction: both
+        # writes flush without committing, then a single commit closes the
+        # transaction. If ``save_credentials`` fails, the rollback undoes
+        # the ``upsert_account`` write too — no half-created account
+        # survives a failed callback.
+        try:
+            account = await self.accounts.upsert_account(
+                organization_id=organization_id,
+                connector_id=connector.id,
+                user_id=user_id,
+                external_account_id=tokens.external_account_id,
+                commit=False,
+            )
+            await self.accounts.save_credentials(
+                connected_account_id=account.id,
+                organization_id=organization_id,
+                access_token_enc=access_token_enc,
+                refresh_token_enc=refresh_token_enc,
+                expires_at=tokens.expires_at,
+                token_type="Bearer",
+                scopes=list(tokens.scopes) if tokens.scopes else None,
+                commit=False,
+            )
+            await self.accounts.db.commit()
+        except Exception:
+            await self.accounts.db.rollback()
+            raise
 
         logger.info(
             "Callback de conector procesado: connector_id=%s external_account_id=%s",

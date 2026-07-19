@@ -288,6 +288,112 @@ async def test_unknown_state_is_rejected_without_registering_anything(
     assert count_result.scalar_one_or_none() is None
 
 
+# ---------------------------------------------------------------------------
+# Atomicidad del callback — falla al guardar credenciales no deja la cuenta
+# a medias (Fix CRITICAL 14-integration-ports, revisión 4R)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_callback_failure_saving_credentials_rolls_back_the_account_too(
+    client: AsyncClient,
+    session: AsyncSession,
+    two_orgs: TwoOrgs,
+    patched_redis,
+    monkeypatch,
+) -> None:
+    """If persisting ``ConnectionCredentials`` fails AFTER the account was
+    upserted, the WHOLE callback rolls back — no half-created account
+    survives the failure (single transaction, not two independent commits).
+
+    The client's ``ASGITransport`` re-raises unhandled exceptions instead of
+    surfacing the 500 response (httpx's ``raise_app_exceptions`` default —
+    see the generic ``Exception`` handler in ``app/shared/exceptions.py``,
+    which DOES produce the 500 for a real server), so this asserts on the
+    propagated exception directly.
+    """
+
+    from app.modules.connectors.repository import ConnectedAccountRepository
+
+    async def _boom(self, **kwargs):
+        raise RuntimeError("boom-save-credentials")
+
+    monkeypatch.setattr(ConnectedAccountRepository, "save_credentials", _boom)
+
+    connector_id = await _create_fake_connector(client, two_orgs.a.token)
+    authorize_response = await _authorize(client, two_orgs.a.token, connector_id)
+    state = _state_from_location(authorize_response.headers["location"])
+
+    with pytest.raises(RuntimeError, match="boom-save-credentials"):
+        await client.get(
+            "/connectors/oauth/callback",
+            params={"code": "atomic-fail", "state": state},
+        )
+
+    result = await session.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.external_account_id == "fake-account-atomic-fail"
+        )
+    )
+    assert result.scalar_one_or_none() is None
+
+
+# ---------------------------------------------------------------------------
+# Reconexión tras desconectar — no debe colisionar con el UNIQUE de la fila
+# soft-deleted (Fix CRITICAL 14-integration-ports, revisión 4R)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_reconnecting_after_disconnect_reactivates_without_500_or_duplicates(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, patched_redis
+) -> None:
+    """Disconnecting a connected account and then repeating the OAuth flow
+    for the SAME external account REACTIVATES the existing (soft-deleted)
+    row — 200, no duplicate, no collision against
+    ``uq_connected_accounts_connector_external`` (that UNIQUE constraint does
+    NOT exclude soft-deleted rows)."""
+
+    connector_id = await _create_fake_connector(client, two_orgs.a.token)
+
+    first_auth = await _authorize(client, two_orgs.a.token, connector_id)
+    first_state = _state_from_location(first_auth.headers["location"])
+    first_cb = await client.get(
+        "/connectors/oauth/callback",
+        params={"code": "reconnect-after-disconnect", "state": first_state},
+    )
+    assert first_cb.status_code == 200, first_cb.text
+    account_id = first_cb.json()["data"]["id"]
+
+    disconnect_response = await client.delete(
+        f"/connected-accounts/{account_id}", headers=_auth(two_orgs.a.token)
+    )
+    assert disconnect_response.status_code == 204
+
+    second_auth = await _authorize(client, two_orgs.a.token, connector_id)
+    second_state = _state_from_location(second_auth.headers["location"])
+    second_cb = await client.get(
+        "/connectors/oauth/callback",
+        params={"code": "reconnect-after-disconnect", "state": second_state},
+    )
+
+    assert second_cb.status_code == 200, second_cb.text
+    assert second_cb.json()["data"]["id"] == account_id
+    assert second_cb.json()["data"]["status"] == "active"
+
+    count_result = await session.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.external_account_id
+            == "fake-account-reconnect-after-disconnect"
+        )
+    )
+    rows = count_result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].is_active is True
+
+
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
 async def test_provider_error_is_rejected_without_partial_records(

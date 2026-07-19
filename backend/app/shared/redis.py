@@ -23,6 +23,16 @@ from app.config import settings
 
 @lru_cache
 def get_redis_client() -> redis.Redis:
-    """Return a cached, process-wide asyncio Redis client."""
+    """Return a cached, process-wide asyncio Redis client.
 
-    return redis.from_url(settings.REDIS_URL, decode_responses=True)
+    ``socket_connect_timeout``/``socket_timeout`` bound how long a caller
+    can hang against an unreachable or overloaded Redis instead of blocking
+    indefinitely — a slow/dead Redis must fail fast, not stall the request.
+    """
+
+    return redis.from_url(
+        settings.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )

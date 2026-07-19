@@ -1,11 +1,12 @@
 """Tests for the connectors module — CRUD with RBAC (change 14-integration-ports).
 
 C-R1 Aislamiento multi-tenant · C-R2 CRUD con permisos por rol (`require_role
-admin|manager` — PRIMER consumidor real de esta dependencia,
-`app/dependencies.py:149`, distinta del RBAC `require_admin` que usa
-`assets`) · C-R9 Envelope `{data, message, meta}`. Escrituras: `two_orgs` ya
-siembra `role=admin`, así que `create_asset`-style `rbac_admin` NO aplica
-aquí — se usa `make_member` para construir un `manager` y un `member`.
+admin|manager` — SEGUNDO consumidor cableado de esta dependencia,
+`app/dependencies.py:149`; el primero fue `projects/router.py` (cambio 21),
+distinta del RBAC `require_admin` que usa `assets`) · C-R9 Envelope `{data,
+message, meta}`. Escrituras: `two_orgs` ya siembra `role=admin`, así que
+`create_asset`-style `rbac_admin` NO aplica aquí — se usa `make_member` para
+construir un `manager` y un `member`.
 """
 
 import pytest

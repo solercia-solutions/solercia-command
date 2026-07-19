@@ -16,6 +16,25 @@ def _fernet() -> Fernet:
     return Fernet(settings.INTEGRATIONS_FERNET_KEY.encode("utf-8"))
 
 
+def validate_key(key: str) -> None:
+    """Fail fast with a clear message when ``key`` is not a well-formed
+    Fernet key (urlsafe-base64, 32 raw bytes).
+
+    Called from ``app/main.py``'s lifespan at boot so a misconfigured
+    ``INTEGRATIONS_FERNET_KEY`` breaks startup immediately instead of only
+    surfacing later when the first OAuth callback tries to encrypt a token.
+    """
+
+    try:
+        Fernet(key.encode("utf-8"))
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError(
+            "INTEGRATIONS_FERNET_KEY no es una llave Fernet válida. Genera "
+            "una con: python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\""
+        ) from exc
+
+
 def encrypt(plaintext: str) -> str:
     """Encrypt ``plaintext`` and return the ciphertext as a str token."""
 
