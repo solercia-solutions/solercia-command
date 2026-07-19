@@ -24,18 +24,33 @@ into a dedicated ``OAuthHandshake`` Protocol so an ``api_token`` adapter
 with a dummy/``NotImplementedError`` body — the exact "mega-Protocol con
 ramas None" anti-pattern design.md's Rejected Alternatives already ruled
 out for capabilities, now ruled out for handshakes too.
+
+``ExternalResourceReaderPort``/``Capability.external_resources``/
+``CredentialKind.none``/``IntegrationAdapter.credential_kinds`` (change
+19-mcp-connector, specs/integration-ports/spec.md delta, IP-R1/IP-R2/IP-R3)
+extend the SAME discipline one more axis: a provider whose ONLY sensible
+shape is "list/read/discover, plus one gated invoke" (MCP) gets its own
+disjoint port instead of overloading an existing one. ``credential_kinds``
+is additive to (never replaces) the existing singular ``credential_kind`` —
+every PRE-19 adapter (fake/M365/Google: always ``oauth``; GLPI/Jira: always
+``api_token``) keeps a FIXED kind; ``mcp`` is the first adapter whose
+connectors may be EITHER ``api_token`` OR ``none`` depending on how the
+admin registers the server, which a single-valued field cannot express.
 """
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.integrations.dtos import (
     AccountRef,
     CalendarEvent,
+    ExternalResource,
+    ExternalResourceContent,
     ExternalTask,
+    ExternalTool,
     MailMessage,
     MeetingNote,
     OAuthTokens,
@@ -51,6 +66,9 @@ class Capability(StrEnum):
     external_tasks = "external_tasks"
     meeting_notes = "meeting_notes"
     tickets = "tickets"
+    # Change 19-mcp-connector, IP-R1 — read-only discovery over a generic
+    # external resource/tool provider (MCP servers, first consumer).
+    external_resources = "external_resources"
 
 
 @dataclass(frozen=True)
@@ -103,17 +121,52 @@ class TicketReaderPort(Protocol):
     ) -> list[Ticket]: ...
 
 
+class ExternalResourceReaderPort(Protocol):
+    """Read-only discovery + gated invocation over a generic external
+    resource/tool provider (change 19-mcp-connector, IP-R1 — first
+    consumer: MCP servers).
+
+    ``call_tool`` is the ONE narrow exception to "solo lectura" the core
+    tolerates in this wave (specs/integration-ports/spec.md delta, MODIFIED
+    Requirement "Frontera solo-lectura estricta"): it is NEVER safe by
+    itself — an adapter MAY declare it only when it also applies
+    default-deny + the provider's own ``readOnlyHint`` + an explicit
+    per-connector allowlist (mcp-connector/spec.md MC-R5). This Protocol
+    cannot enforce that at the type level (Python `Protocol`s are
+    structural, not runtime-checked here) — the enforcement itself is
+    proven live against the fake MCP server (Lote 4's
+    `test_mcp_adapter_reader.py`) and the REST layer (Lote 6's
+    `test_connectors_mcp_reader.py`), never merely assumed from this
+    signature existing.
+    """
+
+    async def list_resources(self, ctx: AccessContext) -> list[ExternalResource]: ...
+
+    async def read_resource(self, ctx: AccessContext, uri: str) -> ExternalResourceContent: ...
+
+    async def list_tools(self, ctx: AccessContext) -> list[ExternalTool]: ...
+
+    async def call_tool(
+        self, ctx: AccessContext, name: str, arguments: dict[str, Any]
+    ) -> ExternalResourceContent: ...
+
+
 class CredentialKind(StrEnum):
     """How a connector's credentials are obtained (change 17-adapter-glpi).
 
     ``oauth`` — delegated browser handshake (authorize/callback), the ONLY
     kind change 14 originally modeled. ``api_token`` — direct credential
     registration (GLPI's App-Token + user_token, validated via
-    ``initSession``), no browser redirection, no ``state``.
+    ``initSession``), no browser redirection, no ``state``. ``none``
+    (change 19-mcp-connector, specs/connectors/spec.md delta C-R1) — the
+    external server requires NO credential at all (e.g. a public MCP
+    server); adding this value NEVER redefines ``oauth``/``api_token``,
+    which change 17-adapter-glpi keeps sole ownership of.
     """
 
     oauth = "oauth"
     api_token = "api_token"
+    none = "none"
 
 
 class OAuthHandshake(Protocol):
@@ -169,11 +222,22 @@ class IntegrationAdapter(Protocol):
     ``credential_kind`` FIRST and only then touches the matching attribute,
     so an adapter never needs to half-implement the handshake it does not
     support (IP17-R2).
+
+    ``credential_kinds`` (change 19-mcp-connector, IP-R3) is ADDITIVE, never
+    a replacement: every pre-19 adapter has a FIXED ``credential_kind``
+    (fake/M365/Google: ``oauth``; GLPI/Jira: ``api_token``), so
+    ``credential_kinds`` for those is just ``frozenset({credential_kind})``.
+    ``mcp`` is the first adapter whose CONNECTORS may be registered as
+    EITHER ``api_token`` OR ``none`` (an admin's per-server choice) — a
+    single scalar field cannot express "this adapter accepts either of
+    these two", so ``credential_kinds`` is the set the connectors service
+    validates a registration request's chosen ``credential_kind`` against.
     """
 
     provider: str
     capabilities: frozenset[Capability]
     credential_kind: CredentialKind
+    credential_kinds: frozenset[CredentialKind]
     oauth: OAuthHandshake | None
     api_token: ApiTokenHandshake | None
 

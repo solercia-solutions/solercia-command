@@ -208,6 +208,9 @@ class JiraAdapter:
     provider = "jira"
     capabilities = frozenset({Capability.tickets})
     credential_kind = CredentialKind.api_token
+    # Change 19-mcp-connector, IP-R3 — additive, mirrors `credential_kind`
+    # for every adapter that (unlike `mcp`) only ever registers ONE kind.
+    credential_kinds = frozenset({CredentialKind.api_token})
 
     def __init__(
         self,

@@ -43,6 +43,9 @@ class Microsoft365Adapter:
     )
 
     credential_kind = CredentialKind.oauth
+    # Change 19-mcp-connector, IP-R3 — additive, mirrors `credential_kind`
+    # for every adapter that (unlike `mcp`) only ever registers ONE kind.
+    credential_kinds = frozenset({CredentialKind.oauth})
 
     def __init__(self, settings: Settings = default_settings) -> None:
         self._settings = settings

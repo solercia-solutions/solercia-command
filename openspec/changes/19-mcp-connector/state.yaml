@@ -1,0 +1,29 @@
+change: 19-mcp-connector
+artifact_store: hybrid
+depends_on:
+  - 14-integration-ports
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - mcp-connector
+  modified:
+    - integration-ports
+    - connectors
+constraints:
+  - backend-only
+  - strict-tdd
+  - rollback-required
+  - read-only-mvp
+last_updated: 2026-07-18
