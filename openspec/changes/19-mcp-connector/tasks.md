@@ -73,10 +73,10 @@ Chain strategy: size-exception
 
 ## Lote 5 — Registro import-time del adaptador (Commit 5)
 
-- [ ] 5.1 RED `backend/tests/test_mcp_adapter_registry.py`: `get_adapter("mcp")` disponible tras importar el paquete sin ediciones a `ports.py` ni al orquestador; `capabilities == {external_resources}`; `credential_kinds == {api_token, none}`; único transporte disponible es Streamable HTTP remoto (sin opción `stdio`/subprocess). [MC-R2]
-- [ ] 5.2 VERIFY confirmar T5.1 en ROJO antes de GREEN.
-- [ ] 5.3 GREEN `app/integrations/adapters/mcp/adapter.py` + `app/integrations/adapters/mcp/__init__.py`: `McpAdapter` implementa `IntegrationAdapter`; `register_adapter(McpAdapter())`.
-- [ ] 5.4 GREEN `app/integrations/adapters/__init__.py`, `app/db_init.py`: `import app.integrations.adapters.mcp` (registro import-time). VERIFY T5.1 en verde.
+- [x] 5.1 RED `backend/tests/test_mcp_adapter_registry.py`: `get_adapter("mcp")` disponible tras importar el paquete sin ediciones a `ports.py` ni al orquestador; `capabilities == {external_resources}`; `credential_kinds == {api_token, none}`; único transporte disponible es Streamable HTTP remoto (sin opción `stdio`/subprocess). [MC-R2]
+- [x] 5.2 VERIFY confirmar T5.1 en ROJO antes de GREEN. CONFIRMADO: 4/5 fallando (`get_adapter("mcp")` retornaba `None`) antes del registro.
+- [x] 5.3 GREEN `app/integrations/adapters/mcp/adapter.py` + `app/integrations/adapters/mcp/__init__.py`: `McpAdapter` implementa `IntegrationAdapter`; `register_adapter(McpAdapter())`.
+- [x] 5.4 GREEN `app/integrations/adapters/__init__.py` (sin cambio — nunca importa submódulos, solo `db_init.py` lo hace, según su propio contrato documentado), `app/db_init.py`: `import app.integrations.adapters.mcp` (registro import-time). VERIFY T5.1 en verde (5/5 passed). Suite completa tras el Lote 5: 986 passed / 13 legacy (mismas 13 del baseline, no relacionadas con `mcp`/`connectors`) — ruff y mypy limpios (259 archivos).
 
 ## Lote 6 — Delta `connectors`: registro MCP + REST de lectura (Commit 6)
 

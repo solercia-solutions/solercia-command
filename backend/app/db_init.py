@@ -31,6 +31,7 @@ import app.integrations.adapters.fake  # noqa: F401,E402
 import app.integrations.adapters.glpi  # noqa: F401,E402
 import app.integrations.adapters.google  # noqa: F401,E402
 import app.integrations.adapters.jira  # noqa: F401,E402
+import app.integrations.adapters.mcp  # noqa: F401,E402
 import app.integrations.adapters.microsoft365  # noqa: F401,E402
 import app.realtime.publisher  # noqa: F401,E402
 from app.database import AsyncSessionLocal, Base, engine

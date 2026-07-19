@@ -1,6 +1,11 @@
-"""``mcp`` adapter package (change 19-mcp-connector) — registers the
-``McpAdapter`` at import time (Lote 5), mirroring ``adapters/glpi/__init__.py``
-/``adapters/jira/__init__.py``. Populated once ``adapter.py`` exists (Lote 5);
-until then this package only hosts the SSRF guard (``ssrf.py``, Lote 3),
-session/reader/mapping modules (Lote 4) and domain errors (``errors.py``).
+"""``mcp`` adapter package (change 19-mcp-connector, mcp-connector/spec.md
+MC-R2 "Registro en import-time sin editar el núcleo"). Registers itself in
+import-time (precedent ``adapters/fake.py``/``adapters/glpi``/
+``adapters/jira``): the core never imports this module directly,
+``app/db_init.py`` does (mirrors ``import app.integrations.adapters.glpi``).
 """
+
+from app.integrations.adapters.mcp.adapter import McpAdapter
+from app.integrations.registry import register_adapter
+
+register_adapter(McpAdapter())
