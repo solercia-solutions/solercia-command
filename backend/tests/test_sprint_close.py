@@ -4,15 +4,16 @@ Unit tests (no DB):
   - velocity average calculation
   - projected_sprints edge cases
 
-Integration tests (require TEST_DATABASE_URL + API_BASE_URL + TEST_AUTH_TOKEN):
-  - POST /sprints/{id}/close sums only Done tasks
-  - POST /sprints/{id}/close moves incomplete tasks to backlog
+Integration tests (shared in-process fixtures):
   - POST /sprints/{id}/close is idempotent (409 on re-close)
-  - GET /projects/{id}/velocity averages closed sprints
-
-Integration tests (shared fixtures, R4/gate #2):
   - POST /sprints/{id}/close stamps updated_by=actor_id on every moved task
-    (bulk UPDATE — design.md "Correcciones de gate", gate #2)
+    (bulk UPDATE — design.md "Correcciones de gate", gate #2 — R4)
+
+Done-points summing, incomplete-to-backlog movement and velocity averaging
+are covered elsewhere: test_projects.py
+(``test_velocity_reports_closed_sprint_points_average_and_projection``),
+test_activity.py (``test_close_sprint_leaves_system_history_row``) and the
+audit-stamping test below (which asserts ``sprint_id is None`` post-close).
 """
 
 import math
@@ -24,6 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.organizations.models import Organization
 from app.modules.users.models import User
 from tests.conftest import skip_no_db
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — no DB needed
@@ -79,200 +85,50 @@ def test_velocity_zero_backlog_gives_zero_projected() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests
+# Integration tests — shared in-process fixtures
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_close_sprint_sums_only_done_tasks() -> None:
-    """completed_points counts only tasks with completed_at set (Done status)."""
+async def test_close_sprint_idempotent_409(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Closing an already-closed sprint returns 409 sprint_already_closed."""
 
-    import os
+    _, token = user
 
-    import httpx
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Idempotent Close Project", "methodology": "scrum"},
+        headers=_auth(token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["data"]["id"]
 
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
+    sprint_response = await client.post(
+        f"/projects/{project_id}/sprints",
+        json={"name": "Test idempotent close"},
+        headers=_auth(token),
+    )
+    assert sprint_response.status_code == 201, sprint_response.text
+    sprint_id = sprint_response.json()["data"]["id"]
 
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        # Find a scrum project (sprints enabled).
-        r = await client.get("/projects")
-        assert r.status_code == 200
-        projects = r.json()["data"]
-        scrum = next((p for p in projects if p["methodology"] == "scrum"), None)
-        if scrum is None:
-            pytest.skip("No scrum project available in seed data")
-        project_id = scrum["id"]
+    first_close = await client.post(
+        f"/sprints/{sprint_id}/close", headers=_auth(token)
+    )
+    assert first_close.status_code == 200, first_close.text
 
-        # Create a fresh sprint.
-        r = await client.post(
-            f"/projects/{project_id}/sprints",
-            json={"name": "Test close sprint — done points"},
-        )
-        assert r.status_code == 201
-        sprint_id = r.json()["data"]["id"]
-
-        # Add a Done task (5 points) and an incomplete task (3 points).
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Done task", "estimation_points": 5, "sprint_id": sprint_id},
-        )
-        assert r.status_code == 201
-        done_task_id = r.json()["data"]["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Incomplete task", "estimation_points": 3, "sprint_id": sprint_id},
-        )
-        assert r.status_code == 201
-
-        # Move the done task to the terminal status (last allowed).
-        r = await client.patch(
-            f"/tasks/{done_task_id}",
-            json={"status": "Done"},
-        )
-        assert r.status_code == 200
-
-        # Close the sprint.
-        r = await client.post(f"/sprints/{sprint_id}/close")
-        assert r.status_code == 200
-        result = r.json()["data"]
-        sprint = result["sprint"]
-
-        assert sprint["status"] == "closed"
-        assert sprint["completed_points"] == 5, (
-            f"Expected 5 completed points (Done task only), got {sprint['completed_points']}"
-        )
-        assert result["tasks_moved"] == 1
-
-
-@pytest.mark.asyncio
-@skip_no_db
-async def test_close_sprint_moves_incomplete_to_backlog() -> None:
-    """Incomplete tasks land in the backlog (sprint_id=null) after close."""
-
-    import os
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        scrum = next((p for p in projects if p["methodology"] == "scrum"), None)
-        if scrum is None:
-            pytest.skip("No scrum project available")
-        project_id = scrum["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/sprints",
-            json={"name": "Test close sprint — backlog"},
-        )
-        assert r.status_code == 201
-        sprint_id = r.json()["data"]["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Remaining task", "sprint_id": sprint_id},
-        )
-        assert r.status_code == 201
-        task_id = r.json()["data"]["id"]
-
-        # Close — no target_sprint_id → backlog.
-        r = await client.post(f"/sprints/{sprint_id}/close")
-        assert r.status_code == 200
-        assert r.json()["data"]["tasks_moved"] == 1
-
-        # Verify the task is now in the backlog.
-        r = await client.get(f"/tasks/{task_id}")
-        assert r.status_code == 200
-        assert r.json()["data"]["sprint_id"] is None
-
-
-@pytest.mark.asyncio
-@skip_no_db
-async def test_close_sprint_idempotent_409() -> None:
-    """Closing an already-closed sprint returns 409."""
-
-    import os
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        scrum = next((p for p in projects if p["methodology"] == "scrum"), None)
-        if scrum is None:
-            pytest.skip("No scrum project available")
-        project_id = scrum["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/sprints",
-            json={"name": "Test idempotent close"},
-        )
-        assert r.status_code == 201
-        sprint_id = r.json()["data"]["id"]
-
-        r = await client.post(f"/sprints/{sprint_id}/close")
-        assert r.status_code == 200
-
-        r = await client.post(f"/sprints/{sprint_id}/close")
-        assert r.status_code == 409
-        assert r.json()["code"] == "sprint_already_closed"
-
-
-@pytest.mark.asyncio
-@skip_no_db
-async def test_velocity_averages_closed_sprints() -> None:
-    """GET /projects/{id}/velocity returns correct average_velocity."""
-
-    import os
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        scrum = next((p for p in projects if p["methodology"] == "scrum"), None)
-        if scrum is None:
-            pytest.skip("No scrum project available")
-        project_id = scrum["id"]
-
-        r = await client.get(f"/projects/{project_id}/velocity")
-        assert r.status_code == 200
-        report = r.json()["data"]
-
-        assert "series" in report
-        assert "average_velocity" in report
-        assert "backlog_points" in report
-        assert "projected_sprints" in report
-
-        series = report["series"]
-        if series:
-            computed_avg = sum(s["completed_points"] for s in series) / len(series)
-            assert abs(report["average_velocity"] - computed_avg) < 0.001
+    second_close = await client.post(
+        f"/sprints/{sprint_id}/close", headers=_auth(token)
+    )
+    assert second_close.status_code == 409
+    assert second_close.json()["code"] == "sprint_already_closed"
 
 
 # ---------------------------------------------------------------------------
 # Audit stamping on the bulk UPDATE (R4, gate #2) — shared fixtures
 # ---------------------------------------------------------------------------
-
-
-def _auth(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -123,6 +123,15 @@ async def test_velocity_reports_closed_sprint_points_average_and_projection(
         f"/tasks/{task_id}", json={"status": "Done"}, headers=_auth(token)
     )
 
+    # An INCOMPLETE task with points must NOT count towards completed_points —
+    # only Done tasks sum (legacy test_close_sprint_sums_only_done_tasks).
+    incomplete = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Incomplete task", "sprint_id": sprint_id, "estimation_points": 8},
+        headers=_auth(token),
+    )
+    assert incomplete.status_code == 201, incomplete.text
+
     close = await client.post(
         f"/sprints/{sprint_id}/close", headers=_auth(token)
     )
