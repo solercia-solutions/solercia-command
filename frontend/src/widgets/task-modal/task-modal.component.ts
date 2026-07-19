@@ -71,8 +71,11 @@ export interface TaskFormResult {
       [open]="true"
       [title]="task() ? text.editTitle() : text.createTitle()"
       size="md"
-      [closeOnBackdrop]="true"
-      (closed)="closed.emit()"
+      [closeOnBackdrop]="!saving()"
+      (closed)="onModalClosed()"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="task() ? text.editAria() : text.createAria()"
     >
       <form
         [formGroup]="form"
@@ -193,7 +196,12 @@ export interface TaskFormResult {
             <span></span>
           }
           <div class="flex items-center gap-2">
-            <sol-button type="button" variant="ghost" (click)="closed.emit()">
+            <sol-button
+              type="button"
+              variant="ghost"
+              [disabled]="saving()"
+              (click)="closed.emit()"
+            >
               {{ text.cancel() }}
             </sol-button>
             <sol-button type="submit" variant="primary" [disabled]="saving()">
@@ -213,6 +221,8 @@ export class TaskModalComponent implements OnInit {
   protected readonly text = {
     editTitle: this.i18n.t('taskModal.editTitle'),
     createTitle: this.i18n.t('taskModal.createTitle'),
+    editAria: this.i18n.t('taskModal.editAria'),
+    createAria: this.i18n.t('taskModal.createAria'),
     titleLabel: this.i18n.t('taskModal.titleLabel'),
     titlePlaceholder: this.i18n.t('taskModal.titlePlaceholder'),
     titleRequired: this.i18n.t('taskModal.titleRequired'),
@@ -315,6 +325,18 @@ export class TaskModalComponent implements OnInit {
     } else {
       this.form.patchValue({ status: fallbackStatus });
     }
+  }
+
+  /**
+   * SolModal's `closed` output fires from the backdrop, the Escape key, and
+   * its internal X button alike; none of those individually know about the
+   * in-flight save, so the guard lives here to block all three while saving.
+   */
+  protected onModalClosed(): void {
+    if (this.saving()) {
+      return;
+    }
+    this.closed.emit();
   }
 
   protected statusLabel(status: string): string {

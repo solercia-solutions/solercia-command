@@ -47,6 +47,11 @@ Confirmado por inspección de `ICON_REGISTRY` en `frontend/node_modules/@solerci
 
 `frontend/node_modules/@solercia/ui/package.json#peerDependencies` declara `@angular/cdk ^22.0.0` y `chart.js ^4.5.1` (usadas en runtime por `SolChart`/`SolKanbanBoard`). `rg` sobre `frontend/src/` confirma **cero imports directos** de `chart.js` o `@angular/cdk` en el código de la aplicación. Ambas se **conservan** en `frontend/package.json` como peer dependencies justificadas de `@solercia/ui` 0.3.0 — retirarlas rompería el build (`SolChart`/`SolKanbanBoard` fallarían en runtime). No se modifica `package.json`.
 
+## Pendientes de seguimiento (revisión 4R — fixes aplicados)
+
+- `SolModalComponent` no expone un input `aria-label` ni `role="dialog"` nativos: `task-modal.component.ts` los agrega manualmente en el elemento host (`role="dialog"`, `aria-modal="true"`, `[attr.aria-label]`). Pendiente de aporte a la librería para que `SolModal` los exponga de forma nativa y no dependa de que cada consumidor los repita.
+- Deuda preexistente: `notification-panel` sin estado de error diferenciado del vacío — candidato a cambio futuro.
+
 ## Trazabilidad
 
 Ver `openspec/changes/13-ui-component-audit/tasks.md` (Fases 1–6) y `design.md` (mapa de reemplazo por widget) para el detalle de la migración ejecutada por unidad de trabajo.
