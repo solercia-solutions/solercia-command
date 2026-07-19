@@ -41,9 +41,9 @@ Nota: sin PR de GitHub; el volumen (~900-1000 líneas, > 2× el presupuesto) se 
 
 ## Lote B — OidcClient (Commit 2)
 
-- [ ] T09 RED `backend/tests/test_oidc_client.py`: JWKS válida/inválida, `iss`/`aud`/`exp`/`nonce` incorrectos (R2 sso-oidc); PKCE `code_challenge` S256; caché JWKS + refetch por `kid` nuevo. IdP falso: RSA de test + `httpx.MockTransport`.
-- [ ] T10 [Core] `backend/app/modules/auth/oidc/{__init__,config,client,jwks}.py`: `OidcProviderConfig`; `OidcClient.authorization_url/exchange_code/verify_id_token`; caché discovery+JWKS por `issuer`.
-- [ ] T11 VERIFY `pytest tests/test_oidc_client.py -v` → verde. Commit `feat(auth): agrega OidcClient (discovery, token, JWKS, PKCE)`.
+- [x] T09 RED `backend/tests/test_oidc_client.py`: JWKS válida/inválida, `iss`/`aud`/`exp`/`nonce` incorrectos (R2 sso-oidc); PKCE `code_challenge` S256; caché JWKS + refetch por `kid` nuevo. IdP falso: RSA de test + `httpx.MockTransport`. Rojo confirmado (`ModuleNotFoundError: app.modules.auth.oidc.client`) antes de crear el módulo. 12 tests: happy path, `iss`/`aud`/`exp`/`nonce` incorrectos, llave de firma desconocida/forjada, vector RFC 7636 para PKCE S256, caché JWKS (sin refetch por `kid` conocido) y refetch por rotación de `kid`.
+- [x] T10 [Core] `backend/app/modules/auth/oidc/{__init__,config,client,jwks}.py`: `OidcProviderConfig`; `OidcClient.authorization_url/exchange_code/verify_id_token`; caché discovery+JWKS por `issuer`. `load_provider_config(provider)` lee `OIDC_{PROVIDER}_*` directo de `os.environ` (no como campos fijos de `Settings`) para que un segundo proveedor sea solo configuración (R6).
+- [x] T11 VERIFY `pytest tests/test_oidc_client.py -v` → verde (12/12 en primera corrida). `ruff check`/`mypy app` limpios. Commit `feat(auth): agrega OidcClient (discovery, token, JWKS, PKCE)`.
 
 ## Lote C — sso_service (Commit 3)
 
