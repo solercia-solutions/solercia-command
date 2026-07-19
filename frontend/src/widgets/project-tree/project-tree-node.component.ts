@@ -15,6 +15,7 @@ import {
   SolProgressBarComponent,
   type SolProgressVariant,
 } from '@shared/ui';
+import { I18nService } from '@shared/i18n';
 import { TreeFocusState } from './tree-focus-state';
 import {
   METHODOLOGY_BADGE_VARIANT,
@@ -68,9 +69,7 @@ import {
             type="button"
             tabindex="-1"
             (click)="toggle()"
-            [attr.aria-label]="
-              (expanded() ? 'Colapsar ' : 'Expandir ') + node().name
-            "
+            [attr.aria-label]="expandCollapseAria()"
             class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-sunken hover:text-text"
           >
             <sol-icon
@@ -96,7 +95,7 @@ import {
           } @else if (!node().rollup) {
             <span class="text-xs text-muted" aria-hidden="true">—</span>
           } @else if (node().rollup!.total === 0) {
-            <span class="text-xs text-muted">Sin tareas</span>
+            <span class="text-xs text-muted">{{ noTasksText() }}</span>
           } @else {
             <span class="text-xs font-medium text-muted">
               {{ node().rollup!.done }}/{{ node().rollup!.total }}
@@ -115,7 +114,7 @@ import {
         <a
           [routerLink]="['/projects', node().id]"
           tabindex="-1"
-          [attr.aria-label]="'Ir al proyecto ' + node().name"
+          [attr.aria-label]="goToProjectAria()"
           class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-sunken hover:text-brand"
         >
           <sol-icon name="link" size="sm" />
@@ -139,6 +138,9 @@ export class ProjectTreeNodeComponent {
   private readonly el: ElementRef<HTMLElement> = inject(ElementRef);
   private readonly router = inject(Router);
   private readonly focus = inject(TreeFocusState);
+  private readonly i18n = inject(I18nService);
+
+  protected readonly noTasksText = this.i18n.t('hierarchy.node.noTasks');
 
   protected readonly expanded = signal(false);
 
@@ -174,6 +176,21 @@ export class ProjectTreeNodeComponent {
 
   protected toggle(): void {
     this.expanded.update((value) => !value);
+  }
+
+  /** aria-label del botón de expandir/colapsar (varía con el nombre del nodo). */
+  protected expandCollapseAria(): string {
+    const key = this.expanded()
+      ? 'hierarchy.node.collapseAria'
+      : 'hierarchy.node.expandAria';
+    return this.i18n.translate(key, { name: this.node().name });
+  }
+
+  /** aria-label de la acción "ir al proyecto" (varía con el nombre del nodo). */
+  protected goToProjectAria(): string {
+    return this.i18n.translate('hierarchy.node.goToProjectAria', {
+      name: this.node().name,
+    });
   }
 
   protected onFocus(): void {

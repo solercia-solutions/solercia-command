@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of } from 'rxjs';
+import { I18nService } from '@shared/i18n';
 import { ProjectTreeComponent } from '@widgets/project-tree';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
@@ -29,16 +30,12 @@ import {
   template: `
     <section class="flex flex-col gap-6">
       <div>
-        <h1 class="text-2xl font-semibold text-text">Árbol de proyectos</h1>
-        <p class="text-sm text-muted">
-          Bosque de proyectos con avance consolidado por nodo.
-        </p>
+        <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
+        <p class="text-sm text-muted">{{ text.subtitle() }}</p>
       </div>
 
       @if (loading()) {
-        <p class="text-sm text-muted" role="status">
-          Cargando árbol de proyectos…
-        </p>
+        <p class="text-sm text-muted" role="status">{{ text.loading() }}</p>
       } @else if (loadError()) {
         <div
           role="alert"
@@ -51,11 +48,9 @@ import {
           class="rounded-xl border border-border bg-surface px-4 py-8 text-center"
         >
           <p class="text-base font-medium text-text">
-            Todavía no tienes proyectos.
+            {{ text.emptyTitle() }}
           </p>
-          <p class="mt-1 text-sm text-muted">
-            Crea un proyecto para verlo aquí, organizado como árbol.
-          </p>
+          <p class="mt-1 text-sm text-muted">{{ text.emptySubtitle() }}</p>
         </div>
       } @else {
         <sol-project-tree [nodes]="roots()" />
@@ -65,6 +60,16 @@ import {
 })
 export class HierarchyComponent implements OnInit {
   private readonly projectsService = inject(ProjectsService);
+  private readonly i18n = inject(I18nService);
+
+  /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
+  protected readonly text = {
+    title: this.i18n.t('hierarchy.title'),
+    subtitle: this.i18n.t('hierarchy.subtitle'),
+    loading: this.i18n.t('hierarchy.loading'),
+    emptyTitle: this.i18n.t('hierarchy.empty.title'),
+    emptySubtitle: this.i18n.t('hierarchy.empty.subtitle'),
+  } as const;
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
@@ -84,8 +89,8 @@ export class HierarchyComponent implements OnInit {
         this.loading.set(false);
         this.loadError.set(
           err.status === 0
-            ? 'No fue posible conectar con el servidor. Inténtalo de nuevo.'
-            : 'No se pudieron cargar los proyectos. Inténtalo más tarde.',
+            ? this.i18n.translate('hierarchy.errors.network')
+            : this.i18n.translate('hierarchy.errors.load'),
         );
       },
     });
@@ -130,7 +135,7 @@ export class HierarchyComponent implements OnInit {
               of<ProgressOutcome>({
                 rootId: root.id,
                 node: null,
-                error: 'No se pudo cargar el avance de esta rama.',
+                error: this.i18n.translate('hierarchy.errors.branch'),
               }),
             ),
           ),

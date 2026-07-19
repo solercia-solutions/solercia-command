@@ -5,6 +5,7 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { I18nService } from '@shared/i18n';
 import { ProjectTreeNodeComponent } from './project-tree-node.component';
 import { TreeFocusState } from './tree-focus-state';
 import { TreeNodeVM } from '@entities/project/project.model';
@@ -24,7 +25,7 @@ import { TreeNodeVM } from '@entities/project/project.model';
   template: `
     <div
       role="tree"
-      aria-label="Árbol de proyectos"
+      [attr.aria-label]="treeAriaLabel()"
       class="flex flex-col gap-1.5 sm:gap-2"
     >
       @for (root of nodes(); track root.id) {
@@ -37,6 +38,9 @@ export class ProjectTreeComponent implements OnInit {
   readonly nodes = input.required<TreeNodeVM[]>();
 
   private readonly focus = inject(TreeFocusState);
+  private readonly i18n = inject(I18nService);
+
+  protected readonly treeAriaLabel = this.i18n.t('hierarchy.tree.ariaLabel');
 
   /** Roving tabindex starts on the first root — the tree has one Tab stop. */
   ngOnInit(): void {

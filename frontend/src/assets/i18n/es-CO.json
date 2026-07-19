@@ -318,6 +318,29 @@
       "title": "Carga del equipo"
     }
   },
+  "hierarchy": {
+    "empty": {
+      "subtitle": "Crea un proyecto para verlo aquí, organizado como árbol.",
+      "title": "Todavía no tienes proyectos."
+    },
+    "errors": {
+      "branch": "No se pudo cargar el avance de esta rama.",
+      "load": "No se pudieron cargar los proyectos. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    },
+    "loading": "Cargando árbol de proyectos…",
+    "node": {
+      "collapseAria": "Colapsar {{ name }}",
+      "expandAria": "Expandir {{ name }}",
+      "goToProjectAria": "Ir al proyecto {{ name }}",
+      "noTasks": "Sin tareas"
+    },
+    "subtitle": "Bosque de proyectos con avance consolidado por nodo.",
+    "title": "Árbol de proyectos",
+    "tree": {
+      "ariaLabel": "Árbol de proyectos"
+    }
+  },
   "nav": {
     "brandAria": "Solercia PM, inicio",
     "closeMenu": "Cierra el menú",
