@@ -69,13 +69,13 @@ Chain strategy: stacked-to-main
 
 ## Lote 6 — adapter.py + registro + docs + VERIFY final (Commit 6)
 
-- [ ] 6.1 [Foundation] `app/integrations/adapters/google/adapter.py`: `provider="google"`, `capabilities={mail,calendar,meeting_notes}` (sin `external_tasks`), `port_for(capability)`.
-- [ ] 6.2 [Foundation] `app/integrations/adapters/google/__init__.py`: `register_adapter(GoogleAdapter())` en import-time.
-- [ ] 6.3 [Foundation] `app/db_init.py`: `import app.integrations.adapters.google` (registro, sin editar ningún archivo del núcleo del 14).
-- [ ] 6.4 RED `backend/tests/test_adapter_google_registry.py`: `get_adapter("google")` devuelve la instancia sin que se haya editado ningún archivo del núcleo; `port_for(Capability.external_tasks)` no expone puerto (capacidad no declarada); ningún método público del adaptador crea/edita/envía datos hacia Google (frontera solo lectura); `capabilities` no incluye `external_tasks`. [GA-R1, GA-R8, GA-R10]
-- [ ] 6.5 VERIFY confirmar T6.4 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_registry.py -v` en verde.
-- [ ] 6.6 [Docs] `docs/diagrams/c4-architecture.md`: agregar el adaptador `google` como sub-componente en C3 (Integrations), junto al `microsoft365` ya documentado por el 15 — mismo commit.
-- [ ] 6.7 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión (incl. 14/15); `ruff check .`/`mypy app` limpios en `app/integrations/adapters/google/`.
+- [x] 6.1 [Foundation] `app/integrations/adapters/google/adapter.py`: `provider="google"`, `capabilities={mail,calendar,meeting_notes}` (sin `external_tasks`), `port_for(capability)`.
+- [x] 6.2 [Foundation] `app/integrations/adapters/google/__init__.py`: `register_adapter(GoogleAdapter())` en import-time.
+- [x] 6.3 [Foundation] `app/db_init.py`: `import app.integrations.adapters.google` (registro, sin editar ningún archivo del núcleo del 14).
+- [x] 6.4 RED `backend/tests/test_adapter_google_registry.py`: `get_adapter("google")` devuelve la instancia sin que se haya editado ningún archivo del núcleo; `port_for(Capability.external_tasks)` no expone puerto (capacidad no declarada); ningún método público del adaptador crea/edita/envía datos hacia Google (frontera solo lectura); `capabilities` no incluye `external_tasks`. [GA-R1, GA-R8, GA-R10]
+- [x] 6.5 VERIFY confirmar T6.4 en ROJO antes de GREEN; luego `cd backend && pytest tests/test_adapter_google_registry.py -v` en verde.
+- [x] 6.6 [Docs] `docs/diagrams/c4-architecture.md`: agregar el adaptador `google` como sub-componente en C3 (Integrations), junto al `microsoft365` ya documentado por el 15 — mismo commit.
+- [x] 6.7 VERIFY final `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -v` — suite completa sin regresión (incl. 14/15); `ruff check .`/`mypy app` limpios en `app/integrations/adapters/google/`.
 
 ## Trazabilidad de requisitos
 

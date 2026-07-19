@@ -5,7 +5,7 @@ del modelo C4 (contexto, contenedores, componentes). Refleja el código **actual
 contra `docker-compose.yml`, `backend/app/main.py` y la estructura de `backend/app/`—, no la
 arquitectura aspiracional.
 
-**Fecha de línea base**: 2026-07-18 (rama `feat/consume-solercia-ui`).
+**Fecha de línea base**: 2026-07-19 (rama `feat/consume-solercia-ui`).
 
 > **Regla de actualización**: todo cambio que agregue o retire contenedores, módulos del
 > backend, engines, integraciones externas o canales de entrega debe actualizar este
@@ -21,7 +21,10 @@ Tres perfiles de personas usan el sistema. El **servidor SMTP** participa solo c
 integración externa real sobre el motor de conectores del cambio 14 (change
 15-adapter-microsoft365): solo participa cuando una organización conecta un conector
 `provider=microsoft365`, y únicamente en modo lectura (correo, calendario, tareas Planner,
-transcripciones de reuniones).
+transcripciones de reuniones). **Google Workspace (Gmail/Calendar/Drive)** es la segunda
+integración real, sibling del 15 (change 16-adapter-google): solo participa cuando una
+organización conecta un conector `provider=google`, también únicamente en modo lectura
+(correo Gmail, calendario, transcripciones de Meet best-effort vía Drive).
 
 ```mermaid
 C4Context
@@ -35,12 +38,14 @@ C4Context
 
     System_Ext(smtp, "Servidor SMTP", "Entrega de correos (inmediatos y digest). Solo activo con EMAIL_ENABLED=true y EMAIL_BACKEND=smtp.")
     System_Ext(m365, "Microsoft 365 (Graph + Entra ID)", "Correo, calendario, tareas Planner y transcripciones de reuniones vía Graph API, solo lectura; autorización delegada OAuth vía Entra ID. Activo solo si la organización conecta un conector provider=microsoft365 (change 15).")
+    System_Ext(gws, "Google Workspace (Gmail/Calendar/Drive)", "Correo Gmail, calendario y transcripciones de Meet (best-effort vía Drive) solo lectura; OAuth 2.0 estándar de Google. Activo solo si la organización conecta un conector provider=google (change 16).")
 
     Rel(jefe, spm, "Usa", "HTTPS")
     Rel(miembro, spm, "Usa", "HTTPS")
     Rel(admin, spm, "Administra", "HTTPS")
     Rel(spm, smtp, "Envía correos vía", "SMTP/TLS")
     Rel(spm, m365, "Lee correo/calendario/tareas/transcripciones vía", "HTTPS + OAuth delegado")
+    Rel(spm, gws, "Lee correo/calendario/transcripciones vía", "HTTPS + OAuth 2.0")
 ```
 
 ---
@@ -154,6 +159,7 @@ flowchart TB
             i_state["state_store.py: state OAuth<br/>en Redis (SETEX + GETDEL single-use)"]
             i_fake["adapters/fake.py: adaptador en<br/>memoria"]
             i_ms365["adapters/microsoft365/ (change 15):<br/>GraphClient httpx inyectable + OAuth<br/>Entra ID delegado + correo/calendario/<br/>Planner/notas de reunión, solo lectura"]
+            i_google["adapters/google/ (change 16):<br/>GoogleClient httpx inyectable + OAuth<br/>2.0 estandar + Gmail/Calendar/Drive<br/>(correo/calendario/notas Meet<br/>best-effort), solo lectura"]
         end
     end
 
@@ -165,6 +171,7 @@ flowchart TB
     redis_ext[("Redis")]
     smtp_ext[["Servidor SMTP"]]
     graph_ext[["Microsoft 365<br/>(Graph + Entra ID)"]]
+    google_ext[["Google Workspace<br/>(Gmail/Calendar/Drive)"]]
 
     http --> deps
     deps --> capas
@@ -192,8 +199,11 @@ flowchart TB
     i_oauth --> i_registry
     i_registry --> i_fake
     i_registry --> i_ms365
+    i_registry --> i_google
     i_ms365 -->|"solo lectura: GET correo/calendario/<br/>Planner/transcripciones"| graph_ext
     i_ms365 -->|"OAuth Entra ID (authorize/token/refresh)"| graph_ext
+    i_google -->|"solo lectura: GET Gmail/Calendar/<br/>Drive (export transcripciones)"| google_ext
+    i_google -->|"OAuth 2.0 (authorize/token/refresh/userinfo)"| google_ext
     r_conn -->|"cifra/descifra tokens"| i_crypto
     i_state --> redis_ext
 ```
@@ -239,6 +249,34 @@ Notas de componentes:
   `POST`/`PATCH`/`PUT`/`DELETE` hacia Graph — la única escritura HTTP es el `POST` de
   `oauth.py` contra el endpoint de token de Entra ID (login.microsoftonline.com), que no
   es una escritura hacia Graph.
+- **Adaptador Google (change 16-adapter-google)**: segundo adaptador REAL sobre el
+  núcleo del 14, sibling del 15, `app/integrations/adapters/google/` (8 módulos:
+  `__init__`/`adapter`/`oauth`/`client`/`mail`/`calendar`/`meeting_notes`/`mime`/`errors`
+  — un archivo por capacidad, en vez del `ports.py` consolidado del 15), también
+  auto-registrado en import-time (cero ediciones a `ports.py`/`oauth.py`/`registry.py`
+  del 14). `GoogleClient` (httpx inyectable, cero red en tests) centraliza el mapeo de
+  errores (`errors.error_for_response`, taxonomía espejo del 15 más
+  `provider_request_failed` para distinguir 4xx no reintentables de 5xx), refresco
+  401→reintento único y backoff 429/403 `rateLimitExceeded`/`userRateLimitExceeded` con
+  techo `GOOGLE_MAX_BACKOFF_SECONDS`. A diferencia del `@odata.nextLink` de Graph (una URL
+  completa a seguir, validada por host), la paginación de Google usa `nextPageToken` — un
+  token opaco enviado como query param sobre el `base_url` fijo de cada API — así que el
+  límite anti-SSRF es estructural (ninguna solicitud se construye a partir de datos de la
+  respuesta) en vez de una validación de host en runtime. Implementa `MailReaderPort`
+  (Gmail, con parseo MIME multiparte base64url propio en `mime.py`; `labelIds`/`threadId`
+  quedan como metadato interno, nunca expuestos como carpeta) y `CalendarReaderPort`
+  (Calendar, ventana `since`→`timeMin`/`timeMax`=ahora); `MeetingNotesReaderPort` busca la
+  carpeta "Meet Recordings" en Drive y exporta a texto plano el Doc de transcripción que
+  encuentre — sin carpeta/Doc (organizador sin transcripción activada) degrada a lista
+  vacía sin error, mientras que un `403` real de Drive (sin permiso sobre el Drive del
+  organizador) se propaga como `capability_unavailable` sin afectar correo/calendario del
+  mismo adaptador. `external_account_id` es el correo resuelto vía `userinfo` (no un `sub`
+  opaco, divergencia deliberada frente al `oid` del 15); ante un refresh SIN
+  `refresh_token` en la respuesta (frecuente en Google), conserva el `refresh_token`
+  anterior en vez de perder la credencial. **Nunca** declara la capacidad `external_tasks`
+  (Google Tasks queda fuera de este cambio) ni `tickets`. Frontera solo-lectura estricta:
+  la única escritura HTTP del paquete es el `POST` de `oauth.py` contra el endpoint de
+  token de Google (oauth2.googleapis.com), nunca hacia Gmail/Calendar/Drive.
 
 ## Referencias
 

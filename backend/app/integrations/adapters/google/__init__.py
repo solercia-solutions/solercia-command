@@ -1,9 +1,11 @@
-"""``google`` adapter package (change 16-adapter-google).
-
-Registration (``register_adapter(GoogleAdapter())``) lands here in Lote 6
-once ``adapter.py`` exists — mirrors ``adapters/microsoft365/__init__.py``.
-Left without a top-level import in earlier lotes so
-``app.integrations.adapters.google.errors``/``client``/``oauth``/... stay
-independently importable while the package is being built module by
-module.
+"""Registers the ``google`` adapter with the core's registry at import
+time (change 16-adapter-google) — same precedent as
+``app/integrations/adapters/fake.py``/``adapters/microsoft365/__init__.py``
+(IP-R2, "sin tocar el núcleo"): this module registers ITSELF,
+``registry.py`` is never edited.
 """
+
+from app.integrations.adapters.google.adapter import GoogleAdapter
+from app.integrations.registry import register_adapter
+
+register_adapter(GoogleAdapter())

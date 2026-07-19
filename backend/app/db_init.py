@@ -25,9 +25,10 @@ import app.email.outbox  # noqa: F401,E402
 
 # Import every integrations adapter so it registers itself in the core's
 # registry (change 14-integration-ports). `fake` stays registered
-# alongside real providers; `microsoft365` (change 15) is the first real
-# one, changes 16-19 add the rest.
+# alongside real providers; `microsoft365` (change 15) and `google`
+# (change 16) are the first two real ones, changes 17-19 add the rest.
 import app.integrations.adapters.fake  # noqa: F401,E402
+import app.integrations.adapters.google  # noqa: F401,E402
 import app.integrations.adapters.microsoft365  # noqa: F401,E402
 import app.realtime.publisher  # noqa: F401,E402
 from app.database import AsyncSessionLocal, Base, engine
