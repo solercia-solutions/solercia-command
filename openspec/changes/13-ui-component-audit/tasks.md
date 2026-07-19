@@ -86,9 +86,14 @@ Chain strategy: size-exception
 
 ## Fase 6 — package.json + documentación de pendientes (Commit 6)
 
-- [ ] 6.1 Documentar en `frontend/package.json` (comentario adyacente en README de frontend o nota en `inventory.md`, dado que JSON no admite comentarios) que `chart.js` y `@angular/cdk` se conservan como peer dependencies de `@solercia/ui` 0.3.0 (confirmado: `rg` sin imports directos en `src/`); NO retirarlas. [R6]
-- [ ] 6.2 Consolidar en `inventory.md` (sección "Pendientes de aporte a la librería") los 4 íconos sin equivalente: `arrow-right-on-rectangle` ×2 (`app.component`), `arrow-left` y `flag` (`project-workspace`), más el gap de `SolLayoutShell` del shell. [R1,R4,R5]
-- [ ] 6.3 VERIFY final `cd frontend && npm run build && npm run lint` en verde sobre el árbol completo tras las 6 unidades; confirmar cero regresión visual/funcional acumulada mediante el checklist manual de cada fase. [R7]
+- [x] 6.1 Documentar en `frontend/package.json` (comentario adyacente en README de frontend o nota en `inventory.md`, dado que JSON no admite comentarios) que `chart.js` y `@angular/cdk` se conservan como peer dependencies de `@solercia/ui` 0.3.0 (confirmado: `rg` sin imports directos en `src/`); NO retirarlas. [R6]
+  - Ya documentado en `inventory.md` ("Dependencias de terceros — chart.js y @angular/cdk (R6)") desde el Commit 1; `frontend/package.json` no se modificó (JSON no admite comentarios, y la nota vive en `inventory.md` según la alternativa que ofrece esta tarea).
+- [x] 6.2 Consolidar en `inventory.md` (sección "Pendientes de aporte a la librería") los 4 íconos sin equivalente: `arrow-right-on-rectangle` ×2 (`app.component`), `arrow-left` y `flag` (`project-workspace`), más el gap de `SolLayoutShell` del shell. [R1,R4,R5]
+  - Ya consolidado en `inventory.md` desde el Commit 1 (tabla "Pendientes de aporte a la librería" + sección "Gap documentado: layout shell").
+- [x] 6.3 VERIFY final `cd frontend && npm run build && npm run lint` en verde sobre el árbol completo tras las 6 unidades; confirmar cero regresión visual/funcional acumulada mediante el checklist manual de cada fase. [R7]
+  - `npm run build`: verde (5.023s) sobre el árbol completo tras los 6 commits. `npm run lint`: "ESLint: No issues found".
+  - Conteo final de SVG inline por archivo migrado: `executive.component.ts` 0, `notification-panel.component.ts` 0, `task-modal.component.ts` 0, `project-workspace.component.ts` 2 (back + riesgo, documentados), `app.component.ts` 2 (logout ×2, documentados) — total 4 SVG conservados, exactamente los 4 gaps previstos por `design.md` (`arrow-right-on-rectangle`×2, `arrow-left`, `flag`). 11 íconos migrados a `SolIcon` + 1 a `SolSpinner` = 12, más 4 conservados = 16 SVG auditados, sin ninguno perdido.
+  - Checklist manual acumulado: ver evidencia por fase en las secciones 1.3, 2.3, 3.4, 4.4 y 5.6 de este documento — cero regresión funcional declarada, con la única desviación documentada de accesibilidad en 5.4 (aria-label genérico del cierre de `SolModal`).
 
 ## Trazabilidad de requisitos
 

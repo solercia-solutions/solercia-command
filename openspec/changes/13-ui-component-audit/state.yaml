@@ -1,0 +1,29 @@
+change: 13-ui-component-audit
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - frontend-ui-consumption
+  modified: []
+target_capabilities:
+  - frontend-ui-consumption
+constraints:
+  - frontend-only
+  - consumes-solercia-ui
+last_updated: 2026-07-18
+delivery_strategy: exception-ok
+chain_strategy: size-exception
+400_line_budget_risk: medium
