@@ -109,10 +109,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 7 — Cascada de homologación por asignado (Commit 7)
 
-- [ ] 7.1 RED `backend/tests/test_glpi_sync_matching.py` (sin BD): `norm_email`/`norm_doc`/`norm_name` normalizan case/acentos/puntuación de cédula; correo exacto normalizado → `match_method=email` [auto]; sin correo, documento exacto → `match_method=document` [auto]; sin correo ni documento, `difflib.SequenceMatcher` sobre nombres normalizados de usuarios activos de la org → candidatos ordenados por score, NUNCA auto-confirma; dos usuarios con el mismo nombre normalizado (homónimos) → ambos candidatos, resultado permanece pendiente; link ya existente para `(connector_id, glpi_user_id)` → se salta la cascada completa. [UH-R2]
-- [ ] 7.2 VERIFY confirmar T7.1 en ROJO antes de GREEN.
-- [ ] 7.3 GREEN `app/modules/glpi_sync/service.py` (parte matching): `match_assignee(person, org_users, existing_link) -> MatchResult` con la cascada correo→documento→nombre.
-- [ ] 7.4 VERIFY `cd backend && pytest tests/test_glpi_sync_matching.py -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 7.1 RED `backend/tests/test_glpi_sync_matching.py` (sin BD): `norm_email`/`norm_doc`/`norm_name` normalizan case/acentos/puntuación de cédula; correo exacto normalizado → `match_method=email` [auto]; sin correo, documento exacto → `match_method=document` [auto]; sin correo ni documento, `difflib.SequenceMatcher` sobre nombres normalizados de usuarios activos de la org → candidatos ordenados por score, NUNCA auto-confirma; dos usuarios con el mismo nombre normalizado (homónimos) → ambos candidatos, resultado permanece pendiente; link ya existente para `(connector_id, glpi_user_id)` → se salta la cascada completa. [UH-R2]
+- [x] 7.2 VERIFY confirmar T7.1 en ROJO antes de GREEN.
+- [x] 7.3 GREEN `app/modules/glpi_sync/service.py` (parte matching): `match_assignee(person, org_users, existing_link) -> MatchResult` con la cascada correo→documento→nombre.
+- [x] 7.4 VERIFY `cd backend && pytest tests/test_glpi_sync_matching.py -v` en verde; `ruff check .`/`mypy app` limpios.
+
+  **Nota**: umbral de similitud de nombre `_NAME_MATCH_THRESHOLD = 0.75` (no fijado por el spec/design, decisión de implementación documentada en el código) — suficiente para excluir nombres no relacionados sin perder homónimos/variaciones menores de tildes. El test necesitó `import app.db_init` para registrar `Role` en el registro de clases de SQLAlchemy antes de instanciar `User` sin sesión (mismo motivo que `tests/conftest.py`'s fixture `engine`).
 
 ## Lote 8 — Cola cabecera/detalle + mapeos + REST + wiring final (Commit 8)
 
