@@ -18,6 +18,7 @@ from app.integrations.adapters.microsoft365.ports import (
     GraphCalendarReader,
     GraphExternalTaskReader,
     GraphMailReader,
+    GraphMeetingNotesReader,
 )
 from app.integrations.dtos import OAuthTokens
 from app.integrations.ports import Capability
@@ -42,6 +43,7 @@ class Microsoft365Adapter:
             Capability.mail: GraphMailReader(settings=settings),
             Capability.calendar: GraphCalendarReader(settings=settings),
             Capability.external_tasks: GraphExternalTaskReader(settings=settings),
+            Capability.meeting_notes: GraphMeetingNotesReader(settings=settings),
         }
 
     def authorize_url(

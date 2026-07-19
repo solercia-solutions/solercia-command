@@ -1,0 +1,13 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(microsoft.graph.callTranscript)",
+  "value": [
+    {
+      "id": "transcript-1",
+      "meetingId": "meeting-1",
+      "meetingOrganizerId": "user-guid-1",
+      "callId": "call-1",
+      "createdDateTime": "2026-07-15T16:30:00Z",
+      "endDateTime": "2026-07-15T17:00:00Z"
+    }
+  ]
+}

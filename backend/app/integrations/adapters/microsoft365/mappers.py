@@ -9,7 +9,7 @@ past this module.
 from datetime import UTC, datetime
 from typing import Any
 
-from app.integrations.dtos import CalendarEvent, ExternalTask, MailMessage
+from app.integrations.dtos import CalendarEvent, ExternalTask, MailMessage, MeetingNote
 
 
 def graph_datetime(value: str) -> datetime:
@@ -101,4 +101,24 @@ def map_external_task(raw: dict[str, Any]) -> ExternalTask:
         assignee=assignee,
         due_at=graph_datetime(due_date_time) if due_date_time else None,
         url=None,
+    )
+
+
+def map_meeting_note(raw: dict[str, Any], transcript_text: str) -> MeetingNote:
+    """Map one ``/me/onlineMeetings/getAllTranscripts`` item + its already
+    fetched ``.../content`` text to a :class:`MeetingNote`.
+
+    Graph's ``callTranscript`` resource carries no meeting subject or
+    attendee list (those require a separate calendar/attendance-report
+    lookup, out of scope for this wave) — ``meeting_title`` is derived
+    from ``meetingId`` and ``participants`` is always empty, both
+    documented simplifications, never a crash."""
+
+    meeting_id = str(raw.get("meetingId") or "")
+    return MeetingNote(
+        external_id=str(raw["id"]),
+        meeting_title=f"Transcripción de la reunión {meeting_id}",
+        occurred_at=graph_datetime(raw["createdDateTime"]),
+        transcript=transcript_text,
+        participants=(),
     )

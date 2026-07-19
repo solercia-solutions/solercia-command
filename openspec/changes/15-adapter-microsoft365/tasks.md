@@ -91,12 +91,12 @@ Chain strategy: stacked-to-main
 
 ## Lote 7 — Notas de reunión + degradación por consentimiento (Commit 7)
 
-- [ ] 7.1 [Fixtures] `tests/fixtures/graph/transcript_granted.json`, `transcript_content.json`, `no_consent_403.json`.
-- [ ] 7.2 RED `TestMeetingNotesPort`: con `OnlineMeetingTranscript.Read.All` en `ctx.scopes` → DTO mapeado del fixture; sin ese scope → `capability_unavailable` **sin red** (introspección antes de llamar); `403 Authorization_RequestDenied` en runtime → también `capability_unavailable`; la degradación no afecta correo/calendario/tareas del mismo adaptador. [M365-R6]
-- [ ] 7.3 VERIFY confirmar T7.2 en ROJO antes de GREEN.
-- [ ] 7.4 GREEN `mappers.py` (ampliar): `map_meeting_note`.
-- [ ] 7.5 GREEN `ports.py` (ampliar): `GraphMeetingNotesReader` sobre `/me/onlineMeetings/{id}/transcripts`+`.../content` (scopes `OnlineMeetingTranscript.Read.All`+`OnlineMeetings.Read`); introspección de `ctx.scopes` (según degradación de T1.1) + captura de `403` vía `errors.py`; wired en `Capability.meeting_notes`.
-- [ ] 7.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestMeetingNotesPort -v` en verde; `ruff check .`/`mypy app` limpios.
+- [x] 7.1 [Fixtures] `tests/fixtures/graph/transcript_granted.json`, `transcript_content.json`, `no_consent_403.json`.
+- [x] 7.2 RED `TestMeetingNotesPort`: con `OnlineMeetingTranscript.Read.All` en `ctx.scopes` → DTO mapeado del fixture; sin ese scope → `capability_unavailable` **sin red** (introspección antes de llamar); `403 Authorization_RequestDenied` en runtime → también `capability_unavailable`; la degradación no afecta correo/calendario/tareas del mismo adaptador. [M365-R6]
+- [x] 7.3 VERIFY confirmar T7.2 en ROJO antes de GREEN.
+- [x] 7.4 GREEN `mappers.py` (ampliar): `map_meeting_note`.
+- [x] 7.5 GREEN `ports.py` (ampliar): `GraphMeetingNotesReader` sobre `/me/onlineMeetings/{id}/transcripts`+`.../content` (scopes `OnlineMeetingTranscript.Read.All`+`OnlineMeetings.Read`); introspección de `ctx.scopes` (según degradación de T1.1) + captura de `403` vía `errors.py`; wired en `Capability.meeting_notes`.
+- [x] 7.6 VERIFY `cd backend && pytest tests/test_adapter_microsoft365.py -k TestMeetingNotesPort -v` en verde; `ruff check .`/`mypy app` limpios.
 
 ## Lote 8 — Frontera solo-lectura + docs C4 + `httpx` en runtime (Commit 8)
 

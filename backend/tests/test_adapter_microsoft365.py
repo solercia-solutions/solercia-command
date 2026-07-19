@@ -970,3 +970,119 @@ class TestPlannerPort:
         port = adapter.port_for(Capability.external_tasks)
 
         assert isinstance(port, GraphExternalTaskReader)
+
+
+# ---------------------------------------------------------------------------
+# Lote 7 — Notas de reunión + degradación por consentimiento
+# ---------------------------------------------------------------------------
+
+
+class TestMeetingNotesPort:
+    @pytest.mark.asyncio
+    async def test_missing_scope_degrades_to_capability_unavailable_without_network(
+        self,
+    ) -> None:
+        """Scenario: Consentimiento no otorgado degrada sin afectar el
+        resto — the scope check happens BEFORE any HTTP call (design.md
+        ADR #2, "introspección de scopes SIN RED")."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMeetingNotesReader
+        from app.shared.exceptions import AppException
+
+        call_count = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            return httpx.Response(200, json={"value": []})
+
+        port = GraphMeetingNotesReader(transport=httpx.MockTransport(handler))
+        ctx = _ctx(scopes=())  # no OnlineMeetingTranscript.Read.All
+
+        with pytest.raises(AppException) as excinfo:
+            await port.list_notes(ctx, limit=10)
+
+        assert excinfo.value.code == "capability_unavailable"
+        assert call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_granted_scope_returns_the_mapped_transcript_dto(self) -> None:
+        """Scenario: Consentimiento otorgado — with the scope present, the
+        transcript list + its content are fetched and mapped into a
+        `MeetingNote`."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMeetingNotesReader
+        from app.integrations.dtos import MeetingNote
+
+        granted = _load_fixture("transcript_granted.json")
+        content = _load_fixture("transcript_content.json")["content"]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/content"):
+                assert "meeting-1" in request.url.path
+                assert "transcript-1" in request.url.path
+                return httpx.Response(200, text=content)
+            return httpx.Response(200, json=granted)
+
+        port = GraphMeetingNotesReader(transport=httpx.MockTransport(handler))
+        ctx = _ctx(scopes=("OnlineMeetingTranscript.Read.All",))
+
+        notes = await port.list_notes(ctx, limit=10)
+
+        assert len(notes) == 1
+        note = notes[0]
+        assert isinstance(note, MeetingNote)
+        assert note.external_id == "transcript-1"
+        assert note.transcript == content
+        assert note.occurred_at.year == 2026
+        assert note.occurred_at.month == 7
+
+    @pytest.mark.asyncio
+    async def test_runtime_403_also_degrades_to_capability_unavailable(self) -> None:
+        """Scenario (defense in depth): even with the scope claimed by the
+        token, a live `403 Authorization_RequestDenied` from Graph (e.g.
+        admin consent revoked after issuance) degrades the SAME way as the
+        pre-flight check."""
+
+        from app.integrations.adapters.microsoft365.ports import GraphMeetingNotesReader
+        from app.shared.exceptions import AppException
+
+        denied = _load_fixture("no_consent_403.json")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, json=denied)
+
+        port = GraphMeetingNotesReader(transport=httpx.MockTransport(handler))
+        ctx = _ctx(scopes=("OnlineMeetingTranscript.Read.All",))
+
+        with pytest.raises(AppException) as excinfo:
+            await port.list_notes(ctx, limit=10)
+
+        assert excinfo.value.code == "capability_unavailable"
+
+    def test_meeting_notes_degradation_does_not_affect_other_capabilities(
+        self,
+    ) -> None:
+        """Scenario (continuación): la degradación de `meeting_notes` no
+        afecta correo, calendario ni tareas del MISMO adaptador — every
+        other port is still wired independently."""
+
+        from app.integrations.adapters.microsoft365.adapter import Microsoft365Adapter
+        from app.integrations.adapters.microsoft365.ports import (
+            GraphCalendarReader,
+            GraphExternalTaskReader,
+            GraphMailReader,
+            GraphMeetingNotesReader,
+        )
+        from app.integrations.ports import Capability
+
+        adapter = Microsoft365Adapter()
+
+        assert isinstance(adapter.port_for(Capability.mail), GraphMailReader)
+        assert isinstance(adapter.port_for(Capability.calendar), GraphCalendarReader)
+        assert isinstance(
+            adapter.port_for(Capability.external_tasks), GraphExternalTaskReader
+        )
+        assert isinstance(
+            adapter.port_for(Capability.meeting_notes), GraphMeetingNotesReader
+        )

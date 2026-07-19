@@ -20,15 +20,22 @@ import httpx
 
 from app.config import Settings
 from app.config import settings as default_settings
-from app.integrations.adapters.microsoft365 import oauth
+from app.integrations.adapters.microsoft365 import errors, oauth
 from app.integrations.adapters.microsoft365.client import GraphClient
 from app.integrations.adapters.microsoft365.mappers import (
     graph_datetime,
     map_calendar_event,
     map_external_task,
     map_mail_message,
+    map_meeting_note,
 )
-from app.integrations.dtos import CalendarEvent, ExternalTask, MailMessage, OAuthTokens
+from app.integrations.dtos import (
+    CalendarEvent,
+    ExternalTask,
+    MailMessage,
+    MeetingNote,
+    OAuthTokens,
+)
 from app.integrations.ports import AccessContext
 
 
@@ -158,3 +165,54 @@ class GraphExternalTaskReader(_GraphPortBase):
             if graph_datetime(raw["createdDateTime"]) >= effective_since
         ]
         return [map_external_task(raw) for raw in recent[:bounded_limit]]
+
+
+_MEETING_NOTES_SCOPE = "OnlineMeetingTranscript.Read.All"
+
+
+class GraphMeetingNotesReader(_GraphPortBase):
+    """``MeetingNotesReaderPort`` over Microsoft Graph's
+    ``/me/onlineMeetings/getAllTranscripts`` (+ each transcript's
+    ``.../content``), scopes ``OnlineMeetingTranscript.Read.All`` +
+    ``OnlineMeetings.Read``.
+
+    Degrades to :func:`errors.capability_unavailable` WITHOUT any network
+    call when the connected account's granted scopes (``ctx.scopes``,
+    persisted by the 14) don't include the transcript scope — admin
+    consent for a ``.All`` delegated permission is opt-in per connector
+    (design.md ADR #1), commonly absent. The SAME degradation applies when
+    Graph itself answers ``403 Authorization_RequestDenied`` at runtime
+    (``GraphClient`` maps every ``403`` this way — defense in depth: a
+    token's claimed scopes and its live grant can drift, e.g. revoked
+    admin consent) — neither path ever affects the adapter's other ports.
+    """
+
+    async def list_notes(
+        self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
+    ) -> list[MeetingNote]:
+        if _MEETING_NOTES_SCOPE not in ctx.scopes:
+            raise errors.capability_unavailable()
+
+        bounded_limit = self._bounded_limit(limit)
+        effective_since = self._since_or_default(since)
+        client = self._client(ctx)
+
+        raw_transcripts = await client.paginate(
+            "/me/onlineMeetings/getAllTranscripts",
+            limit=self._settings.M365_MAX_LIMIT,
+        )
+
+        recent = [
+            raw
+            for raw in raw_transcripts
+            if graph_datetime(raw["createdDateTime"]) >= effective_since
+        ][:bounded_limit]
+
+        notes: list[MeetingNote] = []
+        for raw in recent:
+            content_response = await client.get(
+                f"/me/onlineMeetings/{raw['meetingId']}/transcripts/"
+                f"{raw['id']}/content"
+            )
+            notes.append(map_meeting_note(raw, content_response.text))
+        return notes

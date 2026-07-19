@@ -113,10 +113,21 @@ class GraphClient:
 
         return items[:limit]
 
+    async def get(self, url: str) -> httpx.Response:
+        """GET a single (non-paginated) Graph resource with the SAME
+        resilience boundary as :meth:`paginate` — used by ports that fetch
+        one resource directly (e.g. a transcript's ``.../content``,
+        Lote 7), not a ``value``-paginated collection."""
+
+        return await self._get(url)
+
     async def _get(self, url: str) -> httpx.Response:
         """GET ``url`` with the resilience boundary applied: a single
-        refresh-and-retry on ``401`` and a bounded ``Retry-After`` backoff
-        on repeated ``429`` (M365-R3, M365-R7)."""
+        refresh-and-retry on ``401``, a bounded ``Retry-After`` backoff on
+        repeated ``429``, and a ``403``→``capability_unavailable`` /
+        other-``4xx``/``5xx``→``provider_unavailable`` mapping so every
+        port gets the SAME controlled-error contract (M365-R3, M365-R6,
+        M365-R7)."""
 
         used_refresh = False
         throttle_attempts = 0
@@ -137,6 +148,12 @@ class GraphClient:
                     raise errors.provider_throttled()
                 await self._sleep(self._retry_after_seconds(response))
                 continue
+
+            if response.status_code == 403:
+                raise errors.capability_unavailable()
+
+            if response.status_code >= 400:
+                raise errors.provider_unavailable()
 
             return response
 
