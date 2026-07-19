@@ -158,6 +158,48 @@ class GlpiClient:
 
         return items
 
+    async def get_ticket_users(
+        self, ticket_id: str, session_token: str, app_token: str
+    ) -> list[dict[str, Any]]:
+        """``GET {base}/Ticket/{id}/Ticket_User`` -> ``[{users_id, type}, ...]``
+        — ``type``: 1=solicitante, 2=ASIGNADO, 3=observador (mapper.py/
+        adapter.py resolve which role each entry plays)."""
+
+        response = await self._http.get(
+            f"/Ticket/{ticket_id}/Ticket_User",
+            headers={"Session-Token": session_token, "App-Token": app_token},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else []
+
+    async def get_user(
+        self, user_id: str, session_token: str, app_token: str
+    ) -> dict[str, Any]:
+        """``GET {base}/User/{id}`` -> ``{id, name, realname, firstname,
+        registration_number, ...}``."""
+
+        response = await self._http.get(
+            f"/User/{user_id}",
+            headers={"Session-Token": session_token, "App-Token": app_token},
+        )
+        response.raise_for_status()
+        payload: dict[str, Any] = response.json()
+        return payload
+
+    async def get_user_email(
+        self, user_id: str, session_token: str, app_token: str
+    ) -> list[dict[str, Any]]:
+        """``GET {base}/User/{id}/UserEmail`` -> ``[{email, is_default}, ...]``."""
+
+        response = await self._http.get(
+            f"/User/{user_id}/UserEmail",
+            headers={"Session-Token": session_token, "App-Token": app_token},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else []
+
     async def aclose(self) -> None:
         """Release the underlying ``httpx.AsyncClient``'s connections."""
 

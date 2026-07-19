@@ -451,3 +451,378 @@ class TestGlpiSessionCache:
             assert app_token not in record.getMessage()
             assert user_token not in record.getMessage()
             assert _STALE_TOKEN not in record.getMessage()
+
+
+# ---------------------------------------------------------------------------
+# Lote 6 — Adaptador completo: mapper + adapter + errors + registro
+# ---------------------------------------------------------------------------
+
+
+class TestGlpiMapper:
+    """Pure JSON -> DTO translation, no I/O (mapper.py)."""
+
+    def test_map_person_uses_default_flagged_email_and_configured_document_field(
+        self,
+    ) -> None:
+        from app.integrations.adapters.glpi.mapper import map_person
+
+        user_json = _load_fixture("user.json")
+        emails_json = _load_fixture("user_email.json")
+
+        person = map_person(user_json, emails_json, document_field="registration_number")
+
+        assert person.external_id == "55"
+        assert person.display_name == "Ana Torres"
+        assert person.email == "ana.torres@example.com"
+        assert person.document == "123456789"
+
+    def test_map_person_falls_back_to_first_email_when_none_flagged_default(
+        self,
+    ) -> None:
+        """Triangulation: no `is_default` entry -> the FIRST email wins."""
+
+        from app.integrations.adapters.glpi.mapper import map_person
+
+        user_json = {"id": 9, "firstname": "Carlos", "realname": "Ruiz"}
+        emails_json = [
+            {"email": "carlos.alt@example.com", "is_default": 0},
+            {"email": "carlos.ruiz@example.com", "is_default": 0},
+        ]
+
+        person = map_person(user_json, emails_json, document_field="registration_number")
+
+        assert person.email == "carlos.alt@example.com"
+        assert person.document is None
+
+    def test_map_ticket_includes_assignees_and_requester(self) -> None:
+        from app.integrations.adapters.glpi.mapper import map_person, map_ticket
+
+        ticket_json = {
+            "id": 201,
+            "name": "Impresora no imprime",
+            "status": 2,
+            "priority": 3,
+            "date": "2026-07-01 09:00:00",
+        }
+        assignee = map_person(
+            _load_fixture("user.json"),
+            _load_fixture("user_email.json"),
+            document_field="registration_number",
+        )
+
+        ticket = map_ticket(ticket_json, assignees=(assignee,), requester="Diana Páez")
+
+        assert ticket.external_id == "201"
+        assert ticket.key == "GLPI-201"
+        assert ticket.summary == "Impresora no imprime"
+        assert ticket.assignees == (assignee,)
+        assert ticket.requester == "Diana Páez"
+
+    def test_map_ticket_without_assignees_has_empty_tuple(self) -> None:
+        from app.integrations.adapters.glpi.mapper import map_ticket
+
+        ticket = map_ticket(
+            {"id": 202, "name": "Solo solicitante", "status": 1, "priority": None},
+            assignees=(),
+            requester="Diana Páez",
+        )
+
+        assert ticket.assignees == ()
+        assert ticket.requester == "Diana Páez"
+        assert ticket.priority is None
+
+
+def _glpi_routing_handler(
+    *,
+    ticket_pages: dict[str, tuple[list[dict], str]],
+    ticket_users_by_ticket: dict[str, list[dict]],
+    users_by_id: dict[str, dict],
+    emails_by_user: dict[str, list[dict]],
+    init_fails: bool = False,
+):
+    """Build a single `httpx.MockTransport` handler routing GLPI's session
+    lifecycle + `Ticket`/`Ticket_User`/`User`/`UserEmail` endpoints from
+    canned fixtures — shared by every Lote 6 adapter-level test."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/initSession"):
+            if init_fails:
+                return httpx.Response(
+                    401, json=_load_fixture("session_expired_401.json")
+                )
+            return httpx.Response(200, json={"session_token": _FRESH_TOKEN})
+        if path.endswith("/killSession"):
+            return httpx.Response(200, json={})
+        if path.endswith("/Ticket_User"):
+            ticket_id = path.rsplit("/", 2)[1]
+            return httpx.Response(200, json=ticket_users_by_ticket.get(ticket_id, []))
+        if path.endswith("/UserEmail"):
+            user_id = path.rsplit("/", 2)[1]
+            return httpx.Response(200, json=emails_by_user.get(user_id, []))
+        if "/User/" in path:
+            user_id = path.rsplit("/", 1)[1]
+            return httpx.Response(200, json=users_by_id.get(user_id, {}))
+        if path.endswith("/Ticket"):
+            range_header = request.headers.get("Range", "0-99")
+            items, content_range = ticket_pages.get(range_header, ([], "0-0/0"))
+            return httpx.Response(206, json=items, headers={"Content-Range": content_range})
+        return httpx.Response(404, json={"error": "not_found"})
+
+    return handler
+
+
+def _ctx_for(connector_id: str, *, document_field: str | None = None):
+    from app.integrations.adapters.glpi.adapter import encode_access_context
+    from app.integrations.ports import AccessContext
+
+    payload = encode_access_context(
+        connector_id=connector_id,
+        base_url=_ALLOWED_BASE_URL,
+        app_token="app-token-xyz",
+        user_token="user-token-abc",
+        document_field=document_field,
+    )
+    return AccessContext(access_token=payload, refresh_token=None, scopes=())
+
+
+def _glpi_adapter_for(handler) -> object:
+    """Build a `GlpiAdapter` whose tickets port routes every HTTP call
+    through `handler` via an injected `httpx.MockTransport` — zero real
+    network, no monkeypatching (the adapter/`_GlpiTicketReader` accept an
+    injectable `transport`, same DI shape as `GraphClient`/`GoogleClient`).
+    """
+
+    from app.integrations.adapters.glpi.adapter import GlpiAdapter
+
+    return GlpiAdapter(settings=_settings(), transport=httpx.MockTransport(handler))
+
+
+class TestGlpiAdapterListTickets:
+    @pytest.mark.asyncio
+    async def test_ticket_with_assigned_technician_populates_assignees(
+        self, patched_redis
+    ) -> None:
+        """GA-R4, Scenario "Ticket con un técnico asignado"."""
+
+        from app.integrations.ports import Capability
+
+        ticket_json = {
+            "id": 201,
+            "name": "Impresora no imprime",
+            "status": 2,
+            "priority": 3,
+            "date": "2026-07-01 09:00:00",
+        }
+        handler = _glpi_routing_handler(
+            ticket_pages={"0-49": ([ticket_json], "0-0/1")},
+            ticket_users_by_ticket={"201": _load_fixture("ticket_user_assigned.json")},
+            users_by_id={"55": _load_fixture("user.json")},
+            emails_by_user={"55": _load_fixture("user_email.json")},
+        )
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        tickets = await port.list_tickets(_ctx_for("conn-a"), limit=50)
+
+        assert len(tickets) == 1
+        ticket = tickets[0]
+        assert ticket.external_id == "201"
+        assert len(ticket.assignees) == 1
+        assert ticket.assignees[0].display_name == "Ana Torres"
+        assert ticket.assignees[0].email == "ana.torres@example.com"
+        assert ticket.assignees[0].document == "123456789"
+
+    @pytest.mark.asyncio
+    async def test_ticket_with_requester_only_has_empty_assignees(
+        self, patched_redis
+    ) -> None:
+        """GA-R4, Scenario "Ticket con solicitante pero sin asignado"."""
+
+        from app.integrations.ports import Capability
+
+        ticket_json = {
+            "id": 202,
+            "name": "Solo solicitante",
+            "status": 1,
+            "priority": 1,
+            "date": "2026-07-02 09:00:00",
+        }
+        requester_user = {
+            "id": 77,
+            "name": "dpaez",
+            "realname": "Páez",
+            "firstname": "Diana",
+        }
+        handler = _glpi_routing_handler(
+            ticket_pages={"0-49": ([ticket_json], "0-0/1")},
+            ticket_users_by_ticket={
+                "202": _load_fixture("ticket_user_requester_only.json")
+            },
+            users_by_id={"77": requester_user},
+            emails_by_user={},
+        )
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        tickets = await port.list_tickets(_ctx_for("conn-b"), limit=50)
+
+        assert len(tickets) == 1
+        ticket = tickets[0]
+        assert ticket.assignees == ()
+        assert ticket.requester == "Diana Páez"
+
+
+class TestGlpiWriteBoundary:
+    def test_no_write_http_verb_used_anywhere_except_init_session(self) -> None:
+        """GA-R5, Scenario "No existe ningún método de escritura" — static
+        source inspection: `.post(` appears exactly once (init_session's
+        `POST /initSession`, part of the session cycle); `.put(`/`.delete(`
+        never appear anywhere in the package."""
+
+        import inspect
+
+        from app.integrations.adapters.glpi import adapter, client
+
+        source = inspect.getsource(client) + inspect.getsource(adapter)
+        assert source.count(".post(") == 1
+        assert ".put(" not in source
+        assert ".delete(" not in source
+
+
+class TestGlpiErrors:
+    @pytest.mark.asyncio
+    async def test_network_error_raises_glpi_unavailable(self, patched_redis) -> None:
+        """GA-R6, Scenario "GLPI no responde"."""
+
+        from app.integrations.adapters.glpi import errors
+        from app.integrations.ports import Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        with pytest.raises(errors.GlpiUnavailable):
+            await port.list_tickets(_ctx_for("conn-c"), limit=50)
+
+    @pytest.mark.asyncio
+    async def test_invalid_credentials_raise_glpi_auth_error_without_caching(
+        self, patched_redis, fake_redis
+    ) -> None:
+        """GA-R6, Scenario "Credenciales inválidas"."""
+
+        from app.integrations.adapters.glpi import errors
+        from app.integrations.ports import Capability
+
+        handler = _glpi_routing_handler(
+            ticket_pages={},
+            ticket_users_by_ticket={},
+            users_by_id={},
+            emails_by_user={},
+            init_fails=True,
+        )
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        with pytest.raises(errors.GlpiAuthError):
+            await port.list_tickets(_ctx_for("conn-d"), limit=50)
+
+        cached = await fake_redis.get(_session_key("conn-d"))
+        assert cached is None
+
+
+class TestGlpiMultiTenant:
+    @pytest.mark.asyncio
+    async def test_two_connectors_use_isolated_session_cache_keys(
+        self, patched_redis, fake_redis
+    ) -> None:
+        """GA-R7, Scenario "Dos organizaciones con conectores GLPI
+        distintos" — each `connector_id` gets its OWN Redis key, no
+        cross-talk even when both point at the same GLPI instance."""
+
+        from app.integrations.ports import Capability
+
+        handler = _glpi_routing_handler(
+            ticket_pages={"0-49": ([], "0-0/0")},
+            ticket_users_by_ticket={},
+            users_by_id={},
+            emails_by_user={},
+        )
+
+        adapter = _glpi_adapter_for(handler)
+        port = adapter.port_for(Capability.tickets)
+        await port.list_tickets(_ctx_for("conn-org-a"), limit=50)
+        await port.list_tickets(_ctx_for("conn-org-b"), limit=50)
+
+        assert await fake_redis.get(_session_key("conn-org-a")) == _FRESH_TOKEN
+        assert await fake_redis.get(_session_key("conn-org-b")) == _FRESH_TOKEN
+
+
+class TestGlpiRegistration:
+    def test_glpi_adapter_registered_at_import_time_with_correct_shape(self) -> None:
+        """GA-R1, Scenario "Registro sin tocar el núcleo"."""
+
+        import app.integrations.adapters.glpi  # noqa: F401 - triggers registration
+        from app.integrations.ports import Capability, CredentialKind
+        from app.integrations.registry import get_adapter
+
+        resolved = get_adapter("glpi")
+        assert resolved is not None
+        assert resolved.provider == "glpi"
+        assert resolved.credential_kind == CredentialKind.api_token
+        assert resolved.capabilities == frozenset({Capability.tickets})
+        assert resolved.oauth is None
+        assert resolved.api_token is not None
+
+
+class TestGlpiApiTokenHandshake:
+    """GA-R2 (connect-time validation): `ApiTokenHandshake.connect(raw)`
+    validates via `initSession`+`killSession`, never persists anything
+    itself (that stays `connectors/service.py`'s job)."""
+
+    @pytest.mark.asyncio
+    async def test_connect_validates_via_init_and_kill_session_and_returns_account_ref(
+        self,
+    ) -> None:
+        calls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/initSession"):
+                calls.append("init")
+                return httpx.Response(200, json={"session_token": _FRESH_TOKEN})
+            if request.url.path.endswith("/killSession"):
+                calls.append("kill")
+                return httpx.Response(200, json={})
+            return httpx.Response(404)
+
+        adapter = _glpi_adapter_for(handler)
+
+        account_ref = await adapter.api_token.connect(
+            {
+                "base_url": _ALLOWED_BASE_URL,
+                "app_token": "app-token-xyz",
+                "user_token": "user-token-abc",
+            }
+        )
+
+        assert calls == ["init", "kill"]
+        assert account_ref.external_account_id.startswith("glpi-")
+
+    @pytest.mark.asyncio
+    async def test_connect_with_invalid_credentials_raises_glpi_auth_error(self) -> None:
+        from app.integrations.adapters.glpi import errors
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json=_load_fixture("session_expired_401.json"))
+
+        adapter = _glpi_adapter_for(handler)
+
+        with pytest.raises(errors.GlpiAuthError):
+            await adapter.api_token.connect(
+                {
+                    "base_url": _ALLOWED_BASE_URL,
+                    "app_token": "app-token-xyz",
+                    "user_token": "user-token-invalid",
+                }
+            )

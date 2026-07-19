@@ -94,16 +94,18 @@ Chain strategy: stacked-to-main
 
 ## Lote 6 — Adaptador completo: `mapper`+`adapter`+`errors`+registro (Commit 6)
 
-- [ ] 6.1 [Fixtures] `tests/fixtures/glpi/ticket_user_assigned.json` (`type=2`), `ticket_user_requester_only.json` (`type=1`), `user.json`, `user_email.json`.
-- [ ] 6.2 RED `TestGlpiMapper`/`TestGlpiWriteBoundary`/`TestGlpiErrors`/`TestGlpiMultiTenant`: ticket con `Ticket_User.type=2` → `assignees` con identidad completa (id/nombre/correo), excluye `type=1`/`type=3`; ticket solo con solicitante → `requester` poblado y `assignees=[]`; documento del asignado se lee del campo configurado en `connectors.settings.document_field` (default `registration_number`); ninguna llamada HTTP del paquete usa `POST`/`PUT`/`DELETE` sobre recursos de negocio GLPI (introspección estática); timeout/error de red → `GlpiUnavailable` estructurado sin credenciales en el mensaje; App-Token/user_token inválidos → `GlpiAuthError` sin cachear `session_token`; dos conectores GLPI de organizaciones distintas usan `session_token` cacheados aislados por `connector_id`, sin cruce. [GA-R1, GA-R4, GA-R5, GA-R6, GA-R7]
-- [ ] 6.3 VERIFY confirmar T6.2 en ROJO antes de GREEN.
-- [ ] 6.4 GREEN `app/integrations/adapters/glpi/errors.py`: `GlpiUnavailable`, `GlpiAuthError`.
-- [ ] 6.5 GREEN `app/integrations/adapters/glpi/mapper.py`: JSON GLPI → `Ticket`/`ExternalPerson`.
-- [ ] 6.6 GREEN `app/integrations/adapters/glpi/adapter.py`: `GlpiAdapter` (`provider="glpi"`, `credential_kind=api_token`, `capabilities={tickets}`, `api_token: ApiTokenHandshake` vía `initSession`/`killSession`, `port_for(Capability.tickets)`).
-- [ ] 6.7 GREEN `app/integrations/adapters/glpi/__init__.py`: `register_adapter(GlpiAdapter())` en import-time.
-- [ ] 6.8 GREEN `app/db_init.py`: `import app.integrations.adapters.glpi` (registro, precedente `adapters.fake`).
-- [ ] 6.9 GREEN `requirements.txt`: promover `httpx` desde `requirements-dev.txt` (primer adaptador HTTP real que lo exige en runtime).
-- [ ] 6.10 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -v` (suite completa del adaptador) en verde; `ruff check .`/`mypy app` limpios en `app/integrations/adapters/glpi/`.
+- [x] 6.1 [Fixtures] `tests/fixtures/glpi/ticket_user_assigned.json` (`type=2`), `ticket_user_requester_only.json` (`type=1`), `user.json`, `user_email.json`.
+- [x] 6.2 RED `TestGlpiMapper`/`TestGlpiWriteBoundary`/`TestGlpiErrors`/`TestGlpiMultiTenant`: ticket con `Ticket_User.type=2` → `assignees` con identidad completa (id/nombre/correo), excluye `type=1`/`type=3`; ticket solo con solicitante → `requester` poblado y `assignees=[]`; documento del asignado se lee del campo configurado en `connectors.settings.document_field` (default `registration_number`); ninguna llamada HTTP del paquete usa `POST`/`PUT`/`DELETE` sobre recursos de negocio GLPI (introspección estática); timeout/error de red → `GlpiUnavailable` estructurado sin credenciales en el mensaje; App-Token/user_token inválidos → `GlpiAuthError` sin cachear `session_token`; dos conectores GLPI de organizaciones distintas usan `session_token` cacheados aislados por `connector_id`, sin cruce. [GA-R1, GA-R4, GA-R5, GA-R6, GA-R7]
+- [x] 6.3 VERIFY confirmar T6.2 en ROJO antes de GREEN.
+- [x] 6.4 GREEN `app/integrations/adapters/glpi/errors.py`: `GlpiUnavailable`, `GlpiAuthError`.
+- [x] 6.5 GREEN `app/integrations/adapters/glpi/mapper.py`: JSON GLPI → `Ticket`/`ExternalPerson`.
+- [x] 6.6 GREEN `app/integrations/adapters/glpi/adapter.py`: `GlpiAdapter` (`provider="glpi"`, `credential_kind=api_token`, `capabilities={tickets}`, `api_token: ApiTokenHandshake` vía `initSession`/`killSession`, `port_for(Capability.tickets)`).
+- [x] 6.7 GREEN `app/integrations/adapters/glpi/__init__.py`: `register_adapter(GlpiAdapter())` en import-time.
+- [x] 6.8 GREEN `app/db_init.py`: `import app.integrations.adapters.glpi` (registro, precedente `adapters.fake`).
+- [x] 6.9 GREEN `requirements.txt`: promover `httpx` desde `requirements-dev.txt` (primer adaptador HTTP real que lo exige en runtime).
+- [x] 6.10 VERIFY `cd backend && pytest tests/test_adapter_glpi.py -v` (suite completa del adaptador) en verde; `ruff check .`/`mypy app` limpios en `app/integrations/adapters/glpi/`.
+
+  **Desviaciones documentadas**: (1) `client.py` (Lote 4) se amplía con `get_ticket_users`/`get_user`/`get_user_email` — necesarios para el mapper/adaptador y ya previstos en la tabla de `design.md` para `client.py`, aunque T4.5 solo listó `init_session`/`kill_session`/`list_tickets` explícitamente. (2) `AccessContext` (núcleo del 14) NUNCA se extiende con campos GLPI — `adapter.py` expone `encode_access_context(connector_id, base_url, app_token, user_token, document_field)` que empaqueta esos datos como JSON opaco en `AccessContext.access_token`; solo este paquete lo decodifica (`_decode_access_context`). El futuro `glpi_sync/service.py` (Lote 8) construirá ese payload combinando `connector.id` + `connectors.settings` (`base_url`/`document_field`) + credenciales descifradas. (3) `requirements.txt` ya tenía `httpx==0.28.1` (quedó promovido en un apply anterior, 15 o 16) — T6.9 confirmado sin cambios. (4) `_GlpiApiTokenHandshake.connect()` no estaba en la lista explícita de escenarios RED de T6.2 pero es requisito directo de GA-R2 y necesario para que `GlpiAdapter` sea usable en el Lote 8; se agregaron 2 pruebas dedicadas (`TestGlpiApiTokenHandshake`).
 
 ## Lote 7 — Cascada de homologación por asignado (Commit 7)
 
