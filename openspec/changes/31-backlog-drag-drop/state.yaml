@@ -1,0 +1,67 @@
+change: 31-backlog-drag-drop
+artifact_store: hybrid
+depends_on:
+  - 30-backlog-sprints-agrupados
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - tasks
+target_capabilities:
+  - tasks
+constraints:
+  - reuse-existing-patch-tasks-id-sprint-id-and-order
+  - no-backend-delta-by-default-ui-enforced-rules
+  - angular-cdk-dragdrop-no-existing-dnd-to-reuse
+  - optimistic-update-with-rollback-on-error
+  - visible-drop-zone-highlight-valid-dim-invalid
+  - drop-rules-backlog-to-any-visible-sprint-draft-and-active
+  - drop-rules-sprint-to-sprint-only-both-draft
+  - never-drop-into-or-out-of-closed-sprint
+  - keyboard-fallback-move-to-context-menu-same-patch
+  - reuse-stable-section-ids-sprint-uuid-and-backlog-from-30
+  - backend-delta-only-if-reorder-or-move-guard-then-tdd
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Drag & drop con Angular CDK (DragDropModule) en la vista agrupada de 30: cada seccion es un cdkDropList conectado; tarjetas cdkDrag"
+  - "Reglas de destino: backlog <-> cualquier sprint visible (draft y active); sprint <-> sprint solo si ambos draft; nunca hacia/desde closed"
+  - "Zona de drop visible: resaltar destinos validos, atenuar/deshabilitar invalidos durante el arrastre"
+  - "Actualizacion optimista con rollback ante error"
+  - "Persistencia via PATCH /tasks/{id} existente con {sprint_id, order}; sin endpoint nuevo por defecto"
+  - "Accesibilidad: menu contextual 'Mover a...' por tarjeta (ruta de teclado, mismo PATCH); drag por teclado de CDK como complemento"
+  - "Fuera de alcance: DnD del board kanban (sigue por botones + PATCH /tasks/{id}/column), busqueda/filtros (33), jerarquia subtareas (32), estimation_display (34), mover entre proyectos, avisos de scope change (42)"
+interpretation_note:
+  - "OLA_4 dice 'backlog <-> sprint y entre sprints no iniciados'. Interpretacion elegida: backlog<->sprint = cualquier sprint VISIBLE en la vista de 30 (active+draft; closed ocultos); entre-sprints = solo si ambos draft"
+  - "Tradeoff: permitir backlog->active agrega scope a sprint en curso (aviso llega en 42); la variante estricta (solo draft destino) es mas segura pero rompe el flujo Jira. Elegida la primera; frontera con 42 documentada"
+order_note:
+  - "depends_on: [30-backlog-sprints-agrupados]; el apply se ordena tras cerrar el ciclo de 30 por los ids estables sprint-<uuid>/backlog"
+facts_verified:
+  - "Consecutivo 31 LIBRE en openspec/changes/ y en openspec/changes/archive/ (activos: 25-30 y 34)"
+  - "NO existe drag & drop en el frontend: 0 usos de cdkDropList/cdkDrag/draggable/onDrop/dragstart en frontend/src (grep)"
+  - "@angular/cdk ^22.0.4 SI esta instalado (frontend/package.json:14) -> CDK DragDrop disponible sin nueva dependencia"
+  - "El board mueve tareas por botones de estado (updateTask({status}) project-workspace.component.ts:1277) + PATCH /tasks/{id}/column (router.py:176-195, service.move_task_column:504); NO por arrastre"
+  - "Mover sprint/backlog hoy = modal de tarea: updateTask({sprint_id}) (project-workspace.component.ts:1339,1354)"
+  - "PATCH /tasks/{id} (router.py:159-173, service.update_task:358) YA acepta sprint_id (con _verify_sprint) Y order en la misma llamada (service.py:440-458)"
+  - "_verify_sprint (service.py:822-841) solo valida que el sprint EXISTE en org/proyecto; NO valida status draft/active/closed -> reglas de destino no estan enforçadas server-side hoy"
+  - "Sprint.status es free-form 'active'|'closed' (sprints/models.py:36-39); el cambio 29 agrega 'draft' (sprint sin iniciar)"
+  - "Task.order existe y se usa para ordenar listados (repository.py:27,122 order_by Task.order.asc()); es patchable via update_task"
+  - "Vista de 30 deja ids estables sprint-<uuid>/backlog y ordena tareas por task.order como seams para 31 (30/design.md D7)"
+  - "Permisos: modulo tasks usa get_current_membership (org + rol); DnD reutiliza el mismo endpoint -> mismos permisos y aislamiento por organization_id"
+last_updated: 2026-07-20
+spec_notes:
+  - "Default: sin delta spec-level (reutiliza PATCH /tasks/{id}); Modified capabilities = None"
+  - "Condicional: si design adopta guard de movimiento server-side (rechazar destino invalido/closed) o endpoint reorder por lotes, capability 'tasks' pasa a Modified con delta + TDD (reglas de movimiento + orden)"
+  - "OLA_4 exige TDD de reglas de negocio; por eso el guard server-side se plantea como opcion recomendable a decidir en design/spec"
+  - "RECONCILIACION (fase tasks, orquestador): design.md D1 introdujo POST /tasks/reorder (mueve sprint_id + reindexa order en 1 transaccion) sin delta paralelo en spec. Se añadio el requisito ADDED 'Reordenamiento transaccional via POST /tasks/reorder' en specs/tasks/spec.md con 4 escenarios (happy: reindexa hermanos; error: sprint closed -> 422 sprint_closed; error: tarea de otra org -> 404; permisos sin cambio). capabilities.modified pasa a incluir 'tasks', confirmando la condicion ya prevista arriba"

@@ -1,0 +1,78 @@
+change: 40-jira-import-usuario
+artifact_store: hybrid
+depends_on:
+  - 39-conector-capacidades
+  - 34-estimacion-normalizada
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - jira-import-wizard
+  modified:
+    - jira-import
+    - tasks
+target_capabilities:
+  - jira-import
+  - jira-import-wizard
+  - tasks
+constraints:
+  - reuse-jira-adapter-18
+  - read-only-toward-jira
+  - idempotent-reimport-by-external-key
+  - atomic-task-key-counter
+  - estimation-seconds-to-hours-via-34
+  - status-mapping-via-methodology-strategy
+  - tdd-httpx-mocktransport
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "GET /connectors/{id}/jira/projects lista los proyectos Jira accesibles con el conector del usuario (/rest/api/3/project/search); RBAC admin/manager como el resto de jira_import"
+  - "POST /connectors/{id}/jira/preview devuelve conteos por tipo (epicas/historias/subtareas/bugs) + sprints + mapeo propuesto de estados/tipos/estimaciones SIN persistir"
+  - "POST /connectors/{id}/jira/import-project ejecuta la importacion idempotente (transaccional o por lotes) y devuelve resumen (creados/actualizados/omitidos + reporte de no homologados)"
+  - "Jerarquia epic->story->subtask via parent_task_id en dos pasadas (crear todo, luego enlazar por clave padre); huerfana -> sin padre + nota"
+  - "task_key local atomico via projects.task_counter (UPDATE ... RETURNING); la clave Jira original se preserva como ancla de reimportacion"
+  - "timeoriginalestimate (segundos) -> horas con seconds_to_hours del cambio 34; story points -> estimation_points"
+  - "Estado Jira -> estados de la metodologia destino (scrum) leido DESDE la strategy (nunca if methodology==); reusa el NormalizationReport del 18 para no homologados"
+  - "Asignado homologado por email exacto contra miembros de la org; sin match -> sin asignar con nota"
+  - "Frontend: asistente de 3 pasos (elegir -> previsualizar -> importar) desde la tarjeta del conector (punto de entrada del 39)"
+  - "Fuera de alcance: modo admin multi-proyecto por lotes reanudable (41), escritura hacia Jira, reparacion OAuth/import Planner-Google (38/posteriores), scheduler"
+module_decision:
+  - "Reutilizar el adaptador jira del 18 (client.py/normalizer.py/mappings.py/adapter.py) y el JiraImportService del modulo jira_import; NO reescribir extraccion/normalizacion"
+  - "Extender JiraClient con /project/search y agregar original_estimate_seconds a _BASE_SEARCH_FIELDS + NormalizedJiraIssue + _canonical_from_api_issue/_canonical_from_file_row"
+  - "Nuevo servicio de escritura en jira_import (el actual es solo-lectura y no persiste) que crea Project/Sprint/Task respetando task_counter, jerarquia y strategy destino"
+  - "Ancla de procedencia externa (source + external_key) en Task (+ Sprint + Project) siguiendo el precedente de IntakeItem (UNIQUE(org, connector, external_id) + source_provider); requiere migracion Alembic"
+  - "Credenciales via connectors: crypto.decrypt de ConnectedAccount.access_token_enc -> {base_url, email, api_token} (Fernet), ya resuelto en JiraImportService._decrypt_credentials"
+facts_verified:
+  - "Consecutivo 40 libre: no existe openspec/changes/40-* ni memoria Engram sdd/40-*/*"
+  - "jira_import es SOLO-LECTURA y NUNCA persiste: router.py expone import (jql,since) e import-file; service.py delega en el adapter y devuelve NormalizedJiraIssue[] + NormalizationReport"
+  - "NormalizedJiraIssue (dtos.py) tiene story_points (float) pero NO timeoriginalestimate/segundos; hay que agregar el campo y su extraccion en el normalizer"
+  - "mappings.py ya homologa tipo (epic/story/task/bug + subtask via issuetype.subtask boolean), estado (buckets todo/in_progress/done via statusCategory) y prioridad (Priority enum) con fallback + reporte"
+  - "Task (tasks/models.py) tiene parent_task_id (self-FK SET NULL), sprint_id, task_number atomico via projects.task_counter, estimation_points (Integer) y estimation_hours (Numeric(7,2)); status/task_type son texto libre validado por strategy"
+  - "Task/Sprint/Project NO tienen external_ref/external_key/metadata JSONB: no hay ancla de idempotencia; precedente reutilizable = IntakeItem.source_provider + external_id + UNIQUE(org, connector, external_id)"
+  - "Project (projects/models.py): code unico por org (uq_project_code_per_org), task_counter (Integer), methodology (enum), parent_project_id, lead_user_id"
+  - "Sprint (sprints/models.py): name, goal, start_date, end_date, status texto libre ('active'|'closed'), completed_points, closed_at; sin external ref (Jira usa future/active/closed)"
+  - "seconds_to_hours(seconds:int)->Decimal = Decimal(seconds)/Decimal(3600) vive en app/modules/work_calendar/estimation.py (cambio 34, seam declarado para 40/41)"
+  - "_extract_assignee_from_api prioriza accountId sobre emailAddress/displayName -> el matching por email requiere preservar emailAddress explicitamente"
+  - "Punto de entrada = tarjeta/panel de acciones del cambio 39 (GET /connectors/{id}/actions); el import Jira se muestra coming_soon hasta que 40 aterrice"
+  - "JiraClient valida base_url por sufijo (anti-SSRF), HTTP Basic email:api_token, backoff 429, paginacion nextPageToken; transport inyectable (httpx.MockTransport) para TDD"
+dependency_gating:
+  - "El apply del 40 NO arranca hasta que 34 exponga seconds_to_hours (work_calendar/estimation.py) y 39 provea el punto de entrada del asistente; ambos declarados en depends_on"
+  - "34 depende a su vez del 28 (work_calendar) para ResolvedCalendar; seconds_to_hours es puro y no usa calendario, pero el modulo debe existir en disco"
+  - "Hallazgo de la fase tasks (verificado en disco): 28, 29, 34 y 39 tienen apply:pending -- backend/app/modules/work_calendar/ no existe, sprints/service.py no reconoce 'draft', connectors/jira_import no exponen ningun endpoint de acciones nuevo; tasks.md Fase 0 (0.1-0.5) es el gate real que debe re-verificarse en apply antes de tocar cualquier archivo de este cambio"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability NUEVA: jira-import-wizard (spec completo) — asistente frontend de 3 pasos elegir/previsualizar/importar desde la tarjeta del conector"
+  - "Delta MODIFIED jira-import: de extraccion solo-lectura a flujo de importacion (listar proyectos, previsualizar, persistir idempotente, mapeo a metodologia destino, conversion de estimacion)"
+  - "Delta MODIFIED tasks: ancla de procedencia externa (source + external_key) que preserva la clave Jira y habilita reimportacion idempotente (aplica tambien a sprint/project a nivel de diseno)"
+  - "Requisitos a especificar: listar proyectos Jira; preview con conteos + mapeo propuesto sin persistir; import idempotente con jerarquia/task_key/estimacion/asignado; reconciliacion de reimport; estados carga/vacio/error del asistente"
+  - "Dependencia de spec (no delta): methodology-strategies aporta los estados destino leidos por strategy; connectors aporta credenciales/RBAC"

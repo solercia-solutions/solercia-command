@@ -1,0 +1,56 @@
+change: 34-estimacion-normalizada
+artifact_store: hybrid
+depends_on:
+  - 28-calendario-laboral
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - estimation
+  modified:
+    - tasks
+target_capabilities:
+  - estimation
+  - tasks
+constraints:
+  - backend-source-of-truth-for-conversion-and-format
+  - consumes-work-calendar-resolvedcalendar
+  - tdd-roundtrip-conversion-contracts
+  - no-migration-no-new-columns
+  - manual-scoping-preserved
+boundary:
+  - "Conversion w/d/h -> horas y formateo de despliegue viven en el BACKEND (fuente unica); el front envia string crudo y pinta estimation_display"
+  - "Converter = funciones puras en app/modules/work_calendar/estimation.py parametrizadas por ResolvedCalendar (NO en shared/ ni tasks/; sin importar tasks -> sin ciclo)"
+  - "1d = working_hours_per_day; 1w = len(working_days) x working_hours_per_day (del calendario resuelto del cambio 28)"
+  - "estimation_input (str) manda sobre estimation_hours (numerico) cuando ambos llegan; input vacio limpia; input invalido -> 422"
+  - "Sin migracion: estimation_hours ya existe (Numeric(7,2)); estimation_input y estimation_display son transitorios"
+  - "Fuera de alcance: importacion Jira real (40/41 consumen el converter), estimation_points, edicion del calendario (28)"
+  - "Prerrequisito consumido: 28-calendario-laboral (WorkCalendarResolver.resolve -> ResolvedCalendar)"
+migration:
+  - "NINGUNA migracion nueva: no hay columnas nuevas; estimation_hours ya existe en tasks (Numeric(7,2), models.py:113)"
+facts_verified:
+  - "estimation_hours ya se guarda en horas: tasks/models.py:113 (Numeric(7,2), nullable)"
+  - "TaskCreate/TaskUpdate solo aceptan estimation_hours numerico (float, ge=0 le=10000); backend NO convierte w/d/h hoy (tasks/schemas.py:34,76)"
+  - "La conversion w/d/h vive SOLO en el front con 8h/dia y 5d/semana a fuego: frontend/src/shared/lib/estimation.ts (HOURS_PER_DAY=8, DAYS_PER_WEEK=5)"
+  - "task-modal.component.ts parsea el string en cliente y envia estimation_hours numerico (lineas 419,434); formatea con formatOriginalEstimate (linea 359)"
+  - "jira_import (parser+cliente HTTP) NO parsea estimacion hoy (grep sin coincidencias en app/modules/jira_import)"
+  - "Cambio 28 define WorkCalendarResolver.resolve(org_id, project_id) -> ResolvedCalendar(working_hours_per_day, working_days, source) en app/modules/work_calendar (design.md:110-112)"
+  - "Consecutivo 34 libre en openspec/changes/ (existen 25,26,27,28 y cycle2-design-system)"
+  - "No existe spec 'estimation' en openspec/specs/; si existe spec 'tasks' (a modificar via delta)"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capabilities: estimation (spec nueva, full) + tasks (delta MODIFIED: estimation_input in, estimation_display out)"
+  - "Contrato TDD ida y vuelta: calendario A (8h, L-V) '1w 2d 4h'=60h y format(60,A)='1w 2d 4h'; calendario B (equipo fin de semana / hours_per_day y working_days distintos) round-trip estable"
+  - "Precedencia: estimation_input manda sobre estimation_hours; input vacio -> None (limpia); input invalido -> 422 con mensaje claro"
+  - "Display: campo calculado estimation_display en TaskRead (no pipe Angular); resolver calendario 1 vez por proyecto/respuesta (batch en memoria)"

@@ -1,0 +1,72 @@
+change: 37-cambio-metodologia
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - methodology-migration
+  modified:
+    - projects
+    - sprints
+target_capabilities:
+  - methodology-migration
+  - projects
+  - sprints
+constraints:
+  - backend-and-frontend
+  - tdd-no-invalid-task-state
+  - strategy-pattern-no-methodology-conditionals
+  - transactional-all-or-nothing
+  - no-schema-migration-reuse-existing-tables
+  - manual-scoping-preserved
+  - admin-or-manager-only
+boundary:
+  - "Cambio de methodology va por endpoint DEDICADO de migracion; el PATCH /projects/{id} normal SIGUE rechazando methodology con 422 methodology_not_editable"
+  - "Plan (GET preview): estados/columnas origen (board actual via resolve_board_strategy), columnas destino requeridas (get_strategy(target).default_columns()), mapeo propuesto heuristico por nombre/orden, resumen de impacto"
+  - "Ejecucion (POST confirmado): UNA transaccion — crea columnas destino, remapea Task.status+board_column_id, recalcula completed_at contra columna done del destino, cierra+desvincula sprints si el destino no tiene sprints, persiste project.methodology"
+  - "Exhaustividad: todo estado origen con tareas activas DEBE tener destino; mapeo incompleto -> 422"
+  - "Strategy destino provee allowed_statuses() + flags (sprints_enabled, estimation_mode, has_backlog); PROHIBIDO if methodology == ... en el service"
+  - "Fuera de alcance: migracion masiva multi-proyecto, reescribir TaskHistory, borrar estimation_points al salir de scrum"
+decisions:
+  - "scrum -> metodologia sin sprints: sprints activos se CIERRAN (status=closed) y tareas se DESVINCULAN (sprint_id=NULL), con confirmacion explicita; NO destructivo, historial cerrado preservado"
+  - "estimation_points/estimation_hours se CONSERVAN al salir de scrum (solo dejan de exhibirse por estimation_mode del destino); reversible si el usuario migra de vuelta"
+  - "planner/kanban -> scrum: tareas sin estimation_points son validas (puntos opcionales, Task.estimation_points nullable); sin bloqueo"
+  - "destino custom (default_columns() == []): el usuario define columnas en el paso 1 del asistente ANTES de mapear; rechazo si queda vacio"
+  - "Mapeo por defecto heuristico por nombre/orden, editable por el usuario en la UI"
+module_decision:
+  - "Capacidad nueva methodology-migration; los endpoints viven en el modulo projects (router/service) reusando BoardService + methodology.factory/board_aware, sin nuevo modulo"
+  - "Reconstruccion del board reusa primitivas existentes de BoardService (add_column, reassign_column_tasks, remove_column); NO nuevas primitivas de board"
+  - "SIN migracion Alembic: reusa board_columns, tasks, sprints existentes"
+facts_verified:
+  - "Consecutivo 37 libre en openspec/changes/ (36-proyectos-jerarquia-unificada y 37 aun no creados; ultimo state.yaml existente = 35)"
+  - "methodology es INMUTABLE hoy: ProjectService.update_project levanta 422 methodology_not_editable si methodology esta en el PATCH (app/modules/projects/service.py:227-233); ProjectUpdate.methodology existe SOLO para rechazarlo (schemas.py:73)"
+  - "Strategy pattern: MethodologyStrategy (base.py) expone default_columns(), allowed_statuses(), sprints_enabled, estimation_mode, has_backlog, to_info(); factory get_strategy(methodology) mapea enum->clase (factory.py)"
+  - "BoardAwareStrategy + resolve_board_strategy(project, db) = helper runtime unico que usa columnas persistidas como allowed_statuses(); build_board_aware_strategy sync para precarga por lotes (board_aware.py)"
+  - "Defaults por metodologia: planner=[Sin iniciar,En curso,Completada] sin sprints/backlog est=none; kanban=[Backlog,Doing,Done] sin sprints/backlog est=hours; scrum=[To Do,In Progress,In Review,Done] sprints+backlog est=both; custom=[] sin sprints/backlog est=none"
+  - "Task.status = string libre validado contra allowed_statuses(); Task.board_column_id FK->board_columns (nullable, SET NULL); completed_at se sella al entrar a la columna done (ultimo status permitido) (tasks/models.py)"
+  - "BoardColumn: status_key (inmutable, unico por board via uq_board_column_status_key), name (renombrable), order, wip_limit; seed_board crea columnas con status_key=name verbatim (boards/service.py:seed_board)"
+  - "BoardService ya tiene add_column (slug unico), reassign_column_tasks (bulk move status+board_column_id), remove_column (rechaza ultima columna 422) — primitivas para reconstruir board"
+  - "Sprint.status = active|closed (string libre); Task.sprint_id FK->sprints SET NULL; Sprint.completed_points; Task.estimation_points/estimation_hours nullable (sprints/models.py, tasks/models.py)"
+  - "move_to_column setea board_column_id+status atomicamente y sella updated_by (boards/service.py:66)"
+last_updated: 2026-07-20
+task_notes:
+  - "Reconciliacion del orquestador: gana la spec sobre la ruta del preview -> GET /projects/{id}/methodology-migration/preview?target=<m> (NO /plan como decia design.md); el resto de design.md se mantiene sin cambios"
+  - "Precision tecnica de tasks.md: target_status_key e invariante D4 usan el status_key REALMENTE persistido en las columnas destino (creadas via BoardService.add_column, que siempre slugifica), NUNCA el string literal de target_strategy.default_columns(); confirmar en apply si se prefiere otra lectura"
+  - "6 fases TDD: 1 boards commit-flag, 2 modulo+preview, 3 ejecucion transaccional, 4 matriz de mapeo 4 metodologias, 5 UI asistente 2 pasos, 6 suite completa+commits; single-pr/size-exception, merge local a preview (~1500-1750 lineas estimadas, riesgo High)"
+spec_notes:
+  - "Capabilities: methodology-migration (spec nueva, full) + projects (delta MODIFIED: metodologia migrable via endpoint dedicado, PATCH sigue bloqueando) + sprints (delta ADDED/MODIFIED: cierre+desvinculacion al migrar a metodologia sin sprints)"
+  - "methodology-strategies NO cambia: el contrato ya expone allowed_statuses()/flags necesarios para el mapeo destino; boards NO cambia (migracion compone primitivas existentes)"
+  - "Endpoints propuestos (envelope {data, message, meta}): GET /projects/{id}/methodology-migration/plan?target=<m> (preview mapeo+impacto); POST /projects/{id}/methodology-migration (ejecutar con mapeo confirmado); permisos admin/manager"
+  - "TDD minimo: post-migracion toda tarea tiene status in allowed_statuses(destino); mapeo no exhaustivo->422; scrum->planner cierra+desvincula sprints y preserva puntos; rollback transaccional ante error; permisos (admin/manager vs member/viewer)"

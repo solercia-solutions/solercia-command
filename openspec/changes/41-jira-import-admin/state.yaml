@@ -1,0 +1,70 @@
+change: 41-jira-import-admin
+artifact_store: hybrid
+depends_on:
+  - 40-jira-import-usuario
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - jira-import-admin
+  modified: []
+target_capabilities:
+  - jira-import-admin
+constraints:
+  - reuse-40-persistence-pipeline
+  - idempotent-by-jira-key
+  - resumable-batch-import
+  - persisted-job-state
+  - token-never-in-repo-fernet-encrypted
+  - basic-throttling-reuse-429-backoff
+  - tdd-strict-httpx-mocktransport
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Descubrimiento masivo: listar TODOS los proyectos del sitio con conteos (epicas/historias/subtareas/sprints, tableros) via nuevos metodos del JiraClient (project/board/sprint search)"
+  - "Seleccion multiple con 'seleccionar todo' en la UI de Conexiones"
+  - "Cola por lotes: nueva persistencia import_jobs (header) + import_job_projects (detalle) con estado por proyecto (pending/running/done/failed) y contadores de entidades importadas"
+  - "Reanudacion: reintentar un job procesa solo proyectos pending/failed; los done se saltan; sin duplicar (idempotencia del 40 por clave Jira)"
+  - "Progreso visible: GET .../import-jobs/{id} con detalle por proyecto; la UI hace polling (WebSocket diferido)"
+  - "Throttling basico: proyecto-por-proyecto reutilizando el backoff 429 del JiraClient"
+  - "Fuera de alcance: el pipeline de persistencia proyecto->sprints->tareas (lo aporta el 40), push por WebSocket, JQL, sync incremental recurrente, import Microsoft/Google"
+module_decision:
+  - "Reutilizar el pipeline de persistencia e idempotencia por clave Jira del cambio 40; 41 solo orquesta por lotes (invoca 40 con JQL 'project = <KEY>' por proyecto)"
+  - "Nueva persistencia de jobs en jira_import/models.py (NO existe tabla de jobs en el proyecto; glpi_sync corre sincronico con tope de 200)"
+  - "Extender JiraClient con list_projects/list_boards/list_sprints (hoy solo tiene get_myself/get_fields/search_page/list_issues por JQL); reusar anti-SSRF, backoff 429 y paginacion"
+  - "Reusar connectors: credenciales cifradas Fernet (crypto.decrypt, access_token_enc), settings.base_url; el token nunca entra al repo/commits/logs"
+  - "Ejecucion en segundo plano con commit por proyecto (reanudable); modelo exacto del runner (asyncio vs APScheduler) lo decide el design"
+facts_verified:
+  - "Consecutivo 41 libre en openspec/changes/ (36 y 37 existen; no hay 38/39/40/41)"
+  - "40-jira-import-usuario aun NO existe como carpeta; se declara como dependencia (depends_on)"
+  - "jira_import (change 18) es HOY solo-lectura: extrae+normaliza issues por JQL, NO persiste proyectos/sprints/tareas (backend/app/modules/jira_import/service.py import_via_api/import_via_file)"
+  - "NO existe tabla de jobs/progreso en el proyecto: glpi_sync corre sincronico en el request con _SYNC_TICKET_LIMIT=200 (backend/app/modules/glpi_sync/service.py)"
+  - "JiraClient soporta get_myself, get_fields, search_page, list_issues (JQL) con nextPageToken; NO lista proyectos/tableros/sprints (backend/app/integrations/adapters/jira/client.py)"
+  - "JiraClient ya trae anti-SSRF por sufijo (JIRA_BASE_URL_ALLOWED_SUFFIX='.atlassian.net'), backoff 429 con Retry-After (JIRA_MAX_RETRIES=3, JIRA_MAX_BACKOFF_SECONDS=30), paginacion (JIRA_PAGE_SIZE=100, JIRA_MAX_PAGES=20 -> tope 2000 issues/proyecto)"
+  - "connectors persiste credenciales cifradas Fernet en ConnectionCredentials.access_token_enc (tabla aislada 1:1), settings JSONB (base_url); jira_import decifra via crypto.decrypt (INTEGRATIONS_FERNET_KEY)"
+  - "RBAC actual de jira_import/glpi_sync: require_role(admin, manager); propuesta 41 sugiere admin-only para el import masivo (a validar)"
+  - "Modulo realtime existe (WebSocket manager + publisher) pero esta acoplado a notifications (fan-out en NotificationRepository.create); por eso el progreso arranca con polling"
+  - "Viabilidad admin PROBADA 2026-07-20 vs idartes-tecnologia.atlassian.net: ADMINISTER True, 36 proyectos, 31 tableros, sprints desde 2021 (openspec/OLA_4.md seccion 5)"
+dependency_gating:
+  - "El apply del 41 NO arranca hasta que el 40 complete apply + verify + archive (el pipeline de persistencia y la idempotencia por clave Jira deben existir para que 41 los invoque por lotes)"
+open_questions:
+  - "RBAC: admin-only vs admin+manager para el import masivo del sitio (supuesto: admin-only)"
+  - "Concurrencia: secuencial estricto vs concurrencia acotada 2-3 configurable (supuesto: secuencial)"
+  - "Un solo job activo por conector para evitar carreras/duplicados (supuesto: si)"
+  - "Alcance del sitio: incluir proyectos archivados/inactivos de Jira o solo activos (supuesto: solo activos, filtro opcional)"
+  - "Progreso: polling en MVP vs WebSocket desde ya (supuesto: polling)"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability nueva: jira-import-admin (spec nuevo en openspec/specs/jira-import-admin/spec.md)"
+  - "Requisitos a especificar: descubrimiento del sitio con conteos; seleccion multiple + 'seleccionar todo'; creacion de job por lotes; orquestacion proyecto-por-proyecto invocando el pipeline del 40; estado persistido por proyecto (pending/running/done/failed) + contadores; reanudacion (solo pending/failed, sin duplicar); progreso consultable por polling; throttling/backoff 429; RBAC; scoping multi-tenant por organization_id; token cifrado nunca expuesto"
+  - "Sin delta a la capability jira-import (18) ni a integration-ports: los nuevos metodos del JiraClient son implementacion del adaptador, no cambio de requisito de puertos"

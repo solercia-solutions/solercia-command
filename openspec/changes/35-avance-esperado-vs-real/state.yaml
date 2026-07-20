@@ -1,0 +1,67 @@
+change: 35-avance-esperado-vs-real
+artifact_store: hybrid
+depends_on:
+  - 28-calendario-laboral
+  - 27-plantillas-idempotentes
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - project-progress
+  modified:
+    - alert-engine
+    - dashboard-executive
+target_capabilities:
+  - project-progress
+  - alert-engine
+  - dashboard-executive
+constraints:
+  - backend-and-frontend
+  - tdd-formula-contracts
+  - alembic-migration-required
+  - reversible-migrations
+  - additive-nullable-columns
+  - manual-scoping-preserved
+  - reuse-work-calendar-resolver
+  - reuse-alert-scheduler
+boundary:
+  - "Esperado = distribucion de tareas por due date sobre dias laborales del calendario (cambio 28); lineal sobre el rango de tareas si faltan fechas (Project NO tiene start/end propios)"
+  - "Real = tareas completadas, ponderado por estimation_hours si existen, conteo simple si no"
+  - "Tendencia 4 semanas desde snapshots semanales (project_progress_snapshot); NO reconstruir el esperado historico (revisionista)"
+  - "Umbrales por empresa como columnas Numeric en organizations (default verde <=5%, amarillo <=15%, rojo >15%); NO JSONB"
+  - "Refuerzo como AlertStrategy nueva (project_reinforcement) en el registro existente, evaluada por el scheduler horario, dedup por project/iso_week/user"
+  - "Fuera de alcance: burndown por sprint (42), festivos/husos (futuro 28), canales email/WebSocket nuevos"
+module_decision:
+  - "Modulo nuevo app/modules/progress/ (Screaming), NO extender dashboard.service (ya extenso; progress es capacidad acotada con snapshots + alerta propia)"
+  - "Snapshot semanal como fuente de la tendencia + tarjeta on-demand para el valor de hoy (tradeoff honesto: solo el real es reconstruible por completed_at)"
+migration:
+  - "Head real en disco = 0020_add_theme_to_organizations; 27 reserva 0022/0023, 28 espera 0024; este cambio encadena tras el head real (esperado ~0025+), revision exacta a fijar en design/apply contra alembic current"
+  - "Migracion a: columnas de umbral (Numeric) en organizations, aditivas con default 5/15"
+  - "Migracion b: tabla project_progress_snapshot (organization_id, project_id, captured_week, expected_pct, real_pct, deviation)"
+facts_verified:
+  - "Consecutivo 35 libre en openspec/changes/ (34-estimacion-normalizada existe; no hay 35)"
+  - "Dashboard actual solo calcula percent_done = done/total por conteo simple (app/modules/dashboard/service.py:_build_projects_progress); sin esperado, ponderacion por horas, rollup ni tendencia"
+  - "Motor de alertas por Strategy: registro _STRATEGIES keyed por rule_type (app/alerts/registry.py); AlertStrategy.evaluate(db, org_id, threshold_params) -> list[AlertCandidate] (app/alerts/base.py)"
+  - "AlertRule = rule_type + enabled + threshold_params JSON, org-scoped (app/modules/alert_rules/models.py); notificaciones idempotentes por dedup_key (app/alerts/evaluator.py)"
+  - "Scheduler existente = APScheduler AsyncIOScheduler IntervalTrigger(hours=1) via evaluate_all_organizations (app/alerts/scheduler.py); punto de anclaje para el job semanal de snapshots"
+  - "Project NO tiene start_date/end_date (app/modules/projects/models.py); fallback lineal debe usar el rango de tareas (start_date/created_at min -> due_date max)"
+  - "Task tiene due_date, start_date, completed_at, estimation_hours (Numeric en horas) y estimation_points"
+  - "Organization solo tiene name/slug/theme (JSONB) (app/modules/organizations/models.py); sin umbrales -> se añaden columnas"
+  - "Front vista ejecutiva en frontend/src/pages/executive/executive.component.ts + entities/executive/{model,service}.ts"
+  - "Cambio 28 aporta WorkCalendarResolver.resolve(org_id, project_id) -> ResolvedCalendar{working_hours_per_day, working_days ISO, source}"
+  - "Cambio 27 aporta Project.project_kind (area|proyecto) + arbol parent_project_id (CTE subarbol) para el rollup"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capabilities: project-progress (spec nueva, full) + alert-engine (delta ADDED: project_reinforcement) + dashboard-executive (delta MODIFIED: tarjetas enriquecidas)"
+  - "Endpoints propuestos (envelope {data, message, meta}): GET /progress/projects/{id} (tarjeta), GET /progress/areas/{id} o /progress/projects/{id}?rollup=subtree (rollup por subarbol/area), GET /progress/monthly-cut?area_id=&month= (corte mensual); GET/PUT /organizations/me/progress-thresholds (config, admin)"
