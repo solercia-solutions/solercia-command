@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -23,6 +24,10 @@ class Organization(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
         nullable=False,
         index=True,
     )
+    # ThemeFile completo de @solercia/ui almacenado opacamente (3 niveles
+    # primitives → semantic → component). ``NULL`` = tema por defecto
+    # empaquetado en el frontend; el backend nunca interpreta su contenido.
+    theme: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class OrganizationMember(PkMixin, TimestampMixin, Base):

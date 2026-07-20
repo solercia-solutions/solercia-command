@@ -140,6 +140,10 @@ _MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
     ("Roles", "shield", "/admin/roles", "Administración", 1),
     ("Actividades", "list", "/admin/menus", "Administración", 2),
     ("Dependencias", "building-2", "/admin/dependencies", "Administración", 3),
+    # Editor del tema por organización (feat/org-theme). Solo lo ve ADMIN:
+    # `_ROLE_MENU_SEED["ADMIN"] = "*"` lo cubre y NO se agrega a las listas
+    # de MANAGER/MEMBER a propósito.
+    ("Apariencia", "palette", "/settings/appearance", "Administración", 4),
 ]
 
 # Menu grants per role. "*" grants every menu.

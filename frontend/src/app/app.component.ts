@@ -13,6 +13,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ThemeService } from '@solercia/ui';
 import { AuthService } from '@features/auth/auth.service';
 import { MenuService, MenuNode } from '@features/navigation/menu.service';
+import { TenantThemeService } from '@features/theme/tenant-theme.service';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
 import { SolLayoutShellComponent } from '@widgets/layout-shell';
@@ -141,6 +142,7 @@ export class AppComponent {
   protected readonly theme = inject(ThemeService);
   protected readonly auth = inject(AuthService);
   protected readonly menu = inject(MenuService);
+  private readonly tenantTheme = inject(TenantThemeService);
   protected readonly notifs = inject(NotificationsService);
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
@@ -219,10 +221,16 @@ export class AppComponent {
         if (!this.menu.loaded()) {
           this.menu.load();
         }
+        // Tema de la organización (multi-tenant): se carga una vez por
+        // sesión y se aplica vía ThemeService; null = tema por defecto.
+        if (!this.tenantTheme.loaded()) {
+          this.tenantTheme.load();
+        }
         // Seed the notification badge as soon as the user is authenticated.
         this.notifs.refreshUnreadCount();
       } else {
         this.menu.clear();
+        this.tenantTheme.clear();
         this.notifOpen.set(false);
       }
     });

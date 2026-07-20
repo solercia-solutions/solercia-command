@@ -78,6 +78,14 @@ export const routes: Routes = [
       import('@pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
   {
+    path: 'settings/appearance',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@pages/settings/appearance/appearance-page.component').then(
+        (m) => m.AppearancePageComponent,
+      ),
+  },
+  {
     path: 'task/:key',
     canActivate: [authGuard],
     loadComponent: () =>

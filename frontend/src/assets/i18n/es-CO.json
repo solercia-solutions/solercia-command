@@ -239,6 +239,54 @@
       "title": "Usuarios"
     }
   },
+  "appearance": {
+    "title": "Apariencia",
+    "subtitle": "Personaliza el tema de tu organización: colores, marca y forma. Los cambios se ven en vivo y aplican a todos los miembros al guardar.",
+    "sections": {
+      "brand": "Marca",
+      "colors": "Colores",
+      "shape": "Forma y densidad",
+      "chrome": "Barra lateral y encabezado"
+    },
+    "fields": {
+      "brandName": "Nombre de marca",
+      "brandNamePlaceholder": "Ej: Secretaría Distrital",
+      "logoUrl": "URL del logo",
+      "logoUrlPlaceholder": "https://ejemplo.com/logo.png",
+      "logoUrlHint": "Ingresa una URL http(s) o un data-URL. Si la dejas vacía, se conserva el logo por defecto.",
+      "primaryColor": "Color primario",
+      "accentColor": "Color de acento",
+      "pageBg": "Fondo de página (modo claro)",
+      "radius": "Radio de esquinas",
+      "density": "Densidad",
+      "densityCompact": "Compacta",
+      "densityComfortable": "Cómoda",
+      "borderWidth": "Ancho de borde",
+      "customChrome": "Personalizar colores de la barra lateral y el encabezado",
+      "customChromeHint": "Si no los personalizas, la barra lateral y el encabezado siguen el modo claro/oscuro del tema.",
+      "sidebarBg": "Fondo de la barra lateral",
+      "sidebarText": "Texto de la barra lateral",
+      "headerBg": "Fondo del encabezado"
+    },
+    "actions": {
+      "save": "Guardar",
+      "saveAria": "Guardar el tema de la organización",
+      "saving": "Guardando…",
+      "reset": "Restablecer",
+      "resetAria": "Restablecer el tema por defecto"
+    },
+    "messages": {
+      "saved": "El tema se guardó y ya aplica para toda la organización.",
+      "reset": "Se restableció el tema por defecto."
+    },
+    "errors": {
+      "hexInvalid": "Ingresa un color hexadecimal válido, por ejemplo #7C3AED.",
+      "notRenderable": "El tema construido no es válido. Verifica los valores e intenta de nuevo.",
+      "network": "No hay conexión con el servidor. Verifica tu red e intenta de nuevo.",
+      "forbidden": "No tienes permisos de administrador para cambiar el tema.",
+      "saveFailed": "No fue posible guardar el tema. Intenta de nuevo."
+    }
+  },
   "auth": {
     "callback": {
       "completing": "Completando el inicio de sesión…",

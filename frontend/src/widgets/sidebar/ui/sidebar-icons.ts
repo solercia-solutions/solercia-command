@@ -24,6 +24,7 @@ const NAV_ICON_ALIASES: Readonly<Record<string, SolIconName>> = {
   'building-2': 'building',
   plug: 'arrows-right-left',
   'ellipsis-horizontal': 'ellipsis-vertical',
+  palette: 'sparkles',
 };
 
 /**
