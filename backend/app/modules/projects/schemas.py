@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.shared.enums import Methodology, ProjectStatus
+from app.shared.enums import Methodology, ProjectKind, ProjectStatus
 
 _CODE_RE = re.compile(r"^[A-Z0-9]{2,10}$")
 
@@ -26,6 +26,11 @@ class ProjectCreate(BaseModel):
     # Optional responsible/head of the project (change 23-org-role-templates).
     # Omitted -> null, unchanged from before (specs/projects/spec.md delta).
     lead_user_id: uuid.UUID | None = None
+    # Optional topological kind (change 27-plantillas-idempotentes). Omitted
+    # -> "proyecto". Only org-role-template instantiation may set "area";
+    # the plain POST /projects flow always forces "proyecto" regardless of
+    # what the client sends (specs/projects/spec.md delta).
+    project_kind: ProjectKind | None = None
 
     @field_validator("name")
     @classmethod
@@ -128,6 +133,8 @@ class ProjectRead(BaseModel):
     # Responsible/head of the project (change 23-org-role-templates); null for
     # projects created outside a template instantiation.
     lead_user_id: uuid.UUID | None = None
+    # Topological kind (change 27-plantillas-idempotentes): "area"|"proyecto".
+    project_kind: ProjectKind = ProjectKind.proyecto
 
 
 class ProjectTreeNode(BaseModel):
