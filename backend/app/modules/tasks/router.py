@@ -109,7 +109,13 @@ async def create_task(
     actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Create a task (or subtask when ``parent_task_id`` is set) within a project."""
+    """Create a task within a project, optionally as a child of another task.
+
+    When ``parent_task_id`` points to an ``epic`` the child keeps its
+    requested ``task_type`` (``task``/``story``/``bug``/``subtask``; never a
+    nested ``epic``) and may carry ``estimation_points``. Under any other
+    parent the child is coerced to ``subtask`` and points are rejected.
+    """
 
     service = TaskService(db)
     task = await service.create_task(

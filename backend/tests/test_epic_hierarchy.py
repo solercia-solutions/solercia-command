@@ -299,3 +299,151 @@ async def test_update_points_on_subtask_still_rejected(
 
     assert response.status_code == 422, response.text
     assert response.json()["code"] == "subtask_points_not_allowed"
+
+
+# ---------------------------------------------------------------------------
+# update_task: el guard aplica sobre el tipo EFECTIVO post-patch (ronda 4R)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_flipping_type_to_subtask_with_points_is_rejected(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """A combined ``{"task_type": "subtask", "estimation_points": N}`` patch
+    can never persist a subtask WITH points — the guard reads the EFFECTIVE
+    type, not the pre-mutation one."""
+
+    _, token = user
+    project_id = await _create_scrum_project(client, token)
+    task = await _create_task(client, token, project_id, {"title": "Tarea Flip"})
+
+    response = await client.patch(
+        f"/tasks/{task['id']}",
+        json={"task_type": "subtask", "estimation_points": 3},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "subtask_points_not_allowed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_flipping_type_to_subtask_keeping_points_is_rejected(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Flipping a task that ALREADY has points to ``subtask`` without
+    clearing them would also persist a subtask with points — 422."""
+
+    _, token = user
+    project_id = await _create_scrum_project(client, token)
+    task = await _create_task(
+        client, token, project_id,
+        {"title": "Tarea Con Puntos", "estimation_points": 5},
+    )
+
+    response = await client.patch(
+        f"/tasks/{task['id']}",
+        json={"task_type": "subtask"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "subtask_points_not_allowed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_flipping_type_to_subtask_clearing_points_is_allowed(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Flipping to ``subtask`` while EXPLICITLY clearing the points in the
+    same patch keeps the invariant and passes."""
+
+    _, token = user
+    project_id = await _create_scrum_project(client, token)
+    task = await _create_task(
+        client, token, project_id,
+        {"title": "Tarea Que Limpia", "estimation_points": 5},
+    )
+
+    response = await client.patch(
+        f"/tasks/{task['id']}",
+        json={"task_type": "subtask", "estimation_points": None},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()["data"]
+    assert body["task_type"] == "subtask"
+    assert body["estimation_points"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_type_to_epic_on_child_task_is_rejected(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """PATCHing ``task_type`` to ``epic`` on a task that HAS a parent would
+    create an epic with a parent — the create invariant holds on update too.
+    A top-level task may still become an epic."""
+
+    _, token = user
+    project_id = await _create_scrum_project(client, token)
+    epic = await _create_task(
+        client, token, project_id, {"title": "Épica Invariante", "task_type": "epic"}
+    )
+    story = await _create_task(
+        client, token, project_id,
+        {"title": "Historia Hija", "task_type": "story", "parent_task_id": epic["id"]},
+    )
+
+    rejected = await client.patch(
+        f"/tasks/{story['id']}",
+        json={"task_type": "epic"},
+        headers=_auth(token),
+    )
+    assert rejected.status_code == 422, rejected.text
+    assert rejected.json()["code"] == "epic_nesting_not_allowed"
+
+    top_level = await _create_task(client, token, project_id, {"title": "Tarea Suelta"})
+    promoted = await client.patch(
+        f"/tasks/{top_level['id']}",
+        json={"task_type": "epic"},
+        headers=_auth(token),
+    )
+    assert promoted.status_code == 200, promoted.text
+    assert promoted.json()["data"]["task_type"] == "epic"
+
+
+# ---------------------------------------------------------------------------
+# create_task: whitelist de tipos bajo épica (ronda 4R)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_arbitrary_task_type_under_epic_is_rejected(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Under an epic parent only task/story/bug/subtask are accepted — an
+    arbitrary string is 422 ``invalid_task_type`` (before epics-as-parents
+    every child was coerced, so no arbitrary type could ever hang from a
+    parent)."""
+
+    _, token = user
+    project_id = await _create_scrum_project(client, token)
+    epic = await _create_task(
+        client, token, project_id, {"title": "Épica Whitelist", "task_type": "epic"}
+    )
+
+    response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Tipo Raro", "task_type": "foo", "parent_task_id": epic["id"]},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "invalid_task_type"

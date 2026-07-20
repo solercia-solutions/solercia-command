@@ -244,3 +244,97 @@ async def test_member_cannot_update_project(
     )
 
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Ronda 4R: carrera de code y bordes del payload
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_project_code_race_translates_integrity_error_to_409(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user,
+    make_member,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two concurrent updates can BOTH pass the advisory ``code_exists``
+    check; the loser's commit then collides with ``uq_project_code_per_org``.
+    Neutralizing the advisory check simulates the race: the raw
+    ``IntegrityError`` from the commit must surface as the SAME 409
+    ``project_code_taken`` — never a bare 500."""
+
+    from app.modules.projects.repository import ProjectRepository
+
+    _, owner_token = user
+    await _create_project(client, owner_token, "Proyecto Ganador", code="GANA")
+    loser = await _create_project(client, owner_token, "Proyecto Perdedor", code="PIERDE")
+    _, manager_token = await make_member(session, tenant, MemberRole.manager)
+
+    async def _race_check_passed(self, organization_id, code, exclude_id=None):
+        return False
+
+    monkeypatch.setattr(ProjectRepository, "code_exists", _race_check_passed)
+
+    response = await client.patch(
+        f"/projects/{loser['id']}",
+        json={"code": "GANA"},
+        headers=_auth(manager_token),
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "project_code_taken"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_project_empty_body_is_clean_noop(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user,
+    make_member,
+) -> None:
+    """PATCH with ``{}`` changes nothing and returns the project unchanged."""
+
+    _, owner_token = user
+    project = await _create_project(client, owner_token, "Proyecto Intacto", code="INTACT")
+    _, manager_token = await make_member(session, tenant, MemberRole.manager)
+
+    response = await client.patch(
+        f"/projects/{project['id']}", json={}, headers=_auth(manager_token)
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()["data"]
+    assert body["name"] == "Proyecto Intacto"
+    assert body["code"] == "INTACT"
+    assert body["description"] == project["description"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_project_explicit_null_name_is_422(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user,
+    make_member,
+) -> None:
+    """An explicit ``{"name": null}`` is rejected by schema validation —
+    ``name`` is NOT NULL and null is never a valid clear."""
+
+    _, owner_token = user
+    project = await _create_project(client, owner_token, "Proyecto Nombre Nulo")
+    _, manager_token = await make_member(session, tenant, MemberRole.manager)
+
+    response = await client.patch(
+        f"/projects/{project['id']}",
+        json={"name": None},
+        headers=_auth(manager_token),
+    )
+
+    assert response.status_code == 422, response.text

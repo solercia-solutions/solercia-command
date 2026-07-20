@@ -9,6 +9,7 @@ import re
 import uuid
 from collections.abc import Sequence
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -248,7 +249,27 @@ class ProjectService:
                 setattr(project, field, changes[field])
 
         project.updated_by = actor_id
-        project = await self.repo.save(project)
+        try:
+            project = await self.repo.save(project)
+        except IntegrityError as exc:
+            # Two concurrent updates can BOTH pass the advisory code_exists
+            # check above; the loser's commit then collides with
+            # ``uq_project_code_per_org``. Translate to the SAME 409 the
+            # advisory path produces instead of a bare 500 (same pattern as
+            # ``OrgRoleTemplateService.instantiate``). ``changes`` is a plain
+            # dict — safe to read after the rollback expires the ORM row.
+            code_label = changes.get("code")
+            await self.repo.db.rollback()
+            detail = (
+                f"El código '{code_label}' ya está en uso en tu organización."
+                if code_label
+                else "El código del proyecto ya está en uso en tu organización."
+            )
+            raise AppException(
+                detail,
+                code="project_code_taken",
+                status_code=409,
+            ) from exc
         await self._attach_methodology_info(project)
         return project
 

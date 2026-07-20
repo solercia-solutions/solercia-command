@@ -353,3 +353,45 @@ async def test_task_type_filter_combines_with_existing_filters(
     assert response.status_code == 200, response.text
     rows = response.json()["data"]
     assert [row["id"] for row in rows] == [epic_high["id"]]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_parent_task_id_filter_combines_with_status(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """``parent_task_id`` composes with ``status``: only the epic's children
+    in that status are returned."""
+
+    _, token = user
+    project = await client.post(
+        "/projects",
+        json={"name": "Parent Status Filter Project", "methodology": "scrum"},
+        headers=_auth(token),
+    )
+    project_id = str(project.json()["data"]["id"])
+    epic = await _create_task(client, token, project_id, "Épica Estado", task_type="epic")
+    child_progress = await _create_task(
+        client, token, project_id, "Historia En Curso",
+        task_type="story", parent_task_id=epic["id"],
+    )
+    await _create_task(
+        client, token, project_id, "Historia Pendiente",
+        task_type="story", parent_task_id=epic["id"],
+    )
+
+    moved = await client.patch(
+        f"/tasks/{child_progress['id']}",
+        json={"status": "In Progress"},
+        headers=_auth(token),
+    )
+    assert moved.status_code == 200, moved.text
+
+    response = await _list_tasks(
+        client, token, project_id,
+        parent_task_id=epic["id"], status="In Progress",
+    )
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert [row["id"] for row in rows] == [child_progress["id"]]
