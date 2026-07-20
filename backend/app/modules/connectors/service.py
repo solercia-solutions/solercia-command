@@ -70,6 +70,30 @@ _CONNECTOR_UPDATABLE_FIELDS = ("provider", "scopes", "status", "settings")
 _MCP_PROVIDER = "mcp"
 
 
+class OAuthCallbackRedirectError(Exception):
+    """Raised by ``handle_oauth_callback`` when the flow fails AND the state
+    stored a validated browser-return destination: the router turns it into
+    a ``302 <return_to>?error=<error_code>`` instead of a raw JSON error
+    (the user is mid-navigation, not an XHR caller). ``return_to`` was
+    validated against ``OAUTH_REDIRECT_ALLOWLIST`` at authorize time, so
+    redirecting to it here is not an open redirect."""
+
+    def __init__(self, return_to: str, error_code: str) -> None:
+        self.return_to = return_to
+        self.error_code = error_code
+        super().__init__(f"OAuth callback failed ({error_code}); return to {return_to}")
+
+
+@dataclasses.dataclass(frozen=True)
+class OAuthCallbackOutcome:
+    """Successful callback result: the account summary plus the OPTIONAL
+    browser-return destination stored by ``authorize()`` (``None`` keeps the
+    original JSON envelope response, pre-Conexiones compatibility)."""
+
+    account: dict[str, Any]
+    return_to: str | None
+
+
 class ConnectorService:
     """Orchestrates connector CRUD + OAuth use-cases for a single organization scope."""
 
@@ -251,6 +275,7 @@ class ConnectorService:
         connector_id: uuid.UUID,
         user_id: uuid.UUID,
         redirect_uri: str | None,
+        redirect_to: str | None = None,
     ) -> AuthorizeResponse:
         """Start the OAuth handshake: generate ``state``+URL for ``connector_id``.
 
@@ -289,12 +314,24 @@ class ConnectorService:
                 status_code=400,
             )
 
+        # OPTIONAL browser-return destination (Conexiones page): validated
+        # against the SAME allowlist as `redirect_uri` (anti open-redirect)
+        # and carried in the state payload so the callback can 302 back.
+        if redirect_to is not None and redirect_to not in settings.OAUTH_REDIRECT_ALLOWLIST:
+            raise AppException(
+                "El destino de retorno solicitado no está permitido.",
+                code="oauth_redirect_to_not_allowed",
+                status_code=422,
+            )
+
         state_payload = {
             "connector_id": str(connector.id),
             "organization_id": str(organization_id),
             "user_id": str(user_id),
             "redirect_uri": redirect,
         }
+        if redirect_to is not None:
+            state_payload["return_to"] = redirect_to
         _, authorize_url = await oauth.build_authorize(
             adapter,
             redirect,
@@ -306,13 +343,52 @@ class ConnectorService:
 
     async def handle_oauth_callback(
         self, *, code: str | None, state: str | None, error: str | None
-    ) -> dict:
+    ) -> OAuthCallbackOutcome:
         """Complete the OAuth handshake for the GLOBAL callback route.
 
         Never exposes tokens in its return value (only the connector/account
-        identifiers safe for a JSON response) — the caller (router) wraps
-        this dict directly in the envelope's ``data``.
+        identifiers safe for a JSON response, plus the optional ``return_to``
+        destination) — the router wraps ``outcome.account`` in the JSON
+        envelope OR 302s back to ``outcome.return_to``.
+
+        The state is popped FIRST (when present) so the stored, allowlisted
+        ``return_to`` is known before any validation can fail; a failure
+        with a known destination raises :class:`OAuthCallbackRedirectError`
+        (302 back with ``?error=<code>``), while a failure WITHOUT one keeps
+        the original JSON ``AppException`` — including every invalid/expired
+        state case, whose payload (and destination) no longer exists.
         """
+
+        payload: dict | None = None
+        return_to: str | None = None
+        if state is not None:
+            payload = await state_store.pop(state)
+            if payload is not None:
+                return_to = payload.get("return_to")
+
+        try:
+            return OAuthCallbackOutcome(
+                account=await self._complete_oauth_callback(
+                    code=code, state=state, error=error, payload=payload
+                ),
+                return_to=return_to,
+            )
+        except AppException as exc:
+            if return_to is not None:
+                raise OAuthCallbackRedirectError(return_to, exc.code) from exc
+            raise
+
+    async def _complete_oauth_callback(
+        self,
+        *,
+        code: str | None,
+        state: str | None,
+        error: str | None,
+        payload: dict | None,
+    ) -> dict:
+        """Validation + token exchange + persistence for the callback —
+        identical rules/error codes as before ``return_to`` existed; the
+        state was already popped by :meth:`handle_oauth_callback`."""
 
         if error is not None:
             raise AppException(
@@ -328,7 +404,6 @@ class ConnectorService:
                 status_code=400,
             )
 
-        payload = await state_store.pop(state)
         if payload is None:
             raise AppException(
                 "El enlace de autorización no es válido o ya expiró.",
