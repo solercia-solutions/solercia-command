@@ -375,8 +375,13 @@ interface Banner {
       (closed)="closeJiraImport()"
     >
       <div class="flex flex-col gap-4">
+        <!--
+          sol-file-upload valida contra el MIME exacto del archivo (no la
+          extensión), así que accept lista los MIME de CSV y XLSX; algunos
+          navegadores reportan los CSV como application/vnd.ms-excel.
+        -->
         <sol-file-upload
-          accept=".csv,.xlsx"
+          accept="text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           [label]="text.jiraImportFileLabel()"
           [hint]="text.jiraImportFileHint()"
           (fileSelected)="jiraFile.set($event)"
