@@ -520,6 +520,91 @@ async def test_reinstantiate_preserves_a_user_edited_project_name(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
+async def test_reinstantiate_after_soft_deleting_root_with_active_children_rejects_conflict(
+    client: AsyncClient, session: AsyncSession, tenant, user, make_member
+) -> None:
+    """Change 27-plantillas-idempotentes: conflicto irreconciliable. Si el
+    ledger apunta a un proyecto CONTENEDOR (con hijos activos en el árbol)
+    que ya no existe o fue soft-eliminado, reinstanciar NO lo recrea en
+    silencio — se rechaza COMPLETO con 409 `template_tree_conflict`, sin
+    modificar nada del árbol (a diferencia de un nodo HOJA soft-eliminado,
+    que sí se recrea sin duplicar el resto — ver
+    ``test_reinstantiate_after_soft_deleting_piga_recreates_only_that_node``).
+    Recrear la sombrilla con un id nuevo dejaría a sus 4 equipos activos
+    apuntando (`parent_project_id`) a un proyecto muerto: historial
+    incompatible con el árbol esperado (spec.md, Requirement MODIFIED
+    "Idempotencia por reconciliación")."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    lead_b, _ = await make_member(session, tenant, MemberRole.member)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe de Planeación")
+
+    first = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(new_user.id)},
+        headers=_auth(admin_token),
+    )
+    first_rows = {row["name"]: row["id"] for row in first.json()["data"]}
+
+    root_result = await session.execute(
+        select(Project).where(Project.id == uuid.UUID(first_rows["Planeación"]))
+    )
+    root = root_result.scalar_one()
+    root.is_active = False
+    await session.flush()
+
+    ledger_before = await session.execute(select(OrgRoleTemplateInstantiation))
+    ledger_snapshot_before = {
+        row.id: (row.project_id, row.lead_user_id)
+        for row in ledger_before.scalars().all()
+    }
+
+    second = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_b.id)},
+        headers=_auth(admin_token),
+    )
+
+    assert second.status_code == 409, second.text
+    assert second.json()["code"] == "template_tree_conflict"
+
+    # Ningún proyecto nuevo: la sombrilla soft-eliminada sigue siendo la
+    # ÚNICA fila "Planeación" (no hay un reemplazo).
+    projects_result = await session.execute(
+        select(Project).where(
+            Project.organization_id == tenant.id, Project.name == "Planeación"
+        )
+    )
+    assert len(projects_result.scalars().all()) == 1
+
+    # Ningún lead tocado: los 4 equipos siguen con el responsable original,
+    # NUNCA reconciliados al lead de la instanciación rechazada.
+    children_ids = {
+        uuid.UUID(row["id"])
+        for row in first.json()["data"]
+        if row["name"] != "Planeación"
+    }
+    children_result = await session.execute(
+        select(Project).where(Project.id.in_(children_ids))
+    )
+    assert all(
+        project.lead_user_id == new_user.id
+        for project in children_result.scalars().all()
+    )
+
+    # Ledger intacto, ni una fila insertada, actualizada o eliminada.
+    ledger_after = await session.execute(select(OrgRoleTemplateInstantiation))
+    ledger_snapshot_after = {
+        row.id: (row.project_id, row.lead_user_id)
+        for row in ledger_after.scalars().all()
+    }
+    assert ledger_snapshot_after == ledger_snapshot_before
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
 async def test_forced_failure_on_fourth_of_five_projects_leaves_none_persisted(
     session: AsyncSession, tenant, user, monkeypatch
 ) -> None:
