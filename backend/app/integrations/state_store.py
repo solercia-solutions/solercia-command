@@ -67,3 +67,44 @@ async def pop(state: str) -> dict[str, Any] | None:
         return None
     result: dict[str, Any] = json.loads(raw)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Authorize tickets — same Redis, single-use semantics and error contract
+# as the OAuth `state` above, but under a SEPARATE key namespace so a
+# ticket can never be replayed as a callback `state` (nor vice versa).
+# ---------------------------------------------------------------------------
+
+_TICKET_KEY_PREFIX = "oauth:authorize-ticket:"
+
+
+def _ticket_key(ticket: str) -> str:
+    return f"{_TICKET_KEY_PREFIX}{ticket}"
+
+
+async def put_ticket(ticket: str, payload: dict[str, Any], ttl: int) -> None:
+    """Persist an authorize-ticket ``payload`` with a ``ttl``-second expiry."""
+
+    client = shared_redis.get_redis_client()
+    try:
+        await client.set(_ticket_key(ticket), json.dumps(payload), ex=ttl)
+    except RedisError as exc:
+        raise _unavailable(exc) from exc
+
+
+async def pop_ticket(ticket: str) -> dict[str, Any] | None:
+    """Atomically read-and-delete a ticket's payload (single-use).
+
+    ``None`` for a missing/expired/consumed ticket; Redis-level failures
+    raise the same 503 ``AppException`` as :func:`pop`.
+    """
+
+    client = shared_redis.get_redis_client()
+    try:
+        raw = await client.getdel(_ticket_key(ticket))
+    except RedisError as exc:
+        raise _unavailable(exc) from exc
+    if raw is None:
+        return None
+    result: dict[str, Any] = json.loads(raw)
+    return result

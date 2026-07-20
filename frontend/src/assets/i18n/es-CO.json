@@ -343,6 +343,7 @@
       "title": "Aún no hay conexiones configuradas."
     },
     "errors": {
+      "connectStart": "No fue posible iniciar la conexión. Inténtalo de nuevo.",
       "create": "No se pudo crear el conector. Verifica los datos.",
       "load": "No se pudieron cargar las conexiones. Inténtalo más tarde.",
       "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",

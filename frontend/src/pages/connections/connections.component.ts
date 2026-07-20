@@ -22,7 +22,6 @@ import {
   SolSpinnerComponent,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
-import { AuthService } from '@features/auth/auth.service';
 import { ConnectorsService } from '@entities/connector/connectors.service';
 import {
   ConnectedAccount,
@@ -449,7 +448,6 @@ interface Banner {
 })
 export class ConnectionsComponent implements OnInit {
   private readonly connectorsService = inject(ConnectorsService);
-  private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -666,21 +664,30 @@ export class ConnectionsComponent implements OnInit {
     }
   }
 
+  /**
+   * Pide por XHR un ticket efímero de un solo uso y navega al authorize
+   * con él — el JWT nunca aparece en la URL (CWE-598).
+   */
   protected connect(connector: Connector): void {
-    const token = this.auth.token();
-    if (!token) {
-      this.banner.set({
-        kind: 'error',
-        text: this.i18n.translate('connectors.errors.session'),
-      });
-      return;
-    }
-    const url = this.connectorsService.authorizeUrl(
-      connector.id,
-      `${window.location.origin}/connections`,
-      token,
-    );
-    window.location.assign(url);
+    this.connectorsService.createAuthorizeTicket(connector.id).subscribe({
+      next: (res) => {
+        const url = this.connectorsService.authorizeUrl(
+          connector.id,
+          `${window.location.origin}/connections`,
+          res.data.ticket,
+        );
+        window.location.assign(url);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.banner.set({
+          kind: 'error',
+          text:
+            err.status === 401
+              ? this.i18n.translate('connectors.errors.session')
+              : this.apiErrorMessage(err, 'connectors.errors.connectStart'),
+        });
+      },
+    });
   }
 
   // -- listado / cuentas -------------------------------------------------------
@@ -818,6 +825,9 @@ export class ConnectionsComponent implements OnInit {
       next: () => {
         this.creating.set(false);
         this.createOpen.set(false);
+        // El secreto no debe sobrevivir en memoria del formulario tras el
+        // envío exitoso (revisión 4R, S1) — no solo al reabrir el drawer.
+        this.mcpTokenControl.setValue('');
         this.banner.set({
           kind: 'success',
           text: this.i18n.translate('connectors.create.success'),
@@ -867,6 +877,11 @@ export class ConnectionsComponent implements OnInit {
       next: () => {
         this.credentialsSubmitting.set(false);
         this.credentialsFor.set(null);
+        // Los secretos no deben sobrevivir en memoria del formulario tras
+        // el envío exitoso (revisión 4R, S1) — no solo al reabrir el drawer.
+        this.glpiAppTokenControl.setValue('');
+        this.glpiUserTokenControl.setValue('');
+        this.jiraApiTokenControl.setValue('');
         this.banner.set({
           kind: 'success',
           text: this.i18n.translate('connectors.credentials.success'),

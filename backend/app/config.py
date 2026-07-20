@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     # ``JWT_SECRET``.
     INTEGRATIONS_FERNET_KEY: str = "GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8="
     OAUTH_STATE_TTL_SECONDS: int = 600
+    # Single-use authorize ticket (POST /connectors/{id}/authorize-ticket):
+    # short-lived on purpose — it only needs to survive the immediate
+    # browser navigation to GET .../authorize?ticket=, never a session.
+    OAUTH_AUTHORIZE_TICKET_TTL_SECONDS: int = 60
     # Allowlist of redirect_uri values a caller may request for the OAuth
     # authorize step (anti-SSRF/open-redirect, specs/connectors/spec.md).
     # The same list gates the OPTIONAL `redirect_to` browser-return

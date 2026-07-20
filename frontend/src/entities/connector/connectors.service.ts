@@ -60,25 +60,33 @@ export class ConnectorsService {
   }
 
   /**
+   * Emite un ticket efímero de un solo uso para la navegación de authorize
+   * (XHR normal con el interceptor Bearer). El JWT nunca viaja en una URL
+   * (CWE-598): la navegación posterior usa SOLO este ticket opaco, que
+   * expira en segundos y se consume al primer uso.
+   */
+  createAuthorizeTicket(
+    connectorId: string,
+  ): Observable<{ data: { ticket: string } }> {
+    return this.http.post<{ data: { ticket: string } }>(
+      `${apiBase}/connectors/${connectorId}/authorize-ticket`,
+      {},
+    );
+  }
+
+  /**
    * URL de navegación completa hacia el authorize del backend.
    *
    * Al ser una navegación de página (302 al IdP) el interceptor no puede
-   * adjuntar el header Bearer, así que `accessToken` viaja como
-   * `access_token` en el query — soporte que el backend acepta SOLO en ese
-   * endpoint. El token lo provee la capa que sí puede leer la sesión
-   * (`features/auth`); esta entity se mantiene sin dependencias hacia
-   * arriba (regla FSD: entities solo importa de shared).
-   * `redirectTo` es el destino de retorno validado contra la allowlist del
-   * backend: el callback devolverá al navegador allí con `?connected=1` o
+   * adjuntar el header Bearer, así que la autenticación viaja como
+   * `ticket` (ver {@link createAuthorizeTicket}). `redirectTo` es el
+   * destino de retorno validado contra la allowlist del backend: el
+   * callback devolverá al navegador allí con `?connected=1` o
    * `?error=<código>`.
    */
-  authorizeUrl(
-    connectorId: string,
-    redirectTo: string,
-    accessToken: string,
-  ): string {
+  authorizeUrl(connectorId: string, redirectTo: string, ticket: string): string {
     const params = new URLSearchParams({
-      access_token: accessToken,
+      ticket,
       redirect_to: redirectTo,
     });
     return `${apiBase}/connectors/${connectorId}/authorize?${params.toString()}`;

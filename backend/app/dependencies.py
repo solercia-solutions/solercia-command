@@ -125,37 +125,10 @@ async def get_actor_id(request: Request) -> uuid.UUID | None:
         return None
 
 
-async def get_current_user_allow_query_token(
-    request: Request,
+async def get_current_membership(
     db: AsyncSession = Depends(get_db),
-) -> User:
-    """Resolve the authenticated user from the bearer header OR the
-    ``?access_token=`` query parameter (header wins when both exist).
-
-    ONLY ``GET /connectors/{id}/authorize`` uses this dependency: that
-    endpoint is a full-page browser navigation (302 to the IdP) and a
-    navigation cannot attach an ``Authorization`` header — the standard
-    workaround for OAuth-style redirects. Every other endpoint keeps the
-    header-only :func:`get_current_user`; never widen this to routes a
-    regular XHR can reach (a token in a URL can leak via history/referrer,
-    acceptable only for this short-lived, single-purpose navigation).
-    """
-
-    header = request.headers.get("Authorization")
-    if header and header.lower().startswith("bearer "):
-        token = header.split(" ", 1)[1].strip()
-    else:
-        token = (request.query_params.get("access_token") or "").strip()
-        if not token:
-            raise AppException(
-                "No has iniciado sesión. Inicia sesión para continuar.",
-                code="not_authenticated",
-                status_code=401,
-            )
-    return await authenticate_access_token(db, token)
-
-
-async def _resolve_membership(db: AsyncSession, user: User) -> OrganizationMember:
+    user: User = Depends(get_current_user),
+) -> OrganizationMember:
     """Return the user's first organization membership (current tenant scope)."""
 
     result = await db.execute(
@@ -171,26 +144,6 @@ async def _resolve_membership(db: AsyncSession, user: User) -> OrganizationMembe
             status_code=403,
         )
     return membership
-
-
-async def get_current_membership(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> OrganizationMember:
-    """Return the user's first organization membership (current tenant scope)."""
-
-    return await _resolve_membership(db, user)
-
-
-async def get_current_membership_allow_query_token(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user_allow_query_token),
-) -> OrganizationMember:
-    """Membership variant of :func:`get_current_user_allow_query_token` —
-    same tenant resolution, browser-navigation-friendly authentication.
-    Scoped to the OAuth authorize navigation only (see that dependency)."""
-
-    return await _resolve_membership(db, user)
 
 
 def require_role(*roles: MemberRole):
