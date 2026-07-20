@@ -136,19 +136,23 @@ class OrgRoleTemplateService:
         touched. A rejection at either guard leaves the tree untouched.
 
         Idempotent by reconciliation against the ``org_role_template_
-        instantiations`` ledger (design.md Decision 2): a node whose ledger
-        row still points to an ``is_active`` project is REUSED (one query via
-        ``ProjectRepository.get``, which already filters ``is_active``); a
-        missing or soft-deleted node is (re)created via
-        ``ProjectService._create_project_unit`` (no commit) and the ledger
-        row is inserted or UPDATED — NEVER re-inserted, preserving
-        ``UNIQUE(organization_id, template_id, node_id, lead_user_id)``. ONE
+        instantiations`` ledger, keyed by ``(organization_id, template_id,
+        node_id)`` — WITHOUT ``lead_user_id`` (change 27-plantillas-
+        idempotentes, design.md Decision 1): a node whose ledger row still
+        points to an ``is_active`` project is REUSED (one query via
+        ``ProjectRepository.get``, which already filters ``is_active``) and
+        its responsible is RECONCILED to ``lead_user_id`` (on both the
+        ``Project`` and the ledger row) whenever it differs from the caller's
+        — never a duplicate tree. A missing or soft-deleted node is
+        (re)created via ``ProjectService._create_project_unit`` (no commit)
+        and the ledger row is inserted or UPDATED — NEVER re-inserted,
+        preserving ``UNIQUE(organization_id, template_id, node_id)``. ONE
         commit closes the whole operation (design.md Decision 3): a failure
         partway through leaves NO project persisted.
 
-        Two concurrent calls for the SAME ``(organization_id, template_id,
-        lead_user_id)`` build the SAME tree; the loser's flush/commit
-        collides (``uq_project_code_per_org`` and/or ``uq_org_role_template_
+        Two concurrent calls for the SAME ``(organization_id, template_id)``
+        build the SAME tree; the loser's flush/commit collides
+        (``uq_project_code_per_org`` and/or ``uq_org_role_template_
         instantiation``) and raises ``IntegrityError`` — instead of a bare
         500, the loser rolls back and retries ONCE against the now-committed
         ledger, reusing every node the winner already created (judgment-day
@@ -203,7 +207,7 @@ class OrgRoleTemplateService:
         read after a concurrency collision.
         """
 
-        ledger = await self.repo.ledger_for(organization_id, template_id, lead_user_id)
+        ledger = await self.repo.ledger_for(organization_id, template_id)
 
         project_service = ProjectService(self.db)
         projects_by_node: dict[uuid.UUID, Project] = {}
@@ -218,6 +222,12 @@ class OrgRoleTemplateService:
                 )
 
             if reused is not None:
+                # Reconcile the responsible instead of duplicating the tree
+                # (design.md Decision 1): the node is the SAME node
+                # regardless of who instantiates it with a different lead.
+                if reused.lead_user_id != lead_user_id:
+                    reused.lead_user_id = lead_user_id
+                    ledger_row.lead_user_id = lead_user_id
                 projects_by_node[node.id] = reused
                 result.append(reused)
                 continue

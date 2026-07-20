@@ -93,20 +93,21 @@ class OrgRoleTemplateRepository:
         self,
         organization_id: uuid.UUID,
         template_id: uuid.UUID,
-        lead_user_id: uuid.UUID,
     ) -> dict[uuid.UUID, OrgRoleTemplateInstantiation]:
         """Return ``{node_id: ledger_row}`` for the existing instantiation of
-        ``(organization_id, template_id, lead_user_id)`` — design.md
-        Decision 2. The caller re-checks the referenced project's
-        ``is_active`` (via ``ProjectRepository.get``) to decide reuse vs.
-        reconciliation, so a soft-deleted project is never silently reused.
+        ``(organization_id, template_id)`` — change 27-plantillas-
+        idempotentes, design.md Decision 1: the key is per NODE, never per
+        responsible, so reinstantiating with a different ``lead_user_id``
+        finds the same row instead of missing it. The caller re-checks the
+        referenced project's ``is_active`` (via ``ProjectRepository.get``)
+        to decide reuse vs. reconciliation, so a soft-deleted project is
+        never silently reused.
         """
 
         result = await self.db.execute(
             select(OrgRoleTemplateInstantiation).where(
                 OrgRoleTemplateInstantiation.organization_id == organization_id,
                 OrgRoleTemplateInstantiation.template_id == template_id,
-                OrgRoleTemplateInstantiation.lead_user_id == lead_user_id,
             )
         )
         return {row.node_id: row for row in result.scalars().all()}
