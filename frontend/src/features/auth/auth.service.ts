@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
 import type { UserRole } from '@entities/user/user.model';
+import { ACTIVE_ORG_KEY } from '@features/organizations/active-org.store';
 
 const TOKEN_KEY = 'sp-token';
 
@@ -112,11 +113,22 @@ export class AuthService {
     this.clearSession();
   }
 
-  /** Drop the local session without calling the server (used on refresh fail). */
+  /** Drop the local session without calling the server (used on refresh fail).
+   *
+   * Also clears `sp-active-org` (gotcha crítico del design: si no se limpia,
+   * tras el login de OTRO usuario en el mismo navegador el interceptor
+   * seguiría enviando `X-Organization-Id` de una empresa ajena -> 403 en
+   * toda la sesión nueva).
+   */
   clearSession(): void {
     this._token.set(null);
     this._user.set(null);
     localStorage.removeItem(TOKEN_KEY);
+    try {
+      localStorage.removeItem(ACTIVE_ORG_KEY);
+    } catch {
+      // Storage no disponible: nada que limpiar.
+    }
   }
 
   /** Current raw access token, or null. Read by the auth interceptor. */
