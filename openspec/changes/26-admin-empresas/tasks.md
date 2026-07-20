@@ -100,19 +100,19 @@ Chain strategy: size-exception
 
 ### Fase 5 — "Mis empresas", `/auth/me` y hint de empresa en WS (Commit 5)
 
-- [ ] 5.1 [RED] `GET /organizations/mine` happy: usuario miembro de X (`admin`) e Y (`member`) recibe ambas con su rol correspondiente (Scenario "Usuario con varias empresas ve todas con su rol"). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_crud.py -q`.
-- [ ] 5.2 [RED] `GET /organizations/mine` sin token → 401. Verify.
-- [ ] 5.3 [RED] `GET /auth/me` con `X-Organization-Id: <Y>` refleja el contexto y el rol de Y, no de X (Scenario "/auth/me cambia según el header enviado"); sin header, conserva el comportamiento actual (primera membresía). Verify.
-- [ ] 5.4 [GREEN] Repository `list_mine(user_id)`; router `GET /organizations/mine`; ajustar `app/modules/auth/router.py` para pasar el `membership` YA resuelto por `get_current_membership` (con header) a `build_user_read`/`auth/service.py`, en vez de recalcular siempre con `primary_organization_id` ignorando el header. Verify: 5.1–5.3 verdes.
-- [ ] 5.5 [RED] Extensión de consistencia (no bloqueante — design.md Open Questions la deja fuera de lo obligatorio, pero se cubre para no dejar el WS desalineado del resolver REST): `_resolve_organization_id` en `app/realtime/router.py` acepta un hint de empresa (`?org_id=`) — hint válido (membresía del usuario) → usa esa empresa; hint de empresa ajena → cierre `1008` ANTES de accept; sin hint → fallback idéntico al actual (primera membresía). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_realtime_ws_auth.py -q`.
-- [ ] 5.6 [GREEN] Implementar el hint en `_resolve_organization_id`. Verify: 5.5 verde + el resto de `test_realtime_ws_auth.py`/`test_realtime_push.py` intacto.
+- [x] 5.1 [RED] `GET /organizations/mine` happy: usuario miembro de X (`admin`) e Y (`member`) recibe ambas con su rol correspondiente (Scenario "Usuario con varias empresas ve todas con su rol"). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_crud.py -q`.
+- [x] 5.2 [RED] `GET /organizations/mine` sin token → 401. Verify.
+- [x] 5.3 [RED] `GET /auth/me` con `X-Organization-Id: <Y>` refleja el contexto y el rol de Y, no de X (Scenario "/auth/me cambia según el header enviado"); sin header, conserva el comportamiento actual (primera membresía). Verify.
+- [x] 5.4 [GREEN] Repository `list_mine(user_id)`; router `GET /organizations/mine`; ajustar `app/modules/auth/router.py` para pasar el `membership` YA resuelto por `get_current_membership` (con header) a `build_user_read`/`auth/service.py`, en vez de recalcular siempre con `primary_organization_id` ignorando el header. Verify: 5.1–5.3 verdes.
+- [x] 5.5 [RED] Extensión de consistencia (no bloqueante — design.md Open Questions la deja fuera de lo obligatorio, pero se cubre para no dejar el WS desalineado del resolver REST): `_resolve_organization_id` en `app/realtime/router.py` acepta un hint de empresa (`?org_id=`) — hint válido (membresía del usuario) → usa esa empresa; hint de empresa ajena → cierre `1008` ANTES de accept; sin hint → fallback idéntico al actual (primera membresía). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_realtime_ws_auth.py -q`.
+- [x] 5.6 [GREEN] Implementar el hint en `_resolve_organization_id`. Verify: 5.5 verde + el resto de `test_realtime_ws_auth.py`/`test_realtime_push.py` intacto.
 
 ### Fase 6 — Regresión y cierre del Lote 1 (Commit 6)
 
-- [ ] 6.1 Suite completa del backend sin regresión: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → todos verdes (preexistentes de 25 ya archivado + los nuevos de este lote).
-- [ ] 6.2 Reversibilidad end-to-end de la migración 0021: `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head` sin error.
-- [ ] 6.3 Confirmar los 3 gotchas backend propagados en Fase 1 siguen verdes de forma aislada: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_active_organization.py -v`.
-- [ ] 6.4 Commit convencional (si 6.1–6.3 no generaron cambios de producción adicionales a U1–U5, este commit puede fusionarse con el de U5; en caso contrario, commit de cierre): `fix(organizations): cierra regresiones detectadas en el resolver de empresa activa` (solo si aplica).
+- [x] 6.1 Suite completa del backend sin regresión: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → todos verdes (preexistentes de 25 ya archivado + los nuevos de este lote).
+- [x] 6.2 Reversibilidad end-to-end de la migración 0021: `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head` sin error.
+- [x] 6.3 Confirmar los 3 gotchas backend propagados en Fase 1 siguen verdes de forma aislada: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_active_organization.py -v`.
+- [x] 6.4 Commit convencional (si 6.1–6.3 no generaron cambios de producción adicionales a U1–U5, este commit puede fusionarse con el de U5; en caso contrario, commit de cierre): `fix(organizations): cierra regresiones detectadas en el resolver de empresa activa` (solo si aplica).
 
 ## Lote 2 — Frontend: store de empresa activa + interceptor + selector
 

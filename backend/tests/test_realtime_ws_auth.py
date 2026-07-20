@@ -21,6 +21,7 @@ scheduler) never needs to run — see test_realtime_push.py (Fase C) for the
 persistent-portal variant these tests do not need.
 """
 
+import asyncio
 import uuid
 
 import pytest
@@ -233,3 +234,173 @@ class TestHeartbeat:
             with pytest.raises(WebSocketDisconnect):
                 while True:
                     ws.receive_json()
+
+
+# ---------------------------------------------------------------------------
+# Hint de empresa activa (?org_id=) — organizations-admin R4 extendido al WS
+# ---------------------------------------------------------------------------
+#
+# Not bound to a SAVEPOINT session (design.md gotcha, "NO mezclar con la
+# fixture async SAVEPOINT"): every row here is committed for real via the
+# shared ``engine`` fixture, same isolation as ``real_org_user``, and cleaned
+# up explicitly in each test's ``finally`` block.
+
+
+@skip_no_db
+class TestActiveOrganizationHint:
+    def test_valid_hint_selects_the_named_membership(
+        self,
+        ws_client: TestClient,
+        real_org_user,
+        engine: AsyncEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A hint naming a SECOND real membership overrides the first-by-created_at fallback."""
+
+        from app.modules.organizations.models import Organization, OrganizationMember
+        from app.realtime import router as realtime_router
+        from app.shared.enums import MemberRole
+
+        home_org, user, token = real_org_user
+
+        captured: dict = {}
+        original_register = realtime_router.manager.register
+
+        def _capturing_register(org_id, user_id, ws) -> None:
+            captured["org_id"] = org_id
+            original_register(org_id, user_id, ws)
+
+        monkeypatch.setattr(realtime_router.manager, "register", _capturing_register)
+
+        async def _add_second_membership() -> uuid.UUID:
+            async with AsyncSession(engine, expire_on_commit=False) as db:
+                second_org = Organization(
+                    name="Hint Org", slug=f"hint-org-{uuid.uuid4().hex[:12]}"
+                )
+                db.add(second_org)
+                await db.flush()
+                db.add(
+                    OrganizationMember(
+                        organization_id=second_org.id,
+                        user_id=user.id,
+                        role=MemberRole.member,
+                    )
+                )
+                await db.commit()
+                return second_org.id
+
+        second_org_id = _run_sync(_add_second_membership())
+
+        try:
+            with ws_client.websocket_connect(
+                f"{WS_PATH}?org_id={second_org_id}",
+                subprotocols=["bearer", token],
+            ) as ws:
+                message = ws.receive_json()
+
+            assert message["type"] == "connection.ack"
+            assert captured["org_id"] == second_org_id
+            assert captured["org_id"] != home_org.id
+        finally:
+            _run_sync(_delete_organization(engine, second_org_id))
+
+    def test_hint_for_foreign_organization_closes_before_accept(
+        self, ws_client: TestClient, real_org_user, engine: AsyncEngine
+    ) -> None:
+        """A hint naming an organization the user does NOT belong to closes
+        the socket (1008) BEFORE accept — same posture as an invalid token."""
+
+        from app.modules.organizations.models import Organization
+
+        _, _, token = real_org_user
+
+        async def _create_foreign_org() -> uuid.UUID:
+            async with AsyncSession(engine, expire_on_commit=False) as db:
+                org = Organization(
+                    name="Foreign Org", slug=f"foreign-org-{uuid.uuid4().hex[:12]}"
+                )
+                db.add(org)
+                await db.commit()
+                return org.id
+
+        foreign_org_id = _run_sync(_create_foreign_org())
+
+        try:
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with ws_client.websocket_connect(
+                    f"{WS_PATH}?org_id={foreign_org_id}",
+                    subprotocols=["bearer", token],
+                ):
+                    pass
+
+            assert exc_info.value.code == 1008
+        finally:
+            _run_sync(_delete_organization(engine, foreign_org_id))
+
+    def test_without_hint_falls_back_to_first_membership(
+        self,
+        ws_client: TestClient,
+        real_org_user,
+        engine: AsyncEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """gotcha (3), extendido al WS: sin hint, el fallback es idéntico al actual."""
+
+        from app.modules.organizations.models import Organization, OrganizationMember
+        from app.realtime import router as realtime_router
+        from app.shared.enums import MemberRole
+
+        home_org, user, token = real_org_user
+
+        captured: dict = {}
+        original_register = realtime_router.manager.register
+
+        def _capturing_register(org_id, user_id, ws) -> None:
+            captured["org_id"] = org_id
+            original_register(org_id, user_id, ws)
+
+        monkeypatch.setattr(realtime_router.manager, "register", _capturing_register)
+
+        async def _add_second_membership() -> uuid.UUID:
+            async with AsyncSession(engine, expire_on_commit=False) as db:
+                second_org = Organization(
+                    name="Later Org", slug=f"later-org-{uuid.uuid4().hex[:12]}"
+                )
+                db.add(second_org)
+                await db.flush()
+                db.add(
+                    OrganizationMember(
+                        organization_id=second_org.id,
+                        user_id=user.id,
+                        role=MemberRole.member,
+                    )
+                )
+                await db.commit()
+                return second_org.id
+
+        second_org_id = _run_sync(_add_second_membership())
+
+        try:
+            with ws_client.websocket_connect(
+                WS_PATH, subprotocols=["bearer", token]
+            ) as ws:
+                message = ws.receive_json()
+
+            assert message["type"] == "connection.ack"
+            assert captured["org_id"] == home_org.id
+        finally:
+            _run_sync(_delete_organization(engine, second_org_id))
+
+
+def _run_sync(coro):
+    """Run ``coro`` to completion on a fresh event loop (sync test context)."""
+
+    return asyncio.run(coro)
+
+
+async def _delete_organization(engine: AsyncEngine, organization_id: uuid.UUID) -> None:
+    from app.modules.organizations.models import Organization
+
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        await db.execute(delete(Organization).where(Organization.id == organization_id))
+        await db.commit()

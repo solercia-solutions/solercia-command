@@ -257,3 +257,130 @@ async def test_delete_organization_non_member_returns_404(
     )
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 5.1-5.3 — GET /organizations/mine y /auth/me reflejan la empresa activa
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_mine_lists_every_organization_with_its_role(
+    client: AsyncClient, session: AsyncSession, tenant, second_tenant, make_member
+) -> None:
+    """A user in X (admin) and Y (member) sees both with the right role."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.modules.organizations.models import OrganizationMember
+    from app.shared.enums import MemberRole
+
+    user_obj, token = await make_member(session, tenant, MemberRole.admin)
+
+    earlier = datetime.now(UTC) - timedelta(minutes=5)
+    later = datetime.now(UTC)
+    org_x_membership = (
+        await session.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == tenant.id,
+                OrganizationMember.user_id == user_obj.id,
+            )
+        )
+    ).scalar_one()
+    org_x_membership.created_at = earlier
+    await session.flush()
+
+    session.add(
+        OrganizationMember(
+            organization_id=second_tenant.id,
+            user_id=user_obj.id,
+            role=MemberRole.member,
+            created_at=later,
+        )
+    )
+    await session.flush()
+
+    response = await client.get("/organizations/mine", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    roles_by_org_id = {
+        row["organization"]["id"]: row["role"] for row in response.json()["data"]
+    }
+    assert roles_by_org_id[str(tenant.id)] == "admin"
+    assert roles_by_org_id[str(second_tenant.id)] == "member"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_mine_requires_auth(client: AsyncClient) -> None:
+    """No token -> 401."""
+
+    response = await client.get("/organizations/mine")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_auth_me_reflects_the_header_supplied_organization(
+    client: AsyncClient, session: AsyncSession, tenant, second_tenant, make_member, rbac_admin
+) -> None:
+    """`/auth/me` with `X-Organization-Id: Y` reflects Y's RBAC roles, not X's.
+
+    The RBAC ``ADMIN`` role is granted ONLY in ``second_tenant`` (Y). Since
+    ``read_current_user`` already forwards ``membership.organization_id``
+    (resolved by ``get_current_membership``) to ``build_user_read`` — never
+    ``primary_organization_id`` — the response's ``roles`` list is the real,
+    behavior-level proof that the header changed which organization's RBAC
+    context was resolved.
+    """
+
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.modules.organizations.models import OrganizationMember
+    from app.shared.enums import MemberRole
+
+    user_obj, token = await make_member(session, tenant, MemberRole.member)
+
+    earlier = datetime.now(UTC) - timedelta(minutes=5)
+    later = datetime.now(UTC)
+    org_x_membership = (
+        await session.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == tenant.id,
+                OrganizationMember.user_id == user_obj.id,
+            )
+        )
+    ).scalar_one()
+    org_x_membership.created_at = earlier
+    await session.flush()
+
+    session.add(
+        OrganizationMember(
+            organization_id=second_tenant.id,
+            user_id=user_obj.id,
+            role=MemberRole.admin,
+            created_at=later,
+        )
+    )
+    await session.flush()
+
+    await rbac_admin(session, second_tenant, user_obj)
+
+    without_header = await client.get("/auth/me", headers=_auth(token))
+    assert without_header.status_code == 200, without_header.text
+    # Sin header: primera membresía (X) — SIN el ADMIN otorgado solo en Y.
+    assert "ADMIN" not in {role["code"] for role in without_header.json()["roles"]}
+
+    headers_with_org = dict(_auth(token))
+    headers_with_org["X-Organization-Id"] = str(second_tenant.id)
+    with_header = await client.get("/auth/me", headers=headers_with_org)
+
+    assert with_header.status_code == 200, with_header.text
+    # Con el header apuntando a Y: SÍ aparece el ADMIN otorgado ahí.
+    assert "ADMIN" in {role["code"] for role in with_header.json()["roles"]}
