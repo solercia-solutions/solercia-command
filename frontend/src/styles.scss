@@ -123,6 +123,24 @@ body {
   animation: sol-fade-in var(--sol-dur-slow, 320ms) var(--sol-ease, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
+/* ========================================
+   Motion v2 — keyframes globales compartidos (portados de boki-front).
+   Los keyframes NO llevan duración/easing: eso lo aportan los tokens
+   (--sol-dur-*, --sol-ease-*) en cada punto de uso. Con intensity "none"
+   o prefers-reduced-motion las duraciones emitidas son ~1ms y
+   --sol-reveal-dist es 0 → sin movimiento perceptible.
+   Cada keyframe de reveal tiene un duplicado "B" idéntico: alternar
+   nombre base ↔ B reinicia la animación (replay en cada navegación).
+   ======================================== */
+@keyframes solRevealRise {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes solRevealRiseB {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
