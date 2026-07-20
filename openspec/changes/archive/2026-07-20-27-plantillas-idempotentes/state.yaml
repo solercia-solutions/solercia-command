@@ -9,7 +9,7 @@ phases:
   tasks: done
   apply: done
   verify: done
-  archive: pending
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -36,7 +36,7 @@ bug_reference:
   - "Idempotencia acoplada a lead_user_id: UNIQUE(organization_id, template_id, node_id, lead_user_id) en backend/app/modules/org_role_templates/models.py:110-118"
   - "ledger_for filtra por lead_user_id en backend/app/modules/org_role_templates/repository.py:92-112 (WHERE en :109)"
   - "Flujo de duplicacion: backend/app/modules/org_role_templates/service.py:122-189 (instantiate) -> _reconcile_and_commit :191-257"
-last_updated: 2026-07-20
+last_updated: 2026-07-20T17:26:30Z
 apply_summary:
   migrations: [0022_add_project_kind, 0023_dedup_ledger_reconcile_trees]
   suite_full: "1271 passed (baseline 1249 + 22 new)"
