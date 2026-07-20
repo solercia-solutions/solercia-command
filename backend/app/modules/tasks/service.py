@@ -77,6 +77,8 @@ class TaskService:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        task_type: str | None = None,
+        parent_task_id: uuid.UUID | None = None,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
@@ -84,6 +86,11 @@ class TaskService:
         Returns ``(tasks, total)`` — see ``TaskRepository.list_for_project``.
         Raises a ``422`` when ``due_from`` is after ``due_to`` (change
         10-busqueda-global, R8) before ever touching the repository.
+
+        ``task_type`` filters by exact equality. ``parent_task_id`` returns
+        the direct children of that task; since children are by definition
+        NOT top-level, this filter disables the default top-level-only
+        restriction of the listing.
         """
 
         self._validate_due_range(due_from, due_to)
@@ -99,7 +106,9 @@ class TaskService:
             due_from=due_from,
             due_to=due_to,
             q=q,
-            top_level_only=True,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            top_level_only=parent_task_id is None,
             pagination=pagination,
         )
         name_map = await self._assignee_name_map(organization_id)

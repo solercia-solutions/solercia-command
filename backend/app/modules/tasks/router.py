@@ -55,6 +55,17 @@ async def list_tasks(
     q: str | None = Query(
         default=None, description="Texto libre sobre título/descripción."
     ),
+    task_type: str | None = Query(
+        default=None,
+        description="Filtra por tipo exacto de tarea (ej. 'epic', 'story', 'bug').",
+    ),
+    parent_task_id: uuid.UUID | None = Query(
+        default=None,
+        description=(
+            "Devuelve las hijas directas de esa tarea (ej. las historias de "
+            "una épica); desactiva la restricción top-level del listado."
+        ),
+    ),
     pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
@@ -65,7 +76,10 @@ async def list_tasks(
     those params the full collection is returned unchanged. ``label_id`` is
     repeatable (``?label_id=a&label_id=b``, OR semantics); ``priority``,
     ``due_from``/``due_to`` (range) and ``q`` (title/description) compose
-    with every other filter (change 10-busqueda-global, R7).
+    with every other filter (change 10-busqueda-global, R7). ``task_type``
+    filters by exact equality; ``parent_task_id`` returns the direct children
+    of that task (which are never top-level, so it lifts the top-level-only
+    restriction).
     """
 
     service = TaskService(db)
@@ -80,6 +94,8 @@ async def list_tasks(
         due_from=due_from,
         due_to=due_to,
         q=q,
+        task_type=task_type,
+        parent_task_id=parent_task_id,
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}

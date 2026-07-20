@@ -263,3 +263,93 @@ async def test_filters_combine_with_standard_pagination_meta(
     body = response.json()
     assert body["meta"] == {"page": 1, "size": 1, "total": 2}
     assert len(body["data"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Filtros task_type y parent_task_id (habilitadores UX de jerarquía)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_filter_by_task_type_returns_only_matching_type(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """``?task_type=epic`` returns ONLY the epics of the project."""
+
+    _, token = user
+    project_id = await _create_project(client, token, "Task Type Filter Project")
+    epic = await _create_task(client, token, project_id, "Épica", task_type="epic")
+    await _create_task(client, token, project_id, "Tarea Normal")
+    await _create_task(client, token, project_id, "Bug", task_type="bug")
+
+    response = await _list_tasks(client, token, project_id, task_type="epic")
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert [row["id"] for row in rows] == [epic["id"]]
+    assert all(row["task_type"] == "epic" for row in rows)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_filter_by_parent_task_id_returns_epic_children(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """``?parent_task_id=<epic>`` returns the epic's children — normally
+    hidden from the top-level listing."""
+
+    _, token = user
+    project_id = await _create_project(client, token, "Parent Filter Project")
+    epic = await _create_task(client, token, project_id, "Épica Padre", task_type="epic")
+    child_a = await _create_task(
+        client, token, project_id, "Historia A",
+        task_type="story", parent_task_id=epic["id"],
+    )
+    child_b = await _create_task(
+        client, token, project_id, "Historia B",
+        task_type="story", parent_task_id=epic["id"],
+    )
+    await _create_task(client, token, project_id, "Tarea Suelta")
+
+    response = await _list_tasks(
+        client, token, project_id, parent_task_id=epic["id"]
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert ids == {child_a["id"], child_b["id"]}
+
+    # Sin el filtro, el listado sigue siendo solo de tareas top-level.
+    unfiltered = await _list_tasks(client, token, project_id)
+    top_ids = {row["id"] for row in unfiltered.json()["data"]}
+    assert child_a["id"] not in top_ids
+    assert epic["id"] in top_ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_task_type_filter_combines_with_existing_filters(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """``task_type`` composes with the pre-existing filters (``priority``)."""
+
+    _, token = user
+    project_id = await _create_project(client, token, "Combined Type Filter Project")
+    epic_high = await _create_task(
+        client, token, project_id, "Épica Alta", task_type="epic", priority="high"
+    )
+    await _create_task(
+        client, token, project_id, "Épica Media", task_type="epic", priority="medium"
+    )
+    await _create_task(
+        client, token, project_id, "Tarea Alta", priority="high"
+    )
+
+    response = await _list_tasks(
+        client, token, project_id, task_type="epic", priority="high"
+    )
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert [row["id"] for row in rows] == [epic_high["id"]]

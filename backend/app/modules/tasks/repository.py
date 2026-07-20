@@ -48,6 +48,7 @@ class TaskRepository:
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
         parent_task_id: uuid.UUID | None = None,
+        task_type: str | None = None,
         label_ids: Sequence[uuid.UUID] | None = None,
         priority: Priority | None = None,
         due_from: date | None = None,
@@ -88,6 +89,8 @@ class TaskRepository:
             stmt = stmt.where(Task.assignee_id == assignee_id)
         if parent_task_id is not None:
             stmt = stmt.where(Task.parent_task_id == parent_task_id)
+        if task_type is not None:
+            stmt = stmt.where(Task.task_type == task_type)
         if subtasks_only:
             stmt = stmt.where(Task.parent_task_id.isnot(None))
         if top_level_only:
