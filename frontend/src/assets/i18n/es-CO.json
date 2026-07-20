@@ -563,6 +563,14 @@
     }
   },
   "shared": {
+    "datePicker": {
+      "chooseView": "Cambia la vista del calendario",
+      "dialog": "Calendario",
+      "next": "Mes siguiente",
+      "placeholder": "Selecciona una fecha",
+      "prev": "Mes anterior",
+      "trigger": "Abre el calendario"
+    },
     "drawer": {
       "closeAria": "Cierra el panel"
     },

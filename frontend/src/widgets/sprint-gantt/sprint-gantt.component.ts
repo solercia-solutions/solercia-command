@@ -11,11 +11,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { formatOriginalEstimate } from '@shared/lib/estimation';
-import {
-  Sprint,
-  Task,
-  formatShortDate,
-} from '@entities/workspace/workspace.model';
+import { Sprint, Task } from '@entities/workspace/workspace.model';
 
 const DAY_MS = 86_400_000;
 /** Pixel width of one day column. */
@@ -697,8 +693,8 @@ export class SprintGanttComponent {
   protected sprintBandAria(sprint: Sprint): string {
     return this.i18n.translate('workspace.gantt.sprintBarAria', {
       name: sprint.name,
-      start: formatShortDate(sprint.start_date) || '—',
-      end: formatShortDate(sprint.end_date) || '—',
+      start: shortDayLabel(sprint.start_date) || '—',
+      end: shortDayLabel(sprint.end_date) || '—',
     });
   }
 
@@ -728,8 +724,8 @@ export class SprintGanttComponent {
 
   /** "12 jul — 20 jul"; con una sola fecha muestra la disponible. */
   protected barDatesLabel(task: Task): string {
-    const start = formatShortDate(task.start_date);
-    const due = formatShortDate(task.due_date);
+    const start = shortDayLabel(task.start_date);
+    const due = shortDayLabel(task.due_date);
     if (start && due) {
       return `${start} — ${due}`;
     }
@@ -753,9 +749,15 @@ export class SprintGanttComponent {
   }
 }
 
-/* ---- Helpers de fecha (día local, sin horas) --------------------------------- */
+/* ---- Helpers de fecha --------------------------------------------------------
+ * Las fechas elegidas en los date-pickers se guardan como medianoche UTC
+ * ("2026-07-14T00:00:00Z"). Interpretarlas en hora local (UTC-5 en Colombia)
+ * las corre un día hacia atrás, así que el Gantt trabaja SIEMPRE con las
+ * partes UTC del timestamp: la barra y el tooltip muestran el día calendario
+ * que la persona escribió en el formulario.
+ */
 
-/** Normaliza un ISO datetime/fecha al inicio del día local; null si no parsea. */
+/** Día calendario (partes UTC) como Date local a medianoche; null si no parsea. */
 function toDay(value: string | null | undefined): Date | null {
   if (!value) {
     return null;
@@ -764,7 +766,20 @@ function toDay(value: string | null | undefined): Date | null {
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  return new Date(
+    parsed.getUTCFullYear(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
+  );
+}
+
+/** "14 jul" a partir del día calendario UTC del valor; '' si está vacío. */
+function shortDayLabel(value: string | null | undefined): string {
+  const day = toDay(value);
+  if (!day) {
+    return '';
+  }
+  return day.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 }
 
 function startOfToday(): Date {
