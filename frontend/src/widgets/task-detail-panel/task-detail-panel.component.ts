@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -8,6 +9,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -21,6 +23,7 @@ import {
   formatBytes,
 } from '@entities/task/task-detail.model';
 import { Member, Sprint, statusDisplay } from '@entities/workspace/workspace.model';
+import { WorkspaceService } from '@entities/workspace/workspace.service';
 import { EstimationMode, MethodologyInfo } from '@entities/project/project.model';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
@@ -137,8 +140,8 @@ import { I18nService } from '@shared/i18n';
             />
           </div>
 
-          <!-- Sprint (only when the host methodology enables sprints) -->
-          @if (sprintsEnabled()) {
+          <!-- Sprint (only when the host or the project methodology enables sprints) -->
+          @if (effectiveSprintsEnabled()) {
             <div>
               <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldSprint() }}</label>
               <sol-select
@@ -436,7 +439,9 @@ export class TaskDetailPanelComponent {
   protected readonly svc = inject(TaskDetailService);
   protected readonly auth = inject(AuthService);
   private readonly projectsService = inject(ProjectsService);
+  private readonly workspaceService = inject(WorkspaceService);
   private readonly i18n = inject(I18nService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Clave de la tarea (`task_key`) a cargar. Reactivo: si cambia, recarga. */
   readonly taskKey = input.required<string>();
@@ -541,6 +546,25 @@ export class TaskDetailPanelComponent {
   readonly methodologyInfo = signal<MethodologyInfo | null>(null);
 
   /**
+   * Sprints cargados por el propio widget cuando el host no los provee
+   * (p. ej. deep-link `/task/:key`, donde la página solo pasa `taskKey`).
+   */
+  readonly fallbackSprints = signal<Sprint[]>([]);
+
+  /**
+   * Selector de sprint visible si el host lo habilita o si la metodología
+   * del proyecto cargado tiene sprints (cubre el deep-link sin inputs).
+   */
+  readonly effectiveSprintsEnabled = computed(
+    () => this.sprintsEnabled() || !!this.methodologyInfo()?.sprints_enabled,
+  );
+
+  /** Sprints efectivos: los del host si llegan; si no, los auto-cargados. */
+  readonly effectiveSprints = computed(() =>
+    this.sprints().length > 0 ? this.sprints() : this.fallbackSprints(),
+  );
+
+  /**
    * Estados válidos según la metodología del proyecto (los mismos que valida
    * el backend en el PATCH). Fallback genérico solo si el proyecto no cargó.
    */
@@ -586,7 +610,7 @@ export class TaskDetailPanelComponent {
   /** Opciones del selector de sprint: primero "sin sprint" (backlog). */
   readonly sprintOptions = computed(() => [
     { value: '', label: this.text.fieldSprintNone() },
-    ...this.sprints().map(s => ({ value: s.id, label: s.name })),
+    ...this.effectiveSprints().map(s => ({ value: s.id, label: s.name })),
   ]);
 
   constructor() {
@@ -600,6 +624,15 @@ export class TaskDetailPanelComponent {
     });
   }
 
+  /**
+   * Carga todo el detalle de la tarea `key`.
+   *
+   * Robustez ante navegación rápida entre tareas (mismo widget, distinto
+   * `taskKey`): cada respuesta se descarta con `isStale(key)` si el key ya
+   * cambió cuando llega, y toda subscripción se corta con
+   * `takeUntilDestroyed` al destruir el widget. Así una respuesta lenta de
+   * la tarea anterior nunca pisa los datos de la actual.
+   */
   private loadAll(key: string): void {
     this.loading.set(true);
     this.error.set(null);
@@ -609,59 +642,97 @@ export class TaskDetailPanelComponent {
     this.taskAttachments.set([]);
     this.commentAttachments.set({});
     this.methodologyInfo.set(null);
+    this.fallbackSprints.set([]);
 
-    this.svc.getTaskByKey(key).subscribe({
-      next: (res) => {
-        this.task.set(res.data);
-        const t = res.data;
-        forkJoin({
-          subtasks: this.svc.getSubtasks(t.id),
-          comments: this.svc.getComments(t.id),
-          attachments: this.svc.getTaskAttachments(t.id),
-          members: this.svc.getMembers(t.project_id),
-          projectTasks: this.svc.getProjectTasks(t.project_id),
-          project: this.projectsService.get(t.project_id),
-        }).subscribe({
-          next: (data) => {
-            this.subtasks.set(data.subtasks.data);
-            this.comments.set(data.comments.data);
-            this.taskAttachments.set(data.attachments.data);
-            this.members.set(data.members.data);
-            this.projectTasks.set(data.projectTasks.data);
-            this.methodologyInfo.set(data.project.data.methodology_info);
-            this.loading.set(false);
-            // Load comment attachments
-            data.comments.data.forEach(c => {
-              this.svc.getCommentAttachments(c.id).subscribe(r => {
-                this.commentAttachments.update(map => ({ ...map, [c.id]: r.data }));
-              });
+    this.svc.getTaskByKey(key)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (this.isStale(key)) return;
+          this.task.set(res.data);
+          const t = res.data;
+          forkJoin({
+            subtasks: this.svc.getSubtasks(t.id),
+            comments: this.svc.getComments(t.id),
+            attachments: this.svc.getTaskAttachments(t.id),
+            members: this.svc.getMembers(t.project_id),
+            projectTasks: this.svc.getProjectTasks(t.project_id),
+            project: this.projectsService.get(t.project_id),
+          })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (data) => {
+                if (this.isStale(key)) return;
+                this.subtasks.set(data.subtasks.data);
+                this.comments.set(data.comments.data);
+                this.taskAttachments.set(data.attachments.data);
+                this.members.set(data.members.data);
+                this.projectTasks.set(data.projectTasks.data);
+                this.methodologyInfo.set(data.project.data.methodology_info);
+                this.loading.set(false);
+                this.loadFallbackSprints(key, t.project_id);
+                // Adjuntos por comentario
+                data.comments.data.forEach(c => {
+                  this.svc.getCommentAttachments(c.id)
+                    .pipe(takeUntilDestroyed(this.destroyRef))
+                    .subscribe(r => {
+                      if (this.isStale(key)) return;
+                      this.commentAttachments.update(map => ({ ...map, [c.id]: r.data }));
+                    });
+                });
+              },
+              error: (err) => {
+                if (this.isStale(key)) return;
+                this.error.set(this.i18n.translate('taskDetail.errors.loadData'));
+                this.loading.set(false);
+                console.error(err);
+              },
             });
-          },
-          error: (err) => {
-            this.error.set(this.i18n.translate('taskDetail.errors.loadData'));
-            this.loading.set(false);
-            console.error(err);
-          },
-        });
-      },
-      error: (err) => {
-        this.error.set(this.i18n.translate('taskDetail.errors.notFound'));
-        this.loading.set(false);
-        console.error(err);
-      },
-    });
+        },
+        error: (err) => {
+          if (this.isStale(key)) return;
+          this.error.set(this.i18n.translate('taskDetail.errors.notFound'));
+          this.loading.set(false);
+          console.error(err);
+        },
+      });
+  }
+
+  /** `true` si la respuesta pertenece a un `taskKey` que ya no es el actual. */
+  private isStale(key: string): boolean {
+    return key !== this.taskKey();
+  }
+
+  /**
+   * Auto-carga los sprints del proyecto cuando la metodología los habilita y
+   * el host no los proveyó (deep-link `/task/:key`). El drawer del workspace
+   * sí los pasa por input, así que allí no hay doble carga.
+   */
+  private loadFallbackSprints(key: string, projectId: string): void {
+    if (!this.effectiveSprintsEnabled() || this.sprints().length > 0) return;
+    this.workspaceService.sprints(projectId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (this.isStale(key)) return;
+          this.fallbackSprints.set(res.data);
+        },
+        error: (err) => console.error('Error cargando sprints del proyecto', err),
+      });
   }
 
   updateField(field: string, value: unknown): void {
     const t = this.task();
     if (!t) return;
-    this.svc.updateTask(t.id, { [field]: value }).subscribe({
-      next: (res) => {
-        this.task.set(res.data);
-        this.taskChanged.emit(res.data);
-      },
-      error: (err) => console.error('Error actualizando campo', field, err),
-    });
+    this.svc.updateTask(t.id, { [field]: value })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.task.set(res.data);
+          this.taskChanged.emit(res.data);
+        },
+        error: (err) => console.error('Error actualizando campo', field, err),
+      });
   }
 
   /** Parsea un input numérico nativo: cadena vacía → null. */
@@ -676,28 +747,34 @@ export class TaskDetailPanelComponent {
     const t = this.task();
     if (!t || !this.commentBody().trim()) return;
     this.savingComment.set(true);
-    this.svc.createComment(t.id, this.commentBody()).subscribe({
-      next: (res) => {
-        this.comments.update(cs => [...cs, res.data]);
-        this.commentBody.set('');
-        this.savingComment.set(false);
-        // Load attachments for new comment
-        this.svc.getCommentAttachments(res.data.id).subscribe(r => {
-          this.commentAttachments.update(map => ({ ...map, [res.data.id]: r.data }));
-        });
-      },
-      error: (err) => {
-        this.savingComment.set(false);
-        console.error(err);
-      },
-    });
+    this.svc.createComment(t.id, this.commentBody())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.comments.update(cs => [...cs, res.data]);
+          this.commentBody.set('');
+          this.savingComment.set(false);
+          // Adjuntos del comentario recién creado
+          this.svc.getCommentAttachments(res.data.id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(r => {
+              this.commentAttachments.update(map => ({ ...map, [res.data.id]: r.data }));
+            });
+        },
+        error: (err) => {
+          this.savingComment.set(false);
+          console.error(err);
+        },
+      });
   }
 
   deleteComment(id: string): void {
-    this.svc.deleteComment(id).subscribe({
-      next: () => this.comments.update(cs => cs.filter(c => c.id !== id)),
-      error: (err) => console.error(err),
-    });
+    this.svc.deleteComment(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.comments.update(cs => cs.filter(c => c.id !== id)),
+        error: (err) => console.error(err),
+      });
   }
 
   startEditComment(comment: Comment): void {
@@ -708,14 +785,16 @@ export class TaskDetailPanelComponent {
   saveEditComment(): void {
     const id = this.editingCommentId();
     if (!id) return;
-    this.svc.updateComment(id, this.editBody()).subscribe({
-      next: (res) => {
-        this.comments.update(cs => cs.map(c => c.id === id ? res.data : c));
-        this.editingCommentId.set(null);
-        this.editBody.set('');
-      },
-      error: (err) => console.error(err),
-    });
+    this.svc.updateComment(id, this.editBody())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.comments.update(cs => cs.map(c => c.id === id ? res.data : c));
+          this.editingCommentId.set(null);
+          this.editBody.set('');
+        },
+        error: (err) => console.error(err),
+      });
   }
 
   cancelEditComment(): void {
@@ -731,62 +810,73 @@ export class TaskDetailPanelComponent {
       title: this.newSubtaskTitle(),
       estimation_hours: this.newSubtaskHours(),
       parent_task_id: t.id,
-    }).subscribe({
-      next: (res) => {
-        this.subtasks.update(ss => [...ss, res.data]);
-        this.newSubtaskTitle.set('');
-        this.newSubtaskHours.set(null);
-        this.showSubtaskForm.set(false);
-        this.savingSubtask.set(false);
-        // Re-fetch task to update subtask_progress
-        const key = this.taskKey();
-        if (key) {
-          this.svc.getTaskByKey(key).subscribe(r => {
-            this.task.set(r.data);
-            this.taskChanged.emit(r.data);
-          });
-        }
-      },
-      error: (err) => {
-        this.savingSubtask.set(false);
-        console.error(err);
-      },
-    });
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.subtasks.update(ss => [...ss, res.data]);
+          this.newSubtaskTitle.set('');
+          this.newSubtaskHours.set(null);
+          this.showSubtaskForm.set(false);
+          this.savingSubtask.set(false);
+          // Re-fetch de la tarea para refrescar subtask_progress
+          const key = this.taskKey();
+          if (key) {
+            this.svc.getTaskByKey(key)
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe(r => {
+                if (this.isStale(key)) return;
+                this.task.set(r.data);
+                this.taskChanged.emit(r.data);
+              });
+          }
+        },
+        error: (err) => {
+          this.savingSubtask.set(false);
+          console.error(err);
+        },
+      });
   }
 
   downloadAttachment(att: Attachment): void {
-    this.svc.downloadAttachment(att.id).subscribe(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = att.original_name;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    this.svc.downloadAttachment(att.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = att.original_name;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
   }
 
   uploadTaskFile(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     const t = this.task();
     if (!file || !t) return;
-    this.svc.uploadTaskAttachment(t.id, file).subscribe({
-      next: (res) => this.taskAttachments.update(atts => [...atts, res.data]),
-      error: (err) => console.error(err),
-    });
+    this.svc.uploadTaskAttachment(t.id, file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.taskAttachments.update(atts => [...atts, res.data]),
+        error: (err) => console.error(err),
+      });
   }
 
   uploadCommentFile(commentId: string, event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    this.svc.uploadCommentAttachment(commentId, file).subscribe({
-      next: (res) => {
-        this.commentAttachments.update(map => ({
-          ...map,
-          [commentId]: [...(map[commentId] ?? []), res.data],
-        }));
-      },
-      error: (err) => console.error(err),
-    });
+    this.svc.uploadCommentAttachment(commentId, file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.commentAttachments.update(map => ({
+            ...map,
+            [commentId]: [...(map[commentId] ?? []), res.data],
+          }));
+        },
+        error: (err) => console.error(err),
+      });
   }
 
   protected readonly formatBytes = formatBytes;
