@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -37,3 +37,7 @@ bug_reference:
   - "ledger_for filtra por lead_user_id en backend/app/modules/org_role_templates/repository.py:92-112 (WHERE en :109)"
   - "Flujo de duplicacion: backend/app/modules/org_role_templates/service.py:122-189 (instantiate) -> _reconcile_and_commit :191-257"
 last_updated: 2026-07-20
+apply_summary:
+  migrations: [0022_add_project_kind, 0023_dedup_ledger_reconcile_trees]
+  suite_full: "1271 passed (baseline 1249 + 22 new)"
+  migration_cycle: "upgrade head / downgrade -2 / upgrade head verified on a disposable db"

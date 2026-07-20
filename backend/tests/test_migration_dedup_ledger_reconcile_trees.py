@@ -22,7 +22,7 @@ import asyncio
 import importlib.util
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -241,7 +241,9 @@ async def _seed_duplicate_oap_ti_trees(
 
 
 @skip_no_db
-def test_upgrade_reassigns_tasks_and_soft_deletes_the_duplicate_keeping_the_tree_with_tasks() -> None:
+def test_upgrade_reassigns_tasks_and_soft_deletes_the_duplicate_keeping_the_tree_with_tasks() -> (
+    None
+):
     """T3.1/T3.2/T3.3: el arbol CON tareas sobrevive activo, las tareas del
     duplicado quedan reasignadas a el, y el duplicado queda soft-deleted —
     spec 'Limpieza reasigna tareas y conserva el arbol con historial'."""
@@ -266,8 +268,8 @@ def test_upgrade_reassigns_tasks_and_soft_deletes_the_duplicate_keeping_the_tree
         seed = asyncio.run(
             _seed_duplicate_oap_ti_trees(
                 sync_dsn,
-                survivor_created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
-                loser_created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                survivor_created_at=datetime(2026, 1, 2, tzinfo=UTC),
+                loser_created_at=datetime(2026, 1, 1, tzinfo=UTC),
                 survivor_task_count=3,
                 loser_task_count=0,
             )
@@ -383,8 +385,8 @@ def test_running_the_cleanup_logic_twice_is_a_noop() -> None:
         seed = asyncio.run(
             _seed_duplicate_oap_ti_trees(
                 sync_dsn,
-                survivor_created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
-                loser_created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                survivor_created_at=datetime(2026, 1, 2, tzinfo=UTC),
+                loser_created_at=datetime(2026, 1, 1, tzinfo=UTC),
                 survivor_task_count=2,
                 loser_task_count=0,
             )
@@ -461,7 +463,7 @@ def test_tie_without_deterministic_survivor_is_reported_not_guessed() -> None:
         cfg = _run_against(dedup_url)
         command.upgrade(cfg, "0022")
 
-        exact_same_instant = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        exact_same_instant = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
         seed = asyncio.run(
             _seed_duplicate_oap_ti_trees(
                 sync_dsn,
@@ -529,8 +531,8 @@ def test_downgrade_restores_the_old_unique_constraint_without_losing_ledger_rows
         seed = asyncio.run(
             _seed_duplicate_oap_ti_trees(
                 sync_dsn,
-                survivor_created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
-                loser_created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                survivor_created_at=datetime(2026, 1, 2, tzinfo=UTC),
+                loser_created_at=datetime(2026, 1, 1, tzinfo=UTC),
                 survivor_task_count=1,
                 loser_task_count=0,
             )
