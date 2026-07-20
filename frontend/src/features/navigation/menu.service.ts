@@ -23,6 +23,7 @@ export class MenuService {
   private readonly http = inject(HttpClient);
   private readonly _menus = signal<MenuNode[]>([]);
   private readonly _loaded = signal<boolean>(false);
+  private loading = false;
 
   /** The accessible menu tree, ordered by `order`. */
   readonly menus = this._menus.asReadonly();
@@ -32,12 +33,20 @@ export class MenuService {
 
   /** Fetch the menu tree for the current session. */
   load(): void {
+    // The shell's hydration effect re-runs whenever auth signals settle; the
+    // in-flight guard keeps those re-runs from firing duplicate requests.
+    if (this.loading) {
+      return;
+    }
+    this.loading = true;
     this.http.get<unknown>(`${apiBase}/auth/me/menus`).subscribe({
       next: (res) => {
+        this.loading = false;
         this._menus.set(normalizeMenus(res));
         this._loaded.set(true);
       },
       error: () => {
+        this.loading = false;
         this._menus.set([]);
         this._loaded.set(false);
       },
@@ -46,6 +55,7 @@ export class MenuService {
 
   /** Clear the tree (on logout). */
   clear(): void {
+    this.loading = false;
     this._menus.set([]);
     this._loaded.set(false);
   }
