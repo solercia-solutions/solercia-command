@@ -118,29 +118,29 @@ Chain strategy: size-exception
 
 ### Fase 7 — Store de empresa activa (signal + `sp-active-org`) (Commit 7)
 
-- [ ] 7.1 Crear `frontend/src/features/organizations/active-org.store.ts`: signal `activeOrgId` hidratado desde `localStorage.getItem('sp-active-org')` (patrón try/catch de `layout-shell.component.ts` `readPersistedCollapsed`/`persistCollapsed` — falla silenciosa si `localStorage` no está disponible); `setActiveOrg(id: string)` persiste la clave y ejecuta `window.location.reload()` (Decisión 5 del design: recarga completa, sin reset selectivo de stores).
-- [ ] 7.2 gotcha (4) — limpiar `sp-active-org` en `clearSession()`/logout: modificar `frontend/src/features/auth/auth.service.ts#clearSession()` para remover también `sp-active-org` (junto a `sp-token`), evitando que tras el login de otro usuario en el mismo navegador el header apunte a una empresa ajena (403 en toda la sesión).
-- [ ] 7.3 Verify (sin harness de pruebas de frontend, Out of Scope del proposal): revisión de código — `clearSession()` borra ambas claves; `setActiveOrg` no lanza si `localStorage` no está disponible; `ng build` sin errores de compilación.
+- [x] 7.1 Crear `frontend/src/features/organizations/active-org.store.ts`: signal `activeOrgId` hidratado desde `localStorage.getItem('sp-active-org')` (patrón try/catch de `layout-shell.component.ts` `readPersistedCollapsed`/`persistCollapsed` — falla silenciosa si `localStorage` no está disponible); `setActiveOrg(id: string)` persiste la clave y ejecuta `window.location.reload()` (Decisión 5 del design: recarga completa, sin reset selectivo de stores).
+- [x] 7.2 gotcha (4) — limpiar `sp-active-org` en `clearSession()`/logout: modificar `frontend/src/features/auth/auth.service.ts#clearSession()` para remover también `sp-active-org` (junto a `sp-token`), evitando que tras el login de otro usuario en el mismo navegador el header apunte a una empresa ajena (403 en toda la sesión).
+- [x] 7.3 Verify (sin harness de pruebas de frontend, Out of Scope del proposal): revisión de código — `clearSession()` borra ambas claves; `setActiveOrg` no lanza si `localStorage` no está disponible; `ng build` sin errores de compilación.
 
 ### Fase 8 — Interceptor inyecta el header (Commit 8)
 
-- [ ] 8.1 Modificar `frontend/src/features/auth/auth.interceptor.ts`: inyectar `X-Organization-Id` con el valor vigente de `ActiveOrgStore` en toda petición autenticada, salvo en `isAuthEndpoint` (mismo criterio que el bearer `Authorization`: omitir en `/auth/login|refresh|logout`).
-- [ ] 8.2 Verify manual: sin empresa activa aún (primer login, antes de `GET /organizations/mine`), el header simplemente se omite — el backend cae al fallback de la primera membresía, sin romper el flujo de login. `ng build` sin errores.
+- [x] 8.1 Modificar `frontend/src/features/auth/auth.interceptor.ts`: inyectar `X-Organization-Id` con el valor vigente de `ActiveOrgStore` en toda petición autenticada, salvo en `isAuthEndpoint` (mismo criterio que el bearer `Authorization`: omitir en `/auth/login|refresh|logout`).
+- [x] 8.2 Verify manual: sin empresa activa aún (primer login, antes de `GET /organizations/mine`), el header simplemente se omite — el backend cae al fallback de la primera membresía, sin romper el flujo de login. `ng build` sin errores.
 
 ### Fase 9 — Entidad `organization` (modelo + servicio CRUD/miembros) (Commit 9)
 
-- [ ] 9.1 Crear `frontend/src/entities/organization/organization.model.ts`: tipos `Organization`, `OrganizationMember`, `OrganizationMembership` (empresa + rol del usuario, para el selector y "mis empresas").
-- [ ] 9.2 Crear `frontend/src/entities/organization/organizations.service.ts` (mismo patrón que `org-theme.api.ts`, envelope `{data}`/`{data, meta}`): `mine()`, `create(payload)`, `get(id)`, `update(id, payload)`, `remove(id)`, `listMembers(id)`, `addMember(id, payload)`, `updateMemberRole(id, memberId, role)`, `removeMember(id, memberId)`.
-- [ ] 9.3 Verify manual: `ng build` sin errores; tipos consumidos correctamente por el selector y las páginas admin de los Lotes 2/3.
+- [x] 9.1 Crear `frontend/src/entities/organization/organization.model.ts`: tipos `Organization`, `OrganizationMember`, `OrganizationMembership` (empresa + rol del usuario, para el selector y "mis empresas").
+- [x] 9.2 Crear `frontend/src/entities/organization/organizations.service.ts` (mismo patrón que `org-theme.api.ts`, envelope `{data}`/`{data, meta}`): `mine()`, `create(payload)`, `get(id)`, `update(id, payload)`, `remove(id)`, `listMembers(id)`, `addMember(id, payload)`, `updateMemberRole(id, memberId, role)`, `removeMember(id, memberId)`.
+- [x] 9.3 Verify manual: `ng build` sin errores; tipos consumidos correctamente por el selector y las páginas admin de los Lotes 2/3.
 
 ### Fase 10 — Selector de empresa activa en el layout (Commit 10)
 
-- [ ] 10.1 Crear el componente selector (`frontend/src/widgets/header/ui/org-switcher.component.ts` o carpeta equivalente en `features/organizations/`) que consume `organizations.service.ts#mine()`: lista las empresas del usuario con su rol, resalta la activa (Scenario "Selector lista las empresas del usuario").
-- [ ] 10.2 Con una sola empresa, el selector la muestra como activa sin obligar a elegir (Scenario "Usuario con una sola empresa").
-- [ ] 10.3 Proyectar el selector en `[header-actions]` de `frontend/src/app/app.component.ts`, junto al toggle de tema existente.
-- [ ] 10.4 Manejo de error (Scenario "Falla al cambiar de empresa conserva el contexto anterior"): si el cambio falla (red o 403), mostrar un mensaje de error legible y NO invocar `setActiveOrg`/reload hasta confirmar éxito — el layout conserva el contexto de la empresa anterior sin datos parciales de la nueva.
-- [ ] 10.5 Textos en español colombiano formal, tuteo (etiquetas, `aria-label`, estado vacío, mensajes de error) — nunca voseo rioplatense (Scenario "Tuteo formal en las etiquetas del selector").
-- [ ] 10.6 Verify manual con `./gestion.sh` levantado: usuario en 2 empresas ve ambas en el selector; cambiar de empresa recarga la página y refleja la nueva (menús, `/auth/me`, tema); simular un error (empresa inexistente) y confirmar que el layout no se rompe y conserva el contexto previo.
+- [x] 10.1 Crear el componente selector (`frontend/src/widgets/header/ui/org-switcher.component.ts` o carpeta equivalente en `features/organizations/`) que consume `organizations.service.ts#mine()`: lista las empresas del usuario con su rol, resalta la activa (Scenario "Selector lista las empresas del usuario").
+- [x] 10.2 Con una sola empresa, el selector la muestra como activa sin obligar a elegir (Scenario "Usuario con una sola empresa").
+- [x] 10.3 Proyectar el selector en `[header-actions]` de `frontend/src/app/app.component.ts`, junto al toggle de tema existente.
+- [x] 10.4 Manejo de error (Scenario "Falla al cambiar de empresa conserva el contexto anterior"): si el cambio falla (red o 403), mostrar un mensaje de error legible y NO invocar `setActiveOrg`/reload hasta confirmar éxito — el layout conserva el contexto de la empresa anterior sin datos parciales de la nueva.
+- [x] 10.5 Textos en español colombiano formal, tuteo (etiquetas, `aria-label`, estado vacío, mensajes de error) — nunca voseo rioplatense (Scenario "Tuteo formal en las etiquetas del selector").
+- [x] 10.6 Verify manual con `./gestion.sh` levantado: usuario en 2 empresas ve ambas en el selector; cambiar de empresa recarga la página y refleja la nueva (menús, `/auth/me`, tema); simular un error (empresa inexistente) y confirmar que el layout no se rompe y conserva el contexto previo.
 
 ## Lote 3 — Páginas admin (CRUD de empresas y miembros)
 

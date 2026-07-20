@@ -528,6 +528,23 @@
     "title": "Notificaciones",
     "viewTask": "Ver tarea"
   },
+  "orgSwitcher": {
+    "empty": "No perteneces a ninguna empresa todavía.",
+    "errors": {
+      "load": "No se pudieron cargar tus empresas. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "switchFailed": "No se pudo cambiar de empresa. Verifica tu acceso e inténtalo de nuevo."
+    },
+    "loading": "Cargando empresas…",
+    "roles": {
+      "admin": "Administrador",
+      "manager": "Gestor",
+      "member": "Miembro",
+      "viewer": "Observador"
+    },
+    "toggle": "Selecciona la empresa activa",
+    "triggerAria": "Cambia la empresa activa"
+  },
   "performance": {
     "aria": {
       "onTimePercent": "{{ n }} por ciento a tiempo",
