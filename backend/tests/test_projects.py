@@ -137,15 +137,37 @@ async def test_velocity_reports_closed_sprint_points_average_and_projection(
     )
     assert close.status_code == 200, close.text
 
+    # A SECOND closed sprint proves the average aggregates across multiple
+    # real closed-sprint rows (legacy test_velocity_averages_closed_sprints).
+    sprint_two = await client.post(
+        f"/projects/{project_id}/sprints",
+        json={"name": "Sprint 2"},
+        headers=_auth(token),
+    )
+    sprint_two_id = sprint_two.json()["data"]["id"]
+    task_two = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Done task 2", "sprint_id": sprint_two_id, "estimation_points": 3},
+        headers=_auth(token),
+    )
+    task_two_id = task_two.json()["data"]["id"]
+    await client.patch(
+        f"/tasks/{task_two_id}", json={"status": "Done"}, headers=_auth(token)
+    )
+    close_two = await client.post(
+        f"/sprints/{sprint_two_id}/close", headers=_auth(token)
+    )
+    assert close_two.status_code == 200, close_two.text
+
     response = await client.get(
         f"/projects/{project_id}/velocity", headers=_auth(token)
     )
 
     assert response.status_code == 200, response.text
     body = response.json()["data"]
-    assert len(body["series"]) == 1
-    assert body["series"][0]["completed_points"] == 5
-    assert body["average_velocity"] == 5.0
+    assert len(body["series"]) == 2
+    assert sorted(s["completed_points"] for s in body["series"]) == [3, 5]
+    assert body["average_velocity"] == 4.0
     assert body["projected_sprints"] is not None
 
 
