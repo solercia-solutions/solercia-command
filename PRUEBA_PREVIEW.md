@@ -1,8 +1,14 @@
-# Guía de prueba — rama `preview` (OLA 2 estabilizada)
+# Guía de prueba — rama `preview` (OLA 2 estabilizada + ola de UX)
 
-Esta guía te permite probar todo lo entregado en la OLA 2 sobre la rama `preview`,
-sin tocar `main`. Indica qué se puede probar sin credenciales externas (todo lo
-mockeable) y qué requiere servicios o credenciales reales.
+Esta guía te permite probar todo lo entregado sobre la rama `preview`, sin tocar
+`main`. Indica qué se puede probar sin credenciales externas (todo lo mockeable)
+y qué requiere servicios o credenciales reales.
+
+> **Novedades de la ola de UX** (además de lo de la OLA 2, más abajo): sidebar
+> izquierdo colapsable, edición y vinculación de proyectos desde la UI, onboarding
+> de Equipos, sección de Conexiones, detalle de tareas en drawer, cronograma estilo
+> Jira, estimación con puntos + tiempo, y personalización de apariencia por
+> organización. Todo esto está en la sección 3 con su guía de prueba.
 
 ## 1. Arranque del entorno
 
@@ -44,7 +50,44 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
 
 También puedes usar Swagger (http://localhost:8000/docs → botón "Authorize").
 
-## 3. Qué probar por cada ítem de la OLA
+## 3. Ola de UX (mejoras sobre el feedback) — todo sin credenciales externas
+
+Ingresa en http://localhost:4242 con `admin@solercia.com` / `Admin123*`.
+
+1. **Sidebar izquierdo colapsable**: el menú ahora es un sidebar a la izquierda
+   (estilo boki-front). El botón de la esquina lo colapsa a solo iconos y el
+   estado se recuerda al recargar. En móvil (ventana angosta) el sidebar se
+   oculta y aparece una barra inferior de navegación.
+2. **Editar y vincular proyectos**: en **Proyectos**, cada tarjeta tiene un botón
+   de lápiz que abre un panel lateral (drawer) para cambiar nombre, descripción y
+   código, y para asignar un **proyecto padre**. El árbol de **Jerarquía** refleja
+   el cambio.
+3. **Onboarding de Equipos**: menú **Equipos** → elige una plantilla (p. ej.
+   "Jefe de Tecnología"), asígnale un líder (p. ej. Ana Torres) y genera el árbol
+   de proyectos; queda visible en **Proyectos** y **Jerarquía**.
+4. **Conexiones**: menú **Conexiones** → crea un conector **Demo (fake)** y pulsa
+   "Conectar cuenta" (OAuth simulado, sin credenciales). También puedes crear un
+   conector **Jira** y subir un CSV/XLSX para ver el import con vista previa.
+   Outlook/Google/GLPI/Jira-API requieren credenciales reales (ver sección 4).
+5. **Detalle de tarea en drawer**: en un proyecto, abre la vista **cuadrícula** o
+   **cronograma** y haz clic en una tarea: el detalle se abre en un panel lateral
+   (sin salir de la vista), con edición de estado, responsable, sprint y estimación.
+   El select "Mover a sprint" del backlog se retiró; la reasignación se hace desde
+   el drawer.
+6. **Cronograma estilo Jira**: pestaña **Cronograma** de un proyecto Scrum
+   ("Plataforma Web") → encabezado con días, banda de sprints, épicas agrupando sus
+   historias y cada tarea como barra entre su fecha de inicio y su fecha límite.
+7. **Estimación tipo Jira**: al crear/editar una tarea en Scrum hay **dos campos**:
+   "Puntos de historia" (entero) y "Estimación original" en formato `1w 2d 4h`
+   (semanas/días/horas, combinables). El formulario pide fecha de inicio y fecha
+   límite.
+8. **Apariencia por organización** (solo admin): menú **Administración →
+   Apariencia** → cambia el color primario y verás la vista previa en vivo;
+   Guardar lo persiste para toda la organización (recarga y sigue aplicado);
+   Restablecer vuelve al tema por defecto. El interruptor claro/oscuro sigue
+   funcionando encima del tema del tenant.
+
+## 4. Qué probar por cada ítem de la OLA 2
 
 ### 3.1 Login local + SSO (cambio 20)
 
