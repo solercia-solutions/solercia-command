@@ -93,9 +93,22 @@ class Settings(BaseSettings):
     # ``JWT_SECRET``.
     INTEGRATIONS_FERNET_KEY: str = "GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8="
     OAUTH_STATE_TTL_SECONDS: int = 600
+    # Single-use authorize ticket (POST /connectors/{id}/authorize-ticket):
+    # short-lived on purpose — it only needs to survive the immediate
+    # browser navigation to GET .../authorize?ticket=, never a session.
+    OAUTH_AUTHORIZE_TICKET_TTL_SECONDS: int = 60
     # Allowlist of redirect_uri values a caller may request for the OAuth
     # authorize step (anti-SSRF/open-redirect, specs/connectors/spec.md).
-    OAUTH_REDIRECT_ALLOWLIST: list[str] = ["http://localhost:4200/settings/connectors"]
+    # The same list gates the OPTIONAL `redirect_to` browser-return
+    # destination of `GET /connectors/{id}/authorize` (Conexiones page):
+    # /connections is listed for every local frontend port — 4200
+    # (docker-compose), 4242 and 4243 (local dev servers).
+    OAUTH_REDIRECT_ALLOWLIST: list[str] = [
+        "http://localhost:4200/settings/connectors",
+        "http://localhost:4200/connections",
+        "http://localhost:4242/connections",
+        "http://localhost:4243/connections",
+    ]
 
     # SSO (OIDC) — second login method, change 20-sso-keycloak. Master switch
     # off by default: with it False every /auth/sso/* route stays inert

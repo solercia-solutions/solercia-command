@@ -23,20 +23,29 @@ in ``McpResourceReader.call_tool`` (default-deny: allowlist ∩
 """
 
 import uuid
+from urllib.parse import urlencode, urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_actor_id, get_current_membership, require_role
+from app.dependencies import (
+    get_actor_id,
+    get_current_membership,
+    get_current_user,
+    require_role,
+)
 from app.modules.connectors.schemas import (
     ApiTokenCredentials,
     ConnectorCreate,
     ConnectorUpdate,
     McpToolCallRequest,
 )
-from app.modules.connectors.service import ConnectorService
+from app.modules.connectors.service import (
+    ConnectorService,
+    OAuthCallbackRedirectError,
+)
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
 
@@ -149,44 +158,121 @@ async def register_api_token_credentials(
     return {"data": account, "message": "Credenciales registradas."}
 
 
+def _append_query(url: str, **params: str) -> str:
+    """Append ``params`` to ``url`` preserving any query it already has."""
+
+    parsed = urlparse(url)
+    query = f"{parsed.query}&{urlencode(params)}" if parsed.query else urlencode(params)
+    return urlunparse(parsed._replace(query=query))
+
+
+@router.post(
+    "/connectors/{connector_id}/authorize-ticket",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_authorize_ticket(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_connector_write_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mint a single-use, short-TTL ticket for the authorize navigation
+    (admin or manager only, normal Bearer header).
+
+    The SPA calls this via XHR right before navigating the browser to
+    ``GET .../authorize?ticket=`` — the JWT itself never travels in a URL
+    (CWE-598). The ticket is opaque, expires in
+    ``OAUTH_AUTHORIZE_TICKET_TTL_SECONDS`` and is consumed on first use.
+    """
+
+    service = ConnectorService(db)
+    ticket = await service.create_authorize_ticket(
+        membership.organization_id, connector_id, membership.user_id
+    )
+    return {"data": {"ticket": ticket}}
+
+
 @router.get("/connectors/{connector_id}/authorize")
 async def authorize_connector(
     connector_id: uuid.UUID,
+    request: Request,
     redirect_uri: str | None = Query(default=None),
-    membership: OrganizationMember = Depends(get_current_membership),
+    redirect_to: str | None = Query(default=None),
+    ticket: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
     """Start the OAuth handshake: browser navigation, ``302`` to the IdP.
 
-    404 if the connector does not exist or belongs to another organization
-    (``ConnectorService.authorize`` raises BEFORE any ``state`` is
-    generated). ``400`` if ``redirect_uri`` is supplied but outside
-    ``OAUTH_REDIRECT_ALLOWLIST`` (anti-SSRF/open-redirect).
+    Authentication: the normal ``Authorization`` header, OR ``?ticket=``
+    (single-use, short-TTL, minted by ``POST .../authorize-ticket``) —
+    a FULL-PAGE navigation cannot attach the header, and the JWT itself
+    must never travel in a URL (CWE-598). 401 ``oauth_ticket_invalid``
+    for a missing/expired/replayed ticket or one bound to another
+    connector.
+
+    Do not confuse the two look-alike parameters: ``redirect_uri`` is the
+    OAuth redirect the IdP sends the code back to (part of the handshake,
+    used again at token exchange), while ``redirect_to`` is the BROWSER's
+    return destination — where the callback later 302s the user within
+    the SPA. 404 if the connector does not exist or belongs to another
+    organization (``ConnectorService.authorize`` raises BEFORE any
+    ``state`` is generated). ``400`` if ``redirect_uri`` is supplied but
+    outside ``OAUTH_REDIRECT_ALLOWLIST`` (anti-SSRF/open-redirect);
+    ``422`` if the optional ``redirect_to`` is outside that same
+    allowlist — when valid, the callback later 302s back to it with
+    ``?connected=1`` or ``?error=<code>``.
     """
 
     service = ConnectorService(db)
+    if ticket is not None:
+        organization_id, user_id = await service.resolve_authorize_ticket(
+            ticket, connector_id
+        )
+    else:
+        user = await get_current_user(request, db)
+        membership = await get_current_membership(db=db, user=user)
+        organization_id, user_id = membership.organization_id, membership.user_id
+
     result = await service.authorize(
-        membership.organization_id, connector_id, membership.user_id, redirect_uri
+        organization_id,
+        connector_id,
+        user_id,
+        redirect_uri,
+        redirect_to=redirect_to,
     )
     return RedirectResponse(url=result.authorize_url, status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/connectors/oauth/callback")
+@router.get("/connectors/oauth/callback", response_model=None)
 async def oauth_callback(
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
     error: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Response | dict:
     """GLOBAL OAuth callback — validated entirely by ``state`` (single-use),
     NOT by role/authentication (the browser navigating here comes straight
-    from the IdP, with no bearer token attached)."""
+    from the IdP, with no bearer token attached).
+
+    When the authorize step stored an allowlisted ``redirect_to``, the
+    response is a friendly ``302`` back to the SPA (``?connected=1`` on
+    success, ``?error=<code>`` on a controlled failure) instead of leaving
+    the user on a raw JSON page; without a stored destination the original
+    JSON envelope is preserved (compatibility)."""
 
     service = ConnectorService(db)
-    account_summary = await service.handle_oauth_callback(
-        code=code, state=state, error=error
-    )
-    return {"data": account_summary, "message": "Cuenta conectada."}
+    try:
+        outcome = await service.handle_oauth_callback(code=code, state=state, error=error)
+    except OAuthCallbackRedirectError as exc:
+        return RedirectResponse(
+            url=_append_query(exc.return_to, error=exc.error_code),
+            status_code=status.HTTP_302_FOUND,
+        )
+    if outcome.return_to is not None:
+        return RedirectResponse(
+            url=_append_query(outcome.return_to, connected="1"),
+            status_code=status.HTTP_302_FOUND,
+        )
+    return {"data": outcome.account, "message": "Cuenta conectada."}
 
 
 @router.get("/connectors/{connector_id}/accounts")

@@ -1,0 +1,94 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { apiBase } from '@shared/api/api.config';
+import {
+  ConnectedAccount,
+  Connector,
+  ConnectorCreatePayload,
+  JiraImportResult,
+} from './connector.model';
+
+@Injectable({ providedIn: 'root' })
+export class ConnectorsService {
+  private readonly http = inject(HttpClient);
+
+  list(): Observable<{ data: Connector[] }> {
+    return this.http.get<{ data: Connector[] }>(`${apiBase}/connectors`);
+  }
+
+  create(payload: ConnectorCreatePayload): Observable<{ data: Connector }> {
+    return this.http.post<{ data: Connector }>(`${apiBase}/connectors`, payload);
+  }
+
+  delete(connectorId: string): Observable<void> {
+    return this.http.delete<void>(`${apiBase}/connectors/${connectorId}`);
+  }
+
+  accounts(connectorId: string): Observable<{ data: ConnectedAccount[] }> {
+    return this.http.get<{ data: ConnectedAccount[] }>(
+      `${apiBase}/connectors/${connectorId}/accounts`,
+    );
+  }
+
+  revokeAccount(accountId: string): Observable<void> {
+    return this.http.delete<void>(`${apiBase}/connected-accounts/${accountId}`);
+  }
+
+  /** Registro directo de credenciales api_token (GLPI/Jira). */
+  registerCredentials(
+    connectorId: string,
+    payload: Record<string, string>,
+  ): Observable<{ data: ConnectedAccount }> {
+    return this.http.post<{ data: ConnectedAccount }>(
+      `${apiBase}/connectors/${connectorId}/credentials`,
+      payload,
+    );
+  }
+
+  /** Preview del import de archivo Jira (CSV/XLSX) — no persiste nada. */
+  importJiraFile(
+    connectorId: string,
+    file: File,
+  ): Observable<{ data: JiraImportResult }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<{ data: JiraImportResult }>(
+      `${apiBase}/connectors/${connectorId}/jira/import-file`,
+      form,
+    );
+  }
+
+  /**
+   * Emite un ticket efímero de un solo uso para la navegación de authorize
+   * (XHR normal con el interceptor Bearer). El JWT nunca viaja en una URL
+   * (CWE-598): la navegación posterior usa SOLO este ticket opaco, que
+   * expira en segundos y se consume al primer uso.
+   */
+  createAuthorizeTicket(
+    connectorId: string,
+  ): Observable<{ data: { ticket: string } }> {
+    return this.http.post<{ data: { ticket: string } }>(
+      `${apiBase}/connectors/${connectorId}/authorize-ticket`,
+      {},
+    );
+  }
+
+  /**
+   * URL de navegación completa hacia el authorize del backend.
+   *
+   * Al ser una navegación de página (302 al IdP) el interceptor no puede
+   * adjuntar el header Bearer, así que la autenticación viaja como
+   * `ticket` (ver {@link createAuthorizeTicket}). `redirectTo` es el
+   * destino de retorno validado contra la allowlist del backend: el
+   * callback devolverá al navegador allí con `?connected=1` o
+   * `?error=<código>`.
+   */
+  authorizeUrl(connectorId: string, redirectTo: string, ticket: string): string {
+    const params = new URLSearchParams({
+      ticket,
+      redirect_to: redirectTo,
+    });
+    return `${apiBase}/connectors/${connectorId}/authorize?${params.toString()}`;
+  }
+}

@@ -325,6 +325,56 @@ class TestImportViaFile:
         assert response.status_code == 413, response.text
         assert response.json()["code"] == "jira_file_upload_too_large"
 
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_non_utf8_csv_is_rejected_with_a_controlled_422(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        """Binary/mislabeled bytes uploaded as .csv (UnicodeDecodeError in
+        the parser) answer a controlled 422, never a 500 (revisión 4R, W3)."""
+
+        connector_id = await _create_jira_connector_with_credentials(
+            client, two_orgs.a.token, search_pages=[]
+        )
+        content = b"\xff\xfe\x00\x01no soy texto utf-8\x80\x81"
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-file",
+            files={"file": ("corrupto.csv", io.BytesIO(content), "text/csv")},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "jira_file_invalid"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_garbage_xlsx_is_rejected_with_a_controlled_422(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        """Non-zip bytes uploaded as .xlsx (BadZipFile in openpyxl) answer a
+        controlled 422, never a 500 (revisión 4R, W3)."""
+
+        connector_id = await _create_jira_connector_with_credentials(
+            client, two_orgs.a.token, search_pages=[]
+        )
+        content = b"esto no es un zip ni de lejos"
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-file",
+            files={
+                "file": (
+                    "corrupto.xlsx",
+                    io.BytesIO(content),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "jira_file_invalid"
+
 
 class TestReadOnlyBoundary:
     @pytest.mark.asyncio(loop_scope="session")

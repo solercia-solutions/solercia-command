@@ -83,7 +83,12 @@ def parse_csv(
     transparently (specs/jira-import/spec.md "CSV exportado de Jira con
     BOM UTF-8")."""
 
-    text = content.decode("utf-8-sig")
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        # Corrupted/mislabeled bytes (e.g. a binary renamed to .csv):
+        # controlled 422 instead of an unhandled 500 (revisión 4R, W3).
+        raise errors.JiraFileInvalidError() from exc
     reader = csv.reader(io.StringIO(text))
     try:
         header = next(reader)
@@ -108,7 +113,16 @@ def parse_xlsx(
     rows instead of loading the whole sheet, so the antibomb guard below
     bails out WITHOUT ever materializing a huge sheet in memory."""
 
-    workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    try:
+        workbook = openpyxl.load_workbook(
+            io.BytesIO(content), read_only=True, data_only=True
+        )
+    except Exception as exc:
+        # openpyxl raises zipfile.BadZipFile for non-zip bytes but ALSO other
+        # exception types for zip files that are not valid workbooks — any of
+        # them means "not a real XLSX": controlled 422 instead of an
+        # unhandled 500 (revisión 4R, W3).
+        raise errors.JiraFileInvalidError() from exc
     try:
         sheet = workbook.active
         if sheet is None:

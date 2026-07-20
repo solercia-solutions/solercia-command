@@ -22,6 +22,7 @@ const NAV_ICON_ALIASES: Readonly<Record<string, SolIconName>> = {
   shield: 'lock-closed',
   'list-tree': 'layers',
   'building-2': 'building',
+  plug: 'arrows-right-left',
   'ellipsis-horizontal': 'ellipsis-vertical',
 };
 
