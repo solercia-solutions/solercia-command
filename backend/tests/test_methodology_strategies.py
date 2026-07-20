@@ -41,7 +41,9 @@ def _auth(token: str) -> dict[str, str]:
             "scrum",
             ["To Do", "In Progress", "In Review", "Done"],
             True,
-            "points",
+            # "both": Jira-style scrum estimates with story points AND keeps a
+            # parallel time-tracking original estimate (estimation_hours).
+            "both",
             True,
         ),
     ],
