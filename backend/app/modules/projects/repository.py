@@ -15,6 +15,7 @@ from app.config import settings
 from app.modules.boards.models import Board, BoardColumn
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
+from app.shared.enums import ProjectKind
 from app.shared.pagination import PaginationParams, paginate
 
 # Whitelist for ``?sort=`` on ``GET /projects``. First entry is the default
@@ -36,13 +37,23 @@ class ProjectRepository:
         self,
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
+        project_kind: ProjectKind | None = None,
     ) -> tuple[Sequence[Project], int]:
-        """Return ``(projects, total)`` — active projects, newest first."""
+        """Return ``(projects, total)`` — active projects, newest first.
+
+        ``project_kind`` (change 27-plantillas-idempotentes) filters by
+        ``area``/``proyecto`` ONLY when given; ``None`` (the default) keeps
+        the exact pre-existing behaviour — every kind, unfiltered — so
+        callers that never pass it see zero change (specs/projects/spec.md
+        delta, "Sin parámetro el comportamiento no cambia").
+        """
 
         stmt = select(Project).where(
             Project.organization_id == organization_id,
             Project.is_active.is_(True),
         )
+        if project_kind is not None:
+            stmt = stmt.where(Project.project_kind == project_kind)
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)

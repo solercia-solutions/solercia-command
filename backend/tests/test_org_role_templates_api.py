@@ -160,6 +160,69 @@ async def test_instantiate_jefe_oap_ti_creates_eleven_projects_across_three_leve
     assert len(teams) == 8
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_instantiate_jefe_oap_ti_assigns_area_to_umbrella_and_branches_proyecto_to_teams(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """Change 27-plantillas-idempotentes: la sombrilla y las 2 ramas
+    (nodos con hijos) quedan `project_kind = area`; los 8 equipos (hojas)
+    quedan `project_kind = proyecto` — spec 'Nodo con hijos queda como area'
+    / 'Nodo hoja queda como proyecto'."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe OAP‑TI")
+
+    response = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(new_user.id)},
+        headers=_auth(admin_token),
+    )
+
+    assert response.status_code == 201, response.text
+    rows = response.json()["data"]
+    root_id = next(row["id"] for row in rows if row["parent_project_id"] is None)
+    branch_ids = {
+        row["id"] for row in rows if row["parent_project_id"] == root_id
+    }
+    containers = {root_id} | branch_ids
+    leaves = {row["id"] for row in rows} - containers
+
+    for row in rows:
+        expected = "area" if row["id"] in containers else "proyecto"
+        assert row["project_kind"] == expected, row
+    assert len(leaves) == 8
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_instantiate_single_node_template_assigns_proyecto(
+    client: AsyncClient, session: AsyncSession, tenant, make_member
+) -> None:
+    """"Equipo de desarrollo" (solo sombrilla, sin hijos) queda
+    `project_kind = proyecto` — spec 'Plantilla de un solo nodo queda como
+    proyecto'."""
+
+    await ensure_system_templates(session)
+    manager, manager_token = await make_member(session, tenant, MemberRole.manager)
+    template_id = await _template_id_by_name(
+        client, manager_token, "Equipo de desarrollo"
+    )
+
+    response = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(manager.id)},
+        headers=_auth(manager_token),
+    )
+
+    assert response.status_code == 201, response.text
+    rows = response.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["project_kind"] == "proyecto"
+
+
 # ---------------------------------------------------------------------------
 # R4 — validaciones de instanciación (rol)
 # ---------------------------------------------------------------------------

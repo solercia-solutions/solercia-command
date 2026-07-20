@@ -56,6 +56,7 @@ class ProjectService:
         self,
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
+        project_kind: ProjectKind | None = None,
     ) -> tuple[Sequence[Project], int]:
         """Return ``(projects, total)`` with methodology info attached.
 
@@ -63,10 +64,13 @@ class ProjectService:
         (two queries total, never N+1) instead of resolving each project's
         strategy individually — see
         ``BoardRepository.list_boards_with_columns_for_projects`` and
-        design.md C1.
+        design.md C1. ``project_kind`` (change 27-plantillas-idempotentes)
+        is forwarded to the repository unchanged — ``None`` keeps every kind.
         """
 
-        projects, total = await self.repo.list_by_org(organization_id, pagination)
+        projects, total = await self.repo.list_by_org(
+            organization_id, pagination, project_kind
+        )
         columns_by_project = await BoardRepository(
             self.repo.db
         ).list_boards_with_columns_for_projects([project.id for project in projects])

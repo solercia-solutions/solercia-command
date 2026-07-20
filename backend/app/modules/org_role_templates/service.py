@@ -17,6 +17,7 @@ from app.modules.org_role_templates.repository import OrgRoleTemplateRepository
 from app.modules.projects.models import Project
 from app.modules.projects.schemas import ProjectCreate
 from app.modules.projects.service import ProjectService
+from app.shared.enums import ProjectKind
 from app.shared.exceptions import AppException
 
 
@@ -50,11 +51,15 @@ def build_project_create(
     *,
     lead_user_id: uuid.UUID,
     parent_project_id: uuid.UUID | None,
+    project_kind: ProjectKind,
 ) -> ProjectCreate:
     """Map one template node to the ``ProjectCreate`` payload instantiation
     feeds into ``ProjectService._create_project_unit`` — pure function, no
     DB. ``code`` is omitted on purpose: ``_create_project_unit`` derives a
     unique one from ``node.name``, same as the plain ``POST /projects`` flow.
+    ``project_kind`` (change 27-plantillas-idempotentes) is decided by the
+    caller via :func:`project_kind_for_node` — container node -> ``area``,
+    leaf -> ``proyecto``.
     """
 
     return ProjectCreate(
@@ -62,7 +67,28 @@ def build_project_create(
         methodology=node.default_methodology,
         parent_project_id=parent_project_id,
         lead_user_id=lead_user_id,
+        project_kind=project_kind,
     )
+
+
+def container_node_ids(
+    nodes: Sequence[OrgRoleTemplateNode],
+) -> set[uuid.UUID]:
+    """Return every node id that is some OTHER node's ``parent_node_id`` —
+    i.e. every CONTAINER node of the template (design.md Decisión 2,
+    "nodo con hijos -> area"). Pure function, no DB."""
+
+    return {node.parent_node_id for node in nodes if node.parent_node_id is not None}
+
+
+def project_kind_for_node(
+    node: OrgRoleTemplateNode, containers: set[uuid.UUID]
+) -> ProjectKind:
+    """``area`` when ``node`` has at least one child in the template,
+    ``proyecto`` otherwise (a leaf, or the single node of a one-node
+    template) — design.md Decisión 2. Pure function, no DB."""
+
+    return ProjectKind.area if node.id in containers else ProjectKind.proyecto
 
 
 class OrgRoleTemplateService:
@@ -208,6 +234,7 @@ class OrgRoleTemplateService:
         """
 
         ledger = await self.repo.ledger_for(organization_id, template_id)
+        containers = container_node_ids(nodes)
 
         project_service = ProjectService(self.db)
         projects_by_node: dict[uuid.UUID, Project] = {}
@@ -238,7 +265,10 @@ class OrgRoleTemplateService:
                 else None
             )
             data = build_project_create(
-                node, lead_user_id=lead_user_id, parent_project_id=parent_project_id
+                node,
+                lead_user_id=lead_user_id,
+                parent_project_id=parent_project_id,
+                project_kind=project_kind_for_node(node, containers),
             )
             project = await project_service._create_project_unit(  # noqa: SLF001
                 organization_id, data, actor_id=actor_id
