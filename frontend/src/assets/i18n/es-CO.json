@@ -429,6 +429,7 @@
       "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
       "parentNotFound": "El proyecto padre seleccionado ya no existe.",
       "projectCycle": "No puedes mover el proyecto dentro de su propio subárbol.",
+      "reparentAfterSave": "Los datos del proyecto se guardaron, pero no fue posible mover el proyecto: {{ reason }}",
       "selfParent": "Un proyecto no puede ser su propio padre.",
       "update": "No se pudo actualizar el proyecto. Revisa los datos e inténtalo de nuevo."
     },

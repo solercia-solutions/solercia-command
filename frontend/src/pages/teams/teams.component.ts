@@ -210,7 +210,7 @@ interface FlatTemplateNode {
                   </button>
 
                   @if (isExpanded(template.id)) {
-                    @if (treeLoadingId() === template.id) {
+                    @if (treeLoadingIds().has(template.id)) {
                       <p class="text-sm text-muted">{{ text.treeLoading() }}</p>
                     } @else if (treeErrors().has(template.id)) {
                       <p class="text-sm text-danger">{{ text.treeError() }}</p>
@@ -326,7 +326,12 @@ export class TeamsComponent implements OnInit {
   /** Árboles ya cargados por plantilla (aplanados para la sangría). */
   protected readonly trees = signal<Map<string, FlatTemplateNode[]>>(new Map());
   protected readonly expanded = signal<Set<string>>(new Set());
-  protected readonly treeLoadingId = signal<string | null>(null);
+  /**
+   * Ids con el árbol en carga. Es un Set (no un escalar) para que dos
+   * plantillas expandidas con requests solapados conserven cada una su
+   * indicador — mismo patrón que `treeErrors`.
+   */
+  protected readonly treeLoadingIds = signal<Set<string>>(new Set());
   protected readonly treeErrors = signal<Set<string>>(new Set());
 
   /** Miembros de la organización elegibles como líder. */
@@ -487,7 +492,7 @@ export class TeamsComponent implements OnInit {
   }
 
   private loadTree(templateId: string): void {
-    this.treeLoadingId.set(templateId);
+    this.treeLoadingIds.update((ids) => new Set(ids).add(templateId));
     const errors = new Set(this.treeErrors());
     errors.delete(templateId);
     this.treeErrors.set(errors);
@@ -499,14 +504,23 @@ export class TeamsComponent implements OnInit {
         const next = new Map(this.trees());
         next.set(templateId, flat);
         this.trees.set(next);
-        this.treeLoadingId.set(null);
+        this.removeTreeLoading(templateId);
       },
       error: () => {
-        this.treeLoadingId.set(null);
+        this.removeTreeLoading(templateId);
         const failed = new Set(this.treeErrors());
         failed.add(templateId);
         this.treeErrors.set(failed);
       },
+    });
+  }
+
+  /** Retira un id del Set de árboles en carga sin afectar a los demás. */
+  private removeTreeLoading(templateId: string): void {
+    this.treeLoadingIds.update((ids) => {
+      const next = new Set(ids);
+      next.delete(templateId);
+      return next;
     });
   }
 

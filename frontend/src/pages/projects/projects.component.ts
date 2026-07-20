@@ -527,9 +527,24 @@ export class ProjectsComponent implements OnInit {
     }
 
     this.editSaving.set(true);
+    // true cuando el PATCH de campos ya aplicó: distingue el fallo parcial
+    // (campos guardados, reparent fallido) del fallo total.
+    let fieldsSaved = false;
     try {
       if (Object.keys(payload).length > 0) {
         await firstValueFrom(this.projectsService.update(project.id, payload));
+        fieldsSaved = true;
+        // Resincroniza el proyecto en edición con lo ya guardado: si el
+        // reparent falla, reintentar recalcula el diff contra este estado y
+        // solo repite el movimiento de padre (no re-envía los campos).
+        this.editing.set({
+          ...project,
+          ...(payload.name !== undefined ? { name: payload.name } : {}),
+          ...(payload.description !== undefined
+            ? { description: payload.description }
+            : {}),
+          ...(payload.code !== undefined ? { code: payload.code } : {}),
+        });
       }
       if (parentChanged) {
         await firstValueFrom(
@@ -541,11 +556,18 @@ export class ProjectsComponent implements OnInit {
       this.loadProjects();
     } catch (err) {
       this.editSaving.set(false);
+      const reason = this.domainErrorMessage(
+        err as HttpErrorResponse,
+        'projects.errors.update',
+      );
+      // Fallo parcial: los campos ya quedaron guardados y solo falló el
+      // cambio de padre — el mensaje debe decirlo, no leer como fallo total.
       this.editError.set(
-        this.domainErrorMessage(
-          err as HttpErrorResponse,
-          'projects.errors.update',
-        ),
+        fieldsSaved && parentChanged
+          ? this.i18n.translate('projects.errors.reparentAfterSave', {
+              reason,
+            })
+          : reason,
       );
       // Si el PATCH de campos alcanzó a aplicarse antes del error del
       // reparent, la lista debe reflejarlo aunque el drawer siga abierto.
