@@ -1,0 +1,89 @@
+# Tasks: 25 · Aislamiento multiempresa (scoping por organization_id)
+
+## Review Workload Forecast
+
+| Campo | Valor |
+|-------|-------|
+| Líneas estimadas | ~1500–1650 (mayormente `test_cross_tenant_isolation.py` nuevo: meta-test+constantes ~60, seed-helpers ~180, ~25 módulos tenant-scoped × ~45 líneas (listado+detalle-404+update/delete-rechazado) ~1125, superficie global (menus/org_role_templates) ~50, conectores+cuentas conectadas ~70; correcciones en `repository.py` 0–150 según fugas) |
+| 400-line budget risk | High — inherente al alcance (28 módulos), no a mala descomposición; Decisión 1 del design exige archivo único auditable |
+| Chained PRs recommended | No — merge local a `preview`, sin PR nuevo; commits escalonados dentro de una sola integración |
+| Suggested split | U1 infraestructura → U2 proyecto/ejecución → U3 colaboración → U4 personas/permisos/global → U5 búsqueda/panorama → U6 activos/integraciones → U7 conectores → U8 correcciones+verde+commit |
+| Delivery strategy | single-pr |
+| Chain strategy | size-exception |
+
+Decision needed before apply: Yes
+Chained PRs recommended: No
+Chain strategy: size-exception
+400-line budget risk: High
+
+### Suggested Work Units
+
+| Unit | Objetivo | Commit | Focused test command | Runtime harness | Rollback boundary |
+|------|----------|--------|----------------------|------------------|--------------------|
+| U1 | Archivo + meta-test de cobertura + seed-helpers | 1 — `test(multi-tenant): agrega infraestructura de la bateria de aislamiento cross-tenant` | `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py::test_all_modules_are_classified -v` | Pytest contra Postgres real de test (sin UI; backend-only) | Revert commit; archivo nuevo, nada más depende de él aún |
+| U2 | Tests proyecto y ejecución (10 módulos) | 2 — `test(multi-tenant): agrega tests de aislamiento para proyecto y ejecucion` | `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "projects or tasks or sprints or boards or dependencies or task_links or checklists or time_logs or activity or labels" -v` | Ídem | Revert commit; solo agrega tests |
+| U3 | Tests colaboración (4 módulos) | 3 — `test(multi-tenant): agrega tests de aislamiento para colaboracion` | `... pytest backend/tests/test_cross_tenant_isolation.py -k "comments or attachments or notifications or reminders" -v` | Ídem | Revert commit |
+| U4 | Tests personas/permisos + superficie global (4 módulos) | 4 — `test(multi-tenant): agrega tests de aislamiento y catalogo compartido para personas y permisos` | `... pytest backend/tests/test_cross_tenant_isolation.py -k "users or roles or org_role_templates or menus" -v` | Ídem | Revert commit |
+| U5 | Tests búsqueda y panorama (2 módulos) | 5 — `test(multi-tenant): agrega tests de aislamiento para busqueda y panorama` | `... pytest backend/tests/test_cross_tenant_isolation.py -k "search or dashboard" -v` | Ídem | Revert commit |
+| U6 | Tests activos e integraciones (6 módulos) | 6 — `test(multi-tenant): agrega tests de aislamiento para activos e integraciones` | `... pytest backend/tests/test_cross_tenant_isolation.py -k "assets or alert_rules or intake or glpi_sync or jira_import or organizations" -v` | Ídem | Revert commit |
+| U7 | Tests conectores (org + usuario) | 7 — `test(multi-tenant): agrega tests de aislamiento de conectores por organizacion y usuario` | `... pytest backend/tests/test_cross_tenant_isolation.py -k connector -v` | Ídem | Revert commit |
+| U8 | Correcciones (si aplica) + suite completa verde | 8 — `fix(scoping): cierra fugas cross-tenant detectadas por la bateria` (solo si U2–U7 detectaron fugas) | `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests -q` | Ídem | Revert commit aislado por módulo corregido; si no hubo fugas, U8 no genera commit de fix |
+
+## Fase 0 — Preparación (lectura de fixtures existentes)
+
+- [x] 0.1 Leer `backend/tests/conftest.py:368-476` (`TwoOrgs`, `_seed_org_data`, fixture `two_orgs`) y confirmar campos disponibles por org: `organization, user, token, project, task, alert_rule, notification`.
+- [x] 0.2 Leer `backend/tests/test_multi_tenancy.py` (patrón ya usado para `projects`: `@pytest.mark.asyncio(loop_scope="session")` + `@skip_no_db`, `client.get(..., headers=_auth(token))`, `ids = {row["id"] for row in response.json()["data"]}`) como plantilla a generalizar.
+- [x] 0.3 Confirmar clasificación de los 28 módulos de `app/modules/*`: `TENANT_SCOPED` = projects, tasks, sprints, boards, dependencies, task_links, checklists, time_logs, activity, labels, comments, attachments, notifications, reminders, users, roles, search, dashboard, assets, alert_rules, intake, glpi_sync, jira_import, organizations, connectors (25); `GLOBAL` = menus, org_role_templates (2); `INFRA_NO_READ` = auth (1, sin superficie de lectura cross-tenant: solo login/refresh/logout/me).
+
+## Fase 1 — Infraestructura del archivo + meta-test (Commit 1)
+
+- [x] 1.1 [RED] Crear `backend/tests/test_cross_tenant_isolation.py`: `TENANT_SCOPED`, `GLOBAL`, `INFRA_NO_READ` como frozensets **vacíos** + `test_all_modules_are_classified` (introspecciona `os.listdir("app/modules")`, ignora `__pycache__`/`__init__.py`, afirma unión total). Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py::test_all_modules_are_classified -v` → falla listando los 28 módulos sin clasificar (RED confirmado).
+- [x] 1.2 [GREEN] Completar los 3 frozensets con la clasificación de 0.3. Verify: mismo comando → verde.
+- [x] 1.3 Agregar seed-helpers locales al archivo (no tocar `two_orgs` core) para entidades no cubiertas por `_seed_org_data`: sprint, board, dependency, task_link, checklist, label, time_log, comment, attachment, reminder, asset+license, connector+connected_account, org_role_template, glpi_sync link, jira_import job. Verify: `pytest backend/tests/test_cross_tenant_isolation.py --collect-only` sin errores.
+  - Nota: los helpers de proyecto/ejecución (sprint, board, dependency-area, task_link, checklist, checklist-item, time_log, task_history, label) quedaron co-ubicados en Fase 1; los de comments/attachments/reminders/assets+license/connector+connected_account/org_role_template/glpi_sync/jira_import se agregan en su fase correspondiente (3/6/7) para mantener el archivo legible incrementalmente.
+
+## Fase 2 — Proyecto y ejecución, 10 módulos (Commit 2)
+
+- [x] 2.1 [RED] Tests de listado (`ids⊆A`, `b.id∉ids`), detalle-404 cross-tenant y update/delete-rechazado para projects, tasks, sprints, boards, dependencies, task_links, checklists, time_logs, activity, labels. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 18/18 verdes (RED inicial en `sprints`/`dependencies` por causas ajenas a fugas — ver 2.2).
+- [x] 2.2 Ningún caso quedó rojo por fuga real. Dos ajustes de fixture necesarios (no fugas): (a) `sprints` requiere metodología `scrum` (kanban de `two_orgs` da 422 `sprints_not_enabled`) → seed-helper `_seed_scrum_project`; (b) `dependencies` usa `require_admin` (rol RBAC `ADMIN` vía `Role`/`UserRole`), distinto de `OrganizationMember.role` de `two_orgs` → fixture `rbac_admin` existente en conftest. `projects`/`tasks`/`boards`/`task_links`/`checklists`/`time_logs`/`activity`/`labels` verdes sin ajustes — scoping por `organization_id`/join a `Project` ya presente en cada repository.
+
+## Fase 3 — Colaboración, 4 módulos (Commit 3)
+
+- [x] 3.1 [RED] Mismo contrato (listado/detalle-404/update-delete) para comments, attachments, notifications, reminders. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 26/26 verdes (comments/attachments/reminders sin fuga; notifications reutiliza la `two_orgs.notification` existente).
+- [x] 3.2 Ninguna fuga detectada. `attachments` no tiene endpoints de update/delete (solo listado + descarga); la descarga cross-tenant también resuelve 404 (`AttachmentService.get_attachment_for_download` filtra por `organization_id`).
+
+## Fase 4 — Personas, permisos y superficie global, 4 módulos (Commit 4)
+
+- [x] 4.1 [RED] Tests de aislamiento para users, roles; para org_role_templates: aislamiento de plantillas org-scoped (`organization_id IS NOT NULL`) **y** catálogo compartido para `is_system=True` (aserción inversa `ids_A == ids_B`); para menus: catálogo compartido (aserción inversa) sin `TenantMixin`. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 33/33 verdes.
+- [x] 4.2 Ninguna fuga detectada. `users`/`roles` requieren rol RBAC `ADMIN` (fixture `rbac_admin`, no `OrganizationMember.role`) — mismo ajuste de fixture que en 2.2. `org_role_templates`/`menus` no seedean catálogo en el entorno de test (a diferencia de producción vía `db_init.py`); se sembró una plantilla `is_system=True` y un `Menu` ad-hoc para probar la aserción inversa.
+
+## Fase 5 — Búsqueda y panorama, 2 módulos (Commit 5)
+
+- [x] 5.1 [RED] Tests de fuga para search (búsqueda global no revela ids de B) y dashboard (`/executive`, `/performance` solo agregan datos de A). Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "search or dashboard" -v` → 3/3 verdes.
+- [x] 5.2 Ninguna fuga detectada. `search` filtra por `organization_id` en las 3 ramas (task/project/comment); `dashboard` agrega solo sobre `list_for_org`/`list_by_org`.
+
+## Fase 6 — Activos e integraciones, 6 módulos (Commit 6)
+
+- [x] 6.1 [RED] Tests de fuga para assets (+ AssetLicense), alert_rules, intake, glpi_sync (`/unmatched`, `/links` no exponen ids de B), jira_import (import contra `connector_id` de B autenticado como A → 404), organizations. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 47/47 verdes.
+- [x] 6.2 Ninguna fuga detectada. `assets`/`alert_rules` (escritura) usan rol RBAC `ADMIN` (`rbac_admin`); `intake`/`glpi_sync`/`jira_import` usan `require_role(admin, manager)` sobre `OrganizationMember.role`, ya `admin` en `two_orgs` sin fixture adicional. `organizations` (`/me/theme`) no tiene vector cross-tenant por diseño (siempre resuelve el org del JWT, sin parámetro de id) — test confirma que el tema de A no contamina el de B.
+
+## Fase 7 — Conectores por organización y por usuario (Commit 7)
+
+- [x] 7.1 [RED] Test: `Connector` de A no aparece en `GET /connectors` de B (`UNIQUE(organization_id, provider)`); test: `ConnectedAccount` del usuario X en A no es visible ni sus credenciales Fernet por el usuario Y de A. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 52/52 verdes.
+- [x] 7.2 Ninguna fuga detectada, como anticipaba el diseño. Aislamiento por organización (`ConnectorRepository.get` filtra `organization_id`) y por usuario dentro de la misma organización (`ConnectorService.list_connected_accounts` filtra por `membership.user_id` salvo admin/manager) confirmados; `ConnectedAccountRead` nunca serializa `access_token_enc` (tabla `ConnectionCredentials` aislada).
+
+## Fase 8 — Correcciones + suite completa verde + commit (Commit 8)
+
+- [x] 8.1 [FIX] Ninguna fase (2.2/3.2/4.2/5.2/6.2/7.2) registró una fuga real — no hubo correcciones de `repository.py` que aplicar. La auditoría previa al cambio (referenciada en design.md) se confirma empíricamente: el scoping manual por `organization_id`/join al padre ya estaba completo en los 25 módulos tenant-scoped.
+- [x] 8.2 Confirmado: `git diff --stat -- backend/app/dependencies.py backend/app/modules/auth/service.py` sin salida (ningún cambio).
+- [x] 8.3 Meta-test + batería completa: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 52/52 verdes.
+- [x] 8.4 Suite completa del backend sin regresión: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests -q` → **1210 passed** (1158 preexistentes + 52 nuevos), 0 fallos, 1 warning preexistente de SQLAlchemy (ciclo FK dependencies/organizations/users, no relacionado con este cambio).
+- [x] 8.5 Sin commit de fix — 8.1 no generó cambios de producción (cero fugas). Este apply cierra con la actualización final de `tasks.md` y `state.yaml` (`apply: done`).
+
+## Trazabilidad de requisitos
+
+- Aislamiento cross-tenant (listado/detalle-404/update-delete) · 1.1,1.2,2.1,2.2,3.1,3.2,4.1(users/roles),4.2,5.1,5.2,6.1,6.2,8.1,8.3,8.4
+- Superficie global por diseño (menus, org_role_templates system) · 1.2,4.1,4.2
+- Aislamiento de conectores por organización y por usuario · 1.2,1.3,7.1,7.2
+- No regresión y scoping manual sin filtro global · 8.1,8.3,8.4
+- Frontera con el cambio 26 (resolución de empresa activa intacta) · 0.3,8.2
