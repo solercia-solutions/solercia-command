@@ -7,7 +7,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -46,6 +46,11 @@ facts_verified:
   - "No hay ninguna referencia a working_hours/working_days/work_calendar/project_kind en backend hoy (project_kind lo introduce el cambio 27)"
   - "Consecutivo 28 libre en openspec/changes/"
 last_updated: 2026-07-20
+apply_notes:
+  - "Migración aplicada como 0024_add_work_calendar.py, down_revision=0023 (head real confirmado en Fase 0, sin bifurcar)"
+  - "Suite completa backend: 1302 passed (baseline 1272 + 30 nuevos: 2 migración, 9 schemas, 4 resolver, 13 API, 2 projects)"
+  - "Hallazgo cerrado en Fase 5: work_calendar faltaba clasificar en tests/test_cross_tenant_isolation.py (TENANT_SCOPED) — meta-test test_all_modules_are_classified lo exige para todo módulo nuevo bajo app/modules"
+  - "Ciclo de migraciones real (upgrade/downgrade/upgrade) verificado contra BD desechable solercia_migration_cycle_check, nunca la de desarrollo"
 spec_notes:
   - "Capabilities: work-calendar (spec nueva, full) + projects (delta ADDED)"
   - "Endpoints (reconciliados en tasks.md a PUT, verbo definitivo de spec.md/design.md): GET/PUT /organizations/me/work-calendar (admin); GET/PUT /projects/{id}/work-calendar (admin/manager, solo raiz); GET /projects/{id}/work-calendar/resolved (source: team|organization|default)"

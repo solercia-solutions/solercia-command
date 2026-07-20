@@ -46,6 +46,8 @@ from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
 from app.modules.work_calendar.router import (
     organization_calendar_router,
+)
+from app.modules.work_calendar.router import (
     project_calendar_router as work_calendar_project_router,
 )
 from app.notify.dispatcher import has_active_durable_channel

@@ -11,7 +11,7 @@ aplicada" #3).
 """
 
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
@@ -24,8 +24,16 @@ DEFAULT_HOURS_PER_DAY = Decimal("8")
 DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5]
 
 
-class CalendarSource(str, Enum):
-    """Where a resolved calendar came from (INTERNAL literals — design.md)."""
+class CalendarSource(StrEnum):
+    """Where a resolved calendar came from (INTERNAL literals — design.md).
+
+    Plain ``enum.StrEnum`` (unlike the domain enums in ``app/shared/
+    enums.py``, deliberately kept as ``(str, Enum)`` — see
+    ``app.notify.ports.DeliveryPolicy`` for the same precedent): this source
+    is NEVER persisted via SQLAlchemy's ``Enum`` column type, so the
+    ``ReprEnum``/f-string formatting difference ``StrEnum`` introduces has
+    no storage implication here.
+    """
 
     project_root_override = "project_root_override"
     organization_default = "organization_default"

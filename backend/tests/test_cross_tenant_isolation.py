@@ -70,6 +70,14 @@ TENANT_SCOPED: frozenset[str] = frozenset(
         "jira_import",
         "organizations",
         "connectors",
+        # Change 28-calendario-laboral: every endpoint resolves
+        # ``organization_id`` from the JWT membership (company calendar) or
+        # scopes by it via ``ProjectRepository``/``WorkCalendarRepository``
+        # (root override + resolved) — dedicated cross-tenant coverage
+        # lives in ``test_work_calendar_api.py`` (``resolved_cross_tenant``)
+        # and ``test_work_calendar_resolver.py``
+        # (``test_resolve_never_crosses_organization_id``).
+        "work_calendar",
     }
 )
 
