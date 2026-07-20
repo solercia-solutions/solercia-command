@@ -343,7 +343,6 @@
   },
   "nav": {
     "brandAria": "Solercia PM, inicio",
-    "closeMenu": "Cierra el menú",
     "closeNotifications": "Cierra las notificaciones",
     "links": {
       "executive": "Vista de jefe",
@@ -352,11 +351,13 @@
       "projects": "Proyectos"
     },
     "logout": "Cerrar sesión",
-    "mobileMenuAria": "Abre el menú de navegación",
     "mobileNavAria": "Navegación móvil",
     "notifications": "Centro de notificaciones",
     "notificationsUnread": "Centro de notificaciones, {{ count }} sin leer",
     "primaryNavAria": "Navegación principal",
+    "sidebarCollapse": "Colapsa el menú lateral",
+    "sidebarExpand": "Expande el menú lateral",
+    "sidebarToggle": "Alterna el menú lateral",
     "themeToDark": "Activa el modo oscuro",
     "themeToLight": "Activa el modo claro"
   },
@@ -439,6 +440,9 @@
     }
   },
   "shared": {
+    "nav": {
+      "more": "Más"
+    },
     "kanban": {
       "addColumn": "Agregar",
       "columnAria": "Columna {{ title }}",
