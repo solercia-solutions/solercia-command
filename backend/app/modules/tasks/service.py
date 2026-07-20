@@ -212,18 +212,26 @@ class TaskService:
     ) -> TaskRead:
         """Validate against the methodology Strategy and persist a new task.
 
-        When ``data.parent_task_id`` is set the service enforces the subtask
-        business rules: task_type is coerced to 'subtask' and estimation_points
-        are rejected (to avoid double-counting story points in velocity).
+        When ``data.parent_task_id`` is set the parent rules depend on the
+        parent's ``task_type``:
+
+        - Parent ``epic`` — the child KEEPS its requested ``task_type``
+          (default ``task``) and MAY carry ``estimation_points``; a nested
+          ``epic`` is rejected (``epic_nesting_not_allowed``, an epic can
+          never have a parent).
+        - Any other parent — the child is coerced to ``subtask`` and
+          ``estimation_points`` are rejected (to avoid double-counting story
+          points in velocity). A ``subtask`` parent is always rejected
+          (``subtask_nesting_not_allowed``): a subtask can never be a parent.
         """
 
         project = await self._require_project(organization_id, project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        # -- Subtask validation -------------------------------------------
-        is_subtask = data.parent_task_id is not None
-        if is_subtask:
-            assert data.parent_task_id is not None  # narrows for the type checker
+        # -- Parent/child validation ---------------------------------------
+        requested_type = data.task_type or "task"
+        is_subtask = False
+        if data.parent_task_id is not None:
             # Verify the parent belongs to the same project and organization.
             parent = await self.repo.get(organization_id, data.parent_task_id)
             if parent is None or parent.project_id != project_id:
@@ -232,21 +240,36 @@ class TaskService:
                     code="invalid_parent_task",
                     status_code=422,
                 )
-            if parent.parent_task_id is not None:
+            if parent.task_type == "subtask":
                 raise AppException(
                     "No se pueden crear sub-subtareas (máximo un nivel de anidación).",
                     code="subtask_nesting_not_allowed",
                     status_code=422,
                 )
-            if data.estimation_points is not None:
-                raise AppException(
-                    "Las subtareas no admiten puntos de historia para evitar "
-                    "el doble conteo del velocity.",
-                    code="subtask_points_not_allowed",
-                    status_code=422,
-                )
+            if parent.task_type == "epic" and requested_type != "subtask":
+                # An epic is a REAL parent: the child keeps its requested
+                # type and may carry points. Only a nested epic is forbidden
+                # — an epic can never have a parent. An explicit 'subtask'
+                # request under an epic falls through to the subtask branch
+                # so the "subtasks never carry points" invariant stays
+                # airtight for the update guard.
+                if requested_type == "epic":
+                    raise AppException(
+                        "Una épica no puede anidarse bajo otra épica.",
+                        code="epic_nesting_not_allowed",
+                        status_code=422,
+                    )
+            else:
+                if data.estimation_points is not None:
+                    raise AppException(
+                        "Las subtareas no admiten puntos de historia para evitar "
+                        "el doble conteo del velocity.",
+                        code="subtask_points_not_allowed",
+                        status_code=422,
+                    )
+                is_subtask = True
 
-        task_type = "subtask" if is_subtask else (data.task_type or "task")
+        task_type = "subtask" if is_subtask else requested_type
 
         status, board_column_id = await self._resolve_create_status_and_column(
             project_id, strategy, data.status, data.board_column_id
@@ -345,8 +368,10 @@ class TaskService:
                 strategy, task.status, task.completed_at
             )
 
-        # Reject estimation_points update on subtasks.
-        if "estimation_points" in changes and task.parent_task_id is not None:
+        # Reject estimation_points update on REAL subtasks (by task_type,
+        # not by having a parent): children of an epic keep their own type
+        # and may carry points (epics-as-parents rule in create_task).
+        if "estimation_points" in changes and task.task_type == "subtask":
             raise AppException(
                 "Las subtareas no admiten puntos de historia.",
                 code="subtask_points_not_allowed",
