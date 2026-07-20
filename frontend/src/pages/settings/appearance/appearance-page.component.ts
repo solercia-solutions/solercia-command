@@ -2,7 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnDestroy,
-  OnInit,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -278,7 +278,7 @@ const HEX_PATTERN = /^#[0-9a-fA-F]{6}$/;
     </section>
   `,
 })
-export class AppearancePageComponent implements OnInit, OnDestroy {
+export class AppearancePageComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly i18n = inject(I18nService);
   private readonly tenantTheme = inject(TenantThemeService);
@@ -373,11 +373,19 @@ export class AppearancePageComponent implements OnInit, OnDestroy {
     this.form.valueChanges
       .pipe(debounceTime(150), takeUntilDestroyed())
       .subscribe(() => this.previewCurrent());
-  }
 
-  ngOnInit(): void {
-    this.form.patchValue(readAppearance(this.tenantTheme.saved()), {
-      emitEvent: false,
+    // Hidrata el formulario cuando el tema de la org termine de cargar (la
+    // carga es async en la hidratación de sesión: con un ngOnInit plano el
+    // formulario quedaba en los valores por defecto tras un F5 directo en
+    // esta página). Solo la PRIMERA vez y nunca sobre ediciones del usuario.
+    let hydrated = false;
+    effect(() => {
+      const loaded = this.tenantTheme.loaded();
+      const saved = this.tenantTheme.saved();
+      if (!hydrated && loaded && this.form.pristine) {
+        hydrated = true;
+        this.form.patchValue(readAppearance(saved), { emitEvent: false });
+      }
     });
   }
 
