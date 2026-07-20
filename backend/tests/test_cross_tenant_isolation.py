@@ -1348,3 +1348,124 @@ async def test_organization_theme_is_isolated_per_organization(
     assert put_response.status_code == 200, put_response.text
     assert b_response.status_code == 200, b_response.text
     assert b_response.json()["data"] is None
+
+
+# ---------------------------------------------------------------------------
+# Fase 7 — Conectores por organización y por usuario (tasks.md, Commit 7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_connectors_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_a = await _seed_connector(session, two_orgs.a.organization, "microsoft365")
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "microsoft365")
+
+    response = await client.get("/connectors", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(connector_a.id) in ids
+    assert str(connector_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_update_delete_connector_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "google")
+
+    get_response = await client.get(
+        f"/connectors/{connector_b.id}", headers=_auth(two_orgs.a.token)
+    )
+    update_response = await client.patch(
+        f"/connectors/{connector_b.id}",
+        json={"status": "inactive"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/connectors/{connector_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert get_response.status_code == 404
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(connector_b)
+    assert connector_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_connected_account_of_other_member_not_visible(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
+) -> None:
+    """Aislamiento POR USUARIO dentro de la MISMA organización: un ``member``
+    (no admin/manager) solo ve su propia ``ConnectedAccount`` en un conector,
+    nunca la del owner (specs/connectors/spec.md, "Listado y desconexión de
+    cuentas conectadas").
+    """
+
+    from app.shared.enums import MemberRole
+
+    connector_a = await _seed_connector(session, two_orgs.a.organization, "microsoft365")
+    member_user, member_token = await make_member(
+        session, two_orgs.a.organization, MemberRole.member
+    )
+    owner_account = await _seed_connected_account(
+        session, two_orgs.a.organization, connector_a, two_orgs.a.user
+    )
+    member_account = await _seed_connected_account(
+        session, two_orgs.a.organization, connector_a, member_user
+    )
+
+    response = await client.get(
+        f"/connectors/{connector_a.id}/accounts", headers=_auth(member_token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(member_account.id) in ids
+    assert str(owner_account.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_connected_account_response_never_includes_encrypted_credentials(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_a = await _seed_connector(session, two_orgs.a.organization, "microsoft365")
+    account_a = await _seed_connected_account(
+        session, two_orgs.a.organization, connector_a, two_orgs.a.user
+    )
+    await _seed_connection_credentials(session, two_orgs.a.organization, account_a)
+
+    response = await client.get(
+        f"/connectors/{connector_a.id}/accounts", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    row = next(r for r in response.json()["data"] if r["id"] == str(account_a.id))
+    assert "access_token_enc" not in row
+    assert "credentials" not in row
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_disconnect_connected_account_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "microsoft365")
+    account_b = await _seed_connected_account(
+        session, two_orgs.b.organization, connector_b, two_orgs.b.user
+    )
+
+    response = await client.delete(
+        f"/connected-accounts/{account_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+    await session.refresh(account_b)
+    assert account_b.is_active is True

@@ -69,8 +69,8 @@ Chain strategy: size-exception
 
 ## Fase 7 — Conectores por organización y por usuario (Commit 7)
 
-- [ ] 7.1 [RED] Test: `Connector` de A no aparece en `GET /connectors` de B (`UNIQUE(organization_id, provider)`); test: `ConnectedAccount` del usuario X en A no es visible ni sus credenciales Fernet por el usuario Y de A. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k connector -v`
-- [ ] 7.2 Registrar fugas si aparecen (no esperadas — `app/modules/connectors/models.py` ya las previene por diseño).
+- [x] 7.1 [RED] Test: `Connector` de A no aparece en `GET /connectors` de B (`UNIQUE(organization_id, provider)`); test: `ConnectedAccount` del usuario X en A no es visible ni sus credenciales Fernet por el usuario Y de A. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 52/52 verdes.
+- [x] 7.2 Ninguna fuga detectada, como anticipaba el diseño. Aislamiento por organización (`ConnectorRepository.get` filtra `organization_id`) y por usuario dentro de la misma organización (`ConnectorService.list_connected_accounts` filtra por `membership.user_id` salvo admin/manager) confirmados; `ConnectedAccountRead` nunca serializa `access_token_enc` (tabla `ConnectionCredentials` aislada).
 
 ## Fase 8 — Correcciones + suite completa verde + commit (Commit 8)
 
