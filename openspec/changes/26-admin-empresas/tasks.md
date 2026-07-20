@@ -159,11 +159,11 @@ Chain strategy: size-exception
 
 ## Fase 13 — Cierre de la ola: suite verde + migración reversible + commit final
 
-- [ ] 13.1 Suite completa del backend: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → verde (Lote 1 completo + regresión de 25 ya archivado, sin excepciones).
-- [ ] 13.2 Migración reversible end-to-end (repetir tras cualquier ajuste posterior a 6.2): `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head` sin error.
-- [ ] 13.3 Confirmar los 4 gotchas propagados siguen verdes de forma aislada: los 3 backend (`tests/test_active_organization.py`, target-scoped/ajena/sin-header) y el frontend (`clearSession()` limpia `sp-active-org` — revisión de código, Fase 7.2).
-- [ ] 13.4 `ng build` de producción del frontend sin errores (Lotes 2 y 3 completos).
-- [ ] 13.5 Commit convencional final en español, resumiendo el cierre de la ola (solo si 13.1–13.4 generaron cambios de producción no cubiertos por los commits 1–12; en caso contrario no aporta un commit nuevo): `feat(organizations): cierra la administracion de empresas y el selector de empresa activa`.
+- [x] 13.1 Suite completa del backend: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → verde (Lote 1 completo + regresión de 25 ya archivado, sin excepciones).
+- [x] 13.2 Migración reversible end-to-end (repetir tras cualquier ajuste posterior a 6.2): `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head` sin error.
+- [x] 13.3 Confirmar los 4 gotchas propagados siguen verdes de forma aislada: los 3 backend (`tests/test_active_organization.py`, target-scoped/ajena/sin-header) y el frontend (`clearSession()` limpia `sp-active-org` — revisión de código, Fase 7.2).
+- [x] 13.4 `ng build` de producción del frontend sin errores (Lotes 2 y 3 completos).
+- [x] 13.5 N/A — 13.1–13.4 no generaron cambios de producción adicionales a los commits 1–12 (todo quedó verde sin tocar código); no aporta un commit nuevo, según la condición de la propia tarea.
 
 ## Trazabilidad de requisitos
 
