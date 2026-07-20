@@ -74,11 +74,11 @@ Chain strategy: size-exception
 
 ## Fase 8 — Correcciones + suite completa verde + commit (Commit 8)
 
-- [ ] 8.1 [FIX] Si 2.2/3.2/4.2/5.2/6.2/7.2 registraron fugas: corregir cada `repository.py` dueño (`WHERE organization_id` o join al padre; **sin** filtro global de SQLAlchemy). Verify por módulo: repetir el comando `-k` de la fase correspondiente → verde.
-- [ ] 8.2 Confirmar que `app/dependencies.py:128-146` y `app/modules/auth/service.py:34-44` (resolución de empresa activa) no fueron modificados: `git diff --stat` sobre esos archivos vacío.
-- [ ] 8.3 Meta-test + batería completa: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → todos verdes.
-- [ ] 8.4 Suite completa del backend sin regresión: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests -q` → ≥1158 preexistentes + los nuevos, todos verdes.
-- [ ] 8.5 Commit final (solo si 8.1 generó cambios de producción; en caso contrario U8 no aporta commit nuevo).
+- [x] 8.1 [FIX] Ninguna fase (2.2/3.2/4.2/5.2/6.2/7.2) registró una fuga real — no hubo correcciones de `repository.py` que aplicar. La auditoría previa al cambio (referenciada en design.md) se confirma empíricamente: el scoping manual por `organization_id`/join al padre ya estaba completo en los 25 módulos tenant-scoped.
+- [x] 8.2 Confirmado: `git diff --stat -- backend/app/dependencies.py backend/app/modules/auth/service.py` sin salida (ningún cambio).
+- [x] 8.3 Meta-test + batería completa: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 52/52 verdes.
+- [x] 8.4 Suite completa del backend sin regresión: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests -q` → **1210 passed** (1158 preexistentes + 52 nuevos), 0 fallos, 1 warning preexistente de SQLAlchemy (ciclo FK dependencies/organizations/users, no relacionado con este cambio).
+- [x] 8.5 Sin commit de fix — 8.1 no generó cambios de producción (cero fugas). Este apply cierra con la actualización final de `tasks.md` y `state.yaml` (`apply: done`).
 
 ## Trazabilidad de requisitos
 
