@@ -902,8 +902,6 @@
     },
     "timeline": {
       "description": "Las épicas agrupan sus tareas y cada barra va de la fecha de inicio a la fecha límite. Haz clic en una barra para abrir su detalle.",
-      "legendActive": "Activo",
-      "legendClosed": "Cerrado",
       "title": "Cronograma"
     },
     "viewMode": {

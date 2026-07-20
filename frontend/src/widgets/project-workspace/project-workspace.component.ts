@@ -24,10 +24,6 @@ import {
   SolIconComponent,
   SolModalComponent,
   SolKanbanBoardComponent,
-  SolTimelineComponent,
-  TimelineLegendItem,
-  TimelineNode,
-  type SolTimelineStatusResolver,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
@@ -40,6 +36,7 @@ import {
   TaskModalComponent,
 } from '@widgets/task-modal/task-modal.component';
 import { TaskDetailPanelComponent } from '@widgets/task-detail-panel/task-detail-panel.component';
+import { SprintGanttComponent } from '@widgets/sprint-gantt/sprint-gantt.component';
 import { TaskDetail } from '@entities/task/task-detail.model';
 import {
   BurndownData,
@@ -78,7 +75,7 @@ type ViewMode = 'board' | 'grid';
     SolIconComponent,
     SolModalComponent,
     SolKanbanBoardComponent,
-    SolTimelineComponent,
+    SprintGanttComponent,
     TaskModalComponent,
     TaskDetailPanelComponent,
     BurndownChartComponent,
@@ -563,19 +560,19 @@ type ViewMode = 'board' | 'grid';
           </div>
         }
 
-        <!-- TIMELINE -->
+        <!-- TIMELINE (Gantt estilo Jira: días arriba, banda de sprints,
+             épicas agrupando sus tareas; clic en barra → drawer sin blur) -->
         @if (activeTab() === 'timeline') {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-lg font-semibold text-text">{{ text.timelineTitle() }}</h2>
               <p class="text-xs text-muted">{{ text.timelineDescription() }}</p>
             </div>
-            <sol-timeline
-              [nodes]="timelineNodes()"
-              [statusToken]="timelineStatusToken"
-              [legend]="timelineLegend"
-              (nodeClicked)="onTimelineNodeClicked($event)"
-            ></sol-timeline>
+            <sol-sprint-gantt
+              [sprints]="sprints()"
+              [tasks]="allTasks()"
+              (taskClicked)="openTaskDrawer($event, { blur: false })"
+            ></sol-sprint-gantt>
           </div>
         }
 
@@ -891,8 +888,6 @@ export class ProjectWorkspaceComponent implements OnInit {
     closeSprintNoOtherSprints: this.i18n.t('workspace.closeSprint.noOtherSprints'),
     cancel: this.i18n.t('workspace.closeSprint.cancel'),
     closing: this.i18n.t('workspace.closeSprint.closing'),
-    timelineLegendActive: this.i18n.t('workspace.timeline.legendActive'),
-    timelineLegendClosed: this.i18n.t('workspace.timeline.legendClosed'),
     /* Contenido de la tarjeta de tarea (antes en el widget task-card, ya
        retirado — T70): proyectado en sol-kanban-board y reutilizado en el
        backlog vía taskCardTpl. */
@@ -1026,67 +1021,6 @@ export class ProjectWorkspaceComponent implements OnInit {
       items: tasks.filter((task) => task.status === status),
     }));
   });
-
-  /**
-   * Nodos genéricos para `sol-timeline` (D2): un sprint = un nodo raíz y sus
-   * tareas = nodos hijos (clicables → abren el drawer de detalle). Las tareas
-   * sin ninguna fecha caen a la sección "sin fechas" del timeline (chips no
-   * clicables — limitación actual de la lib).
-   */
-  protected readonly timelineNodes = computed<TimelineNode[]>(() => {
-    const tasks = this.allTasks();
-    return this.sprints().map((sprint) => ({
-      id: sprint.id,
-      label: sprint.name,
-      start: sprint.start_date,
-      end: sprint.end_date,
-      status: sprint.status,
-      children: tasks
-        .filter((task) => task.sprint_id === sprint.id)
-        .map((task) => ({
-          id: task.id,
-          label: task.title,
-          ...this.taskTimelineRange(task),
-          status: task.status,
-        })),
-    }));
-  });
-
-  /**
-   * Rango de la barra de una tarea. El motor del timeline exige inicio Y fin
-   * válidos; una tarea suele tener solo `due_date`, así que se sintetiza una
-   * barra de un día alrededor de la fecha disponible para que sea visible y
-   * clicable. Sin ninguna fecha → chip "sin fechas" (no clicable).
-   */
-  private taskTimelineRange(task: Task): {
-    start: Date | null;
-    end: Date | null;
-  } {
-    const DAY_MS = 86_400_000;
-    const start = task.start_date ? new Date(task.start_date) : null;
-    const end = task.due_date ? new Date(task.due_date) : null;
-    if (start && end) {
-      return start <= end ? { start, end } : { start: end, end: start };
-    }
-    if (end) {
-      return { start: new Date(end.getTime() - DAY_MS), end };
-    }
-    if (start) {
-      return { start, end: new Date(start.getTime() + DAY_MS) };
-    }
-    return { start: null, end: null };
-  }
-
-  /** Mismos colores que el `sprint-timeline` retirado (T70): activo = éxito, cerrado = neutro. */
-  protected readonly timelineStatusToken: SolTimelineStatusResolver = (status) =>
-    status === 'active'
-      ? 'var(--sol-color-success, #10b981)'
-      : 'var(--sol-color-text-muted, #94a3b8)';
-
-  protected readonly timelineLegend: TimelineLegendItem[] = [
-    { status: 'active', labelKey: 'workspace.timeline.legendActive' },
-    { status: 'closed', labelKey: 'workspace.timeline.legendClosed' },
-  ];
 
   /** Active sprints other than the one being closed (for the target selector). */
   protected readonly activeSprintsForClose = computed<Sprint[]>(() =>
@@ -1441,14 +1375,6 @@ export class ProjectWorkspaceComponent implements OnInit {
         task.id === updated.id ? { ...task, ...updated } : task,
       ),
     );
-  }
-
-  /** Solo los nodos hijos (tareas) abren el drawer; los sprints se ignoran. */
-  protected onTimelineNodeClicked(node: TimelineNode): void {
-    const task = this.allTasks().find((t) => t.id === node.id);
-    if (task) {
-      this.openTaskDrawer(task, { blur: false });
-    }
   }
 
   protected readonly drawerTitle = computed<string>(() => {
