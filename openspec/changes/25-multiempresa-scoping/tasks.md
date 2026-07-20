@@ -59,8 +59,8 @@ Chain strategy: size-exception
 
 ## Fase 5 — Búsqueda y panorama, 2 módulos (Commit 5)
 
-- [ ] 5.1 [RED] Tests de fuga para search (búsqueda global no revela ids de B) y dashboard (`/executive`, `/performance` solo agregan datos de A). Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "search or dashboard" -v`
-- [ ] 5.2 Registrar fugas si aparecen.
+- [x] 5.1 [RED] Tests de fuga para search (búsqueda global no revela ids de B) y dashboard (`/executive`, `/performance` solo agregan datos de A). Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "search or dashboard" -v` → 3/3 verdes.
+- [x] 5.2 Ninguna fuga detectada. `search` filtra por `organization_id` en las 3 ramas (task/project/comment); `dashboard` agrega solo sobre `list_for_org`/`list_by_org`.
 
 ## Fase 6 — Activos e integraciones, 6 módulos (Commit 6)
 

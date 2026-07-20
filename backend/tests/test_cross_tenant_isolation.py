@@ -988,3 +988,61 @@ async def test_menu_catalog_is_identical_for_both_organizations(
     ids_b = {row["id"] for row in response_b.json()["data"]}
     assert str(menu.id) in ids_a
     assert str(menu.id) in ids_b
+
+
+# ---------------------------------------------------------------------------
+# Fase 5 — Búsqueda y panorama (tasks.md, Commit 5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_global_search_does_not_reveal_other_organization_ids(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """Ambas organizaciones tienen un proyecto cuyo nombre contiene "Project"
+    (``_seed_org_data``): confirma que la búsqueda de A nunca revela el id de B.
+    """
+
+    response = await client.get(
+        "/search", params={"q": "Project"}, headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.a.project.id) in ids
+    assert str(two_orgs.b.project.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_executive_dashboard_totals_only_count_callers_organization(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """``two_orgs`` siembra exactamente 1 proyecto y 1 tarea por organización:
+    si los totales de A incluyeran los de B, ``projects``/``tasks`` serían 2.
+    """
+
+    response = await client.get(
+        "/dashboard/executive", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    totals = response.json()["data"]["totals"]
+    assert totals["projects"] == 1
+    assert totals["tasks"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_performance_dashboard_only_includes_callers_collaborators(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.get(
+        "/dashboard/performance", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    user_ids = {row["user"]["id"] for row in response.json()["data"]["collaborators"]}
+    assert str(two_orgs.a.user.id) in user_ids
+    assert str(two_orgs.b.user.id) not in user_ids
