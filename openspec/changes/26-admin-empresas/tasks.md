@@ -72,31 +72,31 @@ Chain strategy: size-exception
 
 ### Fase 3 — CRUD de empresas (Commit 3)
 
-- [ ] 3.1 [RED] `POST /organizations` happy path: usuario autenticado crea empresa (nombre+slug válidos) → 201, empresa creada, membresía `admin` del creador en el mismo commit (Scenario "Creación exitosa deja al creador como admin"). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_crud.py -q`.
-- [ ] 3.2 [RED] `POST /organizations` error: slug duplicado → error de validación/conflicto, no crea la empresa (Scenario "Slug duplicado es rechazado"). Verify.
-- [ ] 3.3 [RED] `POST /organizations` permisos: sin token → 401. Verify.
-- [ ] 3.4 [RED] `GET /organizations/{id}` happy: cualquier miembro (rol `member` o `admin`) lee su empresa. Verify.
-- [ ] 3.5 [RED] `GET /organizations/{id}` permisos/error: usuario sin membresía en esa empresa → 404, sin revelar existencia (Scenario "No miembro recibe 404 al leer"); sin token → 401. Verify.
-- [ ] 3.6 [RED] `PATCH /organizations/{id}` happy: admin de esa empresa actualiza `name`. Verify.
-- [ ] 3.7 [RED] `PATCH /organizations/{id}` permisos: rol `member` → 403, la empresa permanece intacta (Scenario "Rol no admin recibe 403 al escribir"); no miembro → 404. Verify.
-- [ ] 3.8 [RED] `DELETE /organizations/{id}` happy: admin da de baja lógica (`is_active=False`), NUNCA física. Verify.
-- [ ] 3.9 [RED] `DELETE /organizations/{id}` permisos: rol `member` → 403; no miembro → 404. Verify.
-- [ ] 3.10 [GREEN] Crear `schemas.py` (`OrganizationCreate`, `OrganizationUpdate`, `OrganizationRead`); extender `repository.py` (`create`, `update`, `soft_delete`, `get_membership(user_id, organization_id)`); extender `service.py` con `OrganizationService` (bootstrap transaccional: crea `Organization` + `OrganizationMember(role=admin)` en un solo `commit`; CRUD delegando en `require_org_admin` salvo `GET`=miembro); extender `router.py` (rutas nuevas; `/me/theme` intacto). Verify: 3.1–3.9 verdes.
+- [x] 3.1 [RED] `POST /organizations` happy path: usuario autenticado crea empresa (nombre+slug válidos) → 201, empresa creada, membresía `admin` del creador en el mismo commit (Scenario "Creación exitosa deja al creador como admin"). Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_crud.py -q`.
+- [x] 3.2 [RED] `POST /organizations` error: slug duplicado → error de validación/conflicto, no crea la empresa (Scenario "Slug duplicado es rechazado"). Verify.
+- [x] 3.3 [RED] `POST /organizations` permisos: sin token → 401. Verify.
+- [x] 3.4 [RED] `GET /organizations/{id}` happy: cualquier miembro (rol `member` o `admin`) lee su empresa. Verify.
+- [x] 3.5 [RED] `GET /organizations/{id}` permisos/error: usuario sin membresía en esa empresa → 404, sin revelar existencia (Scenario "No miembro recibe 404 al leer"); sin token → 401. Verify.
+- [x] 3.6 [RED] `PATCH /organizations/{id}` happy: admin de esa empresa actualiza `name`. Verify.
+- [x] 3.7 [RED] `PATCH /organizations/{id}` permisos: rol `member` → 403, la empresa permanece intacta (Scenario "Rol no admin recibe 403 al escribir"); no miembro → 404. Verify.
+- [x] 3.8 [RED] `DELETE /organizations/{id}` happy: admin da de baja lógica (`is_active=False`), NUNCA física. Verify.
+- [x] 3.9 [RED] `DELETE /organizations/{id}` permisos: rol `member` → 403; no miembro → 404. Verify.
+- [x] 3.10 [GREEN] Crear `schemas.py` (`OrganizationCreate`, `OrganizationUpdate`, `OrganizationRead`); extender `repository.py` (`create`, `update`, `soft_delete`, `get_membership(user_id, organization_id)`); extender `service.py` con `OrganizationService` (bootstrap transaccional: crea `Organization` + `OrganizationMember(role=admin)` en un solo `commit`; CRUD delegando en `require_org_admin` salvo `GET`=miembro); extender `router.py` (rutas nuevas; `/me/theme` intacto). Verify: 3.1–3.9 verdes.
 
 ### Fase 4 — Gestión de miembros (Commit 4)
 
-- [ ] 4.1 [RED] `GET /organizations/{id}/members` happy: miembro lista miembros con su rol. Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_members.py -q`.
-- [ ] 4.2 [RED] `GET .../members` permisos: no miembro → 404. Verify.
-- [ ] 4.3 [RED] `POST /organizations/{id}/members` happy: admin agrega un usuario existente por correo con un rol. Verify.
-- [ ] 4.4 [RED] `POST .../members` error: alta duplicada del mismo par `(organization_id, user_id)` → conflicto, sin duplicar la membresía (Scenario "Alta duplicada es rechazada"). Verify.
-- [ ] 4.5 [RED] `POST .../members` permisos: rol `member` → 403. Verify.
-- [ ] 4.6 [RED] `PATCH /organizations/{id}/members/{member_id}` happy: admin cambia el rol de OTRO miembro. Verify.
-- [ ] 4.7 [RED] `PATCH .../members/{member_id}` error: el único admin intenta degradarse a sí mismo a `member` → rechazado, la membresía admin permanece intacta (Scenario "Degradar o remover al único admin es rechazado"). Verify.
-- [ ] 4.8 [RED] `PATCH .../members/{member_id}` permisos: rol `member` → 403. Verify.
-- [ ] 4.9 [RED] `DELETE /organizations/{id}/members/{member_id}` happy: admin remueve a un miembro no-admin. Verify.
-- [ ] 4.10 [RED] `DELETE .../members/{member_id}` error: el único admin intenta removerse a sí mismo → rechazado (misma protección "sin admin"). Verify.
-- [ ] 4.11 [RED] `DELETE .../members/{member_id}` permisos: rol `member` → 403. Verify.
-- [ ] 4.12 [GREEN] Extender `repository.py` (`list_members`, `add_member`, `update_member_role`, `remove_member`, `count_admins(organization_id)`); `service.py` con `OrganizationMemberService` (valida "sin admin" antes de degradar/remover); `router.py` (`GET`=miembro, resto `require_org_admin`). Verify: 4.1–4.11 verdes.
+- [x] 4.1 [RED] `GET /organizations/{id}/members` happy: miembro lista miembros con su rol. Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest tests/test_organizations_members.py -q`.
+- [x] 4.2 [RED] `GET .../members` permisos: no miembro → 404. Verify.
+- [x] 4.3 [RED] `POST /organizations/{id}/members` happy: admin agrega un usuario existente por correo con un rol. Verify.
+- [x] 4.4 [RED] `POST .../members` error: alta duplicada del mismo par `(organization_id, user_id)` → conflicto, sin duplicar la membresía (Scenario "Alta duplicada es rechazada"). Verify.
+- [x] 4.5 [RED] `POST .../members` permisos: rol `member` → 403. Verify.
+- [x] 4.6 [RED] `PATCH /organizations/{id}/members/{member_id}` happy: admin cambia el rol de OTRO miembro. Verify.
+- [x] 4.7 [RED] `PATCH .../members/{member_id}` error: el único admin intenta degradarse a sí mismo a `member` → rechazado, la membresía admin permanece intacta (Scenario "Degradar o remover al único admin es rechazado"). Verify.
+- [x] 4.8 [RED] `PATCH .../members/{member_id}` permisos: rol `member` → 403. Verify.
+- [x] 4.9 [RED] `DELETE /organizations/{id}/members/{member_id}` happy: admin remueve a un miembro no-admin. Verify.
+- [x] 4.10 [RED] `DELETE .../members/{member_id}` error: el único admin intenta removerse a sí mismo → rechazado (misma protección "sin admin"). Verify.
+- [x] 4.11 [RED] `DELETE .../members/{member_id}` permisos: rol `member` → 403. Verify.
+- [x] 4.12 [GREEN] Extender `repository.py` (`list_members`, `add_member`, `update_member_role`, `remove_member`, `count_admins(organization_id)`); `service.py` con `OrganizationMemberService` (valida "sin admin" antes de degradar/remover); `router.py` (`GET`=miembro, resto `require_org_admin`). Verify: 4.1–4.11 verdes.
 
 ### Fase 5 — "Mis empresas", `/auth/me` y hint de empresa en WS (Commit 5)
 
