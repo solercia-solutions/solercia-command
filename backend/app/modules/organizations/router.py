@@ -10,13 +10,29 @@ access is impossible by construction. Responses use the ``{data}`` envelope.
 
 import uuid
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_actor_id, get_current_membership, require_admin
+from app.dependencies import (
+    get_actor_id,
+    get_current_membership,
+    get_current_user,
+    require_admin,
+    require_org_admin,
+)
 from app.modules.organizations.models import OrganizationMember
-from app.modules.organizations.service import OrganizationThemeService
+from app.modules.organizations.schemas import (
+    MemberCreate,
+    MemberUpdateRole,
+    OrganizationCreate,
+    OrganizationUpdate,
+)
+from app.modules.organizations.service import (
+    OrganizationMemberService,
+    OrganizationService,
+    OrganizationThemeService,
+)
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
@@ -77,3 +93,146 @@ async def delete_my_organization_theme(
     service = OrganizationThemeService(db)
     await service.reset_theme(membership.organization_id, actor_id=actor_id)
     return {"data": None, "message": "Tema de la organización restablecido."}
+
+
+# ---------------------------------------------------------------------------
+# CRUD de empresas (organizations-admin R1/R2) + "mis empresas" (R5)
+# ---------------------------------------------------------------------------
+#
+# Ordering matters: ``/mine`` MUST be registered before ``/{organization_id}``
+# so FastAPI never tries to parse "mine" as a UUID path parameter.
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_organization(
+    payload: OrganizationCreate,
+    user: User = Depends(get_current_user),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Bootstrap a new organization; the creator becomes its sole ``admin``.
+
+    Any authenticated user may call this — there is no global superadmin
+    (design.md Decision 4). Rejects a duplicate ``slug`` with ``409``.
+    """
+
+    service = OrganizationService(db)
+    data = await service.create_bootstrap(
+        payload, creator_id=user.id, actor_id=actor_id
+    )
+    return {"data": data}
+
+
+@router.get("/mine")
+async def list_my_organizations(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List every organization the caller belongs to, with their role in each."""
+
+    service = OrganizationService(db)
+    data = await service.list_mine(user.id)
+    return {"data": data}
+
+
+@router.get("/{organization_id}")
+async def get_organization(
+    organization_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return an organization — any member may read it, ``404`` otherwise."""
+
+    service = OrganizationService(db)
+    data = await service.get(organization_id, user.id)
+    return {"data": data}
+
+
+@router.patch("/{organization_id}")
+async def update_organization(
+    organization_id: uuid.UUID,
+    payload: OrganizationUpdate,
+    membership: OrganizationMember = Depends(require_org_admin),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Apply a partial update — only an ``admin`` of THIS organization."""
+
+    service = OrganizationService(db)
+    data = await service.update(organization_id, payload, actor_id=actor_id)
+    return {"data": data}
+
+
+@router.delete("/{organization_id}")
+async def delete_organization(
+    organization_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_org_admin),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Soft-delete the organization — only an ``admin`` of THIS organization."""
+
+    service = OrganizationService(db)
+    await service.soft_delete(organization_id, actor_id=actor_id)
+    return {"data": None, "message": "Empresa eliminada."}
+
+
+# ---------------------------------------------------------------------------
+# Gestión de miembros (organizations-admin R2/R3)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{organization_id}/members")
+async def list_members(
+    organization_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List members with their role — any member of the organization may read."""
+
+    service = OrganizationMemberService(db)
+    data = await service.list_members(organization_id, user.id)
+    return {"data": data}
+
+
+@router.post("/{organization_id}/members", status_code=status.HTTP_201_CREATED)
+async def add_member(
+    organization_id: uuid.UUID,
+    payload: MemberCreate,
+    membership: OrganizationMember = Depends(require_org_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Add an EXISTING user (found by email) as a member — admin only."""
+
+    service = OrganizationMemberService(db)
+    data = await service.add_member(organization_id, payload)
+    return {"data": data}
+
+
+@router.patch("/{organization_id}/members/{member_id}")
+async def update_member_role(
+    organization_id: uuid.UUID,
+    member_id: uuid.UUID,
+    payload: MemberUpdateRole,
+    membership: OrganizationMember = Depends(require_org_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Change a member's role — rejects leaving the empresa without an admin."""
+
+    service = OrganizationMemberService(db)
+    data = await service.update_role(organization_id, member_id, payload.role)
+    return {"data": data}
+
+
+@router.delete("/{organization_id}/members/{member_id}")
+async def remove_member(
+    organization_id: uuid.UUID,
+    member_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_org_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a member — rejects leaving the empresa without an admin."""
+
+    service = OrganizationMemberService(db)
+    await service.remove_member(organization_id, member_id)
+    return {"data": None, "message": "Miembro eliminado."}

@@ -1,0 +1,39 @@
+change: 27-plantillas-idempotentes
+artifact_store: hybrid
+depends_on:
+  - 25-multiempresa-scoping
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - org-role-templates
+    - projects
+target_capabilities:
+  - org-role-templates
+  - projects
+constraints:
+  - backend-only
+  - tdd-idempotency-contracts
+  - alembic-migration-required
+  - reversible-migrations
+  - manual-scoping-preserved
+boundary:
+  - "26-admin-empresas NO es prerrequisito tecnico de este cambio; solo 25-multiempresa-scoping lo es (aislamiento por organization_id blindado antes de reconciliar/limpiar datos)"
+  - "Entidad Team, UI/frontend, calendario laboral (28) y edicion de nombre en la vista jerarquica (36) quedan fuera de alcance"
+bug_reference:
+  - "Idempotencia acoplada a lead_user_id: UNIQUE(organization_id, template_id, node_id, lead_user_id) en backend/app/modules/org_role_templates/models.py:110-118"
+  - "ledger_for filtra por lead_user_id en backend/app/modules/org_role_templates/repository.py:92-112 (WHERE en :109)"
+  - "Flujo de duplicacion: backend/app/modules/org_role_templates/service.py:122-189 (instantiate) -> _reconcile_and_commit :191-257"
+last_updated: 2026-07-20

@@ -47,9 +47,32 @@ def _extract_token(websocket: WebSocket) -> str | None:
 
 
 async def _resolve_organization_id(
-    db: AsyncSession, user_id: uuid.UUID
+    db: AsyncSession, user_id: uuid.UUID, org_hint: str | None = None
 ) -> uuid.UUID | None:
-    """First organization membership — identical scoping to REST (get_current_membership)."""
+    """Resolve the org scope for this connection (organizations-admin R4
+    extended to the WS handshake).
+
+    ``org_hint`` (``?org_id=``) present -> validated as a REAL membership of
+    ``user_id``; a malformed UUID or an organization the user does not
+    belong to returns ``None`` — the caller closes with ``1008`` BEFORE
+    accept, the same posture as an invalid token (gotcha 2 extended to the
+    WS: never silently falls back to a different scope). Hint ABSENT ->
+    unchanged fallback, identical to REST's ``get_current_membership``: the
+    first membership by ``created_at``.
+    """
+
+    if org_hint is not None:
+        try:
+            organization_id = uuid.UUID(org_hint)
+        except ValueError:
+            return None
+        result = await db.execute(
+            select(OrganizationMember.organization_id).where(
+                OrganizationMember.user_id == user_id,
+                OrganizationMember.organization_id == organization_id,
+            )
+        )
+        return result.scalars().first()
 
     result = await db.execute(
         select(OrganizationMember.organization_id)
@@ -81,7 +104,8 @@ async def notifications_ws(
         await websocket.close(code=_POLICY_VIOLATION)
         return
 
-    org_id = await _resolve_organization_id(db, user.id)
+    org_hint = websocket.query_params.get("org_id")
+    org_id = await _resolve_organization_id(db, user.id, org_hint)
     if org_id is None:
         await websocket.close(code=_POLICY_VIOLATION)
         return

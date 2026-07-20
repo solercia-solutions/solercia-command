@@ -1,0 +1,37 @@
+change: 26-admin-empresas
+artifact_store: hybrid
+depends_on:
+  - 25-multiempresa-scoping
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - organizations-admin
+    - frontend-org-switcher
+  modified:
+    - multi-tenancy
+target_capabilities:
+  - organizations-admin
+  - frontend-org-switcher
+  - multi-tenancy
+constraints:
+  - active-org-via-header
+  - no-global-superadmin
+  - tdd-role-permissions
+  - unique-org-user-membership
+last_updated: 2026-07-20
+apply_gating:
+  - "25-multiempresa-scoping debe completar apply + verify + archive antes de iniciar el apply del 26 (el resolver de empresa activa asume el scoping ya endurecido)"
+task_artifacts:
+  - openspec/changes/26-admin-empresas/tasks.md

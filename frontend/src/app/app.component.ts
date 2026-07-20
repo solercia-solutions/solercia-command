@@ -20,6 +20,7 @@ import { SolLayoutShellComponent } from '@widgets/layout-shell';
 import { SidebarItem } from '@widgets/sidebar';
 import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import { OrgSwitcherComponent } from '@features/organizations/org-switcher.component';
 
 /**
  * Application shell: layout-shell (header + collapsible sidebar + mobile
@@ -38,6 +39,7 @@ import { I18nService } from '@shared/i18n';
     SolLayoutShellComponent,
     NotificationPanelComponent,
     SolIconComponent,
+    OrgSwitcherComponent,
   ],
   template: `
     <sol-layout-shell
@@ -45,6 +47,11 @@ import { I18nService } from '@shared/i18n';
       [showSidebar]="auth.isAuthenticated()"
     >
       <div header-actions class="flex items-center gap-2">
+        @if (auth.isAuthenticated()) {
+          <!-- Selector de empresa activa -->
+          <sol-org-switcher />
+        }
+
         <!-- Theme toggle -->
         <button
           type="button"

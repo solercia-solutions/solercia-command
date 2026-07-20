@@ -1,0 +1,65 @@
+change: 38-oauth-ms-google
+artifact_store: hybrid
+depends_on:
+  - 26-admin-empresas
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - connectors
+target_capabilities:
+  - connectors
+constraints:
+  - reuse-existing-adapters
+  - no-alembic-migration
+  - oauth-callback-configurable-by-env
+  - tdd-fake-adapter
+  - no-data-import
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Diagnostico + reparacion del OAuth de M365 y Google con prueba e2e desde la UI de Conexiones (/connections)"
+  - "redirect_uri del authorize apunta al callback backend GET /api/v1/connectors/oauth/callback (configurable por env), NO a una pagina SPA ni a OAUTH_REDIRECT_ALLOWLIST[0]"
+  - "redirect_to sigue siendo el retorno del navegador al SPA validado por allowlist; se separa conceptualmente de redirect_uri"
+  - "Nuevo boton 'Probar conexion' post-OAuth: endpoint que descifra el token (refresca si vencio) y ejecuta una operacion read-only real de capability, mostrando el resultado"
+  - "Manejo de errores del callback con mensajes es-CO por codigo en la UI"
+  - "backend/.env.example creado/actualizado documentando M365_*, GOOGLE_OAUTH_* y el callback OAuth"
+  - "Fuera de alcance: importar datos de Planner/Google (cambios 39-41), PKCE (diferido de 15/16), registrar apps reales en Azure/Google (config externa del operador)"
+module_decision:
+  - "Reusar los adapters archivados 15-adapter-microsoft365 y 16-adapter-google y el core 14-integration-ports (oauth.py, state_store, registry); NO reescribir adapters"
+  - "Introducir setting OAUTH_CALLBACK_BASE_URL (o equivalente) en app/config.py; authorize() construye redirect_uri hacia <base>/api/v1/connectors/oauth/callback"
+  - "Nuevo caso de uso test_connection en ConnectorService que reusa get_adapter + puerto read-only; endpoint POST /connectors/{id}/accounts/{account_id}/test"
+  - "Sin migracion Alembic: solo codigo backend, config y frontend"
+facts_verified:
+  - "Consecutivo 38 libre en openspec/changes/ y en openspec/changes/archive/ (existen 30-37; no hay 38)"
+  - "BUG RAIZ: frontend connectors.service.ts:authorizeUrl (lineas 87-93) manda solo ticket + redirect_to, NUNCA redirect_uri"
+  - "backend service.py:authorize (linea 376): redirect = redirect_uri or settings.OAUTH_REDIRECT_ALLOWLIST[0] -> cae en http://localhost:4200/settings/connectors, una pagina SPA que no canjea el code"
+  - "El handler real del callback es la ruta backend GET /connectors/oauth/callback (router.py:245), montada con prefix API_PREFIX=/api/v1 (main.py:55,179); NO esta en OAUTH_REDIRECT_ALLOWLIST ni se usa como destino del code"
+  - "connections.component.ts:consumeOAuthReturn (lineas 643-665) solo lee ?connected=1 / ?error=, NUNCA ?code= / ?state= -> el frontend no reenvia el code al backend"
+  - "Puertos stale en config.py: defaults referencian :4200 (compose) pero dev usa front :4242 y backend :8081; GOOGLE_OAUTH_REDIRECT_URI default = http://localhost:4200/settings/connectors (pagina SPA + puerto viejo, config.py:164)"
+  - "OAUTH_REDIRECT_ALLOWLIST (config.py:106-111) contiene paginas frontend (/settings/connectors, /connections en :4200/:4242/:4243), NO la ruta del callback backend"
+  - "M365_CLIENT_ID/SECRET y GOOGLE_OAUTH_CLIENT_ID/SECRET son '' por defecto (config.py:138-139,162-163); NO existe backend/.env.example (glob sin resultados) documentandolos -> authorize sale con client_id= vacio"
+  - "Adapters exponen authorize_url/exchange_code/refresh (microsoft365/oauth.py, google/oauth.py); PKCE diferido, state single-use + client_secret como frontera CSRF/replay"
+  - "El core oauth.py (build_authorize/handle_callback) delega al adapter sin ramificar por provider; state_store persiste el state_payload con TTL OAUTH_STATE_TTL_SECONDS"
+  - "Patron de test con fake adapter existe: provider 'fake' en test_connectors_oauth_redirect.py / test_connectors_oauth_flow.py (fixtures google/*.json para exchange/userinfo/refresh)"
+  - "Cuenta conectada + credenciales se persisten cifradas Fernet en una sola transaccion (service.py:_complete_oauth_callback, upsert_account + save_credentials, commit unico)"
+dependency_gating:
+  - "26-admin-empresas provee el scoping de conectores/cuentas por empresa activa (organization_id); el flujo OAuth ya resuelve organization_id desde el membership/ticket"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability unica a especificar: connectors (delta MODIFIED)"
+  - "Requisito MODIFICADO: el authorize deriva redirect_uri del callback backend configurable por env, no de OAUTH_REDIRECT_ALLOWLIST[0]; redirect_to se mantiene como retorno SPA"
+  - "Requisito NUEVO en connectors: 'probar conexion' ejecuta una operacion read-only real de capability sobre una cuenta conectada, refrescando el token si vencio; endpoint POST /connectors/{id}/accounts/{account_id}/test"
+  - "Escenarios a cubrir: callback exitoso canjea code y persiste cuenta cifrada; callback con error del proveedor -> mensaje es-CO por codigo; probar conexion OK/expirado/proveedor caido; permisos (admin/manager vs member) del endpoint de prueba"
+  - "Sin delta de capacidad backend nuevo ni migracion Alembic; adapters 15/16 no cambian a nivel de requisito"

@@ -229,7 +229,7 @@ async def authorize_connector(
         )
     else:
         user = await get_current_user(request, db)
-        membership = await get_current_membership(db=db, user=user)
+        membership = await get_current_membership(request=request, db=db, user=user)
         organization_id, user_id = membership.organization_id, membership.user_id
 
     result = await service.authorize(

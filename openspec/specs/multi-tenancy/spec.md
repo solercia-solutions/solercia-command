@@ -26,9 +26,10 @@ Mecánica de scope:
 ## Requisitos
 
 - **R1**: Toda entidad tenant-scoped DEBE llevar `organization_id` (TenantMixin) y toda consulta de dominio DEBE filtrar por la organización de la membresía activa.
-- **R2**: El tenant DEBE resolverse en el backend desde el usuario del JWT (vía `get_current_membership`), nunca desde un parámetro del cliente.
+- **R2**: El tenant DEBE resolverse en el backend desde el header `X-Organization-Id` validado contra las membresías del usuario autenticado; si el header referencia una empresa donde el usuario no es miembro, la resolución DEBE fallar con `403`. Si el header está ausente, DEBE conservarse el comportamiento previo (primera membresía por `created_at`), sin intervención del cliente.
 - **R3**: `MemberRole` DEBE ser la base de `require_role` para autorización por membresía.
 - **R4**: El seed inicial DEBE ser idempotente y crear la organización "Solercia" con sus miembros demo.
+- **R5**: `organization_members` DEBE tener una restricción única sobre `(organization_id, user_id)`. La migración que la introduce DEBE deduplicar cualquier fila preexistente que viole la unicidad antes de crear la constraint, y DEBE ser reversible.
 
 ### Escenarios centrales
 
@@ -38,17 +39,31 @@ Mecánica de scope:
 - Entonces solo recibe proyectos con `organization_id` de A.
 
 **R2 — Resolución de tenant**
-- Dado un usuario con una membresía
-- Cuando llama cualquier endpoint de dominio
-- Entonces el scope se toma de su primera membresía por `created_at`, sin intervención del cliente.
+- Dado un usuario con una o varias membresías
+- Cuando llama un endpoint de dominio con header `X-Organization-Id` válido
+- Entonces el scope se toma de la empresa indicada en el header, validado contra sus membresías
+- Cuando llama un endpoint de dominio sin el header
+- Entonces el scope se toma de su primera membresía por `created_at`, conservando el comportamiento previo
+- Cuando llama con un header de una empresa donde no es miembro
+- Entonces la resolución falla con `403` y ningún dato se expone
+
+**R5 — Unicidad de membresía**
+- Dado que un usuario U ya es miembro de la empresa X
+- Cuando se intenta insertar otra fila `(X, U)` en `organization_members`
+- Entonces la base de datos rechaza la inserción por la restricción única
 
 ## Limitaciones y deuda conocida
 
-- NO hay CRUD de organizations (sin router/servicio): las organizaciones solo nacen por seed.
 - NO hay middleware de tenant ni schema switching (contrario a lo descrito en CLAUDE.md); el filtrado vive disperso en services/repos.
-- Multi-membresía degenerada: si un usuario pertenece a varias organizaciones, siempre opera sobre la primera; no hay selector de organización.
 - `OrganizationMember` no tiene soft delete.
-- CERO tests del aislamiento multi-tenant.
+
+## Cambios respecto a la línea base as-built (2026-07-11)
+
+El cambio 26-admin-empresas introduce:
+- CRUD de organizations (router/servicio completo): las organizaciones se pueden crear dinámicamente por cualquier usuario autenticado (bootstrap como admin).
+- Resolución de empresa activa por header `X-Organization-Id` con fallback compatible: usuario con varias membresías puede cambiar el scope por request sin reloguearse.
+- Selector de empresa activa en el frontend: interfaz para cambiar el scope activo, con persistencia en localStorage.
+- Restricción única en `(organization_id, user_id)` con migración reversible (0021).
 
 ## Referencias
 
