@@ -17,6 +17,7 @@ from app.modules.projects.schemas import (
     ProjectProgressNode,
     ProjectRead,
     ProjectTreeNode,
+    ProjectUpdate,
     ReparentRequest,
 )
 from app.modules.projects.service import ProjectService
@@ -80,6 +81,41 @@ async def get_project(
     service = ProjectService(db)
     project = await service.get_project(membership.organization_id, project_id)
     return {"data": ProjectRead.model_validate(project)}
+
+
+@router.patch("/{project_id}")
+async def update_project(
+    project_id: uuid.UUID,
+    payload: ProjectUpdate,
+    membership: OrganizationMember = Depends(_require_hierarchy_write_role),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Edit a project's ``name``, ``description`` and/or ``code``.
+
+    Partial update: only the fields present in the payload are applied.
+    Requires ``admin`` or ``manager`` (same write guard as the reparent,
+    R7); any other role gets **403** (``forbidden``). Rejections use the
+    standard envelope (``{detail, code, status}``):
+
+    - ``methodology_not_editable`` (**422**) — ``methodology`` was sent; it
+      is never editable because the seeded board and the task statuses
+      depend on the Strategy.
+    - ``project_code_taken`` (**409**) — the new ``code`` is already used by
+      ANOTHER project of the organization (the project's own current code is
+      always accepted).
+    - ``project_not_found`` (**404**) — the project does not exist, is
+      soft-deleted or belongs to another organization.
+    """
+
+    service = ProjectService(db)
+    project = await service.update_project(
+        membership.organization_id, project_id, payload, actor_id=actor_id
+    )
+    return {
+        "data": ProjectRead.model_validate(project),
+        "message": "Proyecto actualizado.",
+    }
 
 
 @router.patch("/{project_id}/parent")
