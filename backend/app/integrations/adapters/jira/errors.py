@@ -61,6 +61,20 @@ class JiraFileTooLarge(AppException):
         super().__init__(detail, code="jira_file_too_large", status_code=422)
 
 
+_FILE_INVALID_MESSAGE = "El archivo no tiene un formato CSV/XLSX válido."
+
+
+class JiraFileInvalidError(AppException):
+    """The uploaded bytes are not decodable as the claimed format at all —
+    a non-UTF-8 "CSV" or a non-zip "XLSX" (corrupted or mislabeled file).
+    Distinct from :class:`JiraFileFormatError` (readable file, wrong
+    columns): here the CONTENT itself is unreadable, so parsing never
+    starts."""
+
+    def __init__(self, detail: str = _FILE_INVALID_MESSAGE) -> None:
+        super().__init__(detail, code="jira_file_invalid", status_code=422)
+
+
 class JiraUnavailable(AppException):
     """Jira is unreachable (timeout/network error) or returned an
     unexpected 5xx — RETRYABLE from the caller's perspective (mirrors
