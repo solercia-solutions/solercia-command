@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import ForeignKey, String, UniqueConstraint, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,9 +31,21 @@ class Organization(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
 
 
 class OrganizationMember(PkMixin, TimestampMixin, Base):
-    """Association between a user and an organization with a role."""
+    """Association between a user and an organization with a role.
+
+    ``uq_organization_members_org_user`` (migration 0021) guarantees a user
+    can never hold two membership rows in the same organization — declared
+    here too (not just in the migration) so ``Base.metadata.create_all``
+    (the test suite's schema path) and ``alembic check`` both agree with the
+    migrated schema, same pattern as ``User``'s partial unique index.
+    """
 
     __tablename__ = "organization_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "user_id", name="uq_organization_members_org_user"
+        ),
+    )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
