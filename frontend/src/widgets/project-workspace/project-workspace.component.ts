@@ -20,6 +20,7 @@ import {
   KanbanItemMoved,
   SolButtonComponent,
   SolCardComponent,
+  SolDrawerComponent,
   SolIconComponent,
   SolModalComponent,
   SolKanbanBoardComponent,
@@ -38,6 +39,8 @@ import {
   TaskFormResult,
   TaskModalComponent,
 } from '@widgets/task-modal/task-modal.component';
+import { TaskDetailPanelComponent } from '@widgets/task-detail-panel/task-detail-panel.component';
+import { TaskDetail } from '@entities/task/task-detail.model';
 import {
   BurndownData,
   METHODOLOGY_BADGE,
@@ -71,11 +74,13 @@ type ViewMode = 'board' | 'grid';
     NgTemplateOutlet,
     SolButtonComponent,
     SolCardComponent,
+    SolDrawerComponent,
     SolIconComponent,
     SolModalComponent,
     SolKanbanBoardComponent,
     SolTimelineComponent,
     TaskModalComponent,
+    TaskDetailPanelComponent,
     BurndownChartComponent,
     VelocityChartComponent,
   ],
@@ -245,16 +250,16 @@ type ViewMode = 'board' | 'grid';
                   @for (task of allTasks(); track task.id) {
                     <tr
                       class="border-b border-border/50 transition-colors hover:bg-brand/5 cursor-pointer"
-                      (click)="openEdit(task)"
+                      (click)="openTaskDrawer(task)"
                     >
                       <td class="px-4 py-3 text-xs font-mono text-muted">
                         @if (task.task_key) {
-                          <a
-                            [routerLink]="['/task', task.task_key]"
-                            (click)="$event.stopPropagation()"
+                          <button
+                            type="button"
+                            (click)="$event.stopPropagation(); openTaskDrawer(task)"
                             class="font-semibold text-brand hover:underline"
                             [attr.aria-label]="openDetailAria(task.task_key)"
-                          >{{ task.task_key }}</a>
+                          >{{ task.task_key }}</button>
                         } @else {
                           <span class="text-muted">—</span>
                         }
@@ -326,34 +331,13 @@ type ViewMode = 'board' | 'grid';
                 </p>
               </sol-card>
             } @else {
+              <!-- La reasignación de sprint vive ahora en el drawer de detalle
+                   de la tarea (enlace "Abrir detalle" de cada tarjeta). -->
               <div class="flex flex-col gap-3">
                 @for (task of backlogTasks(); track task.id) {
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
-                    <div class="flex-1">
-                      <ng-container
-                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                      ></ng-container>
-                    </div>
-                    @if (sprintsEnabled()) {
-                      <label class="block sm:w-56">
-                        <span class="mb-1 block text-xs font-medium text-muted"
-                          >{{ text.moveToSprint() }}</span
-                        >
-                        <select
-                          [value]="task.sprint_id ?? ''"
-                          (change)="onAssignSprint(task, $event)"
-                          class="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text
-                                 transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
-                          [attr.aria-label]="assignSprintAria(task.title)"
-                        >
-                          <option value="">{{ text.backlogOption() }}</option>
-                          @for (sprint of sprints(); track sprint.id) {
-                            <option [value]="sprint.id">{{ sprint.name }}</option>
-                          }
-                        </select>
-                      </label>
-                    }
-                  </div>
+                  <ng-container
+                    *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                  ></ng-container>
                 }
               </div>
             }
@@ -590,6 +574,7 @@ type ViewMode = 'board' | 'grid';
               [nodes]="timelineNodes()"
               [statusToken]="timelineStatusToken"
               [legend]="timelineLegend"
+              (nodeClicked)="onTimelineNodeClicked($event)"
             ></sol-timeline>
           </div>
         }
@@ -684,12 +669,13 @@ type ViewMode = 'board' | 'grid';
             </div>
 
             @if (task.task_key) {
-              <a [routerLink]="['/task', task.task_key]"
-                 (click)="$event.stopPropagation()"
-                 class="mt-1 text-[11px] text-brand hover:underline self-end"
-                 [attr.aria-label]="text.taskCardOpenDetailAria()">
+              <button
+                type="button"
+                (click)="$event.stopPropagation(); openTaskDrawer(task)"
+                class="mt-1 text-[11px] text-brand hover:underline self-end"
+                [attr.aria-label]="text.taskCardOpenDetailAria()">
                 {{ text.taskCardOpenDetail() }}
-              </a>
+              </button>
             }
           </button>
         </ng-template>
@@ -810,6 +796,28 @@ type ViewMode = 'board' | 'grid';
           }
         </sol-modal>
       }
+
+      <!-- Task detail drawer (estilo Jira): hospeda el panel de detalle sin
+           salir del workspace. En el cronograma abre SIN blur (blur=false)
+           para no difuminar la vista densa de barras. -->
+      @if (openedTask(); as opened) {
+        <sol-drawer
+          [open]="true"
+          [title]="drawerTitle()"
+          size="lg"
+          [blur]="drawerBlur()"
+          (closed)="closeTaskDrawer()"
+        >
+          <sol-task-detail-panel
+            [taskKey]="opened.task_key!"
+            [compact]="true"
+            [sprints]="sprints()"
+            [sprintsEnabled]="sprintsEnabled()"
+            [estimationMode]="estimationMode()"
+            (taskChanged)="onDrawerTaskChanged($event)"
+          />
+        </sol-drawer>
+      }
     }
   `,
 })
@@ -846,8 +854,6 @@ export class ProjectWorkspaceComponent implements OnInit {
     backlogAdd: this.i18n.t('workspace.backlog.add'),
     backlogAddAria: this.i18n.t('workspace.backlog.addAria'),
     backlogEmpty: this.i18n.t('workspace.backlog.empty'),
-    moveToSprint: this.i18n.t('workspace.backlog.moveToSprint'),
-    backlogOption: this.i18n.t('workspace.backlog.backlogOption'),
     newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
     sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
     sprintNamePlaceholder: this.i18n.t('workspace.sprints.namePlaceholder'),
@@ -924,6 +930,15 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly modalError = signal<string | null>(null);
 
   protected readonly savingSprint = signal(false);
+
+  /* ---- Task detail drawer state ------------------------------------------ */
+
+  /** Tarea abierta en el drawer de detalle (null = drawer cerrado). */
+  protected readonly openedTask = signal<Task | null>(null);
+  /** El cronograma abre el drawer sin blur (velo suave); el resto con blur. */
+  protected readonly drawerBlur = signal(true);
+  /** Hubo cambios guardados desde el drawer → recargar listas al cerrarlo. */
+  private drawerChanged = false;
 
   protected readonly selectedSprintId = signal<string | null>(null);
   protected readonly burndown = signal<BurndownData | null>(null);
@@ -1012,16 +1027,55 @@ export class ProjectWorkspaceComponent implements OnInit {
     }));
   });
 
-  /** Nodos genéricos para `sol-timeline` (D2): un sprint = un nodo plano, sin jerarquía. */
-  protected readonly timelineNodes = computed<TimelineNode[]>(() =>
-    this.sprints().map((sprint) => ({
+  /**
+   * Nodos genéricos para `sol-timeline` (D2): un sprint = un nodo raíz y sus
+   * tareas = nodos hijos (clicables → abren el drawer de detalle). Las tareas
+   * sin ninguna fecha caen a la sección "sin fechas" del timeline (chips no
+   * clicables — limitación actual de la lib).
+   */
+  protected readonly timelineNodes = computed<TimelineNode[]>(() => {
+    const tasks = this.allTasks();
+    return this.sprints().map((sprint) => ({
       id: sprint.id,
       label: sprint.name,
       start: sprint.start_date,
       end: sprint.end_date,
       status: sprint.status,
-    })),
-  );
+      children: tasks
+        .filter((task) => task.sprint_id === sprint.id)
+        .map((task) => ({
+          id: task.id,
+          label: task.title,
+          ...this.taskTimelineRange(task),
+          status: task.status,
+        })),
+    }));
+  });
+
+  /**
+   * Rango de la barra de una tarea. El motor del timeline exige inicio Y fin
+   * válidos; una tarea suele tener solo `due_date`, así que se sintetiza una
+   * barra de un día alrededor de la fecha disponible para que sea visible y
+   * clicable. Sin ninguna fecha → chip "sin fechas" (no clicable).
+   */
+  private taskTimelineRange(task: Task): {
+    start: Date | null;
+    end: Date | null;
+  } {
+    const DAY_MS = 86_400_000;
+    const start = task.start_date ? new Date(task.start_date) : null;
+    const end = task.due_date ? new Date(task.due_date) : null;
+    if (start && end) {
+      return start <= end ? { start, end } : { start: end, end: start };
+    }
+    if (end) {
+      return { start: new Date(end.getTime() - DAY_MS), end };
+    }
+    if (start) {
+      return { start, end: new Date(start.getTime() + DAY_MS) };
+    }
+    return { start: null, end: null };
+  }
 
   /** Mismos colores que el `sprint-timeline` retirado (T70): activo = éxito, cerrado = neutro. */
   protected readonly timelineStatusToken: SolTimelineStatusResolver = (status) =>
@@ -1072,10 +1126,6 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   protected openDetailAria(key: string): string {
     return this.i18n.translate('workspace.grid.openDetailAria', { key });
-  }
-
-  protected assignSprintAria(title: string): string {
-    return this.i18n.translate('workspace.backlog.assignSprintAria', { title });
   }
 
   protected pointsCompletedLabel(points: number): string {
@@ -1351,22 +1401,58 @@ export class ProjectWorkspaceComponent implements OnInit {
     });
   }
 
-  /* ---- Backlog ----------------------------------------------------------- */
+  /* ---- Task detail drawer -------------------------------------------------
+   * Grid y cronograma abren el detalle in-place (estilo Jira) en vez de
+   * navegar a /task/:key. La ruta sigue existiendo para enlaces directos.
+   * Los cambios guardados en el drawer se reflejan de inmediato en la copia
+   * local (`allTasks`) y las listas se recargan del backend al cerrarlo.
+   */
 
-  protected onAssignSprint(task: Task, event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.workspace
-      .updateTask(task.id, { sprint_id: value || null })
-      .subscribe({
-        next: () => {
-          this.loadTasks();
-          const selected = this.selectedSprintId();
-          if (selected && (selected === value || selected === task.sprint_id)) {
-            this.loadBurndown(selected);
-          }
-        },
-      });
+  protected openTaskDrawer(task: Task, opts?: { blur?: boolean }): void {
+    if (!task.task_key) {
+      // Sin clave no hay detalle por key: cae al modal de edición.
+      this.openEdit(task);
+      return;
+    }
+    this.drawerBlur.set(opts?.blur ?? true);
+    this.openedTask.set(task);
   }
+
+  protected closeTaskDrawer(): void {
+    this.openedTask.set(null);
+    this.drawerBlur.set(true);
+    if (this.drawerChanged) {
+      this.drawerChanged = false;
+      this.loadTasks();
+      const selected = this.selectedSprintId();
+      if (selected) {
+        this.loadBurndown(selected);
+      }
+    }
+  }
+
+  /** Espeja cada guardado del drawer sobre `allTasks` sin ir al backend. */
+  protected onDrawerTaskChanged(updated: TaskDetail): void {
+    this.drawerChanged = true;
+    this.allTasks.update((tasks) =>
+      tasks.map((task) =>
+        task.id === updated.id ? { ...task, ...updated } : task,
+      ),
+    );
+  }
+
+  /** Solo los nodos hijos (tareas) abren el drawer; los sprints se ignoran. */
+  protected onTimelineNodeClicked(node: TimelineNode): void {
+    const task = this.allTasks().find((t) => t.id === node.id);
+    if (task) {
+      this.openTaskDrawer(task, { blur: false });
+    }
+  }
+
+  protected readonly drawerTitle = computed<string>(() => {
+    const task = this.openedTask();
+    return task?.task_key ?? task?.title ?? '';
+  });
 
   /* ---- Sprints ----------------------------------------------------------- */
 
