@@ -23,6 +23,10 @@ export interface TaskQuery {
   sprint_id?: string;
   status?: string;
   assignee_id?: string;
+  /** Exact task type (e.g. 'epic'). */
+  task_type?: string;
+  /** Direct children of a task (epic → stories/tasks). */
+  parent_task_id?: string;
 }
 
 /**
@@ -53,6 +57,12 @@ export class WorkspaceService {
     }
     if (query.assignee_id) {
       params = params.set('assignee_id', query.assignee_id);
+    }
+    if (query.task_type) {
+      params = params.set('task_type', query.task_type);
+    }
+    if (query.parent_task_id) {
+      params = params.set('parent_task_id', query.parent_task_id);
     }
     return this.http.get<TaskListResponse>(
       `${apiBase}/projects/${projectId}/tasks`,
