@@ -13,7 +13,7 @@ docker compose up -d --build
 
 | Servicio | URL |
 |----------|-----|
-| Frontend | http://localhost:4200 |
+| Frontend | http://localhost:4242 |
 | API + Swagger | http://localhost:8000/docs |
 | Postgres | localhost:5432 |
 | Redis | localhost:6379 |
@@ -49,7 +49,7 @@ También puedes usar Swagger (http://localhost:8000/docs → botón "Authorize")
 ### 3.1 Login local + SSO (cambio 20)
 
 **Sin credenciales externas (UI):**
-- Ingresa en http://localhost:4200 con admin@solercia.com / `Admin123*` → redirige a `/projects`.
+- Ingresa en http://localhost:4242 con admin@solercia.com / `Admin123*` → redirige a `/projects`.
 - Verifica el logout y el ingreso con un usuario demo (menú reducido según rol).
 - El botón "Ingresar con SSO" está en el login. Sin Keycloak configurado responde
   un 404 inerte (diseño anti-enumeración: la respuesta es idéntica si el SSO está
@@ -58,7 +58,8 @@ También puedes usar Swagger (http://localhost:8000/docs → botón "Authorize")
 **Requiere servicio externo real:** el flujo SSO completo necesita un Keycloak
 accesible y estas variables en el backend: `SSO_ENABLED=true`,
 `OIDC_KEYCLOAK_ISSUER`, `OIDC_KEYCLOAK_CLIENT_ID`, `OIDC_KEYCLOAK_CLIENT_SECRET`,
-`OIDC_KEYCLOAK_REDIRECT_URI`. docker-compose no incluye Keycloak.
+`OIDC_KEYCLOAK_REDIRECT_URI`, y `SSO_POST_LOGIN_REDIRECT=http://localhost:4242/auth/callback`
+(su valor por defecto apunta al puerto 4200). docker-compose no incluye Keycloak.
 
 ### 3.2 Jerarquía de proyectos y árbol visual (cambios 21 y 24)
 
