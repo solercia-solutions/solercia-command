@@ -662,10 +662,14 @@
       "estimationHours": "Horas estimadas",
       "priority": "Prioridad",
       "priorityPlaceholder": "Seleccionar prioridad",
+      "sprint": "Sprint",
+      "sprintNone": "Backlog (sin sprint)",
       "status": "Estado",
       "statusPlaceholder": "Seleccionar estado",
       "storyPoints": "Story points"
     },
+    "openFullPage": "Abrir página completa",
+    "openFullPageAria": "Abre la página completa de la tarea",
     "priorities": {
       "critical": "Crítica",
       "high": "Alta",
@@ -779,10 +783,7 @@
     "backlog": {
       "add": "Agregar al backlog",
       "addAria": "Agrega una tarea al backlog",
-      "assignSprintAria": "Asigna {{ title }} a un sprint",
-      "backlogOption": "Backlog",
       "empty": "No hay tareas en el backlog.",
-      "moveToSprint": "Mover a sprint",
       "title": "Backlog"
     },
     "board": {
@@ -876,7 +877,7 @@
       "timeline": "Cronograma"
     },
     "timeline": {
-      "description": "Cada barra representa un sprint posicionado por sus fechas de inicio y fin.",
+      "description": "Cada barra representa un sprint o una tarea, posicionados por sus fechas. Haz clic en una tarea para abrir su detalle.",
       "legendActive": "Activo",
       "legendClosed": "Cerrado",
       "title": "Cronograma de sprints"
