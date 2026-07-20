@@ -453,6 +453,12 @@
       "movedToColumn": "Tarjeta movida a {{ column }}",
       "movedWithinColumn": "Tarjeta reordenada en la misma columna"
     },
+    "progressBar": {
+      "aria": "Progreso"
+    },
+    "spinner": {
+      "loading": "Cargando…"
+    },
     "timeline": {
       "collapseNode": "Colapsar",
       "emptyState": "No hay elementos que mostrar en este cronograma.",
