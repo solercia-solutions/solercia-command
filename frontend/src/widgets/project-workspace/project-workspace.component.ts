@@ -10,6 +10,7 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { forkJoin } from 'rxjs';
 import {
   FormBuilder,
   ReactiveFormsModule,
@@ -570,7 +571,7 @@ type ViewMode = 'board' | 'grid';
             </div>
             <sol-sprint-gantt
               [sprints]="sprints()"
-              [tasks]="allTasks()"
+              [tasks]="ganttTasks()"
               (taskClicked)="openTaskDrawer($event, { blur: false })"
             ></sol-sprint-gantt>
           </div>
@@ -912,6 +913,22 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly allTasks = signal<Task[]>([]);
   protected readonly tasksError = signal<string | null>(null);
 
+  /**
+   * Hijas directas de cada épica. El listado del proyecto solo devuelve
+   * tareas raíz (`parent_task_id` nulo), así que el árbol épica→historias
+   * del Gantt se completa con una consulta `?parent_task_id={epicId}` por
+   * épica (B1) tras cada carga de tareas.
+   */
+  protected readonly epicChildren = signal<Task[]>([]);
+
+  /** Tareas del cronograma: raíces + hijas de épicas, sin duplicados. */
+  protected readonly ganttTasks = computed<Task[]>(() => {
+    const roots = this.allTasks();
+    const seen = new Set(roots.map((task) => task.id));
+    const children = this.epicChildren().filter((task) => !seen.has(task.id));
+    return [...roots, ...children];
+  });
+
   protected readonly members = signal<Member[]>([]);
   protected readonly sprints = signal<Sprint[]>([]);
 
@@ -1190,11 +1207,30 @@ export class ProjectWorkspaceComponent implements OnInit {
     this.workspace.tasks(this.projectId()).subscribe({
       next: (res) => {
         this.allTasks.set(res.data ?? []);
+        this.loadEpicChildren(res.data ?? []);
       },
       error: () =>
         this.tasksError.set(
           this.i18n.translate('workspace.errors.tasksLoad'),
         ),
+    });
+  }
+
+  /** Carga las hijas de cada épica (una consulta por épica, en paralelo). */
+  private loadEpicChildren(tasks: Task[]): void {
+    const epics = tasks.filter((task) => task.task_type === 'epic');
+    if (epics.length === 0) {
+      this.epicChildren.set([]);
+      return;
+    }
+    forkJoin(
+      epics.map((epic) =>
+        this.workspace.tasks(this.projectId(), { parent_task_id: epic.id }),
+      ),
+    ).subscribe({
+      next: (responses) =>
+        this.epicChildren.set(responses.flatMap((res) => res.data ?? [])),
+      error: () => this.epicChildren.set([]),
     });
   }
 
@@ -1367,10 +1403,15 @@ export class ProjectWorkspaceComponent implements OnInit {
     }
   }
 
-  /** Espeja cada guardado del drawer sobre `allTasks` sin ir al backend. */
+  /** Espeja cada guardado del drawer sobre las copias locales sin ir al backend. */
   protected onDrawerTaskChanged(updated: TaskDetail): void {
     this.drawerChanged = true;
     this.allTasks.update((tasks) =>
+      tasks.map((task) =>
+        task.id === updated.id ? { ...task, ...updated } : task,
+      ),
+    );
+    this.epicChildren.update((tasks) =>
       tasks.map((task) =>
         task.id === updated.id ? { ...task, ...updated } : task,
       ),
