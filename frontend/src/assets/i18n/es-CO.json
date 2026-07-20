@@ -608,6 +608,53 @@
     "titleRequired": "El título es obligatorio.",
     "typeLabel": "Tipo"
   },
+  "teams": {
+    "empty": {
+      "subtitle": "Cuando existan plantillas disponibles aparecerán en esta página.",
+      "title": "No hay plantillas de equipo disponibles."
+    },
+    "errors": {
+      "forbidden": "Solo un administrador o líder puede generar equipos.",
+      "instantiate": "No se pudo generar el equipo. Inténtalo de nuevo.",
+      "leadNotMember": "La persona seleccionada no es miembro activo de la organización.",
+      "load": "No se pudieron cargar las plantillas. Inténtalo más tarde.",
+      "membersLoad": "No se pudieron cargar los miembros de la organización.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "treeLoad": "No se pudo cargar la estructura de la plantilla."
+    },
+    "generate": "Generar equipo",
+    "generating": "Generando…",
+    "leader": {
+      "label": "Líder del equipo",
+      "placeholder": "Selecciona la persona líder",
+      "required": "Selecciona un líder para generar el equipo."
+    },
+    "loading": "Cargando plantillas…",
+    "selectedBadge": "Seleccionada",
+    "steps": {
+      "leader": "Elige la persona líder del equipo.",
+      "review": "Genera el árbol de proyectos y revísalo en la jerarquía.",
+      "template": "Selecciona la plantilla que refleja tu estructura."
+    },
+    "subtitle": "Genera la estructura de proyectos de tu equipo a partir de una plantilla organizacional.",
+    "success": {
+      "again": "Generar otro equipo",
+      "goHierarchy": "Ver en la jerarquía",
+      "projectsHeading": "Proyectos generados",
+      "subtitle": "Se generaron o actualizaron {{ count }} proyectos con su líder y jerarquía.",
+      "title": "Equipo generado"
+    },
+    "systemBadge": "Plantilla del sistema",
+    "template": {
+      "collapseAria": "Oculta la estructura de {{ name }}",
+      "expandAria": "Muestra la estructura de {{ name }}",
+      "hideTree": "Ocultar estructura",
+      "selectAria": "Selecciona la plantilla {{ name }}",
+      "showTree": "Ver estructura",
+      "treeLoading": "Cargando estructura…"
+    },
+    "title": "Equipos"
+  },
   "velocityChart": {
     "chartAria": "Gráfico de velocidad por sprint: puntos completados por sprint cerrado",
     "disclaimer": "La velocidad refleja el rendimiento histórico del equipo y sirve para estimar, no para exigir.",
