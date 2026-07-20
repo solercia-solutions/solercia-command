@@ -44,8 +44,8 @@ Chain strategy: size-exception
 
 ## Fase 2 — Proyecto y ejecución, 10 módulos (Commit 2)
 
-- [ ] 2.1 [RED] Tests de listado (`ids⊆A`, `b.id∉ids`), detalle-404 cross-tenant y update/delete-rechazado para projects, tasks, sprints, boards, dependencies, task_links, checklists, time_logs, activity, labels. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "projects or tasks or sprints or boards or dependencies or task_links or checklists or time_logs or activity or labels" -v`
-- [ ] 2.2 Si algún caso queda rojo, registrar módulo+endpoint en bloque `# FUGAS DETECTADAS` al final del archivo (corrección diferida a Fase 8); si todo verde, continuar.
+- [x] 2.1 [RED] Tests de listado (`ids⊆A`, `b.id∉ids`), detalle-404 cross-tenant y update/delete-rechazado para projects, tasks, sprints, boards, dependencies, task_links, checklists, time_logs, activity, labels. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 18/18 verdes (RED inicial en `sprints`/`dependencies` por causas ajenas a fugas — ver 2.2).
+- [x] 2.2 Ningún caso quedó rojo por fuga real. Dos ajustes de fixture necesarios (no fugas): (a) `sprints` requiere metodología `scrum` (kanban de `two_orgs` da 422 `sprints_not_enabled`) → seed-helper `_seed_scrum_project`; (b) `dependencies` usa `require_admin` (rol RBAC `ADMIN` vía `Role`/`UserRole`), distinto de `OrganizationMember.role` de `two_orgs` → fixture `rbac_admin` existente en conftest. `projects`/`tasks`/`boards`/`task_links`/`checklists`/`time_logs`/`activity`/`labels` verdes sin ajustes — scoping por `organization_id`/join a `Project` ya presente en cada repository.
 
 ## Fase 3 — Colaboración, 4 módulos (Commit 3)
 

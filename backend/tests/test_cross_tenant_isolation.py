@@ -280,3 +280,320 @@ async def _seed_label(session: AsyncSession, organization, project):
     session.add(label)
     await session.flush()
     return label
+
+
+# ---------------------------------------------------------------------------
+# Fase 2 — Proyecto y ejecución (tasks.md, Commit 2)
+# ---------------------------------------------------------------------------
+
+# projects: el listado y el detalle-404 ya están cubiertos por
+# test_multi_tenancy.py (R1); aquí se agrega solo el update-rechazado que
+# faltaba para completar el contrato de la Fase 2.
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_project_from_other_org_returns_404(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.patch(
+        f"/projects/{two_orgs.b.project.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_tasks_only_returns_callers_organization(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.get(
+        f"/projects/{two_orgs.a.project.id}/tasks", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.a.task.id) in ids
+    assert str(two_orgs.b.task.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_task_from_other_org_returns_404(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.get(
+        f"/tasks/{two_orgs.b.task.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_task_from_other_org_returns_404(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.patch(
+        f"/tasks/{two_orgs.b.task.id}",
+        json={"title": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_delete_task_from_other_org_returns_404_and_task_survives(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    response = await client.delete(
+        f"/tasks/{two_orgs.b.task.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+    await session.refresh(two_orgs.b.task)
+    assert two_orgs.b.task.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_sprints_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    project_a = await _seed_scrum_project(session, two_orgs.a.organization)
+    project_b = await _seed_scrum_project(session, two_orgs.b.organization)
+    sprint_a = await _seed_sprint(session, project_a)
+    sprint_b = await _seed_sprint(session, project_b)
+
+    response = await client.get(
+        f"/projects/{project_a.id}/sprints", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(sprint_a.id) in ids
+    assert str(sprint_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_sprint_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    sprint_b = await _seed_sprint(session, two_orgs.b.project)
+
+    response = await client.patch(
+        f"/sprints/{sprint_b.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_rename_board_column_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    board_b, column_b = await _seed_board(session, two_orgs.b.project)
+
+    response = await client.patch(
+        f"/boards/{board_b.id}/columns/{column_b.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_dependency_areas_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    area_a = await _seed_dependency_area(session, two_orgs.a.organization)
+    area_b = await _seed_dependency_area(session, two_orgs.b.organization)
+
+    response = await client.get(
+        "/admin/dependencies", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(area_a.id) in ids
+    assert str(area_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_dependency_area_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    area_b = await _seed_dependency_area(session, two_orgs.b.organization)
+
+    update_response = await client.patch(
+        f"/admin/dependencies/{area_b.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/dependencies/{area_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(area_b)
+    assert area_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_unlink_task_dependency_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    second_task_b = await _seed_second_task(session, two_orgs.b.project, two_orgs.b.user.id)
+    edge_b = await _seed_task_dependency(
+        session, two_orgs.b.organization, two_orgs.b.task, second_task_b
+    )
+
+    response = await client.delete(
+        f"/tasks/{two_orgs.a.task.id}/dependencies/{edge_b.id}",
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+    await session.refresh(edge_b)
+    assert edge_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_checklist_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    checklist_b = await _seed_checklist(session, two_orgs.b.organization, two_orgs.b.task)
+
+    update_response = await client.patch(
+        f"/checklists/{checklist_b.id}",
+        json={"title": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/checklists/{checklist_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(checklist_b)
+    assert checklist_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_checklist_item_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    checklist_b = await _seed_checklist(session, two_orgs.b.organization, two_orgs.b.task)
+    item_b = await _seed_checklist_item(session, two_orgs.b.organization, checklist_b)
+
+    update_response = await client.patch(
+        f"/checklist-items/{item_b.id}",
+        json={"text": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/checklist-items/{item_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(item_b)
+    assert item_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_time_log_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    log_b = await _seed_time_log(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    update_response = await client.patch(
+        f"/time-logs/{log_b.id}",
+        json={"note": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/time-logs/{log_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(log_b)
+    assert log_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_task_history_of_other_org_task_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    await _seed_task_history(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    response = await client.get(
+        f"/tasks/{two_orgs.b.task.id}/history", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_labels_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    label_a = await _seed_label(session, two_orgs.a.organization, two_orgs.a.project)
+    label_b = await _seed_label(session, two_orgs.b.organization, two_orgs.b.project)
+
+    response = await client.get(
+        f"/projects/{two_orgs.a.project.id}/labels", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(label_a.id) in ids
+    assert str(label_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_label_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    label_b = await _seed_label(session, two_orgs.b.organization, two_orgs.b.project)
+
+    update_response = await client.patch(
+        f"/labels/{label_b.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/labels/{label_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(label_b)
+    assert label_b.is_active is True
