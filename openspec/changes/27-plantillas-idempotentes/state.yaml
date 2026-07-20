@@ -42,9 +42,10 @@ apply_summary:
   suite_full: "1271 passed (baseline 1249 + 22 new)"
   migration_cycle: "upgrade head / downgrade -2 / upgrade head verified on a disposable db"
 verify_summary:
-  verdict: pass_with_warnings
-  critical: 1
+  verdict: pass
+  critical: 0
   warning: 3
   suggestion: 1
-  suite_full: "1271 passed, 0 failed (matches apply report exactly)"
-  blocker: "specs/org-role-templates/spec.md MODIFIED Requirement 'Idempotencia por reconciliacion' scenario 'Conflicto irreconciliable' has zero implementation and zero covering test"
+  suite_full: "1272 passed, 0 failed (1271 previous + 1 new closure-fix test)"
+  closure_fix_commit: "5fe9731a9b7c4441f3bfeba70e0f1b817c8d10fd"
+  closure_note: "CRITICAL resolved: _raise_if_irreconcilable_conflict rejects reinstantiation with 409 template_tree_conflict when a soft-deleted container node still has active children, detected read-only before any write. specs/org-role-templates/spec.md reconciled to the concrete implemented scenario. 3 WARNING + 1 SUGGESTION remain as documented non-blocking tech debt."

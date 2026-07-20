@@ -67,7 +67,7 @@ Los contratos de prueba del cambio 23 que verificaban duplicación por `lead_use
 
 ### Requirement: Idempotencia por reconciliación
 
-Reinstanciar la misma plantilla en la misma organización (clave `(organization_id, template_id, node_id)`, SIN `lead_user_id`) DEBE reconciliar: crear ÚNICAMENTE los nodos aún faltantes (por nombre bajo el padre esperado), reutilizar cada nodo ya generado sin importar el `lead_user_id` con el que se reinstancie, y NUNCA duplicar un proyecto ya generado por esa clave. Si el `lead_user_id` de la reinstanciación difiere del responsable actual del nodo, el sistema DEBE actualizar `Project.lead_user_id` y la fila del ledger al nuevo responsable en TODOS los proyectos reutilizados del árbol, en vez de crear un árbol paralelo. Un conflicto irreconciliable (ej. el proyecto referenciado por el ledger pertenece a otra organización o su historial es incompatible con el árbol esperado) DEBE rechazarse con un mensaje de error claro, sin modificar el árbol existente. La operación completa DEBE ejecutarse en una sola transacción.
+Reinstanciar la misma plantilla en la misma organización (clave `(organization_id, template_id, node_id)`, SIN `lead_user_id`) DEBE reconciliar: crear ÚNICAMENTE los nodos aún faltantes (por nombre bajo el padre esperado), reutilizar cada nodo ya generado sin importar el `lead_user_id` con el que se reinstancie, y NUNCA duplicar un proyecto ya generado por esa clave. Si el `lead_user_id` de la reinstanciación difiere del responsable actual del nodo, el sistema DEBE actualizar `Project.lead_user_id` y la fila del ledger al nuevo responsable en TODOS los proyectos reutilizados del árbol, en vez de crear un árbol paralelo. Un conflicto irreconciliable — cuando el historial del ledger es incompatible con el árbol que se va a reconciliar — DEBE rechazarse con un mensaje de error claro y un código específico (`template_tree_conflict`, HTTP 409), sin modificar el árbol existente ni el ledger. El caso concreto cubierto por esta versión: un nodo CONTENEDOR (`area`, con al menos un hijo en el árbol de la plantilla) cuyo proyecto del ledger ya no existe o fue soft-eliminado, mientras al menos uno de sus hijos activos sigue referenciándolo como padre — recrear el contenedor le daría un id nuevo, dejando a esos hijos activos apuntando a un proyecto muerto. Un nodo HOJA soft-eliminado NO es un conflicto: se recrea normalmente (ver escenario de reconciliación del nodo faltante). Otras variantes del conflicto (ej. un ledger apuntando a un proyecto de otra organización) quedan fuera del alcance de esta versión porque `ledger_for` ya filtra por `organization_id` a nivel de consulta y ese caso no es alcanzable hoy con el modelo de datos actual. La operación completa DEBE ejecutarse en una sola transacción.
 (Previously: la clave de idempotencia incluía `lead_user_id`; reinstanciar con un responsable distinto no encontraba ledger y recreaba el árbol completo duplicado.)
 
 #### Scenario: Reinstanciación con el mismo responsable es no-op
@@ -86,9 +86,9 @@ Reinstanciar la misma plantilla en la misma organización (clave `(organization_
 - ENTONCES se crea únicamente "PIGA" con ese `lead_user_id`, encadenado al padre correcto, sin duplicar el resto del árbol
 
 #### Scenario: Conflicto irreconciliable se rechaza sin modificar el árbol
-- DADO un nodo cuyo estado impide reconciliar de forma segura
-- CUANDO se intenta reinstanciar esa plantilla
-- ENTONCES la operación se rechaza con un mensaje de error específico y ningún proyecto del árbol existente se modifica
+- DADO un árbol instanciado donde el nodo contenedor raíz (ej. "Planeación") fue soft-eliminado mientras sus equipos hijos permanecen activos
+- CUANDO se intenta reinstanciar esa plantilla con cualquier `lead_user_id`
+- ENTONCES la operación se rechaza con `409 template_tree_conflict`, sin crear proyectos nuevos, sin reconciliar ningún lead y sin modificar una sola fila del ledger existente
 
 #### Scenario: Fallo a mitad de instanciación no deja proyectos parciales
 - DADO una instanciación que falla al crear el cuarto de cinco proyectos

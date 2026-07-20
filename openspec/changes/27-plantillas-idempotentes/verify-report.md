@@ -202,3 +202,64 @@ No se encontraron patrones prohibidos (tautologías, loops fantasma sobre colecc
 
 ### Verdict
 **PASS WITH WARNINGS** — bloqueado para archivo por 1 hallazgo CRITICAL: el escenario de spec "conflicto irreconciliable" carece de implementación y de test. El resto del cambio (suite completa 1271/1271 en verde, contrato de idempotencia por reconciliación con match por ledger nunca por nombre, migración 0023 con dedup/no-op/empate/downgrade probados, `project_kind` por topología del nodo, filtro retrocompatible, aislamiento cross-tenant y contratos del cambio 23 intactos, ciclo real `upgrade/downgrade/upgrade` limpio) está sólidamente verificado y en verde.
+
+---
+
+## Verify de cierre
+
+**Fecha**: 2026-07-20
+**Evidence revision**: `git:5fe9731a9b7c4441f3bfeba70e0f1b817c8d10fd`
+**Alcance**: verify ACOTADO de corrección — no repite el verify completo anterior (#1898); solo evalúa la corrección aplicada en el commit `5fe9731` sobre el 1 CRITICAL bloqueante.
+
+### 1. Corrección auditada
+
+Commit `5fe9731a9b7c4441f3bfeba70e0f1b817c8d10fd` — `fix(org-role-templates): rechaza reinstanciar cuando un contenedor soft-eliminado tiene hijos activos`. Toca `backend/app/modules/org_role_templates/service.py` (+84/−4), `backend/tests/test_org_role_templates_api.py` (+85 nuevas), `openspec/changes/27-plantillas-idempotentes/tasks.md` (Fase 7, 3 ítems: 7.1 RED, 7.2 GREEN, 7.3 suite completa).
+
+**Test nuevo** (`test_reinstantiate_after_soft_deleting_root_with_active_children_rejects_conflict`): instancia "Jefe de Planeación" (sombrilla "Planeación" + 4 equipos), soft-elimina la sombrilla (`is_active = False`), reinstancia con OTRO responsable. Confirmado por lectura línea a línea:
+- `assert second.status_code == 409` y `assert second.json()["code"] == "template_tree_conflict"`.
+- Cero proyectos nuevos: solo sigue existiendo UNA fila `Project.name == "Planeación"` (la soft-eliminada, sin reemplazo).
+- Cero reconciliación de lead: los 4 equipos hijos conservan `lead_user_id == new_user.id` (el responsable ORIGINAL), nunca el de la instanciación rechazada.
+- Ledger intacto byte a byte: snapshot `(project_id, lead_user_id)` de cada fila ANTES == snapshot DESPUÉS de la llamada rechazada.
+
+**Implementación** (`_raise_if_irreconcilable_conflict`, método estático, y su invocación en `_reconcile_and_commit`):
+- **Detección ANTES de cualquier escritura**: se invoca en la línea 264 de `service.py`, inmediatamente después de construir `active_by_node` (lookup de solo lectura) y ANTES del bucle principal (líneas 266-319) que crea proyectos, actualiza el ledger y hace `commit()`. La función en sí solo lee `nodes`, `containers`, `ledger` y `active_by_node` — no ejecuta ningún `db.add`/mutación. Tampoco hay escrituras previas en `instantiate()` (líneas 199-230): solo lecturas (`get_visible`, `is_org_member`, `nodes_for_template`) antes de delegar a `_reconcile_and_commit`.
+- **409 con código claro**: `AppException(..., code="template_tree_conflict", status_code=409)`, mensaje en español colombiano formal ("Restaura ese proyecto o contacta al administrador" — tuteo correcto, sin voseo).
+- **Cero efectos al rechazar**: al levantar la excepción antes del bucle de escritura, no hay `db.add()`, no hay mutación de `lead_user_id` en memoria y no hay `commit()` — no se requiere rollback explícito porque nunca hubo nada que revertir. El test lo corrobora empíricamente (ledger/proyectos/leads sin cambios).
+- **Regla correctamente acotada**: solo nodos CONTENEDOR (`area`, con al menos un hijo en el árbol) cuyo proyecto del ledger ya no está activo Y con al menos un hijo activo disparan el 409. Un nodo HOJA soft-eliminado sigue el camino normal de reconciliación (recreación in situ) — el test preexistente `test_reinstantiate_after_soft_deleting_piga_recreates_only_that_node` permanece intacto y verde, confirmando que la nueva rama no interfiere con el escenario ya cubierto.
+
+**Veredicto de la corrección**: ✅ implementación y test cumplen exactamente lo que exigía el CRITICAL — detección read-only antes de cualquier escritura, rechazo con código específico, cero efectos secundarios.
+
+### 2. Acotación del escenario de spec — evaluación y reconciliación documental
+
+El texto de `specs/org-role-templates/spec.md` (Requirement MODIFIED "Idempotencia por reconciliación") usaba, ANTES de esta corrección, un ejemplo genérico ("el proyecto referenciado por el ledger pertenece a otra organización o su historial es incompatible con el árbol esperado") que el verify anterior (#1898) ya había señalado como irrealizable en la práctica hoy (`ledger_for` filtra por `organization_id` a nivel de consulta SQL, así que un ledger de otra organización nunca puede aparecer). El escenario asociado (líneas 88-91) tampoco tenía un caso concreto: "DADO un nodo cuyo estado impide reconciliar de forma segura".
+
+**Evaluación**: el caso concreto implementado (contenedor soft-eliminado con al menos un hijo activo) es una instancia real y alcanzable de "el historial del ledger es incompatible con el árbol esperado" — la cláusula general de la Requirement. Satisface la letra y el espíritu del requisito: un conflicto irreconciliable se rechaza con mensaje claro sin tocar el árbol. La acotación es legítima porque el propio spec (nota "Learned" guardada en Engram al momento de escribir el spec) ya admitía que no tenía "un caso concreto identificado en el código actual" — quedó modelado como salvaguarda genérica. Ahora sí tiene uno, y es el único alcanzable con el modelo de datos vigente.
+
+**Acción tomada**: edité `specs/org-role-templates/spec.md` yo mismo (reconciliación documental de cierre, sin cambiar el comportamiento ni requerir un nuevo ciclo de apply):
+- La oración de la Requirement (línea 70) ahora nombra el código de error (`template_tree_conflict`, HTTP 409), describe el caso concreto (contenedor soft-eliminado con hijo activo) y aclara explícitamente que la variante "otra organización" queda fuera de alcance de esta versión porque no es alcanzable hoy con el modelo de datos actual.
+- El Scenario (líneas 88-91) pasó de un DADO abstracto ("un nodo cuyo estado impide reconciliar de forma segura") a uno concreto y trazable al test real: contenedor raíz soft-eliminado con hijos activos → `409 template_tree_conflict` → cero proyectos nuevos, cero reconciliación de lead, ledger intacto.
+
+Esto es reconciliación documental (el spec ahora describe con precisión lo que el sistema realmente hace y lo que el test realmente prueba), no un cambio de alcance funcional ni una relajación del requisito.
+
+### 3. Suite completa — corrida única de cierre
+
+```text
+$ cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test \
+    .venv/bin/python -m pytest -q
+1272 passed, 1 warning in 347.23s (0:05:47)
+```
+Exit code 0. **1272 passed, 0 failed** — exactamente 1271 (verify anterior) + 1 nuevo (`test_reinstantiate_after_soft_deleting_root_with_active_children_rejects_conflict`). El único warning es el `SAWarning` preexistente de Alembic sobre ciclos de FK entre `dependencies`/`organizations`/`users` (no relacionado con este cambio, ya presente en corridas anteriores).
+
+`ruff check backend/app/modules/org_role_templates/service.py backend/tests/test_org_role_templates_api.py` → `All checks passed!`.
+
+### 4. Veredicto final
+
+| Hallazgo | Estado en verify anterior (#1898) | Estado en verify de cierre |
+|---|---|---|
+| CRITICAL-1 (conflicto irreconciliable sin implementar/testear) | ❌ Bloqueante | ✅ **RESUELTO** — implementado (`_raise_if_irreconcilable_conflict`), testeado (409 + cero efectos), spec.md reconciliado documentalmente al caso concreto |
+| WARNING-1 (empate reportado por `warnings.warn` efímero) | ⚠️ No bloqueante | ⚠️ Sigue documentado, no bloqueante — deuda técnica consciente para antes de correr contra datos reales de producción |
+| WARNING-2 (bookkeeping "6 commits" vs. 5 reales) | ⚠️ No bloqueante | ⚠️ Sigue como discrepancia de bookkeeping sin impacto funcional — `git log preview..feat/plantillas-idempotentes` muestra ahora 7 commits (`dfe4513`, `0033ca7`, `712bb27`, `11172bc`, `4abeb9c`, `fc896bb` docs del verify anterior, `5fe9731` corrección de esta Fase 7); ninguno de los conteos históricos (5, 6 o 7) coincide exactamente entre sí porque cada verify agrega su propio commit de reporte, sin impacto funcional |
+| WARNING-3 ("tasks.md 43/43" esperado vs. 34 reales) | ⚠️ No bloqueante | ⚠️ Sigue como expectativa desactualizada, no defecto — `tasks.md` ahora tiene 37 ítems `- [x]` (34 + Fase 7: 3), todos coherentes |
+| SUGGESTION-1 (interpolación SQL cruda en 0023) | 💡 No bloqueante | 💡 Sin cambios, sigue como mejora menor sugerida |
+
+**PASS** — el bloqueo CRITICAL queda resuelto con implementación + test + reconciliación documental del spec. Los 3 WARNING y 1 SUGGESTION restantes quedan documentados como deuda técnica consciente, no bloqueante para archivar. Suite completa en verde (1272/1272), lint limpio, ciclo de migraciones ya verificado en el verify anterior (sin cambios en migraciones en esta corrección). **Recomendación: proceder a `sdd-archive`.**
