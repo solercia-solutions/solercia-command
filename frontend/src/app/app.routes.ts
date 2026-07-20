@@ -64,6 +64,14 @@ export const routes: Routes = [
       import('@pages/teams/teams.component').then((m) => m.TeamsComponent),
   },
   {
+    path: 'connections',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@pages/connections/connections.component').then(
+        (m) => m.ConnectionsComponent,
+      ),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard],
     loadChildren: () =>

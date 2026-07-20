@@ -280,6 +280,109 @@
     },
     "yAxisCaption": "Eje vertical: {{ unit }} restantes"
   },
+  "connectors": {
+    "accounts": {
+      "empty": "Sin cuentas conectadas.",
+      "heading": "Cuentas conectadas",
+      "loadError": "No se pudieron cargar las cuentas de este conector.",
+      "revoke": "Revocar",
+      "revokeAria": "Revocar la cuenta {{ name }}",
+      "revokeError": "No se pudo revocar la cuenta. Inténtalo de nuevo.",
+      "revoked": "La cuenta se revocó correctamente."
+    },
+    "banner": {
+      "connected": "La cuenta se conectó correctamente.",
+      "error": "No fue posible conectar la cuenta ({{ code }}). Inténtalo de nuevo."
+    },
+    "connect": "Conectar cuenta",
+    "connectAria": "Conectar una cuenta de {{ provider }}",
+    "create": {
+      "cancel": "Cancelar",
+      "mcpBaseUrlLabel": "URL base del servidor MCP",
+      "mcpBaseUrlPlaceholder": "https://mcp.ejemplo.com",
+      "mcpBaseUrlRequired": "Ingresa la URL base del servidor MCP.",
+      "mcpTokenLabel": "Token (opcional)",
+      "mcpTokenPlaceholder": "Token bearer estático",
+      "open": "Nuevo conector",
+      "providerLabel": "Proveedor",
+      "providerPlaceholder": "Selecciona un proveedor",
+      "providerRequired": "Selecciona un proveedor para continuar.",
+      "submit": "Crear conector",
+      "submitting": "Creando…",
+      "success": "Conector creado.",
+      "title": "Nuevo conector"
+    },
+    "credentials": {
+      "cancel": "Cancelar",
+      "error": "No se pudieron registrar las credenciales. Verifica los datos.",
+      "fields": {
+        "baseUrl": "URL base",
+        "baseUrlPlaceholder": "https://servicio.ejemplo.com",
+        "email": "Correo electrónico",
+        "emailPlaceholder": "usuario@ejemplo.com",
+        "glpiAppToken": "App token",
+        "glpiUserToken": "User token",
+        "jiraApiToken": "API token"
+      },
+      "open": "Registrar credenciales",
+      "openAria": "Registrar credenciales para {{ provider }}",
+      "required": "Completa todos los campos obligatorios.",
+      "submit": "Guardar credenciales",
+      "submitting": "Validando…",
+      "success": "Credenciales registradas.",
+      "title": "Credenciales de {{ provider }}"
+    },
+    "delete": {
+      "action": "Eliminar",
+      "ariaLabel": "Eliminar el conector {{ provider }}",
+      "error": "No se pudo eliminar el conector. Inténtalo de nuevo.",
+      "success": "Conector eliminado."
+    },
+    "empty": {
+      "subtitle": "Crea un conector para integrar Outlook, Gmail, Jira, GLPI o un servidor MCP.",
+      "title": "Aún no hay conexiones configuradas."
+    },
+    "errors": {
+      "create": "No se pudo crear el conector. Verifica los datos.",
+      "load": "No se pudieron cargar las conexiones. Inténtalo más tarde.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "session": "Tu sesión expiró. Inicia sesión nuevamente."
+    },
+    "jiraImport": {
+      "columns": {
+        "assignee": "Asignado",
+        "key": "Clave",
+        "points": "Puntos",
+        "priority": "Prioridad",
+        "status": "Estado",
+        "title": "Título",
+        "type": "Tipo"
+      },
+      "error": "No se pudo procesar el archivo. Verifica el formato CSV/XLSX.",
+      "fileHint": "CSV o XLSX exportado desde Jira (máximo 10 MB).",
+      "fileLabel": "Archivo de export de Jira",
+      "open": "Importar archivo",
+      "openAria": "Importar un archivo de Jira para {{ provider }}",
+      "preview": "Vista previa ({{ normalized }} de {{ total }} issues normalizados). Nada se guarda todavía.",
+      "submit": "Procesar archivo",
+      "submitting": "Procesando…",
+      "title": "Importar archivo de Jira"
+    },
+    "kind": {
+      "api_token": "Token de API",
+      "none": "Sin credenciales",
+      "oauth": "OAuth"
+    },
+    "loading": "Cargando conexiones…",
+    "status": {
+      "active": "Activo",
+      "error": "Con error",
+      "inactive": "Inactivo",
+      "revoked": "Revocada"
+    },
+    "subtitle": "Administra los conectores de la organización: Outlook, Gmail, Jira, GLPI, MCP y el proveedor de demostración.",
+    "title": "Conexiones"
+  },
   "executive": {
     "byAssignee": {
       "activeCount": "{{ count }} activas",
