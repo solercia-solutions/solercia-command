@@ -414,18 +414,36 @@
       "subtitle": "Crea tu primer proyecto para empezar a organizar el trabajo.",
       "title": "Todavía no tienes proyectos."
     },
+    "edit": {
+      "openAria": "Edita el proyecto {{ name }}",
+      "save": "Guardar cambios",
+      "title": "Editar proyecto"
+    },
     "errors": {
+      "codeTaken": "Ese código ya lo usa otro proyecto de tu organización.",
       "create": "No se pudo crear el proyecto. Revisa los datos e inténtalo de nuevo.",
+      "forbidden": "No tienes permisos para editar este proyecto.",
       "load": "No se pudieron cargar los proyectos. Inténtalo más tarde.",
-      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+      "maxDepth": "La jerarquía superó la profundidad máxima permitida.",
+      "methodologyNotEditable": "La metodología no se puede cambiar después de crear el proyecto.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "parentNotFound": "El proyecto padre seleccionado ya no existe.",
+      "projectCycle": "No puedes mover el proyecto dentro de su propio subárbol.",
+      "selfParent": "Un proyecto no puede ser su propio padre.",
+      "update": "No se pudo actualizar el proyecto. Revisa los datos e inténtalo de nuevo."
     },
     "form": {
+      "codeLabel": "Código",
+      "codePlaceholder": "Ej. PLT (opcional, 2-10 letras o números)",
       "descriptionLabel": "Descripción",
       "descriptionPlaceholder": "Describe brevemente el objetivo (opcional)",
       "methodologyLabel": "Metodología",
       "nameLabel": "Nombre",
       "namePlaceholder": "Ej. Plataforma de pagos",
       "nameRequired": "El nombre es obligatorio.",
+      "parentLabel": "Proyecto padre",
+      "parentNone": "Sin padre (raíz)",
+      "parentPlaceholder": "Selecciona el proyecto padre (opcional)",
       "title": "Crea tu proyecto"
     },
     "loading": "Cargando proyectos…",
@@ -440,6 +458,9 @@
     }
   },
   "shared": {
+    "drawer": {
+      "closeAria": "Cierra el panel"
+    },
     "nav": {
       "more": "Más"
     },

@@ -26,6 +26,8 @@ export interface Project {
   status: string;
   organization_id: string;
   created_at: string;
+  /** Short uppercase code (2-10 alphanumeric); auto-generated when omitted. */
+  code?: string | null;
   /** Parent in the hierarchy (change 21-project-hierarchy); null = root. */
   parent_project_id: string | null;
   /** Present on GET /projects and GET /projects/:id responses. */
@@ -57,6 +59,19 @@ export interface CreateProjectPayload {
   name: string;
   description?: string | null;
   methodology: Methodology;
+  /** Optional parent in the hierarchy; omitted/null creates a root project. */
+  parent_project_id?: string | null;
+}
+
+/**
+ * Partial payload for `PATCH /projects/:id`. Only the provided keys are
+ * applied server-side; `methodology` is intentionally NOT editable (the
+ * backend rejects it with 422 `methodology_not_editable`).
+ */
+export interface UpdateProjectPayload {
+  name?: string;
+  description?: string | null;
+  code?: string;
 }
 
 /** Spanish (Colombian formal) labels for each methodology. */
