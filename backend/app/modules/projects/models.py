@@ -1,10 +1,21 @@
 """Project ORM model."""
 
 import uuid
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -89,6 +100,19 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
         SAEnum(ProjectKind, name="project_kind", native_enum=False, length=20),
         default=ProjectKind.proyecto,
         nullable=False,
+    )
+    # Override de calendario laboral del equipo (change 28-calendario-
+    # laboral): SOLO el proyecto raíz (``parent_project_id is None``) puede
+    # tener valores no nulos aquí — la validación vive en
+    # ``WorkCalendarService.set_project_override`` (regla ``override_
+    # requires_root``), nunca en este modelo. ``NULL`` = hereda el
+    # calendario de la organización (o el default global). Ambas columnas
+    # nullable, sin default: ``POST /projects`` nunca las rellena.
+    working_hours_per_day: Mapped[Decimal | None] = mapped_column(
+        Numeric(4, 2), nullable=True
+    )
+    working_days: Mapped[list[int] | None] = mapped_column(
+        ARRAY(Integer), nullable=True
     )
 
     if TYPE_CHECKING:
