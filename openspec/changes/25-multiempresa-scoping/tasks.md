@@ -49,8 +49,8 @@ Chain strategy: size-exception
 
 ## Fase 3 — Colaboración, 4 módulos (Commit 3)
 
-- [ ] 3.1 [RED] Mismo contrato (listado/detalle-404/update-delete) para comments, attachments, notifications, reminders. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "comments or attachments or notifications or reminders" -v`
-- [ ] 3.2 Registrar fugas si aparecen (mismo bloque de 2.2).
+- [x] 3.1 [RED] Mismo contrato (listado/detalle-404/update-delete) para comments, attachments, notifications, reminders. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 26/26 verdes (comments/attachments/reminders sin fuga; notifications reutiliza la `two_orgs.notification` existente).
+- [x] 3.2 Ninguna fuga detectada. `attachments` no tiene endpoints de update/delete (solo listado + descarga); la descarga cross-tenant también resuelve 404 (`AttachmentService.get_attachment_for_download` filtra por `organization_id`).
 
 ## Fase 4 — Personas, permisos y superficie global, 4 módulos (Commit 4)
 

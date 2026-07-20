@@ -28,7 +28,7 @@ rompe la suite y fuerza triaje.
 
 import os
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -280,6 +280,52 @@ async def _seed_label(session: AsyncSession, organization, project):
     session.add(label)
     await session.flush()
     return label
+
+
+async def _seed_comment(session: AsyncSession, organization, task, author):
+    from app.modules.comments.models import TaskComment
+
+    comment = TaskComment(
+        organization_id=organization.id,
+        task_id=task.id,
+        author_id=author.id,
+        body="Comentario de prueba",
+    )
+    session.add(comment)
+    await session.flush()
+    return comment
+
+
+async def _seed_attachment(session: AsyncSession, organization, task, uploader):
+    from app.modules.attachments.models import Attachment
+
+    attachment = Attachment(
+        organization_id=organization.id,
+        target_type="task",
+        target_id=task.id,
+        original_name="archivo.txt",
+        stored_name=str(uuid.uuid4()),
+        content_type="text/plain",
+        size_bytes=10,
+        uploaded_by=uploader.id,
+    )
+    session.add(attachment)
+    await session.flush()
+    return attachment
+
+
+async def _seed_reminder(session: AsyncSession, organization, user):
+    from app.modules.reminders.models import Reminder
+
+    reminder = Reminder(
+        organization_id=organization.id,
+        user_id=user.id,
+        remind_at=datetime.now(UTC) + timedelta(days=1),
+        message="Recordatorio de prueba",
+    )
+    session.add(reminder)
+    await session.flush()
+    return reminder
 
 
 # ---------------------------------------------------------------------------
@@ -597,3 +643,157 @@ async def test_update_and_delete_label_from_other_org_return_404(
     assert delete_response.status_code == 404
     await session.refresh(label_b)
     assert label_b.is_active is True
+
+
+# ---------------------------------------------------------------------------
+# Fase 3 — Colaboración (tasks.md, Commit 3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_comments_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    comment_a = await _seed_comment(
+        session, two_orgs.a.organization, two_orgs.a.task, two_orgs.a.user
+    )
+    comment_b = await _seed_comment(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    response = await client.get(
+        f"/tasks/{two_orgs.a.task.id}/comments", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(comment_a.id) in ids
+    assert str(comment_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_comment_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    comment_b = await _seed_comment(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    update_response = await client.patch(
+        f"/comments/{comment_b.id}",
+        json={"body": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/comments/{comment_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(comment_b)
+    assert comment_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_attachments_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    attachment_a = await _seed_attachment(
+        session, two_orgs.a.organization, two_orgs.a.task, two_orgs.a.user
+    )
+    attachment_b = await _seed_attachment(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    response = await client.get(
+        f"/tasks/{two_orgs.a.task.id}/attachments", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(attachment_a.id) in ids
+    assert str(attachment_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_download_attachment_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    attachment_b = await _seed_attachment(
+        session, two_orgs.b.organization, two_orgs.b.task, two_orgs.b.user
+    )
+
+    response = await client.get(
+        f"/attachments/{attachment_b.id}/download", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_notifications_only_returns_callers_organization(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.get("/notifications", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.a.notification.id) in ids
+    assert str(two_orgs.b.notification.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_notification_status_from_other_org_returns_404(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.patch(
+        f"/notifications/{two_orgs.b.notification.id}",
+        json={"status": "read"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_reminders_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    reminder_a = await _seed_reminder(session, two_orgs.a.organization, two_orgs.a.user)
+    reminder_b = await _seed_reminder(session, two_orgs.b.organization, two_orgs.b.user)
+
+    response = await client.get("/reminders", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(reminder_a.id) in ids
+    assert str(reminder_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_reminder_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    reminder_b = await _seed_reminder(session, two_orgs.b.organization, two_orgs.b.user)
+
+    update_response = await client.patch(
+        f"/reminders/{reminder_b.id}",
+        json={"message": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/reminders/{reminder_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(reminder_b)
+    assert reminder_b.is_active is True
