@@ -17,9 +17,11 @@ from app.modules.org_role_templates.seeder import ensure_system_templates
 from app.modules.org_role_templates.service import (
     OrgRoleTemplateService,
     build_project_create,
+    container_node_ids,
     order_parent_first,
+    project_kind_for_node,
 )
-from app.shared.enums import Methodology
+from app.shared.enums import Methodology, ProjectKind
 from app.shared.exceptions import AppException
 
 try:
@@ -120,13 +122,17 @@ def test_build_project_create_maps_node_lead_and_parent() -> None:
     parent_project_id = uuid.uuid4()
 
     data = build_project_create(
-        node, lead_user_id=lead_user_id, parent_project_id=parent_project_id
+        node,
+        lead_user_id=lead_user_id,
+        parent_project_id=parent_project_id,
+        project_kind=ProjectKind.area,
     )
 
     assert data.name == "Tesorería"
     assert data.methodology == Methodology.planner
     assert data.lead_user_id == lead_user_id
     assert data.parent_project_id == parent_project_id
+    assert data.project_kind == ProjectKind.area
 
 
 def test_build_project_create_root_node_has_no_parent_project() -> None:
@@ -143,12 +149,106 @@ def test_build_project_create_root_node_has_no_parent_project() -> None:
     lead_user_id = uuid.uuid4()
 
     data = build_project_create(
-        node, lead_user_id=lead_user_id, parent_project_id=None
+        node,
+        lead_user_id=lead_user_id,
+        parent_project_id=None,
+        project_kind=ProjectKind.proyecto,
     )
 
     assert data.name == "Gestión Corporativa"
     assert data.parent_project_id is None
     assert data.lead_user_id == lead_user_id
+    assert data.project_kind == ProjectKind.proyecto
+
+
+# ---------------------------------------------------------------------------
+# container_node_ids / project_kind_for_node — pure functions, sin BD
+# ---------------------------------------------------------------------------
+
+
+def test_container_node_ids_returns_every_node_with_at_least_one_child() -> None:
+    """Jefe OAP‑TI shape: umbrella + 2 branches son contenedores; los equipos
+    (hojas) no."""
+
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="OAP‑TI", order=0
+    )
+    planeacion = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Planeación", order=0
+    )
+    tecnologia = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Tecnología", order=1
+    )
+    mipg = _node(
+        template_id=template_id, parent_node_id=planeacion.id, name="MIPG", order=0
+    )
+
+    containers = container_node_ids([umbrella, planeacion, tecnologia, mipg])
+
+    assert containers == {umbrella.id, planeacion.id}
+
+
+def test_container_node_ids_of_a_flat_template_is_only_the_umbrella() -> None:
+    """A DIFFERENT shape (flat, one level) than the previous test —
+    triangulation: only the umbrella has children, the 2 teams don't."""
+
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="Planeación", order=0
+    )
+    mipg = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="MIPG", order=0
+    )
+    piga = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="PIGA", order=1
+    )
+
+    containers = container_node_ids([umbrella, mipg, piga])
+
+    assert containers == {umbrella.id}
+
+
+def test_project_kind_for_node_is_area_when_node_is_a_container() -> None:
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="OAP‑TI", order=0
+    )
+    child = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Planeación", order=0
+    )
+
+    containers = container_node_ids([umbrella, child])
+
+    assert project_kind_for_node(umbrella, containers) == ProjectKind.area
+
+
+def test_project_kind_for_node_is_proyecto_when_node_is_a_leaf() -> None:
+    template_id = uuid.uuid4()
+    umbrella = _node(
+        template_id=template_id, parent_node_id=None, name="OAP‑TI", order=0
+    )
+    child = _node(
+        template_id=template_id, parent_node_id=umbrella.id, name="Planeación", order=0
+    )
+
+    containers = container_node_ids([umbrella, child])
+
+    assert project_kind_for_node(child, containers) == ProjectKind.proyecto
+
+
+def test_project_kind_for_node_of_a_single_node_template_is_proyecto() -> None:
+    """Plantilla de un solo nodo (ej. "Equipo de desarrollo"): sin hijos ni
+    padre -> proyecto."""
+
+    template_id = uuid.uuid4()
+    solo = _node(
+        template_id=template_id, parent_node_id=None, name="Desarrollo", order=0
+    )
+
+    containers = container_node_ids([solo])
+
+    assert project_kind_for_node(solo, containers) == ProjectKind.proyecto
 
 
 # ---------------------------------------------------------------------------

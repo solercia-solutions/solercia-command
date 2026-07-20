@@ -16,6 +16,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from app.modules.org_role_templates.models import OrgRoleTemplateInstantiation
 from app.modules.org_role_templates.seeder import ensure_system_templates
 from app.modules.organizations.models import OrganizationMember
 from app.modules.projects.models import Project
@@ -157,6 +158,69 @@ async def test_instantiate_jefe_oap_ti_creates_eleven_projects_across_three_leve
     branch_ids = {b["id"] for b in branches}
     teams = [row for row in rows if row["parent_project_id"] in branch_ids]
     assert len(teams) == 8
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_instantiate_jefe_oap_ti_assigns_area_to_umbrella_and_branches_proyecto_to_teams(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """Change 27-plantillas-idempotentes: la sombrilla y las 2 ramas
+    (nodos con hijos) quedan `project_kind = area`; los 8 equipos (hojas)
+    quedan `project_kind = proyecto` — spec 'Nodo con hijos queda como area'
+    / 'Nodo hoja queda como proyecto'."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe OAP‑TI")
+
+    response = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(new_user.id)},
+        headers=_auth(admin_token),
+    )
+
+    assert response.status_code == 201, response.text
+    rows = response.json()["data"]
+    root_id = next(row["id"] for row in rows if row["parent_project_id"] is None)
+    branch_ids = {
+        row["id"] for row in rows if row["parent_project_id"] == root_id
+    }
+    containers = {root_id} | branch_ids
+    leaves = {row["id"] for row in rows} - containers
+
+    for row in rows:
+        expected = "area" if row["id"] in containers else "proyecto"
+        assert row["project_kind"] == expected, row
+    assert len(leaves) == 8
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_instantiate_single_node_template_assigns_proyecto(
+    client: AsyncClient, session: AsyncSession, tenant, make_member
+) -> None:
+    """"Equipo de desarrollo" (solo sombrilla, sin hijos) queda
+    `project_kind = proyecto` — spec 'Plantilla de un solo nodo queda como
+    proyecto'."""
+
+    await ensure_system_templates(session)
+    manager, manager_token = await make_member(session, tenant, MemberRole.manager)
+    template_id = await _template_id_by_name(
+        client, manager_token, "Equipo de desarrollo"
+    )
+
+    response = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(manager.id)},
+        headers=_auth(manager_token),
+    )
+
+    assert response.status_code == 201, response.text
+    rows = response.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["project_kind"] == "proyecto"
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +397,210 @@ async def test_reinstantiate_after_soft_deleting_piga_recreates_only_that_node(
         "Planeación presupuestal",
     ):
         assert second_rows[name] == first_rows[name]  # reusados — MISMO id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_reinstantiate_with_different_lead_reconciles_the_whole_tree_instead_of_duplicating(
+    client: AsyncClient, session: AsyncSession, tenant, user, make_member
+) -> None:
+    """Change 27-plantillas-idempotentes: reinstanciar con OTRO responsable
+    reconcilia el árbol existente — NUNCA lo duplica (clave sin
+    `lead_user_id`, design.md Decisión 1)."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    lead_a, _ = await make_member(session, tenant, MemberRole.member)
+    lead_b, _ = await make_member(session, tenant, MemberRole.member)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe de Planeación")
+
+    first = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_a.id)},
+        headers=_auth(admin_token),
+    )
+    second = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_b.id)},
+        headers=_auth(admin_token),
+    )
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    first_ids = {row["id"] for row in first.json()["data"]}
+    second_ids = {row["id"] for row in second.json()["data"]}
+    assert first_ids == second_ids  # UN solo árbol — nunca se duplica
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_reinstantiate_with_different_lead_reconciles_lead_on_every_node(
+    client: AsyncClient, session: AsyncSession, tenant, user, make_member
+) -> None:
+    """Tras reinstanciar con OTRO responsable, `Project.lead_user_id` Y la
+    fila del ledger de CADA nodo quedan reconciliadas al nuevo responsable."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    lead_a, _ = await make_member(session, tenant, MemberRole.member)
+    lead_b, _ = await make_member(session, tenant, MemberRole.member)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe de Planeación")
+
+    await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_a.id)},
+        headers=_auth(admin_token),
+    )
+    second = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_b.id)},
+        headers=_auth(admin_token),
+    )
+    assert second.status_code == 201, second.text
+    second_ids = {uuid.UUID(row["id"]) for row in second.json()["data"]}
+
+    projects_result = await session.execute(
+        select(Project).where(Project.id.in_(second_ids))
+    )
+    for project in projects_result.scalars().all():
+        assert project.lead_user_id == lead_b.id
+
+    ledger_result = await session.execute(
+        select(OrgRoleTemplateInstantiation).where(
+            OrgRoleTemplateInstantiation.project_id.in_(second_ids)
+        )
+    )
+    ledger_rows = ledger_result.scalars().all()
+    assert len(ledger_rows) == len(second_ids)
+    for ledger_row in ledger_rows:
+        assert ledger_row.lead_user_id == lead_b.id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_reinstantiate_preserves_a_user_edited_project_name(
+    client: AsyncClient, session: AsyncSession, tenant, user, make_member
+) -> None:
+    """El match de reconciliación es SIEMPRE por ledger (`template_id` +
+    `node_id`), NUNCA por nombre: un nombre editado manualmente (simulando la
+    edición del cambio 36, fuera de alcance) se conserva al reinstanciar con
+    cualquier responsable."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    lead_a, _ = await make_member(session, tenant, MemberRole.member)
+    lead_b, _ = await make_member(session, tenant, MemberRole.member)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe de Planeación")
+
+    first = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_a.id)},
+        headers=_auth(admin_token),
+    )
+    first_rows = {row["name"]: row["id"] for row in first.json()["data"]}
+    piga_id = uuid.UUID(first_rows["PIGA"])
+
+    piga_result = await session.execute(select(Project).where(Project.id == piga_id))
+    piga = piga_result.scalar_one()
+    piga.name = "PIGA Editado Manualmente"
+    await session.flush()
+
+    second = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_b.id)},
+        headers=_auth(admin_token),
+    )
+    assert second.status_code == 201, second.text
+    second_row = next(row for row in second.json()["data"] if row["id"] == str(piga_id))
+    assert second_row["name"] == "PIGA Editado Manualmente"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_reinstantiate_after_soft_deleting_root_with_active_children_rejects_conflict(
+    client: AsyncClient, session: AsyncSession, tenant, user, make_member
+) -> None:
+    """Change 27-plantillas-idempotentes: conflicto irreconciliable. Si el
+    ledger apunta a un proyecto CONTENEDOR (con hijos activos en el árbol)
+    que ya no existe o fue soft-eliminado, reinstanciar NO lo recrea en
+    silencio — se rechaza COMPLETO con 409 `template_tree_conflict`, sin
+    modificar nada del árbol (a diferencia de un nodo HOJA soft-eliminado,
+    que sí se recrea sin duplicar el resto — ver
+    ``test_reinstantiate_after_soft_deleting_piga_recreates_only_that_node``).
+    Recrear la sombrilla con un id nuevo dejaría a sus 4 equipos activos
+    apuntando (`parent_project_id`) a un proyecto muerto: historial
+    incompatible con el árbol esperado (spec.md, Requirement MODIFIED
+    "Idempotencia por reconciliación")."""
+
+    await ensure_system_templates(session)
+    new_user, admin_token = user
+    await _promote_to_admin(session, new_user.id)
+    lead_b, _ = await make_member(session, tenant, MemberRole.member)
+    template_id = await _template_id_by_name(client, admin_token, "Jefe de Planeación")
+
+    first = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(new_user.id)},
+        headers=_auth(admin_token),
+    )
+    first_rows = {row["name"]: row["id"] for row in first.json()["data"]}
+
+    root_result = await session.execute(
+        select(Project).where(Project.id == uuid.UUID(first_rows["Planeación"]))
+    )
+    root = root_result.scalar_one()
+    root.is_active = False
+    await session.flush()
+
+    ledger_before = await session.execute(select(OrgRoleTemplateInstantiation))
+    ledger_snapshot_before = {
+        row.id: (row.project_id, row.lead_user_id)
+        for row in ledger_before.scalars().all()
+    }
+
+    second = await client.post(
+        f"/org-role-templates/{template_id}/instantiate",
+        json={"lead_user_id": str(lead_b.id)},
+        headers=_auth(admin_token),
+    )
+
+    assert second.status_code == 409, second.text
+    assert second.json()["code"] == "template_tree_conflict"
+
+    # Ningún proyecto nuevo: la sombrilla soft-eliminada sigue siendo la
+    # ÚNICA fila "Planeación" (no hay un reemplazo).
+    projects_result = await session.execute(
+        select(Project).where(
+            Project.organization_id == tenant.id, Project.name == "Planeación"
+        )
+    )
+    assert len(projects_result.scalars().all()) == 1
+
+    # Ningún lead tocado: los 4 equipos siguen con el responsable original,
+    # NUNCA reconciliados al lead de la instanciación rechazada.
+    children_ids = {
+        uuid.UUID(row["id"])
+        for row in first.json()["data"]
+        if row["name"] != "Planeación"
+    }
+    children_result = await session.execute(
+        select(Project).where(Project.id.in_(children_ids))
+    )
+    assert all(
+        project.lead_user_id == new_user.id
+        for project in children_result.scalars().all()
+    )
+
+    # Ledger intacto, ni una fila insertada, actualizada o eliminada.
+    ledger_after = await session.execute(select(OrgRoleTemplateInstantiation))
+    ledger_snapshot_after = {
+        row.id: (row.project_id, row.lead_user_id)
+        for row in ledger_after.scalars().all()
+    }
+    assert ledger_snapshot_after == ledger_snapshot_before
 
 
 @pytest.mark.asyncio(loop_scope="session")

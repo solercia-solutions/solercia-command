@@ -96,14 +96,18 @@ class OrgRoleTemplateNode(PkMixin, TimestampMixin, Base):
 
 
 class OrgRoleTemplateInstantiation(PkMixin, TimestampMixin, Base):
-    """Idempotency ledger: ``(organization, template, node, lead)`` -> the
-    generated ``Project``.
+    """Idempotency ledger: ``(organization, template, node)`` -> the
+    generated ``Project`` (change 27-plantillas-idempotentes, design.md
+    Decisión 1 — the key deliberately EXCLUDES ``lead_user_id``: a node is
+    the SAME node regardless of who its responsible is).
 
     Reconciliation reads this row: if the referenced ``Project`` is still
-    ``is_active=True`` the node is REUSED; otherwise it is treated as missing
-    and this row's ``project_id`` is UPDATED (never re-inserted, preserving
-    the unique constraint) — design.md Decision 2, "Reconciliación con
-    is_active".
+    ``is_active=True`` the node is REUSED (and its ``lead_user_id``, on both
+    the ``Project`` and this row, is reconciled to the CURRENT instantiation
+    call — never a new tree); otherwise it is treated as missing and this
+    row's ``project_id`` is UPDATED (never re-inserted, preserving the
+    unique constraint) — design.md Decision 2/1, "Reconciliación con
+    is_active" / "match por ledger, lead reconciliado".
     """
 
     __tablename__ = "org_role_template_instantiations"
@@ -112,7 +116,6 @@ class OrgRoleTemplateInstantiation(PkMixin, TimestampMixin, Base):
             "organization_id",
             "template_id",
             "node_id",
-            "lead_user_id",
             name="uq_org_role_template_instantiation",
         ),
     )

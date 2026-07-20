@@ -6,7 +6,7 @@ organization. Responses are wrapped in a ``{data, meta}`` envelope.
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -22,7 +22,7 @@ from app.modules.projects.schemas import (
 )
 from app.modules.projects.service import ProjectService
 from app.modules.sprints.service import SprintService
-from app.shared.enums import MemberRole
+from app.shared.enums import MemberRole, ProjectKind
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -37,18 +37,24 @@ _require_hierarchy_write_role = require_role(MemberRole.admin, MemberRole.manage
 @router.get("")
 async def list_projects(
     pagination: PaginationParams = Depends(pagination_params),
+    project_kind: ProjectKind | None = Query(default=None),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List the projects of the caller's organization.
 
     Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
-    those params the full collection is returned unchanged.
+    those params the full collection is returned unchanged. Optional
+    ``?project_kind=area|proyecto`` filter (change 27-plantillas-
+    idempotentes) restricts the listing to that kind; omitted, it returns
+    every kind — unchanged from before this filter existed. An unknown value
+    is rejected with **422** by FastAPI's own enum validation, before the
+    listing ever runs.
     """
 
     service = ProjectService(db)
     projects, total = await service.list_projects(
-        membership.organization_id, pagination
+        membership.organization_id, pagination, project_kind
     )
     data = [ProjectRead.model_validate(project) for project in projects]
     return {"data": data, "meta": build_list_meta(pagination, total)}

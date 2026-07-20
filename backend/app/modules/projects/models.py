@@ -15,7 +15,7 @@ from app.shared.base_model import (
     TenantMixin,
     TimestampMixin,
 )
-from app.shared.enums import Methodology, ProjectStatus
+from app.shared.enums import Methodology, ProjectKind, ProjectStatus
 
 
 class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):
@@ -80,6 +80,15 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # Topological kind (change 27-plantillas-idempotentes): "area" for a
+    # container node with children in an org-role-template tree, "proyecto"
+    # for a leaf node or any project created via the plain POST /projects
+    # flow. Defaults to "proyecto" — see specs/projects/spec.md (delta).
+    project_kind: Mapped[ProjectKind] = mapped_column(
+        SAEnum(ProjectKind, name="project_kind", native_enum=False, length=20),
+        default=ProjectKind.proyecto,
+        nullable=False,
     )
 
     if TYPE_CHECKING:

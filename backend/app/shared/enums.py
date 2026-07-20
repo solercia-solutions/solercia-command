@@ -23,6 +23,20 @@ class ProjectStatus(str, Enum):
     archived = "archived"
 
 
+class ProjectKind(str, Enum):
+    """Topological kind of a ``Project`` (change 27-plantillas-idempotentes).
+
+    ``area`` — a container node with at least one child in an org-role-
+    template tree (design.md Decision 2). ``proyecto`` — a leaf node, a
+    single-node template, or any project created via the plain
+    ``POST /projects`` flow (never a container) — see specs/projects/spec.md
+    (delta), "Campo project_kind en Project".
+    """
+
+    area = "area"
+    proyecto = "proyecto"
+
+
 class TaskStatus(str, Enum):
     """Generic task status used by board columns."""
 

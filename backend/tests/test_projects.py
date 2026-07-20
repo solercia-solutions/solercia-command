@@ -283,6 +283,33 @@ async def test_post_projects_ignores_explicit_lead_user_id_of_other_org(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
+async def test_post_projects_ignores_client_supplied_project_kind_and_forces_proyecto(
+    client: AsyncClient, tenant, user
+) -> None:
+    """Change 27-plantillas-idempotentes: ``POST /projects`` normal SIEMPRE
+    crea `project_kind = proyecto` — incluso si el payload intenta forzar
+    `area` — spec 'Creación directa con POST /projects es siempre
+    proyecto'. Solo la instanciación de plantillas puede producir un
+    `area`."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Intento De Area",
+            "methodology": "planner",
+            "project_kind": "area",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["project_kind"] == "proyecto"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
 async def test_post_projects_rejects_explicit_code_of_soft_deleted_project(
     client: AsyncClient, session, tenant, user
 ) -> None:

@@ -20,7 +20,7 @@ from app.modules.boards.service import BoardService
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import ProjectCreate, ProjectUpdate
-from app.shared.enums import ProjectStatus
+from app.shared.enums import ProjectKind, ProjectStatus
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
@@ -56,6 +56,7 @@ class ProjectService:
         self,
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
+        project_kind: ProjectKind | None = None,
     ) -> tuple[Sequence[Project], int]:
         """Return ``(projects, total)`` with methodology info attached.
 
@@ -63,10 +64,13 @@ class ProjectService:
         (two queries total, never N+1) instead of resolving each project's
         strategy individually — see
         ``BoardRepository.list_boards_with_columns_for_projects`` and
-        design.md C1.
+        design.md C1. ``project_kind`` (change 27-plantillas-idempotentes)
+        is forwarded to the repository unchanged — ``None`` keeps every kind.
         """
 
-        projects, total = await self.repo.list_by_org(organization_id, pagination)
+        projects, total = await self.repo.list_by_org(
+            organization_id, pagination, project_kind
+        )
         columns_by_project = await BoardRepository(
             self.repo.db
         ).list_boards_with_columns_for_projects([project.id for project in projects])
@@ -101,10 +105,18 @@ class ProjectService:
         Only template instantiation may set ``lead_user_id`` — it validates
         membership first (``OrgRoleTemplateService.instantiate``) and calls
         :meth:`_create_project_unit` directly, bypassing this method.
+
+        ``data.project_kind`` is ALWAYS forced to ``ProjectKind.proyecto``
+        here (change 27-plantillas-idempotentes, same defensive pattern as
+        ``lead_user_id`` above): only org-role-template instantiation may
+        produce an ``area`` (a container node), so no client of the plain
+        ``POST /projects`` flow can ever create one — specs/projects/spec.md
+        (delta), "Creación directa con POST /projects es siempre proyecto".
         """
 
-        if data.lead_user_id is not None:
-            data = data.model_copy(update={"lead_user_id": None})
+        data = data.model_copy(
+            update={"lead_user_id": None, "project_kind": ProjectKind.proyecto}
+        )
 
         project = await self._create_project_unit(
             organization_id, data, actor_id=actor_id
@@ -142,6 +154,12 @@ class ProjectService:
         ``data.lead_user_id`` (change 23-org-role-templates) is fixed onto
         the project verbatim; ``None`` for the plain ``POST /projects`` flow
         keeps the compatibility scenario (specs/projects/spec.md delta).
+
+        ``data.project_kind`` (change 27-plantillas-idempotentes) is fixed
+        onto the project verbatim, defaulting to ``ProjectKind.proyecto``
+        when omitted — only org-role-template instantiation passes an
+        explicit ``area``/``proyecto`` per node; ``create_project`` already
+        forces ``proyecto`` before reaching here.
         """
 
         if data.parent_project_id is not None:
@@ -174,6 +192,7 @@ class ProjectService:
             task_counter=0,
             parent_project_id=data.parent_project_id,
             lead_user_id=data.lead_user_id,
+            project_kind=data.project_kind or ProjectKind.proyecto,
             created_by=actor_id,
             updated_by=actor_id,
         )

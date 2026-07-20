@@ -4,7 +4,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import Methodology
+from app.shared.enums import Methodology, ProjectKind
 
 
 class OrgRoleTemplateRead(BaseModel):
@@ -48,3 +48,6 @@ class InstantiatedProjectRead(BaseModel):
     methodology: Methodology
     parent_project_id: uuid.UUID | None
     lead_user_id: uuid.UUID | None
+    # Topological kind (change 27-plantillas-idempotentes): container node
+    # -> "area", leaf -> "proyecto".
+    project_kind: ProjectKind
