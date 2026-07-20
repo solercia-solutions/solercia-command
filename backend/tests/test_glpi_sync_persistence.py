@@ -6,11 +6,11 @@ shared ``engine`` fixture (NEVER the SAVEPOINT-scoped ``session``/``client``
 combo): session A seeds COMMITTED data and invokes the service; a brand-new
 session B then proves the service's own ``db.commit()`` produced a REAL,
 durable write — not one that merely *looks* committed because it shares the
-test's uncommitted outer SAVEPOINT transaction (misma lección ratificada en
-``test_intake_items_service.py`` para el cambio 22).
+test's uncommitted outer SAVEPOINT transaction (same lesson ratified in
+``test_intake_items_service.py`` for change 22).
 
-Covered write flows (los repositorios solo hacen ``flush``; el ``commit``
-vive en el service — exactamente lo que esta red protege):
+Covered write flows (the repositories only ``flush``; the ``commit`` lives
+in the service — exactly what this regression net protects):
 
 1. ``GlpiSyncService.run_sync``                       (glpi_sync/service.py)
 2. ``GlpiSyncService.resolve_unmatched_entry``        (glpi_sync/service.py)
@@ -275,6 +275,19 @@ def _fresh_session(engine: AsyncEngine) -> AsyncSession:
     return AsyncSession(engine, expire_on_commit=False)
 
 
+async def _cleanup_scenario(engine: AsyncEngine, scenario: _Scenario) -> None:
+    """Run :func:`_cleanup_org` on a FRESH session — never on one whose
+    transaction a failed assertion or DB error may have left aborted."""
+
+    cleanup_session = _fresh_session(engine)
+    try:
+        await _cleanup_org(
+            cleanup_session, scenario.organization_id, scenario.owner_id
+        )
+    finally:
+        await cleanup_session.close()
+
+
 # ---------------------------------------------------------------------------
 # 1. run_sync — link + cola quedan COMMITEADOS
 # ---------------------------------------------------------------------------
@@ -290,9 +303,10 @@ async def test_run_sync_commits_link_and_queue_across_independent_sessions(
     sin homologar — verificado desde una sesión B independiente."""
 
     session_a = _fresh_session(engine)
-    scenario = await _seed_committed_glpi_scenario(session_a)
+    scenario: _Scenario | None = None
 
     try:
+        scenario = await _seed_committed_glpi_scenario(session_a)
         membership = await _get_membership(
             session_a, scenario.organization_id, scenario.owner_id
         )
@@ -353,13 +367,12 @@ async def test_run_sync_commits_link_and_queue_across_independent_sessions(
         finally:
             await session_b.close()
     finally:
-        cleanup_session = _fresh_session(engine)
-        try:
-            await _cleanup_org(
-                cleanup_session, scenario.organization_id, scenario.owner_id
-            )
-        finally:
-            await cleanup_session.close()
+        # Idempotent double-close: guarantees the NullPool connection goes
+        # back even if the seed, a fixture commit or the service raised
+        # before the happy path's own `close()` ran.
+        await session_a.close()
+        if scenario is not None:
+            await _cleanup_scenario(engine, scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -377,20 +390,21 @@ async def test_resolve_unmatched_entry_commits_manual_link_and_resolved_header(
     — ambos durables desde una sesión B independiente."""
 
     session_a = _fresh_session(engine)
-    scenario = await _seed_committed_glpi_scenario(session_a)
-
-    header = GlpiUnmatchedAssignee(
-        organization_id=scenario.organization_id,
-        connector_id=scenario.connector_id,
-        glpi_user_id="900",
-        glpi_username="Persona Pendiente",
-        status=UnmatchedStatus.pending,
-    )
-    session_a.add(header)
-    await session_a.commit()
-    header_id = header.id
+    scenario: _Scenario | None = None
 
     try:
+        scenario = await _seed_committed_glpi_scenario(session_a)
+        header = GlpiUnmatchedAssignee(
+            organization_id=scenario.organization_id,
+            connector_id=scenario.connector_id,
+            glpi_user_id="900",
+            glpi_username="Persona Pendiente",
+            status=UnmatchedStatus.pending,
+        )
+        session_a.add(header)
+        await session_a.commit()
+        header_id = header.id
+
         membership = await _get_membership(
             session_a, scenario.organization_id, scenario.owner_id
         )
@@ -429,13 +443,12 @@ async def test_resolve_unmatched_entry_commits_manual_link_and_resolved_header(
         finally:
             await session_b.close()
     finally:
-        cleanup_session = _fresh_session(engine)
-        try:
-            await _cleanup_org(
-                cleanup_session, scenario.organization_id, scenario.owner_id
-            )
-        finally:
-            await cleanup_session.close()
+        # Idempotent double-close: guarantees the NullPool connection goes
+        # back even if the seed, a fixture commit or the service raised
+        # before the happy path's own `close()` ran.
+        await session_a.close()
+        if scenario is not None:
+            await _cleanup_scenario(engine, scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -453,20 +466,21 @@ async def test_ignore_unmatched_entry_commits_ignored_header_without_link(
     (service.py, sin try/except) debe ser durable en una sesión B."""
 
     session_a = _fresh_session(engine)
-    scenario = await _seed_committed_glpi_scenario(session_a)
-
-    header = GlpiUnmatchedAssignee(
-        organization_id=scenario.organization_id,
-        connector_id=scenario.connector_id,
-        glpi_user_id="901",
-        glpi_username="Persona Ignorada",
-        status=UnmatchedStatus.pending,
-    )
-    session_a.add(header)
-    await session_a.commit()
-    header_id = header.id
+    scenario: _Scenario | None = None
 
     try:
+        scenario = await _seed_committed_glpi_scenario(session_a)
+        header = GlpiUnmatchedAssignee(
+            organization_id=scenario.organization_id,
+            connector_id=scenario.connector_id,
+            glpi_user_id="901",
+            glpi_username="Persona Ignorada",
+            status=UnmatchedStatus.pending,
+        )
+        session_a.add(header)
+        await session_a.commit()
+        header_id = header.id
+
         membership = await _get_membership(
             session_a, scenario.organization_id, scenario.owner_id
         )
@@ -504,13 +518,12 @@ async def test_ignore_unmatched_entry_commits_ignored_header_without_link(
         finally:
             await session_b.close()
     finally:
-        cleanup_session = _fresh_session(engine)
-        try:
-            await _cleanup_org(
-                cleanup_session, scenario.organization_id, scenario.owner_id
-            )
-        finally:
-            await cleanup_session.close()
+        # Idempotent double-close: guarantees the NullPool connection goes
+        # back even if the seed, a fixture commit or the service raised
+        # before the happy path's own `close()` ran.
+        await session_a.close()
+        if scenario is not None:
+            await _cleanup_scenario(engine, scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -528,20 +541,21 @@ async def test_revoke_link_commits_soft_delete_across_independent_sessions(
     SIN filtro ``is_active`` (la fila sigue existiendo, soft-delete)."""
 
     session_a = _fresh_session(engine)
-    scenario = await _seed_committed_glpi_scenario(session_a)
-
-    link = GlpiUserLink(
-        organization_id=scenario.organization_id,
-        connector_id=scenario.connector_id,
-        glpi_user_id="66",
-        user_id=scenario.owner_id,
-        match_method=MatchMethod.email,
-    )
-    session_a.add(link)
-    await session_a.commit()
-    link_id = link.id
+    scenario: _Scenario | None = None
 
     try:
+        scenario = await _seed_committed_glpi_scenario(session_a)
+        link = GlpiUserLink(
+            organization_id=scenario.organization_id,
+            connector_id=scenario.connector_id,
+            glpi_user_id="66",
+            user_id=scenario.owner_id,
+            match_method=MatchMethod.email,
+        )
+        session_a.add(link)
+        await session_a.commit()
+        link_id = link.id
+
         membership = await _get_membership(
             session_a, scenario.organization_id, scenario.owner_id
         )
@@ -561,13 +575,12 @@ async def test_revoke_link_commits_soft_delete_across_independent_sessions(
         finally:
             await session_b.close()
     finally:
-        cleanup_session = _fresh_session(engine)
-        try:
-            await _cleanup_org(
-                cleanup_session, scenario.organization_id, scenario.owner_id
-            )
-        finally:
-            await cleanup_session.close()
+        # Idempotent double-close: guarantees the NullPool connection goes
+        # back even if the seed, a fixture commit or the service raised
+        # before the happy path's own `close()` ran.
+        await session_a.close()
+        if scenario is not None:
+            await _cleanup_scenario(engine, scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -586,13 +599,14 @@ async def test_register_api_token_credentials_commits_account_and_encrypted_secr
     original con el MISMO helper de crypto que usa el service."""
 
     session_a = _fresh_session(engine)
-    scenario = await _seed_committed_glpi_scenario(
-        session_a, provider=_FAKE_PROVIDER, with_account=False
-    )
+    scenario: _Scenario | None = None
     _install_api_token_stub(monkeypatch)
     raw = {"app_token": "APP-1", "user_token": "USER-1"}
 
     try:
+        scenario = await _seed_committed_glpi_scenario(
+            session_a, provider=_FAKE_PROVIDER, with_account=False
+        )
         membership = await _get_membership(
             session_a, scenario.organization_id, scenario.owner_id
         )
@@ -630,10 +644,9 @@ async def test_register_api_token_credentials_commits_account_and_encrypted_secr
         finally:
             await session_b.close()
     finally:
-        cleanup_session = _fresh_session(engine)
-        try:
-            await _cleanup_org(
-                cleanup_session, scenario.organization_id, scenario.owner_id
-            )
-        finally:
-            await cleanup_session.close()
+        # Idempotent double-close: guarantees the NullPool connection goes
+        # back even if the seed, a fixture commit or the service raised
+        # before the happy path's own `close()` ran.
+        await session_a.close()
+        if scenario is not None:
+            await _cleanup_scenario(engine, scenario)
