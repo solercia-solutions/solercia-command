@@ -8,7 +8,7 @@ phases:
   tasks: done
   apply: done
   verify: done
-  archive: pending
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -29,6 +29,6 @@ boundary:
   - "26-admin-empresas cubre la resolucion de empresa activa, el claim JWT de organizacion y las membresias multiempresa; el 25 solo congela el contrato de aislamiento sin tocar esa resolucion (app/dependencies.py:128-146)"
 last_updated: 2026-07-20
 spec_artifacts:
-  - openspec/changes/25-multiempresa-scoping/specs/multi-tenant-isolation/spec.md
+  - openspec/changes/archive/2026-07-20-25-multiempresa-scoping/specs/multi-tenant-isolation/spec.md
 task_artifacts:
-  - openspec/changes/25-multiempresa-scoping/tasks.md
+  - openspec/changes/archive/2026-07-20-25-multiempresa-scoping/tasks.md
