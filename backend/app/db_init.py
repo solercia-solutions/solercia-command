@@ -135,6 +135,7 @@ _MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
     ("Rendimiento", "trending-up", "/performance", None, 3),
     ("Administración", "settings", None, None, 4),
     ("Equipos", "users", "/teams", None, 5),
+    ("Conexiones", "plug", "/connections", None, 6),
     ("Usuarios", "users", "/admin/users", "Administración", 0),
     ("Roles", "shield", "/admin/roles", "Administración", 1),
     ("Actividades", "list", "/admin/menus", "Administración", 2),
@@ -144,7 +145,14 @@ _MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
 # Menu grants per role. "*" grants every menu.
 _ROLE_MENU_SEED: dict[str, str | list[str]] = {
     "ADMIN": "*",
-    "MANAGER": ["Proyectos", "Jerarquía", "Vista de jefe", "Rendimiento", "Equipos"],
+    "MANAGER": [
+        "Proyectos",
+        "Jerarquía",
+        "Vista de jefe",
+        "Rendimiento",
+        "Equipos",
+        "Conexiones",
+    ],
     "MEMBER": ["Proyectos", "Jerarquía"],
 }
 
