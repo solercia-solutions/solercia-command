@@ -35,6 +35,10 @@ import {
   LinkableTask,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import {
+  formatOriginalEstimate,
+  parseOriginalEstimate,
+} from '@shared/lib/estimation';
 
 /**
  * Panel de detalle de tarea reutilizable (widget presentacional + datos).
@@ -153,7 +157,7 @@ import { I18nService } from '@shared/i18n';
             </div>
           }
 
-          <!-- Estimation: points -->
+          <!-- Estimation: story points (whole numbers only) -->
           @if (effectiveEstimationMode() === 'points' || effectiveEstimationMode() === 'both') {
             <div>
               <label for="tdp-points" class="mb-1 block text-xs font-medium text-muted">
@@ -163,30 +167,36 @@ import { I18nService } from '@shared/i18n';
                 id="tdp-points"
                 type="number"
                 min="0"
+                step="1"
                 class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
                 [value]="task()!.estimation_points ?? ''"
                 (change)="updateNumberField('estimation_points', $event)"
                 [attr.aria-label]="text.fieldStoryPoints()"
               />
+              @if (pointsError()) {
+                <p class="mt-1 text-xs text-danger">{{ text.fieldStoryPointsInteger() }}</p>
+              }
             </div>
           }
 
-          <!-- Estimation: hours -->
+          <!-- Original estimate (Jira style: "4w 2d 3h" → stored as hours) -->
           @if (effectiveEstimationMode() === 'hours' || effectiveEstimationMode() === 'both') {
             <div>
-              <label for="tdp-hours" class="mb-1 block text-xs font-medium text-muted">
-                {{ text.fieldEstimationHours() }}
+              <label for="tdp-estimate" class="mb-1 block text-xs font-medium text-muted">
+                {{ text.fieldOriginalEstimate() }}
               </label>
               <input
-                id="tdp-hours"
-                type="number"
-                min="0"
-                step="0.5"
+                id="tdp-estimate"
+                type="text"
                 class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
-                [value]="task()!.estimation_hours ?? ''"
-                (change)="updateNumberField('estimation_hours', $event)"
-                [attr.aria-label]="text.fieldEstimationHours()"
+                [value]="originalEstimateDisplay()"
+                (change)="updateOriginalEstimate($event)"
+                [placeholder]="text.fieldOriginalEstimatePlaceholder()"
+                [attr.aria-label]="text.fieldOriginalEstimate()"
               />
+              @if (estimateError()) {
+                <p class="mt-1 text-xs text-danger">{{ text.fieldOriginalEstimateInvalid() }}</p>
+              }
             </div>
           }
 
@@ -518,8 +528,17 @@ export class TaskDetailPanelComponent {
     ),
     fieldSprint: this.i18n.t('taskDetail.fields.sprint'),
     fieldSprintNone: this.i18n.t('taskDetail.fields.sprintNone'),
-    fieldEstimationHours: this.i18n.t('taskDetail.fields.estimationHours'),
+    fieldOriginalEstimate: this.i18n.t('taskDetail.fields.originalEstimate'),
+    fieldOriginalEstimatePlaceholder: this.i18n.t(
+      'taskDetail.fields.originalEstimatePlaceholder',
+    ),
+    fieldOriginalEstimateInvalid: this.i18n.t(
+      'taskDetail.fields.originalEstimateInvalid',
+    ),
     fieldStoryPoints: this.i18n.t('taskDetail.fields.storyPoints'),
+    fieldStoryPointsInteger: this.i18n.t(
+      'taskDetail.fields.storyPointsInteger',
+    ),
     fieldDueDate: this.i18n.t('taskDetail.fields.dueDate'),
     fieldAtRisk: this.i18n.t('taskDetail.fields.atRisk'),
   } as const;
@@ -541,6 +560,16 @@ export class TaskDetailPanelComponent {
   readonly savingSubtask = signal(false);
   readonly editingCommentId = signal<string | null>(null);
   readonly editBody = signal('');
+
+  /** El texto de estimación original no parsea ("4w 2d 3h" esperado). */
+  readonly estimateError = signal(false);
+  /** Los puntos de historia no son un entero no negativo. */
+  readonly pointsError = signal(false);
+
+  /** Estimación en horas mostrada como texto Jira ("1w 2d 4h"). */
+  readonly originalEstimateDisplay = computed(() =>
+    formatOriginalEstimate(this.task()?.estimation_hours),
+  );
 
   /** Configuración de metodología del proyecto de la tarea (cargada aquí). */
   readonly methodologyInfo = signal<MethodologyInfo | null>(null);
@@ -740,7 +769,34 @@ export class TaskDetailPanelComponent {
     const raw = (event.target as HTMLInputElement).value.trim();
     const value = raw === '' ? null : Number(raw);
     if (value !== null && Number.isNaN(value)) return;
+    if (field === 'estimation_points') {
+      // Puntos de historia: solo enteros no negativos (0, 1, 2, 3, 5...).
+      const invalid = value !== null && (!Number.isInteger(value) || value < 0);
+      this.pointsError.set(invalid);
+      if (invalid) return;
+    }
     this.updateField(field, value);
+  }
+
+  /**
+   * Guarda la estimación original estilo Jira: parsea "4w 2d 3h" a horas
+   * decimales (1w = 5 días laborables, 1d = 8 horas). Vacío limpia la
+   * estimación; un texto que no parsea muestra error y no guarda.
+   */
+  updateOriginalEstimate(event: Event): void {
+    const raw = (event.target as HTMLInputElement).value.trim();
+    if (raw === '') {
+      this.estimateError.set(false);
+      this.updateField('estimation_hours', null);
+      return;
+    }
+    const hours = parseOriginalEstimate(raw);
+    if (hours === null) {
+      this.estimateError.set(true);
+      return;
+    }
+    this.estimateError.set(false);
+    this.updateField('estimation_hours', hours);
   }
 
   addComment(): void {

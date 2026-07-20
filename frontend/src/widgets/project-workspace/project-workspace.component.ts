@@ -1364,6 +1364,7 @@ export class ProjectWorkspaceComponent implements OnInit {
           assignee_id: result.assignee_id,
           estimation_points: result.estimation_points,
           estimation_hours: result.estimation_hours,
+          start_date: result.start_date,
           due_date: result.due_date,
           sprint_id: result.sprint_id,
         })
@@ -1378,6 +1379,7 @@ export class ProjectWorkspaceComponent implements OnInit {
           assignee_id: result.assignee_id,
           estimation_points: result.estimation_points,
           estimation_hours: result.estimation_hours,
+          start_date: result.start_date,
           due_date: result.due_date,
           sprint_id: result.sprint_id,
           task_type: result.task_type,

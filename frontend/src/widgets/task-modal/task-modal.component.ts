@@ -6,6 +6,7 @@ import {
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import {
   FormBuilder,
@@ -23,6 +24,10 @@ import {
   SolTextareaComponent,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import {
+  formatOriginalEstimate,
+  parseOriginalEstimate,
+} from '@shared/lib/estimation';
 import {
   Member,
   PRIORITY_OPTIONS,
@@ -42,6 +47,7 @@ export interface TaskFormResult {
   assignee_id: string | null;
   estimation_points: number | null;
   estimation_hours: number | null;
+  start_date: string | null;
   due_date: string | null;
   sprint_id: string | null;
   task_type: string;
@@ -129,32 +135,51 @@ export interface TaskFormResult {
           />
 
           @if (showPoints()) {
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.estimationPoints() }}</span
-              >
-              <sol-number-input
-                [min]="0"
-                [step]="1"
-                ariaLabelKey="taskModal.estimationPointsAria"
-                formControlName="estimation_points"
-              />
-            </label>
+            <div>
+              <label class="block">
+                <span class="mb-1.5 block text-sm font-medium text-text"
+                  >{{ text.storyPoints() }}</span
+                >
+                <sol-number-input
+                  [min]="0"
+                  [step]="1"
+                  ariaLabelKey="taskModal.storyPointsAria"
+                  formControlName="estimation_points"
+                />
+              </label>
+              @if (pointsError()) {
+                <p class="mt-1 text-xs text-danger">
+                  {{ text.storyPointsInteger() }}
+                </p>
+              }
+            </div>
           }
 
           @if (showHours()) {
-            <label class="block">
-              <span class="mb-1.5 block text-sm font-medium text-text"
-                >{{ text.estimationHours() }}</span
-              >
-              <sol-number-input
-                [min]="0"
-                [step]="0.5"
-                ariaLabelKey="taskModal.estimationHoursAria"
-                formControlName="estimation_hours"
+            <div>
+              <sol-input
+                [label]="text.originalEstimate()"
+                [placeholder]="text.originalEstimatePlaceholder()"
+                formControlName="original_estimate"
               />
-            </label>
+              @if (estimateError()) {
+                <p class="mt-1 text-xs text-danger">
+                  {{ text.originalEstimateInvalid() }}
+                </p>
+              } @else {
+                <p class="mt-1 text-xs text-muted">
+                  {{ text.originalEstimateHint() }}
+                </p>
+              }
+            </div>
           }
+
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-text"
+              >{{ text.startDateLabel() }}</span
+            >
+            <sol-date-picker formControlName="start_date" />
+          </label>
 
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-text"
@@ -233,8 +258,15 @@ export class TaskModalComponent implements OnInit {
     assigneeLabel: this.i18n.t('taskModal.assigneeLabel'),
     assigneeNone: this.i18n.t('taskModal.assigneeNone'),
     typeLabel: this.i18n.t('taskModal.typeLabel'),
-    estimationPoints: this.i18n.t('taskModal.estimationPoints'),
-    estimationHours: this.i18n.t('taskModal.estimationHours'),
+    storyPoints: this.i18n.t('taskModal.storyPoints'),
+    storyPointsInteger: this.i18n.t('taskModal.storyPointsInteger'),
+    originalEstimate: this.i18n.t('taskModal.originalEstimate'),
+    originalEstimatePlaceholder: this.i18n.t(
+      'taskModal.originalEstimatePlaceholder',
+    ),
+    originalEstimateHint: this.i18n.t('taskModal.originalEstimateHint'),
+    originalEstimateInvalid: this.i18n.t('taskModal.originalEstimateInvalid'),
+    startDateLabel: this.i18n.t('taskModal.startDateLabel'),
     dueDateLabel: this.i18n.t('taskModal.dueDateLabel'),
     sprintLabel: this.i18n.t('taskModal.sprintLabel'),
     backlogOption: this.i18n.t('taskModal.backlogOption'),
@@ -297,11 +329,18 @@ export class TaskModalComponent implements OnInit {
     priority: ['medium' as Priority],
     assignee_id: [null as string | null],
     estimation_points: [null as number | null],
-    estimation_hours: [null as number | null],
+    /** Jira-style text ("4w 2d 3h"); parsed to hours on submit. */
+    original_estimate: [''],
+    start_date: [''],
     due_date: [''],
     sprint_id: [null as string | null],
     task_type: ['task'],
   });
+
+  /** Story points must be a non-negative integer (Fibonacci-friendly). */
+  protected readonly pointsError = signal(false);
+  /** Original estimate did not parse ("4w 2d 3h" expected). */
+  protected readonly estimateError = signal(false);
 
   ngOnInit(): void {
     const existing = this.task();
@@ -317,7 +356,8 @@ export class TaskModalComponent implements OnInit {
         priority: existing.priority,
         assignee_id: existing.assignee_id ?? null,
         estimation_points: existing.estimation_points ?? null,
-        estimation_hours: existing.estimation_hours ?? null,
+        original_estimate: formatOriginalEstimate(existing.estimation_hours),
+        start_date: existing.start_date ? existing.start_date.slice(0, 10) : '',
         due_date: existing.due_date ? existing.due_date.slice(0, 10) : '',
         sprint_id: existing.sprint_id ?? null,
         task_type: (existing.task_type as string) ?? 'task',
@@ -365,14 +405,34 @@ export class TaskModalComponent implements OnInit {
     }
 
     const raw = this.form.getRawValue();
+
+    // Story points: whole number only (0, 1, 2, 3, 5...).
+    const points = this.toNumber(raw.estimation_points);
+    const pointsInvalid =
+      points !== null && (!Number.isInteger(points) || points < 0);
+    this.pointsError.set(pointsInvalid);
+
+    // Original estimate: Jira text ("4w 2d 3h") parsed to decimal hours.
+    // Empty clears the estimate; a non-empty string that fails to parse is
+    // a validation error (the parser returns null in both cases).
+    const estimateText = (raw.original_estimate ?? '').trim();
+    const hours = parseOriginalEstimate(estimateText);
+    const estimateInvalid = estimateText !== '' && hours === null;
+    this.estimateError.set(estimateInvalid);
+
+    if (pointsInvalid || estimateInvalid) {
+      return;
+    }
+
     const result: TaskFormResult = {
       title: (raw.title ?? '').trim(),
       description: (raw.description ?? '').trim() || null,
       status: raw.status ?? '',
       priority: (raw.priority ?? 'medium') as Priority,
       assignee_id: raw.assignee_id || null,
-      estimation_points: this.toNumber(raw.estimation_points),
-      estimation_hours: this.toNumber(raw.estimation_hours),
+      estimation_points: points,
+      estimation_hours: hours,
+      start_date: raw.start_date ? raw.start_date : null,
       due_date: raw.due_date ? raw.due_date : null,
       sprint_id: raw.sprint_id || null,
       task_type: raw.task_type ?? 'task',

@@ -10,6 +10,8 @@ export interface Task {
   id: string;
   project_id: string;
   sprint_id: string | null;
+  /** Parent task (epic → stories/tasks, story → subtasks). Null at root. */
+  parent_task_id?: string | null;
   title: string;
   description?: string | null;
   task_type?: TaskType | string | null;
@@ -61,6 +63,7 @@ export interface CreateTaskPayload {
   estimation_points?: number | null;
   estimation_hours?: number | null;
   due_date?: string | null;
+  start_date?: string | null;
   sprint_id?: string | null;
   task_type?: TaskType | string;
 }
@@ -75,6 +78,7 @@ export interface UpdateTaskPayload {
   estimation_points?: number | null;
   estimation_hours?: number | null;
   due_date?: string | null;
+  start_date?: string | null;
   risk_flag?: boolean;
   risk_reason?: string | null;
   sprint_id?: string | null;

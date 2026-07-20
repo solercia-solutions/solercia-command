@@ -659,14 +659,17 @@
       "assigneePlaceholder": "Sin asignar",
       "atRisk": "En riesgo",
       "dueDate": "Fecha límite",
-      "estimationHours": "Horas estimadas",
+      "originalEstimate": "Estimación original",
+      "originalEstimateInvalid": "Formato no válido. Usa valores como 4w, 2d o 3h, o combínalos: 1w 2d 4h.",
+      "originalEstimatePlaceholder": "Ej. 1w 2d 4h",
       "priority": "Prioridad",
       "priorityPlaceholder": "Seleccionar prioridad",
       "sprint": "Sprint",
       "sprintNone": "Backlog (sin sprint)",
       "status": "Estado",
       "statusPlaceholder": "Seleccionar estado",
-      "storyPoints": "Story points"
+      "storyPoints": "Puntos de historia",
+      "storyPointsInteger": "Los puntos de historia deben ser un número entero."
     },
     "openFullPage": "Abrir página completa",
     "openFullPageAria": "Abre la página completa de la tarea",
@@ -702,16 +705,20 @@
     "dueDateLabel": "Fecha límite",
     "editAria": "Edita la tarea",
     "editTitle": "Editar tarea",
-    "estimationHours": "Estimación (horas)",
-    "estimationHoursAria": "Estimación en horas de la tarea",
-    "estimationPoints": "Estimación (puntos)",
-    "estimationPointsAria": "Estimación en puntos de la tarea",
+    "originalEstimate": "Estimación original",
+    "originalEstimateHint": "Usa w (semanas), d (días) y h (horas). Ej.: 1w 2d 4h",
+    "originalEstimateInvalid": "Formato no válido. Usa valores como 4w, 2d o 3h, o combínalos: 1w 2d 4h.",
+    "originalEstimatePlaceholder": "Ej. 1w 2d 4h",
     "priorityLabel": "Prioridad",
     "remove": "Eliminar",
     "save": "Guardar",
     "saving": "Guardando…",
     "sprintLabel": "Sprint",
+    "startDateLabel": "Fecha de inicio",
     "statusLabel": "Estado",
+    "storyPoints": "Puntos de historia",
+    "storyPointsAria": "Puntos de historia de la tarea",
+    "storyPointsInteger": "Los puntos de historia deben ser un número entero.",
     "titleLabel": "Título",
     "titlePlaceholder": "Ej. Diseñar el formulario de registro",
     "titleRequired": "El título es obligatorio.",
@@ -808,6 +815,23 @@
     "dates": {
       "noDate": "sin fecha"
     },
+    "gantt": {
+      "collapseAria": "Colapsa el grupo {{ name }}",
+      "empty": "No hay sprints ni tareas con fechas para mostrar en el cronograma.",
+      "epicTasksCount": "{{ count }} tareas",
+      "epicTasksCountOne": "1 tarea",
+      "expandAria": "Expande el grupo {{ name }}",
+      "noDates": "Sin fechas",
+      "noEpic": "Sin épica",
+      "openTaskAria": "Abre el detalle de {{ title }}",
+      "sprintBarAria": "Sprint {{ name }}, del {{ start }} al {{ end }}",
+      "sprintsRow": "Sprints",
+      "today": "Hoy",
+      "tooltipAssignee": "Responsable",
+      "tooltipEstimate": "Estimación",
+      "undatedHint": "Asigna fecha de inicio y fecha límite para ver estas tareas como barras en el cronograma.",
+      "undatedTitle": "Tareas sin fechas"
+    },
     "errors": {
       "burndownLoad": "No se pudo cargar el burndown del sprint. Inténtalo más tarde.",
       "projectLoad": "No se pudo cargar el proyecto. Inténtalo más tarde.",
@@ -877,10 +901,10 @@
       "timeline": "Cronograma"
     },
     "timeline": {
-      "description": "Cada barra representa un sprint o una tarea, posicionados por sus fechas. Haz clic en una tarea para abrir su detalle.",
+      "description": "Las épicas agrupan sus tareas y cada barra va de la fecha de inicio a la fecha límite. Haz clic en una barra para abrir su detalle.",
       "legendActive": "Activo",
       "legendClosed": "Cerrado",
-      "title": "Cronograma de sprints"
+      "title": "Cronograma"
     },
     "viewMode": {
       "board": "Tablero",
