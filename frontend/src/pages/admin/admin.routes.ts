@@ -23,6 +23,13 @@ export const ADMIN_ROUTES: Routes = [
       ),
   },
   {
+    path: 'organizations',
+    loadComponent: () =>
+      import('./organizations/organizations-page.component').then(
+        (m) => m.OrganizationsPageComponent,
+      ),
+  },
+  {
     path: 'menus',
     loadComponent: () =>
       import('./menus/menus-page.component').then(

@@ -140,22 +140,22 @@ Chain strategy: size-exception
 - [x] 10.3 Proyectar el selector en `[header-actions]` de `frontend/src/app/app.component.ts`, junto al toggle de tema existente.
 - [x] 10.4 Manejo de error (Scenario "Falla al cambiar de empresa conserva el contexto anterior"): si el cambio falla (red o 403), mostrar un mensaje de error legible y NO invocar `setActiveOrg`/reload hasta confirmar éxito — el layout conserva el contexto de la empresa anterior sin datos parciales de la nueva.
 - [x] 10.5 Textos en español colombiano formal, tuteo (etiquetas, `aria-label`, estado vacío, mensajes de error) — nunca voseo rioplatense (Scenario "Tuteo formal en las etiquetas del selector").
-- [x] 10.6 Verify manual con `./gestion.sh` levantado: usuario en 2 empresas ve ambas en el selector; cambiar de empresa recarga la página y refleja la nueva (menús, `/auth/me`, tema); simular un error (empresa inexistente) y confirmar que el layout no se rompe y conserva el contexto previo.
+- [ ] 10.6 PENDIENTE (requiere navegador/`./gestion.sh` levantado, no ejecutable por el agente en este entorno): usuario en 2 empresas ve ambas en el selector; cambiar de empresa recarga la página y refleja la nueva (menús, `/auth/me`, tema); simular un error (empresa inexistente) y confirmar que el layout no se rompe y conserva el contexto previo. Código completo y `ng build` verde; falta la verificación manual en vivo.
 
 ## Lote 3 — Páginas admin (CRUD de empresas y miembros)
 
 ### Fase 11 — Página de administración de empresas (Commit 11)
 
-- [ ] 11.1 Crear `frontend/src/features/manage-organizations/` con la página de listado + detalle de empresa (mismo patrón que `roles-page.component.ts`: `SolDataTableComponent`, `SolModalComponent`, `ReactiveFormsModule`, `SolPageHeaderComponent`).
-- [ ] 11.2 CRUD de empresa desde la UI (crear, editar nombre/slug, baja lógica); la UI puede ocultar acciones si el rol de la empresa activa no es `admin`, pero el backend SIEMPRE re-valida con `require_org_admin` (la UI es cosmética, no el control de acceso real).
-- [ ] 11.3 Textos en español colombiano formal, tuteo.
+- [x] 11.1 Crear `frontend/src/features/manage-organizations/` con la página de listado + detalle de empresa (mismo patrón que `roles-page.component.ts`: `SolDataTableComponent`, `SolModalComponent`, `ReactiveFormsModule`, `SolPageHeaderComponent`).
+- [x] 11.2 CRUD de empresa desde la UI (crear, editar nombre/slug, baja lógica); la UI puede ocultar acciones si el rol de la empresa activa no es `admin`, pero el backend SIEMPRE re-valida con `require_org_admin` (la UI es cosmética, no el control de acceso real).
+- [x] 11.3 Textos en español colombiano formal, tuteo.
 
 ### Fase 12 — Página de gestión de miembros + ruta lazy (Commit 12)
 
-- [ ] 12.1 Extender la página (o subpágina) con el listado de miembros y su rol, alta por correo, cambio de rol, remoción — con confirmación explícita al intentar degradar/remover al único admin (mensaje que refleja el rechazo 4xx del backend, sin dejar la UI en un estado inconsistente).
-- [ ] 12.2 Agregar ruta lazy en `frontend/src/pages/admin/admin.routes.ts`: `{ path: 'organizations', loadComponent: () => import(...).then((m) => m.OrganizationsPageComponent) }` (mismo patrón que `users`/`roles`/`menus`/`dependencies`).
-- [ ] 12.3 Textos en español colombiano formal, tuteo.
-- [ ] 12.4 Verify manual: crear empresa, agregar miembro por correo, cambiar rol, intentar degradar al único admin (rechazado con mensaje claro), eliminar miembro no-admin.
+- [x] 12.1 Extender la página (o subpágina) con el listado de miembros y su rol, alta por correo, cambio de rol, remoción — con confirmación explícita al intentar degradar/remover al único admin (mensaje que refleja el rechazo 4xx del backend, sin dejar la UI en un estado inconsistente).
+- [x] 12.2 Agregar ruta lazy en `frontend/src/pages/admin/admin.routes.ts`: `{ path: 'organizations', loadComponent: () => import(...).then((m) => m.OrganizationsPageComponent) }` (mismo patrón que `users`/`roles`/`menus`/`dependencies`).
+- [x] 12.3 Textos en español colombiano formal, tuteo.
+- [ ] 12.4 PENDIENTE (requiere navegador/`./gestion.sh` levantado, no ejecutable por el agente en este entorno): crear empresa, agregar miembro por correo, cambiar rol, intentar degradar al único admin (rechazado con mensaje claro), eliminar miembro no-admin. Código completo y `ng build` verde; falta la verificación manual en vivo.
 
 ## Fase 13 — Cierre de la ola: suite verde + migración reversible + commit final
 

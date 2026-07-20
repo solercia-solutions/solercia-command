@@ -106,6 +106,97 @@
       },
       "title": "Actividades"
     },
+    "organizations": {
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Crear empresa",
+        "createAria": "Crea una empresa",
+        "delete": "Eliminar",
+        "deleteAria": "Elimina la empresa",
+        "deleting": "Eliminando…",
+        "editAria": "Edita la empresa",
+        "membersAria": "Gestiona los miembros de la empresa",
+        "save": "Guardar",
+        "saving": "Guardando…"
+      },
+      "delete": {
+        "confirmLead": "¿Confirmas que deseas eliminar",
+        "confirmTail": "? Esta acción no se puede deshacer.",
+        "title": "Eliminar empresa"
+      },
+      "empty": {
+        "subtitle": "Crea tu primera empresa para empezar a administrarla.",
+        "title": "Todavía no perteneces a ninguna empresa."
+      },
+      "errors": {
+        "generic": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.",
+        "loadFailed": "No se pudieron cargar tus empresas. Inténtalo más tarde.",
+        "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+      },
+      "form": {
+        "createTitle": "Nueva empresa",
+        "editTitle": "Editar empresa",
+        "errors": {
+          "nameRequired": "El nombre es obligatorio.",
+          "slugRequired": "El identificador es obligatorio."
+        },
+        "name": "Nombre",
+        "namePlaceholder": "Ej. Secretaría Distrital",
+        "slug": "Identificador (slug)",
+        "slugPlaceholder": "Ej. secretaria-distrital"
+      },
+      "loading": "Cargando empresas…",
+      "members": {
+        "add": {
+          "email": "Correo electrónico",
+          "emailPlaceholder": "persona@solercia.com",
+          "errors": {
+            "emailInvalid": "El correo no es válido.",
+            "emailRequired": "El correo es obligatorio."
+          },
+          "role": "Rol",
+          "submit": "Agregar",
+          "submitting": "Agregando…",
+          "title": "Agregar miembro"
+        },
+        "close": "Cerrar",
+        "empty": "Esta empresa todavía no tiene miembros.",
+        "errors": {
+          "generic": "No se pudo completar la operación. Revisa los datos e inténtalo de nuevo.",
+          "loadFailed": "No se pudieron cargar los miembros. Inténtalo más tarde.",
+          "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+        },
+        "loading": "Cargando miembros…",
+        "remove": {
+          "action": "Eliminar",
+          "ariaLabel": "Elimina al miembro {{ name }}",
+          "cancel": "Cancelar",
+          "confirm": "Sí, eliminar",
+          "confirmLead": "¿Confirmas que deseas eliminar a",
+          "confirmTail": "de esta empresa?"
+        },
+        "table": {
+          "actions": "Acciones",
+          "email": "Correo",
+          "name": "Nombre",
+          "role": "Rol"
+        },
+        "title": "Miembros de {{ name }}"
+      },
+      "status": {
+        "active": "Activa",
+        "inactive": "Inactiva"
+      },
+      "subtitle": "Administra las empresas donde tienes membresía.",
+      "table": {
+        "actions": "Acciones",
+        "name": "Nombre",
+        "role": "Tu rol",
+        "slug": "Identificador",
+        "status": "Estado"
+      },
+      "title": "Empresas"
+    },
     "roles": {
       "actions": {
         "cancel": "Cancelar",
