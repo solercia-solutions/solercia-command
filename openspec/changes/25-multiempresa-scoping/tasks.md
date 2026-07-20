@@ -54,8 +54,8 @@ Chain strategy: size-exception
 
 ## Fase 4 — Personas, permisos y superficie global, 4 módulos (Commit 4)
 
-- [ ] 4.1 [RED] Tests de aislamiento para users, roles; para org_role_templates: aislamiento de plantillas org-scoped (`organization_id IS NOT NULL`) **y** catálogo compartido para `is_system=True` (aserción inversa `ids_A == ids_B`); para menus: catálogo compartido (aserción inversa) sin `TenantMixin`. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "users or roles or org_role_templates or menus" -v`
-- [ ] 4.2 Registrar fugas si aparecen.
+- [x] 4.1 [RED] Tests de aislamiento para users, roles; para org_role_templates: aislamiento de plantillas org-scoped (`organization_id IS NOT NULL`) **y** catálogo compartido para `is_system=True` (aserción inversa `ids_A == ids_B`); para menus: catálogo compartido (aserción inversa) sin `TenantMixin`. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 33/33 verdes.
+- [x] 4.2 Ninguna fuga detectada. `users`/`roles` requieren rol RBAC `ADMIN` (fixture `rbac_admin`, no `OrganizationMember.role`) — mismo ajuste de fixture que en 2.2. `org_role_templates`/`menus` no seedean catálogo en el entorno de test (a diferencia de producción vía `db_init.py`); se sembró una plantilla `is_system=True` y un `Menu` ad-hoc para probar la aserción inversa.
 
 ## Fase 5 — Búsqueda y panorama, 2 módulos (Commit 5)
 

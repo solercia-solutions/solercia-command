@@ -328,6 +328,55 @@ async def _seed_reminder(session: AsyncSession, organization, user):
     return reminder
 
 
+async def _seed_role(session: AsyncSession, organization, code: str):
+    from app.modules.roles.models import Role
+
+    role = Role(organization_id=organization.id, code=code, name=f"Rol {code}")
+    session.add(role)
+    await session.flush()
+    return role
+
+
+async def _seed_org_scoped_template(session: AsyncSession, organization):
+    """An org-scoped ``OrgRoleTemplate`` — not seeded by any endpoint today,
+    but the column supports it (design.md, Decisión 3): inserted directly to
+    exercise the isolation branch, distinct from the shared ``is_system`` one.
+    """
+
+    from app.modules.org_role_templates.models import OrgRoleTemplate
+
+    template = OrgRoleTemplate(
+        organization_id=organization.id,
+        name=f"Plantilla {organization.name}",
+        is_system=False,
+    )
+    session.add(template)
+    await session.flush()
+    return template
+
+
+async def _seed_system_template(session: AsyncSession):
+    from app.modules.org_role_templates.models import OrgRoleTemplate
+
+    template = OrgRoleTemplate(
+        organization_id=None,
+        name=f"Plantilla Sistema {uuid.uuid4().hex[:8]}",
+        is_system=True,
+    )
+    session.add(template)
+    await session.flush()
+    return template
+
+
+async def _seed_menu(session: AsyncSession):
+    from app.modules.menus.models import Menu
+
+    menu = Menu(name=f"Actividad {uuid.uuid4().hex[:8]}")
+    session.add(menu)
+    await session.flush()
+    return menu
+
+
 # ---------------------------------------------------------------------------
 # Fase 2 — Proyecto y ejecución (tasks.md, Commit 2)
 # ---------------------------------------------------------------------------
@@ -797,3 +846,145 @@ async def test_update_and_delete_reminder_from_other_org_return_404(
     assert delete_response.status_code == 404
     await session.refresh(reminder_b)
     assert reminder_b.is_active is True
+
+
+# ---------------------------------------------------------------------------
+# Fase 4 — Personas, permisos y superficie global (tasks.md, Commit 4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_users_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    response = await client.get("/admin/users", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.a.user.id) in ids
+    assert str(two_orgs.b.user.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_user_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    update_response = await client.patch(
+        f"/admin/users/{two_orgs.b.user.id}",
+        json={"primer_nombre": "Hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/users/{two_orgs.b.user.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(two_orgs.b.user)
+    assert two_orgs.b.user.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_roles_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    role_a = await _seed_role(session, two_orgs.a.organization, "MANAGER")
+    role_b = await _seed_role(session, two_orgs.b.organization, "MANAGER")
+
+    response = await client.get("/admin/roles", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(role_a.id) in ids
+    assert str(role_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_role_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    role_b = await _seed_role(session, two_orgs.b.organization, "MANAGER")
+
+    update_response = await client.patch(
+        f"/admin/roles/{role_b.id}",
+        json={"name": "Hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/admin/roles/{role_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(role_b)
+    assert role_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_org_scoped_template_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    """Aislamiento: una plantilla org-scoped de B no es visible para A."""
+
+    template_b = await _seed_org_scoped_template(session, two_orgs.b.organization)
+
+    response = await client.get(
+        f"/org-role-templates/{template_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_system_template_is_visible_to_both_organizations(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    """Superficie global por diseño: una plantilla ``is_system`` NO es una fuga."""
+
+    system_template = await _seed_system_template(session)
+
+    response_a = await client.get("/org-role-templates", headers=_auth(two_orgs.a.token))
+    response_b = await client.get("/org-role-templates", headers=_auth(two_orgs.b.token))
+
+    assert response_a.status_code == 200, response_a.text
+    assert response_b.status_code == 200, response_b.text
+    ids_a = {row["id"] for row in response_a.json()["data"]}
+    ids_b = {row["id"] for row in response_b.json()["data"]}
+    assert str(system_template.id) in ids_a
+    assert str(system_template.id) in ids_b
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_menu_catalog_is_identical_for_both_organizations(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    """Superficie global por diseño: ``menus`` no tiene ``TenantMixin`` — el
+    catálogo debe ser idéntico para cualquier organización, nunca una fuga.
+    """
+
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    await rbac_admin(session, two_orgs.b.organization, two_orgs.b.user)
+    menu = await _seed_menu(session)
+
+    response_a = await client.get("/admin/menus", headers=_auth(two_orgs.a.token))
+    response_b = await client.get("/admin/menus", headers=_auth(two_orgs.b.token))
+
+    assert response_a.status_code == 200, response_a.text
+    assert response_b.status_code == 200, response_b.text
+    ids_a = {row["id"] for row in response_a.json()["data"]}
+    ids_b = {row["id"] for row in response_b.json()["data"]}
+    assert str(menu.id) in ids_a
+    assert str(menu.id) in ids_b
