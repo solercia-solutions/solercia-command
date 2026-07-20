@@ -77,6 +77,8 @@ class TaskService:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        task_type: str | None = None,
+        parent_task_id: uuid.UUID | None = None,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
@@ -84,6 +86,11 @@ class TaskService:
         Returns ``(tasks, total)`` — see ``TaskRepository.list_for_project``.
         Raises a ``422`` when ``due_from`` is after ``due_to`` (change
         10-busqueda-global, R8) before ever touching the repository.
+
+        ``task_type`` filters by exact equality. ``parent_task_id`` returns
+        the direct children of that task; since children are by definition
+        NOT top-level, this filter disables the default top-level-only
+        restriction of the listing.
         """
 
         self._validate_due_range(due_from, due_to)
@@ -99,7 +106,9 @@ class TaskService:
             due_from=due_from,
             due_to=due_to,
             q=q,
-            top_level_only=True,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            top_level_only=parent_task_id is None,
             pagination=pagination,
         )
         name_map = await self._assignee_name_map(organization_id)
@@ -212,18 +221,27 @@ class TaskService:
     ) -> TaskRead:
         """Validate against the methodology Strategy and persist a new task.
 
-        When ``data.parent_task_id`` is set the service enforces the subtask
-        business rules: task_type is coerced to 'subtask' and estimation_points
-        are rejected (to avoid double-counting story points in velocity).
+        When ``data.parent_task_id`` is set the parent rules depend on the
+        parent's ``task_type``:
+
+        - Parent ``epic`` — the child KEEPS its requested ``task_type``
+          (default ``task``) and MAY carry ``estimation_points``; a nested
+          ``epic`` is rejected (``epic_nesting_not_allowed``, an epic can
+          never have a parent).
+        - Any other parent — the child is coerced to ``subtask`` and
+          ``estimation_points`` are rejected (to avoid double-counting story
+          points in velocity). A ``subtask`` parent is always rejected
+          (``subtask_nesting_not_allowed``): a subtask can never be a parent.
         """
 
         project = await self._require_project(organization_id, project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        # -- Subtask validation -------------------------------------------
-        is_subtask = data.parent_task_id is not None
-        if is_subtask:
-            assert data.parent_task_id is not None  # narrows for the type checker
+        # -- Parent/child validation ---------------------------------------
+        requested_type = data.task_type or "task"
+        is_subtask = False
+        task_type = requested_type
+        if data.parent_task_id is not None:
             # Verify the parent belongs to the same project and organization.
             parent = await self.repo.get(organization_id, data.parent_task_id)
             if parent is None or parent.project_id != project_id:
@@ -232,21 +250,14 @@ class TaskService:
                     code="invalid_parent_task",
                     status_code=422,
                 )
-            if parent.parent_task_id is not None:
-                raise AppException(
-                    "No se pueden crear sub-subtareas (máximo un nivel de anidación).",
-                    code="subtask_nesting_not_allowed",
-                    status_code=422,
-                )
-            if data.estimation_points is not None:
+            task_type, is_subtask = self._resolve_child_type(parent, requested_type)
+            if is_subtask and data.estimation_points is not None:
                 raise AppException(
                     "Las subtareas no admiten puntos de historia para evitar "
                     "el doble conteo del velocity.",
                     code="subtask_points_not_allowed",
                     status_code=422,
                 )
-
-        task_type = "subtask" if is_subtask else (data.task_type or "task")
 
         status, board_column_id = await self._resolve_create_status_and_column(
             project_id, strategy, data.status, data.board_column_id
@@ -284,6 +295,53 @@ class TaskService:
         task = await self.repo.create(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
+
+    # Task types a child of an epic may declare. Anything else is rejected:
+    # before epics-as-parents EVERY child was coerced to 'subtask', so no
+    # arbitrary string could ever hang from a parent — the whitelist keeps
+    # that property. Top-level tasks keep their free-string task_type
+    # (pre-existing behavior, out of scope here).
+    _EPIC_CHILD_TYPES = frozenset({"task", "story", "bug", "subtask"})
+
+    @classmethod
+    def _resolve_child_type(
+        cls, parent: Task, requested_type: str
+    ) -> tuple[str, bool]:
+        """Resolve ``(task_type, is_subtask)`` for a child of ``parent``.
+
+        - Parent ``subtask`` → 422 ``subtask_nesting_not_allowed``: a subtask
+          can never be a parent, regardless of the requested type.
+        - Parent ``epic`` → the child keeps its requested type, restricted to
+          :attr:`_EPIC_CHILD_TYPES` (422 ``invalid_task_type`` otherwise) and
+          never a nested ``epic`` (422 ``epic_nesting_not_allowed``). An
+          explicit ``subtask`` request still behaves as a REAL subtask
+          (``is_subtask=True``) so the "subtasks never carry points"
+          invariant stays airtight.
+        - Any other parent → coerced to ``subtask`` (``is_subtask=True``).
+        """
+
+        if parent.task_type == "subtask":
+            raise AppException(
+                "No se pueden crear sub-subtareas (máximo un nivel de anidación).",
+                code="subtask_nesting_not_allowed",
+                status_code=422,
+            )
+        if parent.task_type == "epic":
+            if requested_type == "epic":
+                raise AppException(
+                    "Una épica no puede anidarse bajo otra épica.",
+                    code="epic_nesting_not_allowed",
+                    status_code=422,
+                )
+            if requested_type not in cls._EPIC_CHILD_TYPES:
+                raise AppException(
+                    "El tipo de tarea no es válido para una hija de épica. "
+                    "Tipos permitidos: task, story, bug, subtask.",
+                    code="invalid_task_type",
+                    status_code=422,
+                )
+            return requested_type, requested_type == "subtask"
+        return "subtask", True
 
     # Fields tracked for TaskHistory (activity-history.md, "Captura automática
     # en mutaciones de usuario" — the exact set the spec requires; notably no
@@ -345,11 +403,26 @@ class TaskService:
                 strategy, task.status, task.completed_at
             )
 
-        # Reject estimation_points update on subtasks.
-        if "estimation_points" in changes and task.parent_task_id is not None:
+        # Guard on the EFFECTIVE type/points the row would END with —
+        # ``task_type`` itself is applied later in the setattr loop, so
+        # reading only the pre-mutation type would let a combined
+        # ``{"task_type": "subtask", "estimation_points": N}`` (or a flip to
+        # subtask on a task that already has points) bypass the rule. An
+        # explicit ``task_type: null`` falls back to the current type.
+        effective_type = changes.get("task_type") or task.task_type
+        effective_points = changes.get("estimation_points", task.estimation_points)
+        if effective_type == "subtask" and effective_points is not None:
             raise AppException(
                 "Las subtareas no admiten puntos de historia.",
                 code="subtask_points_not_allowed",
+                status_code=422,
+            )
+        # Same create-side invariant on update: an epic can never have a
+        # parent, so a child task can never FLIP its type to 'epic'.
+        if effective_type == "epic" and task.parent_task_id is not None:
+            raise AppException(
+                "Una épica no puede tener tarea padre.",
+                code="epic_nesting_not_allowed",
                 status_code=422,
             )
 

@@ -16,9 +16,12 @@ class TaskCreate(BaseModel):
     ``status`` is optional; the service defaults it to the first allowed status
     of the project methodology and validates any provided value.
 
-    Pass ``parent_task_id`` to create a subtask. When ``parent_task_id`` is set
-    the service enforces ``task_type='subtask'`` and rejects ``estimation_points``
-    (story points are not counted for subtasks to avoid double-counting velocity).
+    Pass ``parent_task_id`` to create a child task. When the parent is an
+    ``epic`` the child keeps its requested ``task_type`` (default ``task``;
+    never a nested ``epic``) and may carry ``estimation_points``. Under any
+    other parent the service enforces ``task_type='subtask'`` and rejects
+    ``estimation_points`` (story points are not counted for subtasks to avoid
+    double-counting velocity).
     """
 
     title: str = Field(min_length=1, max_length=200)

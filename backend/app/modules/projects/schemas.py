@@ -57,6 +57,53 @@ class ProjectCreate(BaseModel):
         return upper
 
 
+class ProjectUpdate(BaseModel):
+    """Partial payload for ``PATCH /projects/{id}``. Every field is optional.
+
+    Only fields explicitly present in the request are applied
+    (``model_dump(exclude_unset=True)`` in the service). ``methodology`` is
+    declared ONLY so the service can reject it with a distinct 422
+    ``methodology_not_editable`` — the seeded board and the task statuses
+    derive from the methodology Strategy, so it is never editable.
+    """
+
+    name: str | None = Field(default=None, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
+    code: str | None = Field(default=None, max_length=10)
+    methodology: Methodology | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("El nombre no puede ser nulo.")
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("El nombre es obligatorio.")
+        return cleaned
+
+    @field_validator("description")
+    @classmethod
+    def _validate_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    @field_validator("code")
+    @classmethod
+    def _validate_code(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("El código no puede ser nulo.")
+        upper = value.strip().upper()
+        if not _CODE_RE.match(upper):
+            raise ValueError(
+                "El código debe tener entre 2 y 10 caracteres alfanuméricos "
+                "en mayúsculas (ej. 'SDM', 'PLT2')."
+            )
+        return upper
+
+
 class ProjectRead(BaseModel):
     """Project representation returned by the API."""
 

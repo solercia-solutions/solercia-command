@@ -9,6 +9,7 @@ import re
 import uuid
 from collections.abc import Sequence
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -18,7 +19,7 @@ from app.modules.boards.repository import BoardRepository
 from app.modules.boards.service import BoardService
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
-from app.modules.projects.schemas import ProjectCreate
+from app.modules.projects.schemas import ProjectCreate, ProjectUpdate
 from app.shared.enums import ProjectStatus
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
@@ -195,6 +196,80 @@ class ProjectService:
                 code="project_not_found",
                 status_code=404,
             )
+        await self._attach_methodology_info(project)
+        return project
+
+    async def update_project(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        data: ProjectUpdate,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> Project:
+        """Apply a partial update to a project's editable fields.
+
+        Only fields present in the payload are applied
+        (``model_dump(exclude_unset=True)``). ``methodology`` is NEVER
+        editable — the seeded board and the task statuses derive from the
+        Strategy — so its mere presence raises 422
+        ``methodology_not_editable``. A changed ``code`` re-validates
+        uniqueness within the organization EXCLUDING the project itself
+        (``code_exists(exclude_id=...)``) and raises the same 409
+        ``project_code_taken`` the create flow uses. Raises the usual 404
+        ``project_not_found`` for missing/cross-org/soft-deleted projects.
+        """
+
+        project = await self.get_project(organization_id, project_id)
+
+        changes = data.model_dump(exclude_unset=True)
+
+        if "methodology" in changes:
+            raise AppException(
+                "La metodología del proyecto no se puede editar: el board "
+                "sembrado y los estados de las tareas dependen de ella.",
+                code="methodology_not_editable",
+                status_code=422,
+            )
+
+        if "code" in changes:
+            code = changes["code"]
+            if await self.repo.code_exists(
+                organization_id, code, exclude_id=project.id
+            ):
+                raise AppException(
+                    f"El código '{code}' ya está en uso en tu organización.",
+                    code="project_code_taken",
+                    status_code=409,
+                )
+            project.code = code
+
+        for field in ("name", "description"):
+            if field in changes:
+                setattr(project, field, changes[field])
+
+        project.updated_by = actor_id
+        try:
+            project = await self.repo.save(project)
+        except IntegrityError as exc:
+            # Two concurrent updates can BOTH pass the advisory code_exists
+            # check above; the loser's commit then collides with
+            # ``uq_project_code_per_org``. Translate to the SAME 409 the
+            # advisory path produces instead of a bare 500 (same pattern as
+            # ``OrgRoleTemplateService.instantiate``). ``changes`` is a plain
+            # dict — safe to read after the rollback expires the ORM row.
+            code_label = changes.get("code")
+            await self.repo.db.rollback()
+            detail = (
+                f"El código '{code_label}' ya está en uso en tu organización."
+                if code_label
+                else "El código del proyecto ya está en uso en tu organización."
+            )
+            raise AppException(
+                detail,
+                code="project_code_taken",
+                status_code=409,
+            ) from exc
         await self._attach_methodology_info(project)
         return project
 
