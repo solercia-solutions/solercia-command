@@ -8,10 +8,12 @@ import {
   provideTheme,
   SOL_DEFAULT_THEME,
   SOL_I18N,
+  THEME_SOURCE,
   type ThemeFile,
 } from '@solercia/ui';
 import { routes } from './app.routes';
 import { authInterceptor } from '@features/auth/auth.interceptor';
+import { OrgThemeSource } from '@features/theme/org-theme.source';
 import { provideI18n, I18nService } from '@shared/i18n';
 import solerciaDefaultTheme from '../assets/themes/solercia-default.theme.json';
 
@@ -27,6 +29,11 @@ export const appConfig: ApplicationConfig = {
     // Identidad visual de gestion_proyectos (marca índigo) como tema por
     // defecto: sustituye al tema "Vértice" empaquetado en la librería.
     { provide: SOL_DEFAULT_THEME, useValue: solerciaDefaultTheme as unknown as ThemeFile },
+    // Puerto THEME_SOURCE: carga el ThemeFile de la organización del JWT
+    // (GET /organizations/me/theme). El host lo consume vía push
+    // (TenantThemeService → setTenantTheme) porque el pull de la librería
+    // (SOL_TENANT_RESOLVER) solo tipa tenants numéricos y aquí son UUID.
+    { provide: THEME_SOURCE, useExisting: OrgThemeSource },
     // i18n real (Transloco, es-CO por defecto).
     ...provideI18n(),
     // Cablea el contrato i18n de @solercia/ui a nuestra fachada Transloco, para
