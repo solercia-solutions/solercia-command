@@ -34,6 +34,7 @@ from app.modules.menus.router import router as menus_admin_router
 from app.modules.notifications.router import preferences_router as notifications_prefs_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.org_role_templates.router import router as org_role_templates_router
+from app.modules.organizations.router import router as organizations_router
 from app.modules.projects.router import router as projects_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.roles.router import router as roles_admin_router
@@ -149,6 +150,7 @@ app.add_middleware(
 register_exception_handlers(app)
 
 app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(organizations_router, prefix=API_PREFIX)
 app.include_router(projects_router, prefix=API_PREFIX)
 app.include_router(org_role_templates_router, prefix=API_PREFIX)
 app.include_router(boards_router, prefix=API_PREFIX)
