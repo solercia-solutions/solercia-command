@@ -9,6 +9,7 @@ import {
   ProjectListResponse,
   ProjectProgressResponse,
   ProjectTreeResponse,
+  UpdateProjectPayload,
 } from './project.model';
 
 /** Thin HTTP client for the /projects resource. */
@@ -29,6 +30,35 @@ export class ProjectsService {
     return this.http.post<ProjectItemResponse>(
       `${apiBase}/projects`,
       payload,
+    );
+  }
+
+  /**
+   * PATCH /projects/:id — partial edit (name/description/code). Domain
+   * errors: 409 `project_code_taken`, 422 `methodology_not_editable`.
+   */
+  update(
+    id: string,
+    payload: UpdateProjectPayload,
+  ): Observable<ProjectItemResponse> {
+    return this.http.patch<ProjectItemResponse>(
+      `${apiBase}/projects/${id}`,
+      payload,
+    );
+  }
+
+  /**
+   * PATCH /projects/:id/parent — re-link in the hierarchy (`null` = root).
+   * Domain errors: 422 `self_parent` / `max_depth_exceeded`,
+   * 404 `parent_not_found`, 409 `project_cycle`.
+   */
+  reparent(
+    id: string,
+    parentProjectId: string | null,
+  ): Observable<ProjectItemResponse> {
+    return this.http.patch<ProjectItemResponse>(
+      `${apiBase}/projects/${id}/parent`,
+      { parent_project_id: parentProjectId },
     );
   }
 
