@@ -377,6 +377,108 @@ async def _seed_menu(session: AsyncSession):
     return menu
 
 
+async def _seed_asset(session: AsyncSession, organization):
+    from app.modules.assets.models import Asset
+    from app.shared.enums import AssetType
+
+    asset = Asset(
+        organization_id=organization.id,
+        name=f"{organization.name} Asset",
+        asset_type=AssetType.hardware,
+    )
+    session.add(asset)
+    await session.flush()
+    return asset
+
+
+async def _seed_asset_license(session: AsyncSession, organization, asset):
+    from app.modules.assets.models import AssetLicense
+    from app.shared.enums import LicenseType
+
+    license_row = AssetLicense(
+        organization_id=organization.id,
+        asset_id=asset.id,
+        license_type=LicenseType.subscription,
+        start_date=date.today(),
+        expiration_date=date.today() + timedelta(days=30),
+    )
+    session.add(license_row)
+    await session.flush()
+    return license_row
+
+
+async def _seed_connector(session: AsyncSession, organization, provider: str):
+    from app.modules.connectors.models import Connector
+
+    connector = Connector(organization_id=organization.id, provider=provider)
+    session.add(connector)
+    await session.flush()
+    return connector
+
+
+async def _seed_connected_account(session: AsyncSession, organization, connector, user):
+    from app.modules.connectors.models import ConnectedAccount
+
+    account = ConnectedAccount(
+        organization_id=organization.id,
+        connector_id=connector.id,
+        user_id=user.id,
+        external_account_id=str(uuid.uuid4()),
+    )
+    session.add(account)
+    await session.flush()
+    return account
+
+
+async def _seed_connection_credentials(session: AsyncSession, organization, account):
+    from app.modules.connectors.models import ConnectionCredentials
+
+    creds = ConnectionCredentials(
+        organization_id=organization.id,
+        connected_account_id=account.id,
+        access_token_enc="encrypted-token",
+    )
+    session.add(creds)
+    await session.flush()
+    return creds
+
+
+async def _seed_intake_item(session: AsyncSession, organization, connector):
+    from app.modules.intake.models import IntakeItem
+    from app.shared.enums import IntakeItemType
+
+    item = IntakeItem(
+        organization_id=organization.id,
+        source_provider=connector.provider,
+        connector_id=connector.id,
+        item_type=IntakeItemType.email,
+        external_id=str(uuid.uuid4()),
+        title="Insumo de prueba",
+        origin_actor="tester@example.com",
+        occurred_at=datetime.now(UTC),
+        raw_payload={},
+    )
+    session.add(item)
+    await session.flush()
+    return item
+
+
+async def _seed_glpi_user_link(session: AsyncSession, organization, connector, user):
+    from app.modules.glpi_sync.models import GlpiUserLink
+    from app.shared.enums import MatchMethod
+
+    link = GlpiUserLink(
+        organization_id=organization.id,
+        connector_id=connector.id,
+        glpi_user_id=str(uuid.uuid4()),
+        user_id=user.id,
+        match_method=MatchMethod.manual,
+    )
+    session.add(link)
+    await session.flush()
+    return link
+
+
 # ---------------------------------------------------------------------------
 # Fase 2 — Proyecto y ejecución (tasks.md, Commit 2)
 # ---------------------------------------------------------------------------
@@ -1046,3 +1148,203 @@ async def test_performance_dashboard_only_includes_callers_collaborators(
     user_ids = {row["user"]["id"] for row in response.json()["data"]["collaborators"]}
     assert str(two_orgs.a.user.id) in user_ids
     assert str(two_orgs.b.user.id) not in user_ids
+
+
+# ---------------------------------------------------------------------------
+# Fase 6 — Activos e integraciones (tasks.md, Commit 6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_assets_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    asset_a = await _seed_asset(session, two_orgs.a.organization)
+    asset_b = await _seed_asset(session, two_orgs.b.organization)
+
+    response = await client.get("/assets", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(asset_a.id) in ids
+    assert str(asset_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_and_delete_asset_from_other_org_return_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    asset_b = await _seed_asset(session, two_orgs.b.organization)
+
+    update_response = await client.patch(
+        f"/assets/{asset_b.id}",
+        json={"name": "hackeado"},
+        headers=_auth(two_orgs.a.token),
+    )
+    delete_response = await client.delete(
+        f"/assets/{asset_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert update_response.status_code == 404
+    assert delete_response.status_code == 404
+    await session.refresh(asset_b)
+    assert asset_b.is_active is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_asset_license_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+    asset_b = await _seed_asset(session, two_orgs.b.organization)
+    license_b = await _seed_asset_license(session, two_orgs.b.organization, asset_b)
+
+    response = await client.patch(
+        f"/asset-licenses/{license_b.id}",
+        json={"seats": 5},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_alert_rules_only_returns_callers_organization(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    response = await client.get("/alert-rules", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(two_orgs.a.alert_rule.id) in ids
+    assert str(two_orgs.b.alert_rule.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_update_alert_rule_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    response = await client.patch(
+        f"/alert-rules/{two_orgs.b.alert_rule.id}",
+        json={"enabled": False},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_intake_item_of_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "microsoft365")
+    item_b = await _seed_intake_item(session, two_orgs.b.organization, connector_b)
+
+    response = await client.get(
+        f"/intake/items/{item_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_list_intake_items_only_returns_callers_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_a = await _seed_connector(session, two_orgs.a.organization, "microsoft365")
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "microsoft365")
+    item_a = await _seed_intake_item(session, two_orgs.a.organization, connector_a)
+    item_b = await _seed_intake_item(session, two_orgs.b.organization, connector_b)
+
+    response = await client.get("/intake/items", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(item_a.id) in ids
+    assert str(item_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_glpi_links_of_other_org_not_visible(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_a = await _seed_connector(session, two_orgs.a.organization, "glpi")
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "glpi")
+    link_a = await _seed_glpi_user_link(
+        session, two_orgs.a.organization, connector_a, two_orgs.a.user
+    )
+    link_b = await _seed_glpi_user_link(
+        session, two_orgs.b.organization, connector_b, two_orgs.b.user
+    )
+
+    response = await client.get("/glpi-sync/links", headers=_auth(two_orgs.a.token))
+
+    assert response.status_code == 200, response.text
+    ids = {row["id"] for row in response.json()["data"]}
+    assert str(link_a.id) in ids
+    assert str(link_b.id) not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_revoke_glpi_link_from_other_org_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "glpi")
+    link_b = await _seed_glpi_user_link(
+        session, two_orgs.b.organization, connector_b, two_orgs.b.user
+    )
+
+    response = await client.delete(
+        f"/glpi-sync/links/{link_b.id}", headers=_auth(two_orgs.a.token)
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_jira_import_against_other_org_connector_returns_404(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+) -> None:
+    connector_b = await _seed_connector(session, two_orgs.b.organization, "jira")
+
+    response = await client.post(
+        f"/connectors/{connector_b.id}/jira/import",
+        json={"jql": "project = PROJ"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_organization_theme_is_isolated_per_organization(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, rbac_admin
+) -> None:
+    await rbac_admin(session, two_orgs.a.organization, two_orgs.a.user)
+
+    put_response = await client.put(
+        "/organizations/me/theme",
+        json={"colors": {"primary": "#123456"}},
+        headers=_auth(two_orgs.a.token),
+    )
+    b_response = await client.get(
+        "/organizations/me/theme", headers=_auth(two_orgs.b.token)
+    )
+
+    assert put_response.status_code == 200, put_response.text
+    assert b_response.status_code == 200, b_response.text
+    assert b_response.json()["data"] is None

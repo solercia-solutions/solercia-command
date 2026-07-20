@@ -64,8 +64,8 @@ Chain strategy: size-exception
 
 ## Fase 6 — Activos e integraciones, 6 módulos (Commit 6)
 
-- [ ] 6.1 [RED] Tests de fuga para assets (+ AssetLicense), alert_rules, intake, glpi_sync (`/unmatched`, `/links` no exponen ids de B), jira_import (import contra `connector_id` de B autenticado como A → 404), organizations. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -k "assets or alert_rules or intake or glpi_sync or jira_import or organizations" -v`
-- [ ] 6.2 Registrar fugas si aparecen.
+- [x] 6.1 [RED] Tests de fuga para assets (+ AssetLicense), alert_rules, intake, glpi_sync (`/unmatched`, `/links` no exponen ids de B), jira_import (import contra `connector_id` de B autenticado como A → 404), organizations. Verify: `TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest backend/tests/test_cross_tenant_isolation.py -v` → 47/47 verdes.
+- [x] 6.2 Ninguna fuga detectada. `assets`/`alert_rules` (escritura) usan rol RBAC `ADMIN` (`rbac_admin`); `intake`/`glpi_sync`/`jira_import` usan `require_role(admin, manager)` sobre `OrganizationMember.role`, ya `admin` en `two_orgs` sin fixture adicional. `organizations` (`/me/theme`) no tiene vector cross-tenant por diseño (siempre resuelve el org del JWT, sin parámetro de id) — test confirma que el tema de A no contamina el de B.
 
 ## Fase 7 — Conectores por organización y por usuario (Commit 7)
 
