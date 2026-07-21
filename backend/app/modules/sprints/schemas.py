@@ -79,6 +79,25 @@ class SprintRead(BaseModel):
     updated_by: uuid.UUID | None = None
 
 
+class SprintListItem(SprintRead):
+    """A sprint as returned by ``GET /projects/{id}/sprints``.
+
+    Additive-only over ``SprintRead`` (change 30-backlog-sprints-agrupados,
+    design.md D2): ``burndown``/``close``/``PATCH`` keep returning plain
+    ``SprintRead`` and never grow these fields.
+    """
+
+    story_count: int = 0
+    estimation_hours_sum: float = 0.0
+
+
+class BacklogAggregate(BaseModel):
+    """Aggregate of the project's tasks with no sprint (``meta.backlog``)."""
+
+    story_count: int = 0
+    estimation_hours_sum: float = 0.0
+
+
 class SprintSuggestedName(BaseModel):
     """Suggested (non-persisted) name for the next sprint of a project."""
 

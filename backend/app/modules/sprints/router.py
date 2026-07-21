@@ -37,10 +37,11 @@ async def list_sprints(
     """
 
     service = SprintService(db)
-    sprints, total = await service.list_sprints(
+    sprints, total, backlog = await service.list_sprints(
         membership.organization_id, project_id, pagination
     )
-    return {"data": sprints, "meta": build_list_meta(pagination, total)}
+    meta = build_list_meta(pagination, total, base={"backlog": backlog})
+    return {"data": sprints, "meta": meta}
 
 
 @router.post(

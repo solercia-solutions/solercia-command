@@ -14,7 +14,9 @@ from app.modules.sprints.models import Sprint
 from app.modules.sprints.naming import next_sprint_name
 from app.modules.sprints.repository import SprintRepository
 from app.modules.sprints.schemas import (
+    BacklogAggregate,
     SprintCreate,
+    SprintListItem,
     SprintRead,
     SprintUpdate,
     VelocityRead,
@@ -40,15 +42,35 @@ class SprintService:
         organization_id: uuid.UUID,
         project_id: uuid.UUID,
         pagination: PaginationParams | None = None,
-    ) -> tuple[list[SprintRead], int]:
-        """Return ``(sprints, total)`` for the project."""
+    ) -> tuple[list[SprintListItem], int, BacklogAggregate]:
+        """Return ``(sprints, total, backlog)`` for the project.
+
+        ``aggregate_tasks_by_sprint`` is called EXACTLY ONCE regardless of how
+        many sprints the project has (design.md D1 — one grouped query, no
+        N+1); its ``None`` key is the backlog aggregate.
+        """
 
         await self._require_sprints_enabled(organization_id, project_id)
         sprints, total = await self.repo.list_for_project(
             organization_id, project_id, pagination
         )
-        reads = [SprintRead.model_validate(sprint) for sprint in sprints]
-        return reads, total
+        aggregates = await self.repo.aggregate_tasks_by_sprint(
+            organization_id, project_id
+        )
+
+        items = [
+            SprintListItem(
+                **SprintRead.model_validate(sprint).model_dump(),
+                story_count=aggregates.get(sprint.id, (0, 0.0))[0],
+                estimation_hours_sum=aggregates.get(sprint.id, (0, 0.0))[1],
+            )
+            for sprint in sprints
+        ]
+        backlog_count, backlog_hours = aggregates.get(None, (0, 0.0))
+        backlog = BacklogAggregate(
+            story_count=backlog_count, estimation_hours_sum=backlog_hours
+        )
+        return items, total, backlog
 
     async def create_sprint(
         self,
