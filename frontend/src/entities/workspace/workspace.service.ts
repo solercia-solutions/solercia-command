@@ -101,6 +101,10 @@ export class WorkspaceService {
 
   /* ---- Sprints ----------------------------------------------------------- */
 
+  /** Change 30-backlog-sprints-agrupados: no se agrega un endpoint dedicado
+   * de agregados (alternativa descartada en design.md D1) — este mismo
+   * envelope ya trae `data[].story_count/estimation_hours_sum` y
+   * `meta.backlog` gracias al tipo `SprintListResponse` actualizado. */
   sprints(projectId: string): Observable<SprintListResponse> {
     return this.http.get<SprintListResponse>(
       `${apiBase}/projects/${projectId}/sprints`,

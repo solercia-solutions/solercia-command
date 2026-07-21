@@ -36,6 +36,7 @@ import { TaskDetailPanelComponent } from '@widgets/task-detail-panel/task-detail
 import { SprintGanttComponent } from '@widgets/sprint-gantt/sprint-gantt.component';
 import { TaskDetail } from '@entities/task/task-detail.model';
 import {
+  BacklogAggregate,
   BurndownData,
   METHODOLOGY_BADGE,
   Member,
@@ -43,6 +44,7 @@ import {
   PRIORITY_LABELS,
   Sprint,
   SprintCloseResult,
+  SprintListItem,
   Task,
   VelocityData,
   formatShortDate,
@@ -304,7 +306,11 @@ type ViewMode = 'board' | 'grid';
           }
         }
 
-        <!-- BACKLOG -->
+        <!-- BACKLOG (change 30-backlog-sprints-agrupados: secciones
+             colapsables estilo Jira — active → draft → Backlog al final;
+             closed detrás de un enlace. Cabecera = agregados del servidor;
+             cuerpo = allTasks() ya cargadas, agrupadas por sprint_id, sin
+             fetch extra — D3/D7.) -->
         @if (activeTab() === 'backlog') {
           <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between gap-3">
@@ -318,24 +324,169 @@ type ViewMode = 'board' | 'grid';
                 + {{ text.backlogAdd() }}
               </sol-button>
             </div>
-            @if (backlogTasks().length === 0) {
-              <sol-card>
-                <p class="py-6 text-center text-sm text-muted">
-                  {{ text.backlogEmpty() }}
-                </p>
-              </sol-card>
-            } @else {
-              <!-- La reasignación de sprint vive ahora en el drawer de detalle
-                   de la tarea (enlace "Abrir detalle" de cada tarjeta). -->
-              <div class="flex flex-col gap-3">
-                @for (task of backlogTasks(); track task.id) {
-                  <ng-container
-                    *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                  ></ng-container>
+
+            @for (sprint of openSprintSections(); track sprint.id) {
+              <ng-container
+                *ngTemplateOutlet="sprintSectionTpl; context: { sprint: sprint, readOnly: false }"
+              ></ng-container>
+            }
+
+            @if (closedSprints().length > 0) {
+              <button
+                type="button"
+                (click)="showClosedSprints.set(!showClosedSprints())"
+                class="self-start text-xs text-muted transition-colors hover:text-text"
+              >
+                {{
+                  showClosedSprints()
+                    ? text.hideClosedSprints()
+                    : viewClosedSprintsLabel(closedSprints().length)
+                }}
+              </button>
+            }
+
+            @if (showClosedSprints()) {
+              @for (sprint of closedSprints(); track sprint.id) {
+                <ng-container
+                  *ngTemplateOutlet="sprintSectionTpl; context: { sprint: sprint, readOnly: true }"
+                ></ng-container>
+              }
+            }
+
+            <!-- Sección Backlog fija al final (D4/D7: id estable 'backlog'). -->
+            <div class="rounded-xl border border-border bg-surface shadow-sm">
+              <div [id]="sectionId(null)" class="flex items-center justify-between gap-3 p-4">
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    (click)="toggleSection(sectionId(null))"
+                    class="text-muted transition-colors hover:text-text"
+                    [attr.aria-expanded]="!collapsedSections().has(sectionId(null))"
+                    [attr.aria-label]="sectionToggleAria(text.backlogTitle(), sectionId(null))"
+                  >
+                    <sol-icon
+                      [name]="collapsedSections().has(sectionId(null)) ? 'chevron-right' : 'chevron-down'"
+                      size="sm"
+                    />
+                  </button>
+                  <div>
+                    <h3 class="text-base font-semibold text-text">{{ text.backlogTitle() }}</h3>
+                    <p class="mt-1 text-xs text-muted">
+                      {{ storyCountLabel(backlogAggregate().story_count) }} ·
+                      {{ hoursSumLabel(backlogAggregate().estimation_hours_sum) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              @if (!collapsedSections().has(sectionId(null))) {
+                <div class="flex flex-col gap-3 border-t border-border p-4">
+                  @if (backlogTasks().length === 0) {
+                    <p class="py-6 text-center text-sm text-muted">
+                      {{ text.backlogEmpty() }}
+                    </p>
+                  } @else {
+                    <!-- La reasignación de sprint vive ahora en el drawer de
+                         detalle de la tarea (enlace "Abrir detalle" de cada
+                         tarjeta). -->
+                    @for (task of backlogTasks(); track task.id) {
+                      <ng-container
+                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                      ></ng-container>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Cabecera + cuerpo de una sección de sprint, reutilizada para
+               las abiertas (active/draft, con acción) y las cerradas
+               (readOnly, sin acción — D5). -->
+          <ng-template #sprintSectionTpl let-sprint="sprint" let-readOnly="readOnly">
+            <div
+              class="rounded-xl border border-border bg-surface shadow-sm"
+              [class.opacity-80]="readOnly"
+            >
+              <div [id]="sectionId(sprint)" class="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    (click)="toggleSection(sectionId(sprint))"
+                    class="text-muted transition-colors hover:text-text"
+                    [attr.aria-expanded]="!collapsedSections().has(sectionId(sprint))"
+                    [attr.aria-label]="sectionToggleAria(sprint.name, sectionId(sprint))"
+                  >
+                    <sol-icon
+                      [name]="collapsedSections().has(sectionId(sprint)) ? 'chevron-right' : 'chevron-down'"
+                      size="sm"
+                    />
+                  </button>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-base font-semibold text-text">{{ sprint.name }}</h3>
+                      <span
+                        class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        [class]="sprintBadgeClass(sprint)"
+                      >
+                        {{ sprintStatusLabel(sprint) }}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs text-muted">
+                      @if (sprint.start_date || sprint.end_date) {
+                        {{ dateLabel(sprint.start_date) }} — {{ dateLabel(sprint.end_date) }}
+                      } @else {
+                        {{ text.backlogNoDates() }}
+                      }
+                      · {{ storyCountLabel(sprint.story_count) }} ·
+                      {{ hoursSumLabel(sprint.estimation_hours_sum) }}
+                    </p>
+                  </div>
+                </div>
+                @if (!readOnly) {
+                  <div class="shrink-0">
+                    @if (sprint.status === 'active') {
+                      <sol-button
+                        type="button"
+                        variant="secondary"
+                        (click)="openCloseSprint(sprint)"
+                        [ariaLabel]="closeSprintAria(sprint.name)"
+                      >
+                        {{ text.closeSprint() }}
+                      </sol-button>
+                    } @else if (canStartSprint(sprint)) {
+                      <sol-button
+                        type="button"
+                        variant="primary"
+                        [disabled]="startingSprintId() === sprint.id"
+                        (click)="startSprint(sprint)"
+                        [ariaLabel]="startSprintAria(sprint.name)"
+                      >
+                        {{ text.startSprint() }}
+                      </sol-button>
+                    } @else {
+                      <sol-button
+                        type="button"
+                        variant="secondary"
+                        (click)="openAddDates(sprint)"
+                        [ariaLabel]="addDatesAria(sprint.name)"
+                      >
+                        {{ text.addDates() }}
+                      </sol-button>
+                    }
+                  </div>
                 }
               </div>
-            }
-          </div>
+              @if (!collapsedSections().has(sectionId(sprint))) {
+                <div class="flex flex-col gap-3 border-t border-border p-4">
+                  @for (task of tasksBySprint().get(sprint.id) ?? []; track task.id) {
+                    <ng-container
+                      *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                    ></ng-container>
+                  }
+                </div>
+              }
+            </div>
+          </ng-template>
         }
 
         <!-- SPRINTS -->
@@ -926,6 +1077,8 @@ export class ProjectWorkspaceComponent implements OnInit {
     backlogAdd: this.i18n.t('workspace.backlog.add'),
     backlogAddAria: this.i18n.t('workspace.backlog.addAria'),
     backlogEmpty: this.i18n.t('workspace.backlog.empty'),
+    backlogNoDates: this.i18n.t('workspace.backlog.noDates'),
+    hideClosedSprints: this.i18n.t('workspace.backlog.hideClosedSprints'),
     newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
     sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
     sprintNamePlaceholder: this.i18n.t('workspace.sprints.namePlaceholder'),
@@ -1012,7 +1165,23 @@ export class ProjectWorkspaceComponent implements OnInit {
   });
 
   protected readonly members = signal<Member[]>([]);
-  protected readonly sprints = signal<Sprint[]>([]);
+  protected readonly sprints = signal<SprintListItem[]>([]);
+
+  /** Aggregate of the project's tasks with no sprint (change
+   * 30-backlog-sprints-agrupados) — populated from `meta.backlog` on every
+   * `loadSprints()`, never left `null`. */
+  protected readonly backlogAggregate = signal<BacklogAggregate>({
+    story_count: 0,
+    estimation_hours_sum: 0,
+  });
+
+  /** Backlog section collapse state, hydrated per-project from localStorage
+   * (design.md D6). */
+  protected readonly collapsedSections = signal<Set<string>>(new Set());
+
+  /** "Ver sprints cerrados" toggle — in-memory only (not persisted, see
+   * tasks.md Risks). */
+  protected readonly showClosedSprints = signal(false);
 
   protected readonly activeTab = signal<TabId>('board');
   protected readonly viewMode = signal<ViewMode>('board');
@@ -1137,6 +1306,47 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly backlogTasks = computed<Task[]>(() =>
     this.allTasks().filter((task) => task.sprint_id == null),
   );
+
+  /**
+   * Sections of the grouped Backlog tab, in display order (design.md D4):
+   * `active` sprints first, then `draft` ordered ascending by `created_at`.
+   * `closed` sprints are excluded here — they only render behind the "Ver
+   * sprints cerrados" toggle (`closedSprints` below).
+   */
+  protected readonly openSprintSections = computed<SprintListItem[]>(() => {
+    const all = this.sprints();
+    const active = all.filter((sprint) => sprint.status === 'active');
+    const draft = all
+      .filter((sprint) => sprint.status === 'draft')
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return [...active, ...draft];
+  });
+
+  protected readonly closedSprints = computed<SprintListItem[]>(() =>
+    this.sprints().filter((sprint) => sprint.status === 'closed'),
+  );
+
+  /**
+   * Groups the ALREADY-LOADED `allTasks()` by `sprint_id` (design.md D3/D7)
+   * — no extra fetch. The section HEADER never reads from this map: it
+   * always shows the server-authoritative `story_count`/
+   * `estimation_hours_sum` (avoids the divergence risk #1 from proposal.md).
+   */
+  protected readonly tasksBySprint = computed<Map<string, Task[]>>(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of this.allTasks()) {
+      if (!task.sprint_id) {
+        continue;
+      }
+      const bucket = map.get(task.sprint_id);
+      if (bucket) {
+        bucket.push(task);
+      } else {
+        map.set(task.sprint_id, [task]);
+      }
+    }
+    return map;
+  });
 
   /**
    * Columnas genéricas para `sol-kanban-board` (D2: la lib nunca conoce
@@ -1274,6 +1484,7 @@ export class ProjectWorkspaceComponent implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.projectId.set(id);
+    this.collapsedSections.set(readPersistedSections(id));
     this.loadProject();
   }
 
@@ -1319,8 +1530,16 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   private loadSprints(): void {
     this.workspace.sprints(this.projectId()).subscribe({
-      next: (res) => this.sprints.set(res.data ?? []),
-      error: () => this.sprints.set([]),
+      next: (res) => {
+        this.sprints.set(res.data ?? []);
+        this.backlogAggregate.set(
+          res.meta?.backlog ?? { story_count: 0, estimation_hours_sum: 0 },
+        );
+      },
+      error: () => {
+        this.sprints.set([]);
+        this.backlogAggregate.set({ story_count: 0, estimation_hours_sum: 0 });
+      },
     });
   }
 
@@ -1765,5 +1984,76 @@ export class ProjectWorkspaceComponent implements OnInit {
       return this.text.sprintDraft();
     }
     return this.text.sprintClosed();
+  }
+
+  /* ---- Grouped backlog sections (change 30-backlog-sprints-agrupados) --- */
+
+  /** Stable id per section (design.md D7 — seam for drag & drop in 31):
+   * `sprint-<uuid>` for a sprint, the literal `'backlog'` for the Backlog
+   * section (`sprint === null`). */
+  protected sectionId(sprint: Sprint | null): string {
+    return sprint ? `sprint-${sprint.id}` : 'backlog';
+  }
+
+  protected toggleSection(id: string): void {
+    const next = new Set(this.collapsedSections());
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this.collapsedSections.set(next);
+    persistSections(this.projectId(), next);
+  }
+
+  protected storyCountLabel(count: number): string {
+    return this.i18n.translate('workspace.backlog.storyCount', { count });
+  }
+
+  protected hoursSumLabel(hours: number): string {
+    return this.i18n.translate('workspace.backlog.hoursSum', { hours });
+  }
+
+  protected viewClosedSprintsLabel(count: number): string {
+    return this.i18n.translate('workspace.backlog.viewClosedSprints', { count });
+  }
+
+  protected sectionToggleAria(name: string, sectionId: string): string {
+    return this.collapsedSections().has(sectionId)
+      ? this.i18n.translate('workspace.backlog.expandAria', { name })
+      : this.i18n.translate('workspace.backlog.collapseAria', { name });
+  }
+}
+
+/** localStorage key for the collapsed-section ids of one project (design.md
+ * D6) — one key per project, so collapse state never leaks across projects. */
+function backlogSectionsKey(projectId: string): string {
+  return `sp-backlog-sections-${projectId}`;
+}
+
+/** Reads the collapsed section ids for a project. Missing key, invalid JSON
+ * or storage failures all fall back to the design's explicit default:
+ * expanded (empty set). */
+function readPersistedSections(projectId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(backlogSectionsKey(projectId));
+    if (!raw) {
+      return new Set();
+    }
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/** Persists the collapsed section ids for a project; storage failures are
+ * silently ignored (state degrades to in-memory only, mirrors
+ * `persistCollapsed` in `layout-shell.component.ts`). */
+function persistSections(projectId: string, ids: Set<string>): void {
+  try {
+    localStorage.setItem(backlogSectionsKey(projectId), JSON.stringify([...ids]));
+  } catch {
+    // Storage no disponible (modo privado/quota): el estado queda en memoria.
   }
 }
