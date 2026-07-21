@@ -71,6 +71,10 @@ async def list_tasks(
             "una épica); desactiva la restricción top-level del listado."
         ),
     ),
+    include_subtasks: bool = Query(
+        default=False,
+        description="Incluye subtareas junto a las tareas de nivel superior en el mismo listado.",
+    ),
     pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
@@ -85,6 +89,16 @@ async def list_tasks(
     filters by exact equality; ``parent_task_id`` returns the direct children
     of that task (which are never top-level, so it lifts the top-level-only
     restriction).
+
+    ``include_subtasks`` (change 32-jerarquia-subtareas) also lifts the
+    top-level-only restriction, returning subtasks flat alongside top-level
+    tasks in the same ``order asc, created_at asc`` order, without nesting
+    them. When ``assignee_id`` is present — with or without
+    ``include_subtasks`` — any subtask assigned to that user is ALWAYS
+    surfaced even if its parent is assigned to someone else; that foreign
+    parent is returned too, flagged ``is_context=true`` in the response
+    (deduplicated when the parent already matches the filter by itself).
+    Context parents never count toward ``meta.total``.
     """
 
     service = TaskService(db)
@@ -101,6 +115,7 @@ async def list_tasks(
         q=q,
         task_type=task_type,
         parent_task_id=parent_task_id,
+        include_subtasks=include_subtasks,
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}

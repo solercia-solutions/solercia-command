@@ -124,6 +124,36 @@ class TaskRepository:
         rows = result.scalars().all()
         return rows, len(rows)
 
+    async def get_by_ids(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        ids: Sequence[uuid.UUID],
+    ) -> Sequence[Task]:
+        """Return active tasks matching ``ids``, scoped to org/project.
+
+        Used by the assignee-filter context-parent rule (change
+        32-jerarquia-subtareas, D2): resolves the foreign parents of matched
+        subtasks. Never crosses tenant/project boundaries, same as every
+        other read in this repository. Returns ``[]`` without querying when
+        ``ids`` is empty.
+        """
+
+        if not ids:
+            return []
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.id.in_(ids),
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+        )
+        return result.scalars().all()
+
     async def list_for_org(
         self, organization_id: uuid.UUID
     ) -> Sequence[Task]:

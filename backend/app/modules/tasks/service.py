@@ -79,6 +79,7 @@ class TaskService:
         q: str | None = None,
         task_type: str | None = None,
         parent_task_id: uuid.UUID | None = None,
+        include_subtasks: bool = False,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
@@ -91,6 +92,18 @@ class TaskService:
         the direct children of that task; since children are by definition
         NOT top-level, this filter disables the default top-level-only
         restriction of the listing.
+
+        ``include_subtasks`` (change 32-jerarquia-subtareas, D1) also lifts
+        the top-level-only restriction, returning subtasks flat alongside
+        top-level tasks (no tree). When ``assignee_id`` is present — with or
+        without ``include_subtasks`` — the top-level restriction is ALSO
+        lifted for that same first pass (D2): a subtask assigned to that
+        user must be able to match even though it is not top-level. A second
+        pass then resolves the **context parents** of matched subtasks whose
+        own parent did not match the filter: those parents are appended to
+        the result flagged ``is_context=True`` and are NOT counted in
+        ``total`` (deduplicated — a parent that already matched by itself
+        keeps ``is_context=False`` and is never re-added).
         """
 
         self._validate_due_range(due_from, due_to)
@@ -108,12 +121,37 @@ class TaskService:
             q=q,
             task_type=task_type,
             parent_task_id=parent_task_id,
-            top_level_only=parent_task_id is None,
+            top_level_only=(
+                parent_task_id is None
+                and not include_subtasks
+                and assignee_id is None
+            ),
             pagination=pagination,
         )
+
+        context_parents: Sequence[Task] = ()
+        if assignee_id is not None:
+            matched_ids = {task.id for task in tasks}
+            missing_parent_ids = {
+                task.parent_task_id
+                for task in tasks
+                if task.parent_task_id is not None
+                and task.parent_task_id not in matched_ids
+            }
+            if missing_parent_ids:
+                context_parents = await self.repo.get_by_ids(
+                    organization_id, project_id, missing_parent_ids
+                )
+
         name_map = await self._assignee_name_map(organization_id)
         reads = [
-            self._to_read(task, name_map, project_code=project.code) for task in tasks
+            self._to_read(task, name_map, project_code=project.code)
+            for task in tasks
+        ] + [
+            self._to_read(
+                parent, name_map, project_code=project.code, is_context=True
+            )
+            for parent in context_parents
         ]
         return reads, total
 
@@ -919,6 +957,7 @@ class TaskService:
         name_map: dict[uuid.UUID, str],
         *,
         project_code: str | None = None,
+        is_context: bool = False,
     ) -> TaskRead:
         task.assignee_name = (
             name_map.get(task.assignee_id) if task.assignee_id else None
@@ -926,4 +965,5 @@ class TaskService:
         read = TaskRead.model_validate(task)
         if project_code and task.task_number is not None:
             read.task_key = f"{project_code}-{task.task_number}"
+        read.is_context = is_context
         return read

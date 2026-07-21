@@ -146,6 +146,11 @@ class TaskRead(BaseModel):
     # the task (checklists.md R7). None when the task has no checklist items.
     # Only populated on single-task reads (same pattern as subtask_progress).
     checklist_progress: float | None = None
+    # Additive field (change 32-jerarquia-subtareas): true only under
+    # `assignee_id` — the row is a foreign parent returned as context (its
+    # subtask matched the assignee filter, the parent did not), never a real
+    # match. Default false keeps every previous consumer of TaskRead intact.
+    is_context: bool = False
 
 
 class TaskColumnMove(BaseModel):
