@@ -9,7 +9,7 @@ phases:
   tasks: done
   apply: done
   verify: done
-  archive: pending
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -52,7 +52,7 @@ facts_verified:
   - "estimation_hours ya se guarda en horas (Numeric) -> aqui suma simple; estimation_display enriquecido llega con cambio 34 (OLA_4.md:79-82)"
   - "Consecutivo 30 libre en openspec/changes/ y en openspec/changes/archive/ (solo existen 25-29 y 34 activos)"
   - "Capability sprints tiene spec (openspec/specs/sprints/spec.md) -> delta MODIFIED; frontend-ui-consumption NO cubre la vista de backlog (es migracion a la libreria)"
-last_updated: 2026-07-21
+last_updated: 2026-07-20
 spec_notes:
   - "Capability: sprints (delta MODIFIED). Sin capability nueva."
   - "Endpoint/lectura propuesta: enriquecer GET /projects/{id}/sprints (item de lista con story_count + estimation_hours_sum) + agregados de backlog; alternativa a evaluar en design: GET /projects/{id}/backlog-overview dedicado"

@@ -1,18 +1,18 @@
 # Spec — Sprints (sprints)
 
-> **Origen**: línea base as-built (2026-07-11), delta merge 29-sprint-borrador (2026-07-20)
+> **Origen**: línea base as-built (2026-07-11), delta merge 29-sprint-borrador (2026-07-20), delta merge 30-backlog-sprints-agrupados (2026-07-20)
 
-> Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código. Delta 29-sprint-borrador: añade creación en estado borrador, autonombre, transición draft→active, y endpoint de sugerencia de nombre.
+> Línea base as-built (2026-07-11). Documenta el comportamiento existente en el código. Delta 29-sprint-borrador: añade creación en estado borrador, autonombre, transición draft→active, y endpoint de sugerencia de nombre. Delta 30-backlog-sprints-agrupados: enriquece la lista de sprints con agregados por sprint (conteo/suma) y del backlog; UI del backlog reorganizada con secciones colapsables por sprint.
 
 ## Propósito
 
-Sprints por proyecto (metodologías con `sprints_enabled`): creación con flexibilidad de fechas (borrador → activo), autonombre sugerido, edición, burndown ideal vs real y cierre con acumulación de puntos completados y devolución de tareas incompletas al backlog.
+Sprints por proyecto (metodologías con `sprints_enabled`): creación con flexibilidad de fechas (borrador → activo), autonombre sugerido, edición, burndown ideal vs real y cierre con acumulación de puntos completados y devolución de tareas incompletas al backlog. Desde el cambio 30: pestaña Backlog reorganizada con sprints como secciones colapsables (cada una mostrando conteo de historias y suma de horas estimadas del servidor) + sección Backlog de tareas sin sprint.
 
-## Alcance (con cambio 29)
+## Alcance (con cambio 29 y 30)
 
 | Método | Ruta | Propósito |
 |--------|------|-----------|
-| GET/POST | /api/v1/projects/{id}/sprints | Lista y creación (nombre opcional, nace `draft` sin fechas o `active` con ambas) |
+| GET/POST | /api/v1/projects/{id}/sprints | Lista (desde 30: incluye `story_count`, `estimation_hours_sum` por sprint y `meta.backlog` con agregados) y creación (nombre opcional, nace `draft` sin fechas o `active` con ambas) |
 | GET | /api/v1/projects/{id}/sprints/suggested-name | Autonombre sugerido para el próximo sprint (no persiste) |
 | GET | /api/v1/projects/{id}/sprints/{sid}/burndown | Burndown ideal vs real (unidad: puntos o tareas) |
 | PATCH | /api/v1/sprints/{id} | Edición (incluye "Añadir fechas") |
@@ -100,6 +100,79 @@ Modelo `Sprint` (Pk + Timestamp + SoftDelete):
 - Cuando se agrega `draft`, autonombre y `/start`
 - Entonces la suite sigue en verde; sprints previos no cambian.
 
+### Cambio 30 — Agregados por sprint y por Backlog en la lista
+
+- **R11**: La lista de sprints por proyecto (`GET /projects/{id}/sprints`) DEBE incluir, por cada sprint, `story_count` (tareas asignadas, sin contar eliminadas) y `estimation_hours_sum` (suma de `estimation_hours` de esas tareas), y DEBE incluir también el conteo/suma de las tareas sin sprint (Backlog) del proyecto en la respuesta (`meta.backlog`). Ningún campo existente de `SprintRead` cambia.
+
+#### Escenario: Conteo y suma con tareas mixtas y sprint vacío
+- Dado un sprint con tareas activas de 2h y 3h más una eliminada, y otro sprint recién creado sin tareas
+- Cuando se lista el proyecto
+- Entonces el primero muestra `story_count=2`, `estimation_hours_sum=5`; el segundo muestra `0` y `0` (nunca null).
+
+#### Escenario: Backlog con y sin tareas sueltas
+- Dado un proyecto con 2 tareas sin sprint (4h y 1h) y otro sin ninguna
+- Cuando se lista cada proyecto
+- Entonces el primero reporta conteo=2/suma=5h; el segundo, conteo=0/suma=0.
+
+### Cambio 30 — Permisos de la lectura de agregados
+
+- **R12**: Aplican los mismos permisos del módulo `sprints` a la lectura de agregados (autenticación + membresía, cualquier rol, sin restricción nueva); otra organización responde 404, sin token 401.
+
+#### Escenario: Aislamiento de tenant y autenticación
+- Dado un `member`, una solicitud sin token y un proyecto de otra organización
+- Cuando lista su proyecto, repite sin token, y consulta el ajeno
+- Entonces obtiene sus agregados; sin token responde 401; el ajeno responde 404.
+
+### Cambio 30 — Orden, visibilidad y estados vacíos del Backlog agrupado
+
+- **R13**: La pestaña Backlog DEBE mostrar primero las secciones `active`, luego las `draft` ordenadas ascendente por `created_at`, y la sección **Backlog** (tareas sin sprint) al final; los sprints `closed` NO se muestran aquí (siguen visibles en la pestaña Sprints). Cuando un proyecto no tiene sprints, la sección Backlog está sin tareas, o un sprint no tiene historias, DEBE mostrarse un mensaje vacío claro en español en vez de una lista en blanco.
+
+#### Escenario: Orden mixto con cerrado oculto
+- Dado un `active`, dos `draft` creados en distinto momento, un `closed` y tareas sueltas
+- Cuando se abre la pestaña Backlog
+- Entonces el orden es `active`, `draft` más antiguo, `draft` más nuevo, Backlog; el `closed` no aparece.
+
+#### Escenario: Tres vacíos distintos
+- Dado un proyecto sin sprints, uno con Backlog vacío y un sprint sin tareas
+- Cuando se abre cada pestaña
+- Entonces cada caso muestra su propio mensaje vacío.
+
+### Cambio 30 — Cabecera de sección y acción contextual
+
+- **R14**: Cada cabecera de sección DEBE mostrar nombre, badge de estado, fechas o "Sin fechas" (si `draft` sin ambas), `story_count`, `estimation_hours_sum`, y una acción contextual: `draft` sin fechas → "Añadir fechas"; `draft` con ambas fechas → "Iniciar sprint"; `active` → "Completar sprint".
+
+#### Escenario: Acción correcta por estado
+- Dado un `draft` sin fechas, un `draft` con ambas fechas y un `active`
+- Cuando se renderiza cada cabecera
+- Entonces muestran "Añadir fechas", "Iniciar sprint" y "Completar sprint" respectivamente.
+
+### Cambio 30 — Persistencia del colapso por proyecto y sección
+
+- **R15**: El colapso de cada sección DEBE persistir en `localStorage` con clave única por proyecto + identificador de sección; sin clave previa, el valor por defecto es expandido.
+
+#### Escenario: Colapsar, recargar y aislar entre proyectos
+- Dado una sección colapsada en el proyecto A
+- Cuando se recarga A y se abre el proyecto B
+- Entonces A sigue colapsada; B aparece expandida por defecto.
+
+### Cambio 30 — Ids estables por sección (seam drag & drop)
+
+- **R16**: Cada sección DEBE exponer un identificador estable (`sprint.id`, o el literal `'backlog'`) reutilizable como destino de arrastre en el cambio 31.
+
+#### Escenario: Identificador estable tras recarga
+- Dado una sección de sprint y la sección Backlog
+- Cuando se recarga la vista
+- Entonces ambos identificadores se mantienen iguales.
+
+### Cambio 30 — No regresión del listado y acciones existentes
+
+- **R17**: El listado, `burndown`, `close` y `start` (29) DEBEN seguir funcionando sin cambio de contrato; la suite backend existente DEBE permanecer en verde.
+
+#### Escenario: Suite en verde con agregados nuevos
+- Dado la suite de `sprints` previa a este cambio
+- Cuando se agregan los agregados y la vista agrupada
+- Entonces la suite sigue en verde y `SprintRead`/burndown/close no cambian de forma.
+
 ### Escenarios centrales — Baseline
 
 **R1 — Cierre de sprint**
@@ -122,7 +195,8 @@ Modelo `Sprint` (Pk + Timestamp + SoftDelete):
 - No hay validación de solapamiento de sprints ni límite de sprints activos simultáneos.
 - Sin paginación en la lista.
 - Cambio 29: no se introduce unicidad de nombres de sprint (colisiones editable).
-- Cobertura baseline: test_sprint_close (8 tests); cambio 29 agrega 30 tests (test_sprint_naming, test_sprint_draft_creation, test_sprint_start, test_sprint_suggested_name).
+- Cambio 30: sin test runner en frontend (requirements de UI verificadas por source inspection y build verde, no por tests de comportamiento); `showClosedSprints` estado en memoria, no persistido en localStorage.
+- Cobertura baseline: test_sprint_close (8 tests); cambio 29 agrega 30 tests (test_sprint_naming, test_sprint_draft_creation, test_sprint_start, test_sprint_suggested_name); cambio 30 agrega 5 tests (test_sprint_backlog_aggregates).
 
 ## Referencias
 
@@ -132,4 +206,10 @@ Modelo `Sprint` (Pk + Timestamp + SoftDelete):
 - backend/tests/test_sprint_draft_creation.py (cambio 29)
 - backend/tests/test_sprint_start.py (cambio 29)
 - backend/tests/test_sprint_suggested_name.py (cambio 29)
+- backend/tests/test_sprint_backlog_aggregates.py (cambio 30)
+- backend/tests/test_catalog_pagination.py (cambio 30 — 2 tests modificados)
+- frontend/src/entities/workspace/ (workspace.model.ts, workspace.service.ts desde 30)
+- frontend/src/widgets/project-workspace/project-workspace.component.ts (desde 30)
+- frontend/src/assets/i18n/es-CO.json (desde 30)
 - openspec/changes/29-sprint-borrador/ (proposal, design, tasks)
+- openspec/changes/30-backlog-sprints-agrupados/ (proposal, design, tasks)
