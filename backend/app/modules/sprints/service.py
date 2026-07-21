@@ -89,6 +89,20 @@ class SprintService:
         sprint = await self.repo.create(sprint)
         return SprintRead.model_validate(sprint)
 
+    async def suggest_next_name(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> str:
+        """Return the SUGGESTED name for the project's next sprint.
+
+        Reuses the exact same computation as ``create_sprint``'s auto-name
+        fallback (``repo.last_for_project`` + ``next_sprint_name``) but never
+        persists anything — no ``INSERT``/``commit``, purely a read.
+        """
+
+        project = await self._require_sprints_enabled(organization_id, project_id)
+        previous = await self.repo.last_for_project(organization_id, project_id)
+        return next_sprint_name(previous.name if previous else None, project.code)
+
     async def update_sprint(
         self,
         organization_id: uuid.UUID,

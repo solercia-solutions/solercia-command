@@ -79,6 +79,12 @@ class SprintRead(BaseModel):
     updated_by: uuid.UUID | None = None
 
 
+class SprintSuggestedName(BaseModel):
+    """Suggested (non-persisted) name for the next sprint of a project."""
+
+    name: str
+
+
 class SprintCloseBody(BaseModel):
     """Optional body for the close-sprint endpoint.
 
