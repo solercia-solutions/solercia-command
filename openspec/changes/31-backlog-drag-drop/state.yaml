@@ -8,7 +8,7 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
+  verify: done
   archive: pending
 artifacts:
   proposal: true
@@ -59,7 +59,7 @@ facts_verified:
   - "Task.order existe y se usa para ordenar listados (repository.py:27,122 order_by Task.order.asc()); es patchable via update_task"
   - "Vista de 30 deja ids estables sprint-<uuid>/backlog y ordena tareas por task.order como seams para 31 (30/design.md D7)"
   - "Permisos: modulo tasks usa get_current_membership (org + rol); DnD reutiliza el mismo endpoint -> mismos permisos y aislamiento por organization_id"
-last_updated: 2026-07-20
+last_updated: 2026-07-21
 spec_notes:
   - "Default: sin delta spec-level (reutiliza PATCH /tasks/{id}); Modified capabilities = None"
   - "Condicional: si design adopta guard de movimiento server-side (rechazar destino invalido/closed) o endpoint reorder por lotes, capability 'tasks' pasa a Modified con delta + TDD (reglas de movimiento + orden)"
@@ -71,3 +71,9 @@ apply_notes:
   - "Desviacion documentada en tasks.md 1.3: specs/tasks/spec.md describe el aislamiento cross-org del guard PATCH como 404; el codigo YA existente (sin cambios en este alcance) responde 422 invalid_sprint para cualquier sprint no encontrado en el org/proyecto del solicitante -- mismo efecto protector, codigo de estado distinto. Fuera de alcance de esta reconciliacion diferenciarlo."
   - "Fase 3: suite completa backend 1345 passed (1337 baseline + 8 tests nuevos); build frontend y lint verdes. Sin commit 3 (sin hallazgos)."
   - "Merge a preview diferido al orquestador por instruccion explicita de la invocacion de apply; esta sesion no toco main/preview. Rama feat/backlog-drag-drop lista para merge con los commits fe69d96 y 794bc3a."
+verify_notes:
+  - "Suite completa backend re-ejecutada de forma independiente: 1345 passed, 0 failed (373.86s). ruff/mypy limpios en archivos cambiados; frontend npm run build/lint verdes."
+  - "Reconciliacion documental: specs/tasks/spec.md, escenario 'Aislamiento de organizacion se mantiene' (guard PATCH), corregido de 404 a 422 code=invalid_sprint para reflejar el comportamiento real y preexistente de _verify_sprint (sin cambios de codigo en este alcance); el escenario equivalente de POST /tasks/reorder (404 sobre task_id cross-org via _require_task) ya era correcto y no se toco."
+  - "Dictamen commit fuera de alcance 5e98b18 (migra @solercia/ui del tarball al paquete npm 0.3.1): probado experimentalmente NO necesario para que compile el cambio 31 (build verde restaurando el tarball 0.3.0 y el export * original; arbol restaurado despues). WARNING de alcance: recomendado extraerlo a su propio cambio/PR. El workaround del export nombrado de SolDrawerComponent se probo correcto (todas las vistas reales -- projects, connections, project-workspace -- resuelven el drawer local; ng build AOT con [blur] confirma que ninguna vista quedo con el drawer publicado)."
+  - "frontend-backlog-dnd: 11/11 escenarios PARTIAL (sin test runner FE, mismo gap preexistente de 28/29/30), verificados por lectura de fuente + build AOT + eslint en verde. WARNING, no CRITICAL, consistente con el precedente del repo."
+  - "Verdict: PASS WITH WARNINGS. 0 CRITICAL. No bloquea sdd-archive."
