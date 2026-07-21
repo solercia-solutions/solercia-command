@@ -441,26 +441,38 @@ interface HierarchyRow {
                     @for (row of sectionRows(backlogTasks()); track row.parent?.id ?? $index) {
                       <div>
                         @if (row.parent; as parent) {
-                          <div
-                            cdkDrag
-                            [cdkDragData]="parent"
-                            [cdkDragDisabled]="row.isContext"
-                            (cdkDragStarted)="draggingFrom.set(sectionId(null))"
-                            (cdkDragEnded)="draggingFrom.set(null)"
-                          >
+                          @if (!row.isContext) {
                             <div
-                              *cdkDragPlaceholder
-                              class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
-                            ></div>
-                            <ng-container
-                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: row.isContext }"
-                            ></ng-container>
-                            @if (!row.isContext) {
+                              cdkDrag
+                              [cdkDragData]="parent"
+                              (cdkDragStarted)="draggingFrom.set(sectionId(null))"
+                              (cdkDragEnded)="draggingFrom.set(null)"
+                            >
+                              <div
+                                *cdkDragPlaceholder
+                                class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                              ></div>
+                              <ng-container
+                                *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: false }"
+                              ></ng-container>
                               <ng-container
                                 *ngTemplateOutlet="moveMenuTpl; context: { $implicit: parent }"
                               ></ng-container>
-                            }
-                          </div>
+                            </div>
+                          } @else {
+                            <!-- Padre de contexto (corrección post-verify CRITICAL-1):
+                                 SIN cdkDrag — exclusión ESTRUCTURAL, no basta con
+                                 [cdkDragDisabled]. CdkDropList.addItem()/getSortedItems()
+                                 registran cualquier cdkDrag hijo sin filtrar por disabled,
+                                 y DropListRef.getItemIndex() cuenta esa lista completa al
+                                 calcular currentIndex/previousIndex de los vecinos
+                                 arrastrables — dejar cdkDrag aquí (aunque deshabilitado)
+                                 desincroniza esos índices frente a [cdkDropListData], que
+                                 SÍ excluye este padre (ver topLevelOf()). -->
+                            <ng-container
+                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: true }"
+                            ></ng-container>
+                          }
                         }
                         @if (row.subtasks.length > 0) {
                           <div class="ml-6 mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-3">
@@ -581,26 +593,41 @@ interface HierarchyRow {
                     @for (row of sectionRows(tasksBySprint().get(sprint.id) ?? []); track row.parent?.id ?? $index) {
                       <div>
                         @if (row.parent; as parent) {
-                          <div
-                            cdkDrag
-                            [cdkDragData]="parent"
-                            [cdkDragDisabled]="readOnly || row.isContext"
-                            (cdkDragStarted)="draggingFrom.set(sectionId(sprint))"
-                            (cdkDragEnded)="draggingFrom.set(null)"
-                          >
+                          @if (!row.isContext) {
                             <div
-                              *cdkDragPlaceholder
-                              class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
-                            ></div>
-                            <ng-container
-                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: row.isContext }"
-                            ></ng-container>
-                            @if (!readOnly && !row.isContext) {
+                              cdkDrag
+                              [cdkDragData]="parent"
+                              [cdkDragDisabled]="readOnly"
+                              (cdkDragStarted)="draggingFrom.set(sectionId(sprint))"
+                              (cdkDragEnded)="draggingFrom.set(null)"
+                            >
+                              <div
+                                *cdkDragPlaceholder
+                                class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                              ></div>
                               <ng-container
-                                *ngTemplateOutlet="moveMenuTpl; context: { $implicit: parent }"
+                                *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: false }"
                               ></ng-container>
-                            }
-                          </div>
+                              @if (!readOnly) {
+                                <ng-container
+                                  *ngTemplateOutlet="moveMenuTpl; context: { $implicit: parent }"
+                                ></ng-container>
+                              }
+                            </div>
+                          } @else {
+                            <!-- Padre de contexto (corrección post-verify CRITICAL-1):
+                                 SIN cdkDrag — exclusión ESTRUCTURAL, no basta con
+                                 [cdkDragDisabled]. CdkDropList.addItem()/getSortedItems()
+                                 registran cualquier cdkDrag hijo sin filtrar por disabled,
+                                 y DropListRef.getItemIndex() cuenta esa lista completa al
+                                 calcular currentIndex/previousIndex de los vecinos
+                                 arrastrables — dejar cdkDrag aquí (aunque deshabilitado)
+                                 desincroniza esos índices frente a [cdkDropListData], que
+                                 SÍ excluye este padre (ver topLevelOf()). -->
+                            <ng-container
+                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: true }"
+                            ></ng-container>
+                          }
                         }
                         @if (row.subtasks.length > 0) {
                           <div class="ml-6 mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-3">
@@ -1577,9 +1604,22 @@ export class ProjectWorkspaceComponent implements OnInit {
    * indices (based on the rendered `cdkDrag` DOM children, which only exist
    * for top-level rows) from the array `onTaskDropped`/`moveTaskTo` reorder.
    * `sectionRows()` (rendering) still receives the FULL section list
-   * (top-level + subtasks) to compose the hierarchy. */
+   * (top-level + subtasks) to compose the hierarchy.
+   *
+   * Corrección post-verify (CRITICAL-1): además excluye `is_context ===
+   * true` (padre-de-contexto server-side, change 32 D2). Desde la
+   * corrección de CRITICAL-1, el render deja de emitir `cdkDrag` para
+   * CUALQUIER fila con `row.isContext === true` (backend o composición
+   * cliente en `sectionRows()`), no solo `[cdkDragDisabled]`. Esta lista
+   * debe quedar en correspondencia 1:1 con esa exclusión estructural — un
+   * padre `is_context: true` PUEDE cumplir `parent_task_id == null` (es
+   * top-level en su propia sección) pero ya no se registra ante
+   * `CdkDropList`, así que tampoco puede seguir en este array o los índices
+   * de arrastre volverían a desincronizarse. */
   protected topLevelOf(sectionTasks: Task[]): Task[] {
-    return sectionTasks.filter((task) => task.parent_task_id == null);
+    return sectionTasks.filter(
+      (task) => task.parent_task_id == null && task.is_context !== true,
+    );
   }
 
   /**

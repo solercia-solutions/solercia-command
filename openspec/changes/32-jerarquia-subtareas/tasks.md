@@ -115,3 +115,28 @@ Commit 3 (solo si 3.6 generó cambios): `fix(tasks): cierra hallazgos de la suit
 - **Estimación cercana o por encima del presupuesto de revisión** (~430–480 líneas, alto): la mayor parte vive en la nueva suite de tests (Fase 1) y en la plantilla de sección/fila de subtarea (Fase 2); si en `apply` crece más de lo previsto, considerar `size:exception` explícito del mantenedor antes de fusionar (ya aceptado por instrucción de este documento, igual que en 30).
 - **Líneas de referencia previas a 30**: los números citados en la Fase 2 para código YA existente hoy son estables; los bloques que 30 introduce se citan por nombre de función/signal, no por línea — reverificar en `apply` tras el merge real de 30.
 - **Sin test runner de frontend**: igual que en 30, la Fase 2 se verifica exclusivamente con `npm run build`, sin cobertura automatizada de UI para la composición jerárquica, el guard de clic contextual ni el bloqueo de arrastre.
+
+## Corrección post-verify
+
+**Hallazgo corregido**: CRITICAL-1 (`verify-report.md`) — los padres de contexto seguían registrados ante `CdkDropList` pese a `[cdkDragDisabled]`, porque Angular CDK (`CdkDropList.addItem()`/`getSortedItems()`, `DropListRef.getItemIndex()`, verificado en `node_modules/@angular/cdk/fesm2022/drag-drop.mjs` v22.0.5) registra y cuenta CUALQUIER `cdkDrag` hijo sin filtrar por `disabled` al calcular `currentIndex`/`previousIndex` de los ítems vecinos que sí se arrastran. El caso reproducible: una sección (Backlog o sprint) con una subtarea cuyo padre real vive en OTRA sección — escenario intencional de `design.md` D4, alcanzable con datos normales sin necesitar el filtro `assignee_id`.
+
+**Corrección aplicada**:
+1. **Exclusión estructural de `cdkDrag`** (`frontend/src/widgets/project-workspace/project-workspace.component.ts`, secciones Backlog ~441-487 y sprint ~581-627): la fila de padre-de-contexto ya NO lleva la directiva `cdkDrag` en absoluto. Se dividió el `@if (row.parent; as parent) { ... }` en `@if (!row.isContext) { <div cdkDrag ...> }` (rama arrastrable, con `moveMenuTpl`) `@else { <ng-container *ngTemplateOutlet="taskCardTpl" ...> }` (rama de contexto, sin `cdkDrag`, sin `moveMenuTpl`, atenuada vía `isContext: true`). Se eliminó `[cdkDragDisabled]="row.isContext"` (backlog) y `readOnly || row.isContext` (sprint, queda solo `[cdkDragDisabled]="readOnly"` — el guard de solo-lectura de sprints cerrados/D5 no cambia).
+2. **`topLevelOf()` ahora también excluye `is_context === true`** (mismo archivo, definición de `topLevelOf`): antes solo filtraba `parent_task_id == null`. Un padre marcado `is_context: true` por el backend (regla innegociable, D2) SÍ puede cumplir `parent_task_id == null` en su propia sección — sin este ajuste, tras excluir su `cdkDrag` del DOM (punto 1), el array de `[cdkDropListData]` habría quedado con UN elemento más que los `cdkDrag` realmente registrados en esa misma sección, reintroduciendo el mismo desalineamiento de índices que corrige el punto 1, solo que en sentido inverso. `moveTaskTo()` reutiliza `topLevelOf()` para construir el contenedor destino de "Mover a…", así que hereda la corrección sin cambios propios.
+
+**Verificación de correspondencia array-de-datos ↔ `cdkDrag` registrados** (pedida explícitamente, los 4 puntos que entregan listas/índices a CDK):
+
+| Punto | Array/fuente | `cdkDrag` estructuralmente presentes | Correspondencia |
+|---|---|---|---|
+| `[cdkDropListData]` (Backlog, línea 420) | `topLevelOf(backlogTasks())` = `parent_task_id == null && is_context !== true` | Solo filas con `row.isContext === false` en `sectionRows(backlogTasks())` — mismo predicado exacto (loop 1 de `sectionRows`: `isContext = task.is_context === true`; loop 2 = padre ajeno, siempre `isContext: true`, nunca miembro de `backlogTasks()` por construcción) | ✅ 1:1 |
+| `[cdkDropListData]` (sprint, línea 563) | `topLevelOf(tasksBySprint().get(sprint.id) ?? [])` | Ídem, sobre `sectionRows(tasksBySprint().get(sprint.id) ?? [])` | ✅ 1:1 |
+| `cdkDropListEnterPredicate`/`canDropInto` | Opera a nivel de SECCIÓN completa (`isValidSectionTransition`), no de fila individual | N/A — no participa en el cálculo de índices de filas | ✅ Sin impacto (ya confirmado por `verify`) |
+| `POST /tasks/reorder` (`ordered_task_ids`) | `[...event.container.data]` (`onTaskDropped`) o `[...topLevelOf(destino).filter(...), task]` (`moveTaskTo`) | Ambos parten de `event.container.data` (igual a `[cdkDropListData]`, ya corregido) o de `topLevelOf()` directamente (ya corregido) | ✅ Hereda la corrección, sin cambio propio necesario |
+
+Caso límite verificado explícitamente: un padre con `is_context: true` que ADEMÁS es top-level genuino de su propia sección (posible solo si `assignee_id` estuviera activo — hoy `loadTasks()` no lo envía, ver `verify-report.md` línea "que hoy ni siquiera se envía desde `loadTasks()`") ya no aparece ni en el DOM (`cdkDrag`) ni en `topLevelOf()` de esa sección — antes de este ajuste habría quedado en el array pero no en el DOM tras el punto 1, reabriendo el mismo bug en la dirección opuesta.
+
+**Comportamiento preservado** (pedido explícitamente, sin regresión): el padre de contexto sigue atenuado (`taskCardTpl`, `[class.opacity-60]="isContext"`), clicable para abrir el drawer de detalle (`isContext ? openTaskDrawer(task) : openEdit(task)`), y fuera del menú "Mover a…" (la rama de contexto nunca renderiza `moveMenuTpl`).
+
+**Verify**:
+- `cd frontend && npm run build` → verde.
+- `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → 1352 passed (sin regresión, backend no tocado por esta corrección).
