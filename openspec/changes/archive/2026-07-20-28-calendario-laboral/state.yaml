@@ -9,7 +9,7 @@ phases:
   tasks: done
   apply: done
   verify: done
-  archive: pending
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -46,7 +46,7 @@ facts_verified:
   - "Project tiene parent_project_id (self-FK indexado) y lead_user_id; NO existe working_hours/working_days (app/modules/projects/models.py)"
   - "No hay ninguna referencia a working_hours/working_days/work_calendar/project_kind en backend hoy (project_kind lo introduce el cambio 27)"
   - "Consecutivo 28 libre en openspec/changes/"
-last_updated: 2026-07-20 (verify)
+last_updated: 2026-07-20 (archive)
 apply_notes:
   - "Migración aplicada como 0024_add_work_calendar.py, down_revision=0023 (head real confirmado en Fase 0, sin bifurcar)"
   - "Suite completa backend: 1302 passed (baseline 1272 + 30 nuevos: 2 migración, 9 schemas, 4 resolver, 13 API, 2 projects)"
@@ -64,3 +64,9 @@ verify_notes:
   - "Regla solo-raiz confirmada: override_requires_root (422) en no-raiz; null limpia el override y cae a source=organization"
   - "Seam WorkCalendarResolver.resolve(organization_id, project_id) -> ResolvedCalendar es metodo puro sin HTTP, consumible por 34/35"
   - "Veredicto: PASS WITH WARNINGS (0 CRITICAL, 2 WARNING de forma/deuda preexistente no introducida por este cambio, 2 SUGGESTION)"
+archive_notes:
+  - "Specs merged: work-calendar (new, 124 lines, 4 requirements) created at openspec/specs/work-calendar/spec.md"
+  - "Specs merged: projects delta (3 scenarios for nullable columns) merged into openspec/specs/projects/spec.md"
+  - "Archive report written to openspec/changes/archive/2026-07-20-28-calendario-laboral/archive-report.md with full traceability (Engram IDs, test counts, permission matrix)"
+  - "Artifact lineage locked: proposal (1830), spec (1833), design (1831), tasks (1834), verify (1905) with timestamps"
+  - "SDD cycle complete: 0 CRITICAL issues, all 44 tasks done, 1302 tests passing"
