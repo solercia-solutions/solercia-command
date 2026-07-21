@@ -82,11 +82,11 @@ Commit 3: `feat(project-workspace): agrega estados vacios y textos en espanol pa
 
 ## Fase 4 — Suite completa + no regresión + commits (Commit 4 condicional)
 
-- [ ] 4.1 Suite completa del backend sin regresión. Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q`
-- [ ] 4.2 Relectura de cierre del contrato D2 (ya cubierto en 1.9): `SprintRead`, `burndown`, `close` y `PATCH /sprints/{id}` (incluido `/start` de 29) no cambiaron de forma tras los agregados. Verify: `pytest -q backend/tests/test_sprint_backlog_aggregates.py -k unchanged_by_aggregates`
-- [ ] 4.3 Relectura de cierre de aislamiento multi-tenant y permisos (ya cubierto en 1.3). Verify: `pytest -q backend/tests/test_sprint_backlog_aggregates.py -k tenant_scoping_auth_and_permissions`
-- [ ] 4.4 Build de frontend verde (repetir tras cualquier ajuste de Fase 2-3). Verify: `cd frontend && npm run build`
-- [ ] 4.5 Commit final (solo si 4.1-4.3 generaron correcciones no cubiertas por los commits 1-3; caso contrario no aporta commit nuevo).
+- [x] 4.1 Suite completa del backend sin regresión. Verify: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q`. Hallazgo real: `tests/test_catalog_pagination.py::test_list_sprints_without_params_is_byte_compatible` y `::test_list_sprints_page_and_size_returns_correct_slice` (previos a este cambio) afirmaban `meta == {"total": N}`/`{"page", "size", "total"}` exactos — el nuevo `meta.backlog` (aditivo e intencional, spec.md) rompía esa igualdad estricta. Corregido en Commit 4: se actualizó la expectativa de esos dos tests para incluir `backlog: {"story_count": 0, "estimation_hours_sum": 0}` (sin tareas sueltas en esos fixtures); el resto de la forma sigue byte-compatible. Resultado final: 1337 passed (1332 baseline + 5 nuevos de 30), 0 failed.
+- [x] 4.2 Relectura de cierre del contrato D2 (ya cubierto en 1.9): `SprintRead`, `burndown`, `close` y `PATCH /sprints/{id}` (incluido `/start` de 29) no cambiaron de forma tras los agregados. Verify: `pytest -q backend/tests/test_sprint_backlog_aggregates.py -k unchanged_by_aggregates`
+- [x] 4.3 Relectura de cierre de aislamiento multi-tenant y permisos (ya cubierto en 1.3). Verify: `pytest -q backend/tests/test_sprint_backlog_aggregates.py -k tenant_scoping_auth_and_permissions`
+- [x] 4.4 Build de frontend verde (repetir tras cualquier ajuste de Fase 2-3). Verify: `cd frontend && npm run build`
+- [x] 4.5 Commit final (solo si 4.1-4.3 generaron correcciones no cubiertas por los commits 1-3; caso contrario no aporta commit nuevo).
 
 Commit 4 (solo si 4.5 generó cambios): `fix(sprints): cierra hallazgos de la suite completa`
 

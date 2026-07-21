@@ -253,7 +253,13 @@ async def test_list_sprints_without_params_is_byte_compatible(
     assert response.status_code == 200
     body = response.json()
     assert len(body["data"]) == 2
-    assert body["meta"] == {"total": 2}
+    # change 30-backlog-sprints-agrupados: the envelope intentionally grows
+    # a `backlog` aggregate (never null) — the rest of the shape is still
+    # byte-compatible (no `page`/`size` when pagination isn't requested).
+    assert body["meta"] == {
+        "total": 2,
+        "backlog": {"story_count": 0, "estimation_hours_sum": 0},
+    }
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -279,7 +285,14 @@ async def test_list_sprints_page_and_size_returns_correct_slice(
     assert response.status_code == 200
     body = response.json()
     assert len(body["data"]) == 2
-    assert body["meta"] == {"page": 2, "size": 2, "total": 5}
+    # change 30-backlog-sprints-agrupados: `backlog` aggregate is present
+    # regardless of pagination.
+    assert body["meta"] == {
+        "page": 2,
+        "size": 2,
+        "total": 5,
+        "backlog": {"story_count": 0, "estimation_hours_sum": 0},
+    }
     assert [s["name"] for s in body["data"]] == ["Sprint C", "Sprint D"]
 
 
