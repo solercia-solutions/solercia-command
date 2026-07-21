@@ -7,9 +7,9 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
-  verify: pending
-  archive: pending
+  apply: done
+  verify: done  # PASS — CRITICAL-1 resuelto en 5dd7729 (exclusion estructural de cdkDrag en padres de contexto, backlog y sprint); 2 WARNING no bloqueantes (WARNING-1, WARNING-2); ver "Verify de cierre" en verify-report.md
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -55,7 +55,7 @@ facts_verified:
   - "backlogTasks() = allTasks() con sprint_id==null (project-workspace.component.ts:1023); la fila de asignado del backlog aun no existe en UI (llega con el 33)"
   - "Consecutivo 32 libre en openspec/changes/ (activos: cycle2, 26, 27, 28, 29, 30, 34)"
   - "Capability tasks tiene spec (openspec/specs/tasks/spec.md; R4 filtros combinables sprint_id/status/assignee_id, delta 10-busqueda-global) -> cambio 32 es delta MODIFIED sobre tasks; frontend es composicion (no spec-level nuevo)"
-last_updated: 2026-07-20
+last_updated: 2026-07-21
 spec_notes:
   - "Capability: tasks (delta MODIFIED). Sin capability nueva."
   - "Delta 1: GET /projects/{id}/tasks admite modo include_subtasks (o jerarquico) que levanta top_level_only y devuelve subtareas junto a las top-level"

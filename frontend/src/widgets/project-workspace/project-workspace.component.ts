@@ -62,6 +62,17 @@ import {
 type TabId = 'board' | 'backlog' | 'sprints' | 'timeline';
 type ViewMode = 'board' | 'grid';
 
+/** View-model for one hierarchy group within a Backlog/sprint section
+ * (change 32-jerarquia-subtareas, design.md D4): a top-level task plus its
+ * subtasks. `parent` is `null` only in the limit case where the subtasks'
+ * parent cannot be resolved at all (e.g. inactive/deleted) — the group
+ * still renders its subtasks, without a header row. */
+interface HierarchyRow {
+  parent: Task | null;
+  isContext: boolean;
+  subtasks: Task[];
+}
+
 /**
  * Methodology-driven project workspace. Renders a board (one column per
  * allowed status), plus backlog, sprint and timeline tabs when the methodology
@@ -227,8 +238,10 @@ type ViewMode = 'board' | 'grid';
               />
             }
           } @else {
-            <!-- Grid view -->
-            @if (allTasks().length === 0) {
+            <!-- Grid view (change 32-jerarquia-subtareas: fuera de la
+                 composición jerárquica — usa topLevelTasks(), nunca
+                 allTasks(), o se inundaría de subtareas) -->
+            @if (topLevelTasks().length === 0) {
               <sol-card>
                 <p class="py-6 text-center text-sm text-muted">
                   {{ text.boardEmpty() }}
@@ -251,7 +264,7 @@ type ViewMode = 'board' | 'grid';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (task of allTasks(); track task.id) {
+                  @for (task of topLevelTasks(); track task.id) {
                     <tr
                       class="border-b border-border/50 transition-colors hover:bg-brand/5 cursor-pointer"
                       (click)="openTaskDrawer(task)"
@@ -404,7 +417,7 @@ type ViewMode = 'board' | 'grid';
                 <div
                   cdkDropList
                   [id]="sectionId(null)"
-                  [cdkDropListData]="backlogTasks()"
+                  [cdkDropListData]="topLevelOf(backlogTasks())"
                   [cdkDropListEnterPredicate]="canDropInto(sectionId(null))"
                   (cdkDropListDropped)="onTaskDropped($event, sectionId(null))"
                   class="flex flex-col gap-3 border-t border-border p-4 transition-colors"
@@ -421,24 +434,55 @@ type ViewMode = 'board' | 'grid';
                     <!-- La reasignación de sprint vive ahora en el drawer de
                          detalle de la tarea (enlace "Abrir detalle" de cada
                          tarjeta) o arrastrando/"Mover a…" (change
-                         31-backlog-drag-drop). -->
-                    @for (task of backlogTasks(); track task.id) {
-                      <div
-                        cdkDrag
-                        [cdkDragData]="task"
-                        (cdkDragStarted)="draggingFrom.set(sectionId(null))"
-                        (cdkDragEnded)="draggingFrom.set(null)"
-                      >
-                        <div
-                          *cdkDragPlaceholder
-                          class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
-                        ></div>
-                        <ng-container
-                          *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                        ></ng-container>
-                        <ng-container
-                          *ngTemplateOutlet="moveMenuTpl; context: { $implicit: task }"
-                        ></ng-container>
+                         31-backlog-drag-drop). Subtareas indentadas bajo su
+                         padre (change 32-jerarquia-subtareas, D4): SIEMPRE
+                         visibles (sin colapso propio), padre de contexto
+                         atenuado y no arrastrable. -->
+                    @for (row of sectionRows(backlogTasks()); track row.parent?.id ?? $index) {
+                      <div>
+                        @if (row.parent; as parent) {
+                          @if (!row.isContext) {
+                            <div
+                              cdkDrag
+                              [cdkDragData]="parent"
+                              (cdkDragStarted)="draggingFrom.set(sectionId(null))"
+                              (cdkDragEnded)="draggingFrom.set(null)"
+                            >
+                              <div
+                                *cdkDragPlaceholder
+                                class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                              ></div>
+                              <ng-container
+                                *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: false }"
+                              ></ng-container>
+                              <ng-container
+                                *ngTemplateOutlet="moveMenuTpl; context: { $implicit: parent }"
+                              ></ng-container>
+                            </div>
+                          } @else {
+                            <!-- Padre de contexto (corrección post-verify CRITICAL-1):
+                                 SIN cdkDrag — exclusión ESTRUCTURAL, no basta con
+                                 [cdkDragDisabled]. CdkDropList.addItem()/getSortedItems()
+                                 registran cualquier cdkDrag hijo sin filtrar por disabled,
+                                 y DropListRef.getItemIndex() cuenta esa lista completa al
+                                 calcular currentIndex/previousIndex de los vecinos
+                                 arrastrables — dejar cdkDrag aquí (aunque deshabilitado)
+                                 desincroniza esos índices frente a [cdkDropListData], que
+                                 SÍ excluye este padre (ver topLevelOf()). -->
+                            <ng-container
+                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: true }"
+                            ></ng-container>
+                          }
+                        }
+                        @if (row.subtasks.length > 0) {
+                          <div class="ml-6 mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-3">
+                            @for (subtask of row.subtasks; track subtask.id) {
+                              <ng-container
+                                *ngTemplateOutlet="subtaskRowTpl; context: { $implicit: subtask }"
+                              ></ng-container>
+                            }
+                          </div>
+                        }
                       </div>
                     }
                   }
@@ -528,7 +572,7 @@ type ViewMode = 'board' | 'grid';
                 <div
                   cdkDropList
                   [id]="sectionId(sprint)"
-                  [cdkDropListData]="tasksBySprint().get(sprint.id) ?? []"
+                  [cdkDropListData]="topLevelOf(tasksBySprint().get(sprint.id) ?? [])"
                   [cdkDropListDisabled]="readOnly"
                   [cdkDropListEnterPredicate]="canDropInto(sectionId(sprint))"
                   (cdkDropListDropped)="onTaskDropped($event, sectionId(sprint))"
@@ -543,25 +587,56 @@ type ViewMode = 'board' | 'grid';
                       {{ text.sprintSectionEmpty() }}
                     </p>
                   } @else {
-                    @for (task of tasksBySprint().get(sprint.id) ?? []; track task.id) {
-                      <div
-                        cdkDrag
-                        [cdkDragData]="task"
-                        [cdkDragDisabled]="readOnly"
-                        (cdkDragStarted)="draggingFrom.set(sectionId(sprint))"
-                        (cdkDragEnded)="draggingFrom.set(null)"
-                      >
-                        <div
-                          *cdkDragPlaceholder
-                          class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
-                        ></div>
-                        <ng-container
-                          *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                        ></ng-container>
-                        @if (!readOnly) {
-                          <ng-container
-                            *ngTemplateOutlet="moveMenuTpl; context: { $implicit: task }"
-                          ></ng-container>
+                    <!-- Subtareas indentadas bajo su padre (change
+                         32-jerarquia-subtareas, D4): siempre visibles, padre
+                         de contexto atenuado y no arrastrable. -->
+                    @for (row of sectionRows(tasksBySprint().get(sprint.id) ?? []); track row.parent?.id ?? $index) {
+                      <div>
+                        @if (row.parent; as parent) {
+                          @if (!row.isContext) {
+                            <div
+                              cdkDrag
+                              [cdkDragData]="parent"
+                              [cdkDragDisabled]="readOnly"
+                              (cdkDragStarted)="draggingFrom.set(sectionId(sprint))"
+                              (cdkDragEnded)="draggingFrom.set(null)"
+                            >
+                              <div
+                                *cdkDragPlaceholder
+                                class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                              ></div>
+                              <ng-container
+                                *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: false }"
+                              ></ng-container>
+                              @if (!readOnly) {
+                                <ng-container
+                                  *ngTemplateOutlet="moveMenuTpl; context: { $implicit: parent }"
+                                ></ng-container>
+                              }
+                            </div>
+                          } @else {
+                            <!-- Padre de contexto (corrección post-verify CRITICAL-1):
+                                 SIN cdkDrag — exclusión ESTRUCTURAL, no basta con
+                                 [cdkDragDisabled]. CdkDropList.addItem()/getSortedItems()
+                                 registran cualquier cdkDrag hijo sin filtrar por disabled,
+                                 y DropListRef.getItemIndex() cuenta esa lista completa al
+                                 calcular currentIndex/previousIndex de los vecinos
+                                 arrastrables — dejar cdkDrag aquí (aunque deshabilitado)
+                                 desincroniza esos índices frente a [cdkDropListData], que
+                                 SÍ excluye este padre (ver topLevelOf()). -->
+                            <ng-container
+                              *ngTemplateOutlet="taskCardTpl; context: { $implicit: parent, isContext: true }"
+                            ></ng-container>
+                          }
+                        }
+                        @if (row.subtasks.length > 0) {
+                          <div class="ml-6 mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-3">
+                            @for (subtask of row.subtasks; track subtask.id) {
+                              <ng-container
+                                *ngTemplateOutlet="subtaskRowTpl; context: { $implicit: subtask }"
+                              ></ng-container>
+                            }
+                          </div>
                         }
                       </div>
                     }
@@ -818,14 +893,15 @@ type ViewMode = 'board' | 'grid';
              y reutilizado tal cual en la lista de backlog. La librería
              sol-kanban-* NUNCA conoce Task (D2): este template es 100 %
              propiedad del consumidor. -->
-        <ng-template #taskCardTpl let-task>
+        <ng-template #taskCardTpl let-task let-isContext="isContext">
           <button
             type="button"
-            (click)="openEdit(task)"
+            (click)="isContext ? openTaskDrawer(task) : openEdit(task)"
             class="group flex w-full flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-left
                    shadow-sm transition-colors hover:border-brand/50 focus:outline-none
                    focus-visible:ring-2 focus-visible:ring-brand/50"
-            [attr.aria-label]="taskCardEditAria(task)"
+            [class.opacity-60]="isContext"
+            [attr.aria-label]="isContext ? text.taskCardContextAria() : taskCardEditAria(task)"
           >
             <div class="flex items-start justify-between gap-2">
               <p class="text-sm font-medium leading-snug text-text">
@@ -957,6 +1033,40 @@ type ViewMode = 'board' | 'grid';
               </ul>
             }
           </div>
+        </ng-template>
+
+        <!-- Fila de subtarea (change 32-jerarquia-subtareas, D4 "no se crea
+             componente"): compacta, NO reutiliza taskCardTpl completo — solo
+             clave, estado, estimación (según estimationMode) y avatar de
+             inicial, reusando los mismos helpers de taskCardTpl. openTaskDrawer
+             ya resuelve internamente el fallback a openEdit cuando la
+             subtarea no tiene task_key. -->
+        <ng-template #subtaskRowTpl let-task>
+          <button
+            type="button"
+            (click)="openTaskDrawer(task)"
+            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text
+                   transition-colors hover:bg-brand/5 focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-brand/50"
+            [attr.aria-label]="text.taskCardOpenDetailAria()"
+          >
+            <span class="w-14 shrink-0 font-mono text-muted">{{ task.task_key || '—' }}</span>
+            <span class="min-w-0 flex-1 truncate">{{ task.title }}</span>
+            <span class="shrink-0 rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
+              {{ statusDisplay(task.status) }}
+            </span>
+            @if (taskCardShowPoints(task)) {
+              <span class="shrink-0 text-muted">{{ task.estimation_points }} {{ text.taskCardPts() }}</span>
+            }
+            @if (taskCardShowHours(task)) {
+              <span class="shrink-0 text-muted">{{ task.estimation_hours }} {{ text.taskCardHours() }}</span>
+            }
+            <span
+              class="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand/10 text-[10px] font-semibold text-brand"
+              [attr.aria-label]="taskCardAssigneeAria(task)"
+              [attr.title]="task.assignee_name || text.taskCardUnassigned()"
+            >{{ taskCardInitial(task) }}</span>
+          </button>
         </ng-template>
 
       </section>
@@ -1265,6 +1375,9 @@ export class ProjectWorkspaceComponent implements OnInit {
     taskCardHours: this.i18n.t('taskCard.hours'),
     taskCardOpenDetail: this.i18n.t('taskCard.openDetail'),
     taskCardOpenDetailAria: this.i18n.t('taskCard.openDetailAria'),
+    /* Padre de contexto atenuado (change 32-jerarquia-subtareas): su
+       subtarea matcheó el filtro por asignado, el padre no. */
+    taskCardContextAria: this.i18n.t('taskCard.contextAria'),
   } as const;
 
   protected readonly fieldClass =
@@ -1288,9 +1401,12 @@ export class ProjectWorkspaceComponent implements OnInit {
    */
   protected readonly epicChildren = signal<Task[]>([]);
 
-  /** Tareas del cronograma: raíces + hijas de épicas, sin duplicados. */
+  /** Tareas del cronograma: raíces + hijas de épicas, sin duplicados.
+   * Usa `topLevelTasks()` (change 32-jerarquia-subtareas), NUNCA
+   * `allTasks()` directamente: el cronograma queda fuera de la composición
+   * jerárquica, o se inundaría de subtareas planas. */
   protected readonly ganttTasks = computed<Task[]>(() => {
-    const roots = this.allTasks();
+    const roots = this.topLevelTasks();
     const seen = new Set(roots.map((task) => task.id));
     const children = this.epicChildren().filter((task) => !seen.has(task.id));
     return [...roots, ...children];
@@ -1466,6 +1582,109 @@ export class ProjectWorkspaceComponent implements OnInit {
   );
 
   /**
+   * Top-level tasks only (`parent_task_id == null`), excluding subtasks
+   * (change 32-jerarquia-subtareas). Board (Kanban), Grid and Gantt roots
+   * stay OUT of the hierarchy composition (design.md "tablero y cuadrícula
+   * no cambian" — the proposal's scope is exclusively the sections of the
+   * Backlog tab): they must never be flooded with subtasks now that
+   * `allTasks()` includes them (`loadTasks`, `include_subtasks: true`).
+   * `backlogTasks()`/`tasksBySprint()` deliberately keep reading
+   * `allTasks()` directly — that is where `sectionRows()` composes the
+   * hierarchy.
+   */
+  protected readonly topLevelTasks = computed<Task[]>(() =>
+    this.allTasks().filter((task) => task.parent_task_id == null),
+  );
+
+  /** Top-level-only subset of a section's tasks — used for `cdkDropListData`
+   * (change 32-jerarquia-subtareas): drag & drop (31) must keep managing
+   * ONLY the same set it always did. Subtasks are never draggable/orderable
+   * items of their own (out of scope here — see tasks.md boundary); mixing
+   * them into the drop list's data array would desync the CDK-computed drag
+   * indices (based on the rendered `cdkDrag` DOM children, which only exist
+   * for top-level rows) from the array `onTaskDropped`/`moveTaskTo` reorder.
+   * `sectionRows()` (rendering) still receives the FULL section list
+   * (top-level + subtasks) to compose the hierarchy.
+   *
+   * Corrección post-verify (CRITICAL-1): además excluye `is_context ===
+   * true` (padre-de-contexto server-side, change 32 D2). Desde la
+   * corrección de CRITICAL-1, el render deja de emitir `cdkDrag` para
+   * CUALQUIER fila con `row.isContext === true` (backend o composición
+   * cliente en `sectionRows()`), no solo `[cdkDragDisabled]`. Esta lista
+   * debe quedar en correspondencia 1:1 con esa exclusión estructural — un
+   * padre `is_context: true` PUEDE cumplir `parent_task_id == null` (es
+   * top-level en su propia sección) pero ya no se registra ante
+   * `CdkDropList`, así que tampoco puede seguir en este array o los índices
+   * de arrastre volverían a desincronizarse. */
+  protected topLevelOf(sectionTasks: Task[]): Task[] {
+    return sectionTasks.filter(
+      (task) => task.parent_task_id == null && task.is_context !== true,
+    );
+  }
+
+  /**
+   * Composes the hierarchy view-model for one section's tasks (design.md
+   * D4): groups `sectionTasks` — the tasks of ONE section (Backlog or a
+   * sprint), top-level + subtasks — by `parent_task_id`. A subtask whose
+   * parent is NOT part of this section's own top-level set gets its parent
+   * resolved from the full `allTasks()` — it may live in another section
+   * (client-side context) or have arrived flagged `is_context=true` from
+   * the backend's assignee-filter rule (change 32, D2); that row's
+   * `isContext` is `true` and its `taskCardTpl` renders atenuated.
+   * IMPORTANT (D4 "el origen del contexto es doble"): the SAME parent can
+   * render TWICE — normal in its own section, atenuated here — this is
+   * INTENTIONAL, not a bug: nothing hides by hierarchical position. A limit
+   * case where the parent cannot be resolved anywhere (e.g. an
+   * inactive/deleted parent) yields `parent: null` — the subtasks still
+   * render, without a header row.
+   */
+  protected sectionRows(sectionTasks: Task[]): HierarchyRow[] {
+    const topLevelIds = new Set(
+      sectionTasks
+        .filter((task) => task.parent_task_id == null)
+        .map((task) => task.id),
+    );
+    const subtasksByParent = new Map<string, Task[]>();
+    for (const task of sectionTasks) {
+      if (task.parent_task_id == null) {
+        continue;
+      }
+      const bucket = subtasksByParent.get(task.parent_task_id);
+      if (bucket) {
+        bucket.push(task);
+      } else {
+        subtasksByParent.set(task.parent_task_id, [task]);
+      }
+    }
+
+    const rows: HierarchyRow[] = [];
+    for (const task of sectionTasks) {
+      if (task.parent_task_id != null) {
+        continue;
+      }
+      rows.push({
+        parent: task,
+        isContext: task.is_context === true,
+        subtasks: subtasksByParent.get(task.id) ?? [],
+      });
+    }
+
+    for (const [parentId, subtasks] of subtasksByParent) {
+      if (topLevelIds.has(parentId)) {
+        continue;
+      }
+      const foreignParent = this.allTasks().find((task) => task.id === parentId) ?? null;
+      rows.push({
+        parent: foreignParent,
+        isContext: foreignParent !== null,
+        subtasks,
+      });
+    }
+
+    return rows;
+  }
+
+  /**
    * Sections of the grouped Backlog tab, in display order (design.md D4):
    * `active` sprints first, then `draft` ordered ascending by `created_at`.
    * `closed` sprints are excluded here — they only render behind the "Ver
@@ -1518,7 +1737,9 @@ export class ProjectWorkspaceComponent implements OnInit {
    * `Task` satisface `KanbanItem` (`id: string`) sin adaptador.
    */
   protected readonly kanbanColumns = computed<KanbanColumn<Task>[]>(() => {
-    const tasks = this.allTasks();
+    // topLevelTasks() (change 32-jerarquia-subtareas): el tablero queda
+    // fuera de la composición jerárquica, nunca allTasks() directamente.
+    const tasks = this.topLevelTasks();
     return this.allowedStatuses().map((status) => ({
       id: status,
       title: statusDisplay(status),
@@ -1708,7 +1929,10 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   private loadTasks(): void {
     this.tasksError.set(null);
-    this.workspace.tasks(this.projectId()).subscribe({
+    // include_subtasks: true (change 32-jerarquia-subtareas) — allTasks()
+    // pasa a contener top-level + subtareas en una sola consulta (sin
+    // N+1); topLevelTasks() filtra de vuelta para board/grid/Gantt.
+    this.workspace.tasks(this.projectId(), { include_subtasks: true }).subscribe({
       next: (res) => {
         this.allTasks.set(res.data ?? []);
         this.loadEpicChildren(res.data ?? []);
@@ -2367,10 +2591,14 @@ export class ProjectWorkspaceComponent implements OnInit {
     const snapshot = this.allTasks();
     const destinationSprintId =
       destinationSectionId === 'backlog' ? null : destinationSectionId.slice('sprint-'.length);
+    // topLevelOf (change 32-jerarquia-subtareas): igual que
+    // cdkDropListData, el reordenamiento por "Mover a…" solo gestiona
+    // tareas de nivel superior — las subtareas nunca son arrastrables ni
+    // reordenables por su cuenta.
     const currentDestinationTasks =
       destinationSectionId === 'backlog'
-        ? this.backlogTasks()
-        : this.tasksBySprint().get(destinationSprintId as string) ?? [];
+        ? this.topLevelOf(this.backlogTasks())
+        : this.topLevelOf(this.tasksBySprint().get(destinationSprintId as string) ?? []);
     const destinationContainer = [
       ...currentDestinationTasks.filter((t) => t.id !== task.id),
       task,

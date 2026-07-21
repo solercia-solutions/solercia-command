@@ -776,6 +776,7 @@
   },
   "taskCard": {
     "assignedTo": "Asignada a {{ name }}",
+    "contextAria": "Tarea de contexto: pertenece a otro responsable, solo para consulta",
     "editAria": "Edita la tarea {{ title }}",
     "hours": "h",
     "openDetail": "Abrir detalle",
