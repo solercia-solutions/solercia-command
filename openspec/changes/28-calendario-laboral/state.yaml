@@ -8,13 +8,14 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: pending
+  verify: done
   archive: pending
 artifacts:
   proposal: true
   specs: true
   design: true
   tasks: true
+  verify: true
 capabilities:
   new:
     - work-calendar
@@ -45,7 +46,7 @@ facts_verified:
   - "Project tiene parent_project_id (self-FK indexado) y lead_user_id; NO existe working_hours/working_days (app/modules/projects/models.py)"
   - "No hay ninguna referencia a working_hours/working_days/work_calendar/project_kind en backend hoy (project_kind lo introduce el cambio 27)"
   - "Consecutivo 28 libre en openspec/changes/"
-last_updated: 2026-07-20
+last_updated: 2026-07-20 (verify)
 apply_notes:
   - "Migración aplicada como 0024_add_work_calendar.py, down_revision=0023 (head real confirmado en Fase 0, sin bifurcar)"
   - "Suite completa backend: 1302 passed (baseline 1272 + 30 nuevos: 2 migración, 9 schemas, 4 resolver, 13 API, 2 projects)"
@@ -54,3 +55,12 @@ apply_notes:
 spec_notes:
   - "Capabilities: work-calendar (spec nueva, full) + projects (delta ADDED)"
   - "Endpoints (reconciliados en tasks.md a PUT, verbo definitivo de spec.md/design.md): GET/PUT /organizations/me/work-calendar (admin); GET/PUT /projects/{id}/work-calendar (admin/manager, solo raiz); GET /projects/{id}/work-calendar/resolved (source: team|organization|default)"
+verify_notes:
+  - "Suite completa reproducida en vivo: 1302 passed, 0 failed, 1 warning (364.54s) — coincide con lo reportado por apply"
+  - "44/44 tareas [x] confirmadas (rg -c sobre tasks.md); 0 [ ] pendientes"
+  - "18/18 escenarios de spec (work-calendar + delta projects) mapeados a test real y en verde; 5/5 requirements"
+  - "alembic heads: cabeza unica 0024, down_revision=0023, sin bifurcar; alembic check sin diff cubierto por test_migrations_baseline.py"
+  - "Permisos confirmados por lectura de router.py: PUT organizacion=require_admin, PUT proyecto raiz=require_role(admin,manager), GET (org/override/resuelto)=get_current_membership"
+  - "Regla solo-raiz confirmada: override_requires_root (422) en no-raiz; null limpia el override y cae a source=organization"
+  - "Seam WorkCalendarResolver.resolve(organization_id, project_id) -> ResolvedCalendar es metodo puro sin HTTP, consumible por 34/35"
+  - "Veredicto: PASS WITH WARNINGS (0 CRITICAL, 2 WARNING de forma/deuda preexistente no introducida por este cambio, 2 SUGGESTION)"
