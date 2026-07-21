@@ -80,15 +80,49 @@ Commit 1: `feat(tasks): agrega guard de sprint cerrado y reordenamiento transacc
 
 ## Fase 2 — Frontend: CDK DragDrop + optimista/rollback + "Mover a…" (Commit 2)
 
-- [ ] 2.1 `frontend/src/entities/workspace/workspace.model.ts`: agregar `export interface TaskReorderPayload { task_id: string; sprint_id: string | null; ordered_task_ids: string[]; }`.
-- [ ] 2.2 `frontend/src/entities/workspace/workspace.service.ts`: agregar `reorderTasks(payload: TaskReorderPayload) { return this.http.post<TaskItemResponse>(\`${this.base}/tasks/reorder\`, payload); }` (mismo patrón que `updateTask`/`sprints`).
-- [ ] 2.3 `frontend/src/widgets/project-workspace/project-workspace.component.ts`: importar `DragDropModule` y envolver las secciones (cabeceras + Backlog de 30) en un `cdkDropListGroup`; cada sección declara `cdkDropList [id]="sectionId(sprint)"` (reutiliza `sectionId`/`'backlog'` de 30), `[cdkDropListData]="tasksBySprint().get(sprint.id) ?? []"` (o `backlogTasks()`), `[cdkDropListEnterPredicate]="canDropInto(sectionId(sprint) | 'backlog')"`.
-- [ ] 2.4 Tarjetas: agregar `cdkDrag [cdkDragData]="task"` en `taskCardTpl`; agregar `*cdkDragPlaceholder` (fila punteada visible durante el arrastre, spec "Zona de drop visible").
-- [ ] 2.5 Reglas de destino (D2/spec `frontend-backlog-dnd`): agregar `draggingFrom = signal<string | null>(null)`; `(cdkDragStarted)="draggingFrom.set(sectionId(origen))"`, `(cdkDragEnded)="draggingFrom.set(null)"`; `canDropInto(targetId: string): (drag) => boolean` implementa: backlog↔sprint (`draft`|`active`) permitido en ambas direcciones; sprint↔sprint solo si origen y destino son ambos `draft`; los `closed` no se renderizan (30) por lo que nunca son origen/destino. `isValidTarget(id)` deriva las clases (resaltado válido / atenuado-`pointer-events-none` inválido) durante `draggingFrom()`.
-- [ ] 2.6 `(cdkDropListDropped)="onTaskDropped($event, sectionId(destino))"`: `const snapshot = this.allTasks()`; aplica `transferArrayItem`/`moveItemInArray` sobre las listas derivadas y `this.allTasks.update(...)` fijando el nuevo `sprint_id` y `order` (índice) de los ítems del contenedor destino (optimista); construye `ordered_task_ids` desde el orden final del contenedor y llama `this.workspace.reorderTasks({ task_id, sprint_id, ordered_task_ids }).subscribe({ error: () => { this.allTasks.set(snapshot); this.toast(this.i18n.translate('workspace.errors.taskReorder')); this.loadTasks(); } })` (espeja `onKanbanItemMoved`, línea 1264).
-- [ ] 2.7 Menú "Mover a…" en `taskCardTpl`: botón/dropdown (`aria-haspopup="menu"`, `role="menu"`) que lista los destinos válidos de esa tarjeta según `canDropInto`; al elegir uno, invoca `reorderTasks` con `ordered_task_ids = destino + [task.id]` (anexa al final) y aplica el mismo patrón optimista/rollback de 2.6.
-- [ ] 2.8 `frontend/src/assets/i18n/es-CO.json`: bajo `workspace.backlog` (existente de 30) agregar en tuteo formal: `moveTo: "Mover a…"`, `moveToBacklog: "Backlog"`, `dropInvalid: "Este destino no admite esta tarjeta."`, `errors.taskReorder: "No se pudo mover la tarjeta. Verifica tu conexión e intenta de nuevo."`.
-- [ ] 2.9 Build verde: `cd frontend && npm run build`.
+- [x] 2.1 `frontend/src/entities/workspace/workspace.model.ts`: agregar `export interface TaskReorderPayload { task_id: string; sprint_id: string | null; ordered_task_ids: string[]; }`.
+- [x] 2.2 `frontend/src/entities/workspace/workspace.service.ts`: agregar `reorderTasks(payload: TaskReorderPayload) { return this.http.post<TaskItemResponse>(\`${this.base}/tasks/reorder\`, payload); }` (mismo patrón que `updateTask`/`sprints`).
+- [x] 2.3 `frontend/src/widgets/project-workspace/project-workspace.component.ts`: importar `DragDropModule` y envolver las secciones (cabeceras + Backlog de 30) en un `cdkDropListGroup`; cada sección declara `cdkDropList [id]="sectionId(sprint)"` (reutiliza `sectionId`/`'backlog'` de 30), `[cdkDropListData]="tasksBySprint().get(sprint.id) ?? []"` (o `backlogTasks()`), `[cdkDropListEnterPredicate]="canDropInto(sectionId(sprint) | 'backlog')"`.
+- [x] 2.4 Tarjetas: agregar `cdkDrag [cdkDragData]="task"` **en un wrapper nuevo alrededor de `taskCardTpl`, NO dentro de `taskCardTpl` mismo** (desviación documentada — ver Reconciliación #3 abajo); agregar `*cdkDragPlaceholder` (fila punteada visible durante el arrastre, spec "Zona de drop visible").
+- [x] 2.5 Reglas de destino (D2/spec `frontend-backlog-dnd`): agregar `draggingFrom = signal<string | null>(null)`; `(cdkDragStarted)="draggingFrom.set(sectionId(origen))"`, `(cdkDragEnded)="draggingFrom.set(null)"`; `canDropInto(targetId: string): (drag) => boolean` implementa: backlog↔sprint (`draft`|`active`) permitido en ambas direcciones; sprint↔sprint solo si origen y destino son ambos `draft`; los `closed` no se renderizan (30) por lo que nunca son origen/destino. `isValidTarget(id)` deriva las clases (resaltado válido / atenuado-`pointer-events-none` inválido) durante `draggingFrom()`.
+- [x] 2.6 `(cdkDropListDropped)="onTaskDropped($event, sectionId(destino))"`: `const snapshot = this.allTasks()`; aplica `transferArrayItem`/`moveItemInArray` sobre las listas derivadas y `this.allTasks.update(...)` fijando el nuevo `sprint_id` y `order` (índice) de los ítems del contenedor destino (optimista); construye `ordered_task_ids` desde el orden final del contenedor y llama `this.workspace.reorderTasks({ task_id, sprint_id, ordered_task_ids }).subscribe({ error: () => { this.allTasks.set(snapshot); this.dragDropError.set(this.i18n.translate('workspace.errors.taskReorder')); this.loadTasks(); } })` (espeja `onKanbanItemMoved`, línea 1264; usa el banner `role="alert"` existente en vez de un "toast" — ver Reconciliación #3).
+- [x] 2.7 Menú "Mover a…" **en un `ng-template #moveMenuTpl` separado, proyectado junto a `taskCardTpl` (no dentro de él)** — mismo motivo de aislamiento que 2.4: botón/dropdown (`aria-haspopup="menu"`, `role="menu"`) que lista los destinos válidos de esa tarjeta según `canDropInto`; al elegir uno, invoca `reorderTasks` con `ordered_task_ids = destino + [task.id]` (anexa al final) y aplica el mismo patrón optimista/rollback de 2.6.
+- [x] 2.8 `frontend/src/assets/i18n/es-CO.json`: bajo `workspace.backlog` (existente de 30) agregar en tuteo formal: `moveTo: "Mover a…"`, `moveToBacklog: "Backlog"`, `dropInvalid: "Este destino no admite esta tarjeta."`, `moveToAria: "Abre el menú Mover a… para {{ title }}"` (aria-label del botón, no prevista explícitamente en el documento pero necesaria para accesibilidad), `errors.taskReorder: "No se pudo mover la tarjeta. Verifica tu conexión e intenta de nuevo."`.
+- [x] 2.9 Build verde: `cd frontend && npm run build` (warning de presupuesto de bundle, 416 bytes sobre 1 MB — no bloqueante, `maximumError` es 2 MB). `npm run lint` también verde.
+
+### Reconciliación #3 (aplicada durante Fase 2, hallazgo de implementación)
+
+`taskCardTpl` NO es exclusivo de la vista Backlog: `sol-kanban-board`
+(`@solercia/ui`) también lo proyecta como `[cardTemplate]` dentro de
+`sol-kanban-card`, cuyo HOST ya aplica `CdkDrag` vía `hostDirectives`
+(verificado leyendo `node_modules/@solercia/ui/fesm2022/solercia-ui.mjs`).
+Agregar `cdkDrag`/el menú "Mover a…" DIRECTO en `taskCardTpl` anidaría un
+`cdkDrag` dentro de otro `cdkDrag` cuando el tablero kanban renderiza esa
+MISMA plantilla — riesgo real de regresión sobre el drag & drop del tablero
+que ya funciona (fuera de alcance de este cambio, boundary explícito
+"Fuera de alcance: DnD del board kanban"). Implementación real: un `<div
+cdkDrag>` nuevo envuelve cada `*ngTemplateOutlet="taskCardTpl"` SOLO en la
+vista Backlog (30), y el menú "Mover a…" vive en un `ng-template
+#moveMenuTpl` separado proyectado junto a él — `taskCardTpl` queda
+byte-idéntico a como lo dejó el cambio 30. Efecto funcional idéntico al
+pedido por design.md D2/D5; cambia solo DÓNDE vive el marcado.
+
+Adicionalmente, `backlogTasks()`/`tasksBySprint()` (30) no ordenaban por
+`task.order` — solo preservaban el orden de `allTasks()` tal como llega del
+backend. Sin un `.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))` en ambos
+computed, la actualización optimista (D4) mutaba el campo `order` de cada
+tarea pero la tarjeta NO se movía visualmente hasta el siguiente
+`loadTasks()` — se agregó ese sort (no state en tasks.md/design.md, detalle
+de implementación necesario para cumplir el requisito "reubicar la tarjeta
+de inmediato").
+
+Por último, no existe ningún componente/servicio de "toast" en este
+repositorio ni en `@solercia/ui` (verificado por búsqueda antes de
+implementar). El "toast de error en español" del requisito se implementó
+reutilizando el patrón YA establecido en este mismo archivo (`tasksError`,
+`modalError`, etc.): un signal (`dragDropError`) + un banner `role="alert"`
+en la pestaña Backlog — mismo comportamiento funcional (mensaje de error
+visible en español), sin introducir un componente nuevo fuera de alcance.
 
 Commit 2: `feat(project-workspace): agrega arrastrar y soltar entre backlog y sprints`
 

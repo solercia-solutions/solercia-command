@@ -82,6 +82,16 @@ export interface CreateTaskPayload {
   task_type?: TaskType | string;
 }
 
+/** Payload for ``POST /tasks/reorder`` (change 31-backlog-drag-drop): moves
+ * ``task_id`` to ``sprint_id`` (``null`` = Backlog) and reindexes ``order``
+ * for the destination container from ``ordered_task_ids`` (its final order
+ * after the drop), in a single transaction. */
+export interface TaskReorderPayload {
+  task_id: string;
+  sprint_id: string | null;
+  ordered_task_ids: string[];
+}
+
 /** Partial patch for a task (move column, reassign, edit, flag risk, etc.). */
 export interface UpdateTaskPayload {
   title?: string;

@@ -14,6 +14,7 @@ import {
   SprintSuggestedNameResponse,
   TaskItemResponse,
   TaskListResponse,
+  TaskReorderPayload,
   UpdateSprintPayload,
   UpdateTaskPayload,
   VelocityResponse,
@@ -97,6 +98,13 @@ export class WorkspaceService {
 
   deleteTask(taskId: string): Observable<void> {
     return this.http.delete<void>(`${apiBase}/tasks/${taskId}`);
+  }
+
+  /** Moves a task to a sprint (or Backlog) and reindexes the destination
+   * container's order in one transaction (change 31-backlog-drag-drop:
+   * drag & drop drop handler and the "Mover a…" keyboard menu). */
+  reorderTasks(payload: TaskReorderPayload): Observable<TaskItemResponse> {
+    return this.http.post<TaskItemResponse>(`${apiBase}/tasks/reorder`, payload);
   }
 
   /* ---- Sprints ----------------------------------------------------------- */
