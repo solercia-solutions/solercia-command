@@ -55,8 +55,13 @@ Para las pruebas por API, obtén un token y úsalo como Bearer:
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@solercia.com","password":"Admin123*"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['access_token'])")
+  -d '{"email":"admin@solercia.com","password":"Admin123*"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 ```
+
+> El login devuelve `access_token` en la raíz de la respuesta, no dentro de `data`
+> (verificado contra el entorno real). Endpoints útiles para tantear la OLA 4:
+> `GET /api/v1/organizations/mine`, `GET /api/v1/organizations/me/work-calendar`,
+> `GET /api/v1/projects?project_kind=area`.
 
 También puedes usar Swagger (http://localhost:8081/docs → botón "Authorize").
 
