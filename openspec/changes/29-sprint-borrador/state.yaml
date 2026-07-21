@@ -6,7 +6,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -48,7 +48,7 @@ facts_verified:
   - "Frontend: sprints tab en widgets/project-workspace/project-workspace.component.ts (form nombre/goal/fechas, badge active|closed, boton cerrar); workspace.service.ts con createSprint/updateSprint/closeSprint; i18n en assets/i18n/es-CO.json"
   - "Existe openspec/specs/sprints/spec.md -> capability 'sprints' es modificada (delta)"
   - "Consecutivo 29 libre en openspec/changes/ y en openspec/changes/archive/"
-last_updated: 2026-07-20
+last_updated: 2026-07-21
 spec_notes:
   - "Capability: sprints (delta MODIFIED). Sin capability nueva."
   - "Endpoints propuestos: POST /projects/{id}/sprints (nombre opcional -> autonombre, nace draft); GET sugerencia de proximo nombre; POST /sprints/{id}/start (draft->active, valida fechas); PATCH /sprints/{id} reutilizado para anadir fechas"
