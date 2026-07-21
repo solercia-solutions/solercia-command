@@ -55,7 +55,20 @@ destino a nivel de API.
 
 - DADO un `sprint_id` que pertenece a un proyecto de otra organización
 - CUANDO se hace `PATCH /tasks/{id}` asignando ese `sprint_id`
-- ENTONCES la API responde `404` (sprint no encontrado en el tenant), sin relación con el nuevo guard de `closed`
+- ENTONCES la API responde `422` con `code=invalid_sprint` (sprint no encontrado en el org/proyecto del solicitante), sin relación con el nuevo guard de `closed`
+
+> Nota de reconciliación (verify, 31-backlog-drag-drop): este escenario
+> describía originalmente `404`. `_verify_sprint` (comportamiento
+> preexistente, sin cambios en este alcance) responde `422 invalid_sprint`
+> para cualquier `sprint_id` que no exista en el org/proyecto del
+> solicitante, sin distinguir "no existe" de "pertenece a otra
+> organización" — el mismo código que ya cubre un `sprint_id` inexistente.
+> El efecto protector es idéntico (nunca se reasigna un sprint ajeno);
+> se corrige aquí el código de estado documentado para reflejar el
+> comportamiento real, verificado por
+> `test_patch_task_sprint_guard_respects_permissions_and_org_isolation`
+> (`backend/tests/test_task_sprint_closed_guard.py`). Diferenciar 404 de
+> 422 en `_verify_sprint` queda fuera de alcance de este cambio.
 
 ### Requirement: Reordenamiento transaccional vía `POST /tasks/reorder`
 

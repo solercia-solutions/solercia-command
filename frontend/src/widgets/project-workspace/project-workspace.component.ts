@@ -10,6 +10,12 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import {
+  CdkDragDrop,
+  DragDropModule,
+  moveItemInArray,
+  transferArrayItem,
+} from '@angular/cdk/drag-drop';
 import { forkJoin } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import {
@@ -45,6 +51,7 @@ import {
   Sprint,
   SprintCloseResult,
   SprintListItem,
+  SprintStatus,
   Task,
   VelocityData,
   formatShortDate,
@@ -68,6 +75,7 @@ type ViewMode = 'board' | 'grid';
     RouterLink,
     ReactiveFormsModule,
     NgTemplateOutlet,
+    DragDropModule,
     SolButtonComponent,
     SolCardComponent,
     SolDrawerComponent,
@@ -310,9 +318,19 @@ type ViewMode = 'board' | 'grid';
              colapsables estilo Jira — active → draft → Backlog al final;
              closed detrás de un enlace. Cabecera = agregados del servidor;
              cuerpo = allTasks() ya cargadas, agrupadas por sprint_id, sin
-             fetch extra — D3/D7.) -->
+             fetch extra — D3/D7. cdkDropListGroup (change
+             31-backlog-drag-drop) auto-conecta cada sección (cdkDropList
+             más abajo) para el arrastre entre Backlog y sprints.) -->
         @if (activeTab() === 'backlog') {
-          <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-4" cdkDropListGroup>
+            @if (dragDropError()) {
+              <div
+                role="alert"
+                class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+              >
+                {{ dragDropError() }}
+              </div>
+            }
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-lg font-semibold text-text">{{ text.backlogTitle() }}</h2>
               <sol-button
@@ -383,7 +401,18 @@ type ViewMode = 'board' | 'grid';
                 </div>
               </div>
               @if (!collapsedSections().has(sectionId(null))) {
-                <div class="flex flex-col gap-3 border-t border-border p-4">
+                <div
+                  cdkDropList
+                  [id]="sectionId(null)"
+                  [cdkDropListData]="backlogTasks()"
+                  [cdkDropListEnterPredicate]="canDropInto(sectionId(null))"
+                  (cdkDropListDropped)="onTaskDropped($event, sectionId(null))"
+                  class="flex flex-col gap-3 border-t border-border p-4 transition-colors"
+                  [class.ring-2]="draggingFrom() && isValidTarget(sectionId(null))"
+                  [class.ring-brand]="draggingFrom() && isValidTarget(sectionId(null))"
+                  [class.opacity-40]="draggingFrom() && !isValidTarget(sectionId(null))"
+                  [class.pointer-events-none]="draggingFrom() && !isValidTarget(sectionId(null))"
+                >
                   @if (backlogTasks().length === 0) {
                     <p class="py-6 text-center text-sm text-muted">
                       {{ text.backlogEmpty() }}
@@ -391,11 +420,26 @@ type ViewMode = 'board' | 'grid';
                   } @else {
                     <!-- La reasignación de sprint vive ahora en el drawer de
                          detalle de la tarea (enlace "Abrir detalle" de cada
-                         tarjeta). -->
+                         tarjeta) o arrastrando/"Mover a…" (change
+                         31-backlog-drag-drop). -->
                     @for (task of backlogTasks(); track task.id) {
-                      <ng-container
-                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                      ></ng-container>
+                      <div
+                        cdkDrag
+                        [cdkDragData]="task"
+                        (cdkDragStarted)="draggingFrom.set(sectionId(null))"
+                        (cdkDragEnded)="draggingFrom.set(null)"
+                      >
+                        <div
+                          *cdkDragPlaceholder
+                          class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                        ></div>
+                        <ng-container
+                          *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                        ></ng-container>
+                        <ng-container
+                          *ngTemplateOutlet="moveMenuTpl; context: { $implicit: task }"
+                        ></ng-container>
+                      </div>
                     }
                   }
                 </div>
@@ -481,16 +525,45 @@ type ViewMode = 'board' | 'grid';
                 }
               </div>
               @if (!collapsedSections().has(sectionId(sprint))) {
-                <div class="flex flex-col gap-3 border-t border-border p-4">
+                <div
+                  cdkDropList
+                  [id]="sectionId(sprint)"
+                  [cdkDropListData]="tasksBySprint().get(sprint.id) ?? []"
+                  [cdkDropListDisabled]="readOnly"
+                  [cdkDropListEnterPredicate]="canDropInto(sectionId(sprint))"
+                  (cdkDropListDropped)="onTaskDropped($event, sectionId(sprint))"
+                  class="flex flex-col gap-3 border-t border-border p-4 transition-colors"
+                  [class.ring-2]="draggingFrom() && isValidTarget(sectionId(sprint))"
+                  [class.ring-brand]="draggingFrom() && isValidTarget(sectionId(sprint))"
+                  [class.opacity-40]="draggingFrom() && !isValidTarget(sectionId(sprint))"
+                  [class.pointer-events-none]="draggingFrom() && !isValidTarget(sectionId(sprint))"
+                >
                   @if ((tasksBySprint().get(sprint.id) ?? []).length === 0) {
                     <p class="py-4 text-center text-sm text-muted">
                       {{ text.sprintSectionEmpty() }}
                     </p>
                   } @else {
                     @for (task of tasksBySprint().get(sprint.id) ?? []; track task.id) {
-                      <ng-container
-                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                      ></ng-container>
+                      <div
+                        cdkDrag
+                        [cdkDragData]="task"
+                        [cdkDragDisabled]="readOnly"
+                        (cdkDragStarted)="draggingFrom.set(sectionId(sprint))"
+                        (cdkDragEnded)="draggingFrom.set(null)"
+                      >
+                        <div
+                          *cdkDragPlaceholder
+                          class="h-[72px] rounded-lg border-2 border-dashed border-brand/50 bg-brand/5"
+                        ></div>
+                        <ng-container
+                          *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                        ></ng-container>
+                        @if (!readOnly) {
+                          <ng-container
+                            *ngTemplateOutlet="moveMenuTpl; context: { $implicit: task }"
+                          ></ng-container>
+                        }
+                      </div>
                     }
                   }
                 </div>
@@ -842,6 +915,50 @@ type ViewMode = 'board' | 'grid';
           </button>
         </ng-template>
 
+        <!-- "Mover a…" (change 31-backlog-drag-drop, D5): alternativa de
+             teclado al arrastre, mismas reglas de destino (canDropInto).
+             Deliberadamente FUERA de taskCardTpl — ese template también lo
+             proyecta sol-kanban-board (vía cardTemplate), cuyo propio
+             sol-kanban-card YA aplica cdkDrag a su host; anidar otro
+             cdkDrag/control de arrastre ahí adentro arriesgaría el D&D del
+             tablero que ya funciona. Este menú solo se renderiza en el
+             wrapper nuevo de la vista Backlog (fuera del tablero). -->
+        <ng-template #moveMenuTpl let-task>
+          <div class="relative -mt-1">
+            <button
+              type="button"
+              (click)="$event.stopPropagation(); toggleMoveMenu(task.id)"
+              aria-haspopup="menu"
+              [attr.aria-expanded]="openMoveMenuTaskId() === task.id"
+              [attr.aria-label]="moveToAria(task.title)"
+              class="text-[11px] text-muted transition-colors hover:text-brand hover:underline"
+            >
+              {{ text.backlogMoveTo() }}
+            </button>
+            @if (openMoveMenuTaskId() === task.id) {
+              <ul
+                role="menu"
+                class="absolute left-0 z-10 mt-1 min-w-[180px] rounded-lg border border-border
+                       bg-surface p-1 shadow-md"
+              >
+                @for (target of moveTargetsFor(task); track target.id) {
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="$event.stopPropagation(); moveTaskTo(task, target.id)"
+                      class="block w-full rounded px-2 py-1.5 text-left text-xs text-text
+                             transition-colors hover:bg-brand/10"
+                    >
+                      {{ target.label }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </ng-template>
+
       </section>
 
       <!-- Task modal -->
@@ -1091,6 +1208,9 @@ export class ProjectWorkspaceComponent implements OnInit {
     backlogNoSprintsYet: this.i18n.t('workspace.backlog.noSprintsYet'),
     sprintSectionEmpty: this.i18n.t('workspace.backlog.sprintSectionEmpty'),
     hideClosedSprints: this.i18n.t('workspace.backlog.hideClosedSprints'),
+    backlogMoveTo: this.i18n.t('workspace.backlog.moveTo'),
+    backlogMoveToBacklog: this.i18n.t('workspace.backlog.moveToBacklog'),
+    backlogDropInvalid: this.i18n.t('workspace.backlog.dropInvalid'),
     newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
     sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
     sprintNamePlaceholder: this.i18n.t('workspace.sprints.namePlaceholder'),
@@ -1194,6 +1314,21 @@ export class ProjectWorkspaceComponent implements OnInit {
   /** "Ver sprints cerrados" toggle — in-memory only (not persisted, see
    * tasks.md Risks). */
   protected readonly showClosedSprints = signal(false);
+
+  /* ---- Backlog drag & drop (change 31-backlog-drag-drop) -----------------
+   * `draggingFrom` holds the ORIGIN section id (`sectionId(...)`) of the
+   * card currently being dragged, `null` when no drag is in progress — the
+   * template reads it to highlight valid destinations and dim invalid ones
+   * (spec "Zona de drop visible durante el arrastre"). `openMoveMenuTaskId`
+   * is the id of the task whose "Mover a…" menu is open (keyboard
+   * alternative, D5), one at a time. `dragDropError` reuses this
+   * component's existing alert-banner pattern (`tasksError`, `modalError`)
+   * as the "toast de error en español" the spec asks for — no toast
+   * primitive exists anywhere in this codebase or in `@solercia/ui` to
+   * reuse (verified before writing this), so a new one is out of scope. */
+  protected readonly draggingFrom = signal<string | null>(null);
+  protected readonly openMoveMenuTaskId = signal<string | null>(null);
+  protected readonly dragDropError = signal<string | null>(null);
 
   protected readonly activeTab = signal<TabId>('board');
   protected readonly viewMode = signal<ViewMode>('board');
@@ -1315,8 +1450,19 @@ export class ProjectWorkspaceComponent implements OnInit {
     return statuses.length > 0 ? statuses[statuses.length - 1] : null;
   });
 
+  /**
+   * Sorted by `order` ascending (change 31-backlog-drag-drop): the initial
+   * load already arrives order-sorted from the backend
+   * (`Task.order.asc()`), so this is a no-op there — but a drag & drop
+   * reorder (`onTaskDropped`/`moveTaskTo`) mutates each task's `order`
+   * in-place inside `allTasks`, WITHOUT reordering the array itself; sorting
+   * here is what makes the optimistic reorder visible immediately, instead
+   * of only after the next `loadTasks()`.
+   */
   protected readonly backlogTasks = computed<Task[]>(() =>
-    this.allTasks().filter((task) => task.sprint_id == null),
+    this.allTasks()
+      .filter((task) => task.sprint_id == null)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   );
 
   /**
@@ -1343,6 +1489,8 @@ export class ProjectWorkspaceComponent implements OnInit {
    * — no extra fetch. The section HEADER never reads from this map: it
    * always shows the server-authoritative `story_count`/
    * `estimation_hours_sum` (avoids the divergence risk #1 from proposal.md).
+   * Each bucket is sorted by `order` (see `backlogTasks` docstring — same
+   * reason: makes an optimistic drag & drop reorder visible immediately).
    */
   protected readonly tasksBySprint = computed<Map<string, Task[]>>(() => {
     const map = new Map<string, Task[]>();
@@ -1356,6 +1504,9 @@ export class ProjectWorkspaceComponent implements OnInit {
       } else {
         map.set(task.sprint_id, [task]);
       }
+    }
+    for (const bucket of map.values()) {
+      bucket.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     return map;
   });
@@ -2034,6 +2185,199 @@ export class ProjectWorkspaceComponent implements OnInit {
     return this.collapsedSections().has(sectionId)
       ? this.i18n.translate('workspace.backlog.expandAria', { name })
       : this.i18n.translate('workspace.backlog.collapseAria', { name });
+  }
+
+  /* ---- Backlog drag & drop (change 31-backlog-drag-drop) -----------------
+   * Reglas de destino (D2/spec `frontend-backlog-dnd`): backlog↔sprint
+   * (`draft`|`active`) permitido en ambas direcciones; sprint↔sprint solo si
+   * AMBOS son `draft`; los `closed` nunca son origen ni destino (no se
+   * renderizan salvo detrás de "Ver sprints cerrados", donde quedan
+   * `readOnly` — `cdkDropListDisabled`/`cdkDragDisabled` ya los excluye del
+   * gesto, y `sectionStatus` los trata igual como "closed" por defecto).
+   */
+
+  /** Kind of a section for the drop rules: `'backlog'`, or the sprint's own
+   * `status`. An unknown id (should not happen) fails closed as `'closed'`
+   * — never a valid drop target. */
+  private sectionStatus(sectionId: string): 'backlog' | SprintStatus {
+    if (sectionId === 'backlog') {
+      return 'backlog';
+    }
+    const sprint = this.sprints().find((s) => this.sectionId(s) === sectionId);
+    return sprint?.status ?? 'closed';
+  }
+
+  private isValidSectionTransition(originId: string, targetId: string): boolean {
+    const originStatus = this.sectionStatus(originId);
+    const targetStatus = this.sectionStatus(targetId);
+    if (originStatus === 'closed' || targetStatus === 'closed') {
+      return false;
+    }
+    if (originStatus === 'backlog' || targetStatus === 'backlog') {
+      return true;
+    }
+    return originStatus === 'draft' && targetStatus === 'draft';
+  }
+
+  /** `cdkDropListEnterPredicate` factory for the drop list whose id is
+   * `targetSectionId` — reordering within the SAME section (`origin ===
+   * target`) is always allowed; a different section applies
+   * `isValidSectionTransition`. Zero-argument on purpose: everything it
+   * needs comes from `draggingFrom()`, and a function with fewer parameters
+   * than `(drag: CdkDrag, drop: CdkDropList) => boolean` still satisfies
+   * that input's type. */
+  protected canDropInto(targetSectionId: string): () => boolean {
+    return () => {
+      const origin = this.draggingFrom();
+      if (origin === null || origin === targetSectionId) {
+        return true;
+      }
+      return this.isValidSectionTransition(origin, targetSectionId);
+    };
+  }
+
+  /** Whether `sectionId` is a valid drop target for the card currently being
+   * dragged (spec "Zona de drop visible durante el arrastre") — drives the
+   * highlight/dim classes on each section while `draggingFrom()` is set. */
+  protected isValidTarget(sectionId: string): boolean {
+    const origin = this.draggingFrom();
+    if (origin === null) {
+      return true;
+    }
+    if (origin === sectionId) {
+      return true;
+    }
+    return this.isValidSectionTransition(origin, sectionId);
+  }
+
+  /** Drop handler shared by every `cdkDropList` of the Backlog tab —
+   * `destinationSectionId` is the id of the list the card was dropped INTO.
+   * Optimistic update (D4): reconstructs the destination container's final
+   * order, writes `sprint_id`/`order` on `allTasks` immediately, then
+   * persists via `POST /tasks/reorder`; rolls back to the pre-drop snapshot
+   * and reloads on error. */
+  protected onTaskDropped(event: CdkDragDrop<Task[]>, destinationSectionId: string): void {
+    const draggedTask = event.item.data as Task;
+    if (event.previousContainer === event.container && event.previousIndex === event.currentIndex) {
+      return;
+    }
+
+    const snapshot = this.allTasks();
+    const destinationSprintId =
+      destinationSectionId === 'backlog' ? null : destinationSectionId.slice('sprint-'.length);
+
+    const destinationContainer = [...event.container.data];
+    if (event.previousContainer === event.container) {
+      moveItemInArray(destinationContainer, event.previousIndex, event.currentIndex);
+    } else {
+      const sourceContainer = [...event.previousContainer.data];
+      transferArrayItem(
+        sourceContainer,
+        destinationContainer,
+        event.previousIndex,
+        event.currentIndex,
+      );
+    }
+
+    this.applyOptimisticReorder(draggedTask.id, destinationSprintId, destinationContainer);
+    this.persistReorder(draggedTask.id, destinationSprintId, destinationContainer, snapshot);
+  }
+
+  /** Writes the destination container's new `sprint_id`/`order` onto
+   * `allTasks` immediately (before the server responds) — `backlogTasks`/
+   * `tasksBySprint` sort by `order`, so this is what makes the move visible
+   * right away. */
+  private applyOptimisticReorder(
+    draggedTaskId: string,
+    destinationSprintId: string | null,
+    destinationContainer: Task[],
+  ): void {
+    const orderIndexById = new Map(destinationContainer.map((task, index) => [task.id, index]));
+    this.allTasks.update((tasks) =>
+      tasks.map((task) => {
+        const newOrder = orderIndexById.get(task.id);
+        if (newOrder === undefined) {
+          return task;
+        }
+        return {
+          ...task,
+          sprint_id: task.id === draggedTaskId ? destinationSprintId : task.sprint_id,
+          order: newOrder,
+        };
+      }),
+    );
+  }
+
+  private persistReorder(
+    taskId: string,
+    sprintId: string | null,
+    destinationContainer: Task[],
+    snapshot: Task[],
+  ): void {
+    this.workspace
+      .reorderTasks({
+        task_id: taskId,
+        sprint_id: sprintId,
+        ordered_task_ids: destinationContainer.map((task) => task.id),
+      })
+      .subscribe({
+        error: () => {
+          this.allTasks.set(snapshot);
+          this.dragDropError.set(this.i18n.translate('workspace.errors.taskReorder'));
+          this.loadTasks();
+        },
+      });
+  }
+
+  /* ---- "Mover a…" (keyboard alternative to drag & drop, D5) -------------- */
+
+  protected toggleMoveMenu(taskId: string): void {
+    this.openMoveMenuTaskId.update((current) => (current === taskId ? null : taskId));
+  }
+
+  protected moveToAria(title: string): string {
+    return this.i18n.translate('workspace.backlog.moveToAria', { title });
+  }
+
+  /** Valid destinations for `task`'s "Mover a…" menu — Backlog plus every
+   * OPEN sprint (`openSprintSections()`, never `closed`) that
+   * `isValidSectionTransition` accepts from the task's current section,
+   * excluding that section itself (spec "El menú respeta las mismas reglas
+   * de destino"). */
+  protected moveTargetsFor(task: Task): { id: string; label: string }[] {
+    const originId = task.sprint_id ? `sprint-${task.sprint_id}` : 'backlog';
+    const candidates: { id: string; label: string }[] = [
+      { id: 'backlog', label: this.text.backlogMoveToBacklog() },
+      ...this.openSprintSections().map((sprint) => ({
+        id: this.sectionId(sprint),
+        label: sprint.name,
+      })),
+    ];
+    return candidates.filter(
+      (candidate) =>
+        candidate.id !== originId && this.isValidSectionTransition(originId, candidate.id),
+    );
+  }
+
+  /** Moves `task` to `destinationSectionId`, appending it at the end of that
+   * container (`ordered_task_ids = destino + [task.id]`, D5) — same
+   * optimistic/rollback path as `onTaskDropped`. */
+  protected moveTaskTo(task: Task, destinationSectionId: string): void {
+    this.openMoveMenuTaskId.set(null);
+    const snapshot = this.allTasks();
+    const destinationSprintId =
+      destinationSectionId === 'backlog' ? null : destinationSectionId.slice('sprint-'.length);
+    const currentDestinationTasks =
+      destinationSectionId === 'backlog'
+        ? this.backlogTasks()
+        : this.tasksBySprint().get(destinationSprintId as string) ?? [];
+    const destinationContainer = [
+      ...currentDestinationTasks.filter((t) => t.id !== task.id),
+      task,
+    ];
+
+    this.applyOptimisticReorder(task.id, destinationSprintId, destinationContainer);
+    this.persistReorder(task.id, destinationSprintId, destinationContainer, snapshot);
   }
 }
 

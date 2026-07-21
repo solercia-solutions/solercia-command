@@ -7,9 +7,9 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
-  verify: pending
-  archive: pending
+  apply: done
+  verify: done
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -65,3 +65,15 @@ spec_notes:
   - "Condicional: si design adopta guard de movimiento server-side (rechazar destino invalido/closed) o endpoint reorder por lotes, capability 'tasks' pasa a Modified con delta + TDD (reglas de movimiento + orden)"
   - "OLA_4 exige TDD de reglas de negocio; por eso el guard server-side se plantea como opcion recomendable a decidir en design/spec"
   - "RECONCILIACION (fase tasks, orquestador): design.md D1 introdujo POST /tasks/reorder (mueve sprint_id + reindexa order en 1 transaccion) sin delta paralelo en spec. Se añadio el requisito ADDED 'Reordenamiento transaccional via POST /tasks/reorder' en specs/tasks/spec.md con 4 escenarios (happy: reindexa hermanos; error: sprint closed -> 422 sprint_closed; error: tarea de otra org -> 404; permisos sin cambio). capabilities.modified pasa a incluir 'tasks', confirmando la condicion ya prevista arriba"
+apply_notes:
+  - "Commit 1 (fe69d96): guard reject_closed en _verify_sprint, activo en update_task (Reconciliacion #2 de tasks.md) y en reorder_tasks; POST /tasks/reorder nuevo. TDD estricto, 14/14 verde (test_task_sprint_closed_guard.py + test_task_reorder.py + test_tasks_crud.py)."
+  - "Commit 2 (794bc3a): Angular CDK DragDrop sobre las secciones de 30. Reconciliacion #3 (en tasks.md): cdkDrag y el menu 'Mover a...' NO viven dentro de taskCardTpl (ese template tambien lo proyecta sol-kanban-board, cuyo sol-kanban-card ya aplica CdkDrag a su host via hostDirectives) sino en un wrapper nuevo exclusivo de la vista Backlog, para no arriesgar el D&D del tablero kanban ya existente."
+  - "Desviacion documentada en tasks.md 1.3: specs/tasks/spec.md describe el aislamiento cross-org del guard PATCH como 404; el codigo YA existente (sin cambios en este alcance) responde 422 invalid_sprint para cualquier sprint no encontrado en el org/proyecto del solicitante -- mismo efecto protector, codigo de estado distinto. Fuera de alcance de esta reconciliacion diferenciarlo."
+  - "Fase 3: suite completa backend 1345 passed (1337 baseline + 8 tests nuevos); build frontend y lint verdes. Sin commit 3 (sin hallazgos)."
+  - "Merge a preview diferido al orquestador por instruccion explicita de la invocacion de apply; esta sesion no toco main/preview. Rama feat/backlog-drag-drop lista para merge con los commits fe69d96 y 794bc3a."
+verify_notes:
+  - "Suite completa backend re-ejecutada de forma independiente: 1345 passed, 0 failed (373.86s). ruff/mypy limpios en archivos cambiados; frontend npm run build/lint verdes."
+  - "Reconciliacion documental: specs/tasks/spec.md, escenario 'Aislamiento de organizacion se mantiene' (guard PATCH), corregido de 404 a 422 code=invalid_sprint para reflejar el comportamiento real y preexistente de _verify_sprint (sin cambios de codigo en este alcance); el escenario equivalente de POST /tasks/reorder (404 sobre task_id cross-org via _require_task) ya era correcto y no se toco."
+  - "Dictamen commit fuera de alcance 5e98b18 (migra @solercia/ui del tarball al paquete npm 0.3.1): probado experimentalmente NO necesario para que compile el cambio 31 (build verde restaurando el tarball 0.3.0 y el export * original; arbol restaurado despues). WARNING de alcance: recomendado extraerlo a su propio cambio/PR. El workaround del export nombrado de SolDrawerComponent se probo correcto (todas las vistas reales -- projects, connections, project-workspace -- resuelven el drawer local; ng build AOT con [blur] confirma que ninguna vista quedo con el drawer publicado)."
+  - "frontend-backlog-dnd: 11/11 escenarios PARTIAL (sin test runner FE, mismo gap preexistente de 28/29/30), verificados por lectura de fuente + build AOT + eslint en verde. WARNING, no CRITICAL, consistente con el precedente del repo."
+  - "Verdict: PASS WITH WARNINGS. 0 CRITICAL. No bloquea sdd-archive."

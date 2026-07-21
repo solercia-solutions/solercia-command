@@ -154,6 +154,19 @@ class TaskColumnMove(BaseModel):
     board_column_id: uuid.UUID
 
 
+class TaskReorder(BaseModel):
+    """Payload for ``POST /tasks/reorder`` (change 31-backlog-drag-drop, D1).
+
+    Moves ``task_id`` to ``sprint_id`` (``None`` = Backlog) and reindexes the
+    ``order`` field of every task in ``ordered_task_ids`` — the destination
+    container's final order after the drop — in a single transaction.
+    """
+
+    task_id: uuid.UUID
+    sprint_id: uuid.UUID | None = None
+    ordered_task_ids: list[uuid.UUID]
+
+
 class MemberRead(BaseModel):
     """An organization member that can be assigned to tasks."""
 

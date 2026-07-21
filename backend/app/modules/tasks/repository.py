@@ -250,6 +250,41 @@ class TaskRepository:
         )
         return list(result.tuples().all())
 
+    async def reassign_order_for_container(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        ordered_task_ids: Sequence[uuid.UUID],
+    ) -> None:
+        """Set ``task.order`` to each id's index within ``ordered_task_ids``.
+
+        Scoped to ``organization_id``/``project_id``/``is_active`` so a
+        malformed id from another tenant or project is silently excluded
+        rather than reassigned. Does NOT commit — the caller
+        (``TaskService.reorder_tasks``) closes the transaction with its own
+        ``repo.save()`` so the sprint move and the reindex land atomically
+        (design.md D1, "1 transacción").
+        """
+
+        if not ordered_task_ids:
+            return
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.id.in_(ordered_task_ids),
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+        )
+        tasks_by_id = {task.id: task for task in result.scalars().all()}
+        for index, task_id in enumerate(ordered_task_ids):
+            task = tasks_by_id.get(task_id)
+            if task is not None:
+                task.order = index
+
     async def is_org_member(
         self, organization_id: uuid.UUID, user_id: uuid.UUID
     ) -> bool:

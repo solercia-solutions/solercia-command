@@ -439,7 +439,10 @@ class TaskService:
 
         if "sprint_id" in changes:
             await self._verify_sprint(
-                organization_id, task.project_id, changes["sprint_id"]
+                organization_id,
+                task.project_id,
+                changes["sprint_id"],
+                reject_closed=True,
             )
             task.sprint_id = changes["sprint_id"]
 
@@ -546,6 +549,52 @@ class TaskService:
         )
         task = await self.repo.save(task)
 
+        name_map = await self._assignee_name_map(organization_id)
+        return self._to_read(task, name_map, project_code=project.code)
+
+    async def reorder_tasks(
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        sprint_id: uuid.UUID | None,
+        ordered_task_ids: Sequence[uuid.UUID],
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> TaskRead:
+        """Move ``task_id`` to ``sprint_id`` and reindex the destination
+        container's ``order`` from ``ordered_task_ids`` in ONE transaction
+        (design.md D1, ``POST /tasks/reorder``).
+
+        Same ``closed``-sprint guard as ``update_task``
+        (``_verify_sprint(reject_closed=True)``). ``order`` is not part of
+        ``_HISTORY_TRACKED_FIELDS`` so the reindex never spams
+        ``TaskHistory``; only the ``sprint_id`` change (if any) records one
+        row, via the same ``_record_history_diff`` snapshot/diff path as
+        ``update_task``.
+        """
+
+        task = await self._require_task(organization_id, task_id)
+        project = await self._require_project(organization_id, task.project_id)
+
+        snapshot = {
+            field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS
+        }
+
+        await self._verify_sprint(
+            organization_id, task.project_id, sprint_id, reject_closed=True
+        )
+        task.sprint_id = sprint_id
+        task.updated_by = actor_id
+
+        await self.repo.reassign_order_for_container(
+            organization_id, task.project_id, ordered_task_ids
+        )
+
+        await self._record_history_diff(
+            organization_id, task, snapshot, actor_id=actor_id
+        )
+
+        task = await self.repo.save(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
@@ -824,7 +873,19 @@ class TaskService:
         organization_id: uuid.UUID,
         project_id: uuid.UUID,
         sprint_id: uuid.UUID | None,
+        *,
+        reject_closed: bool = False,
     ) -> None:
+        """Validate that ``sprint_id`` exists in this org/project.
+
+        When ``reject_closed`` is ``True`` also rejects a destination sprint
+        whose ``status == 'closed'`` with ``422 sprint_closed`` (D3, change
+        31-backlog-drag-drop). Per the Reconciliación #2 in tasks.md, this
+        guard applies to `update_task` (the PATCH the detail modal uses) in
+        addition to `reorder_tasks`, so the same server-side integrity rule
+        protects every consumer of the endpoint.
+        """
+
         if sprint_id is None:
             return
         from app.modules.sprints.repository import SprintRepository
@@ -837,6 +898,12 @@ class TaskService:
             raise AppException(
                 "El sprint indicado no existe en este proyecto.",
                 code="invalid_sprint",
+                status_code=422,
+            )
+        if reject_closed and sprint.status == "closed":
+            raise AppException(
+                "No puedes mover tareas a un sprint cerrado.",
+                code="sprint_closed",
                 status_code=422,
             )
 
