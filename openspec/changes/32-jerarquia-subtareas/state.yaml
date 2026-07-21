@@ -8,7 +8,7 @@ phases:
   design: done
   tasks: done
   apply: done
-  verify: done  # FAIL — 1 CRITICAL, 2 WARNING, 1 SUGGESTION — bloqueado por CRITICAL-1 (indices CDK desincronizados con padres de contexto)
+  verify: done  # PASS — CRITICAL-1 resuelto en 5dd7729 (exclusion estructural de cdkDrag en padres de contexto, backlog y sprint); 2 WARNING no bloqueantes (WARNING-1, WARNING-2); ver "Verify de cierre" en verify-report.md
   archive: pending
 artifacts:
   proposal: true

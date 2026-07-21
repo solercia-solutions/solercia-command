@@ -206,3 +206,104 @@ Revisado `backend/tests/test_task_hierarchy.py` completo (7 tests): sin tautolog
 **FAIL**
 
 Backend (Prioridad 1, la regla innegociable) está completo, correcto y probado con dureza — 1352/1352 tests verdes, incluidos los 7 nuevos de `test_task_hierarchy.py`, cada uno nombrado exactamente para un punto de la regla de negocio. Sin embargo, la corrección de Prioridad 2 reportada por `apply` (`topLevelOf()`) es **incompleta**: no cubre el caso de padres de contexto que quedan registrados como ítems de arrastre deshabilitados dentro de `CdkDropList`, lo que puede desincronizar los índices de reordenamiento y corromper el orden persistido de tareas — confirmado por lectura del código fuente real de Angular CDK instalado, no por especulación. Este hallazgo bloquea el archivo del cambio hasta que se corrija (excluir estructuralmente `cdkDrag` de las filas de contexto, no solo deshabilitarlo) y se re-verifique.
+
+---
+
+## Verify de cierre
+
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:39d4f747daab01146fad616c355453c12889786c-c4475d44d92d4e89c9c37d849eb19e9da3b582f0-51d622e1f09f8050ed3a3055183056cf1cd5d622-dcbf3e64339024d7839b2eaf8beae5f507293b58-5dd7729dcbfcf37fbda7c6a220d4e8ced533da08
+verdict: pass
+blockers: 0
+critical_findings: 0
+requirements: 3/3
+scenarios: 10/11
+test_command: cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q
+test_exit_code: 0
+test_output_hash: sha256:622ecc02e95e89b15b284029ecdc9e2c100d4b9c0700cdefebd260e7f3280204
+build_command: source ~/.nvm/nvm.sh && nvm use 22.22.3 && cd frontend && npm run build
+build_exit_code: 0
+build_output_hash: sha256:6ef84e1a4ca63a3ccc651d738c3637c6614d5575082909bd18e57ade6f4090cc
+```
+
+**Cambio verificado**: commit de corrección `5dd7729` (`fix(tasks): excluye estructuralmente cdkDrag de padres de contexto`), sobre `dcbf3e6` (`docs: agrega el reporte de verificación` — el FAIL original con CRITICAL-1).
+
+### Veredicto sobre CRITICAL-1
+
+**RESUELTO.**
+
+Verificado por lectura completa de `git show 5dd7729 -- frontend/src/widgets/project-workspace/project-workspace.component.ts` (el único archivo de producción tocado, +75/-35) y relectura íntegra del template resultante (`project-workspace.component.ts` líneas 395-650):
+
+1. **La directiva `cdkDrag` ya NO existe en ninguna rama de plantilla que renderice un padre de contexto**, en las DOS secciones pedidas:
+   - **Backlog** (líneas 441-476): `@if (row.parent; as parent) { @if (!row.isContext) { <div cdkDrag ...> } @else { <ng-container *ngTemplateOutlet="taskCardTpl" ...> } }` — la rama `@else` (contexto) no contiene `cdkDrag` en ningún punto; antes solo llevaba `[cdkDragDisabled]="row.isContext"` sobre el mismo `<div>` que ahora se partió en dos ramas.
+   - **Sprint** (líneas 593-631): mismo patrón exacto. Se eliminó además `[cdkDragDisabled]="readOnly || row.isContext"` → queda `[cdkDragDisabled]="readOnly"` (línea 600) SOLO dentro de la rama `!row.isContext` — el guard de solo-lectura de sprints cerrados (D5) es un concepto distinto e independiente de `isContext`, y no cambia.
+   - `rg -n "cdkDragDisabled.*isContext"` sobre el archivo confirmado en 0 coincidencias — no queda ningún guard basado en `[cdkDragDisabled]` para el caso de contexto, ni residual ni duplicado.
+   - `moveMenuTpl` (menú "Mover a…") sigue excluido de la rama de contexto en ambas secciones — coherente con el hallazgo original y con el requisito de "fuera del menú Mover a…".
+
+2. **Correspondencia 1:1 entre `cdkDrag` registrados en el DOM y `[cdkDropListData]`**, verificada leyendo los 4 puntos pedidos explícitamente:
+
+   | Punto | Fuente | Verificación |
+   |---|---|---|
+   | `[cdkDropListData]` (Backlog, línea 420 / sprint, línea 575) | `topLevelOf(sectionTasks)` — ahora filtra `parent_task_id == null && task.is_context !== true` (antes solo `parent_task_id == null`) | El único `cdkDrag` presente en el DOM de una sección es el de filas con `row.isContext === false`; en `sectionRows()` (líneas 1641-1685), las filas nativas de la sección (`isContext: task.is_context === true`) y las de padre foráneo (`isContext: foreignParent !== null`, SIEMPRE `true` cuando se resuelve) nunca coinciden con una fila draggable salvo cuando también son top-level `is_context:false` de su propia sección — mismo predicado en ambos lados, sin discrepancia |
+   | Handler de drop (`onTaskDropped`, líneas 2483-2508) | `event.container.data` = exactamente el array de `[cdkDropListData]` ya corregido | `destinationContainer` parte de `[...event.container.data]`; hereda la corrección sin cambio propio |
+   | `cdkDropListEnterPredicate`/`canDropInto` (líneas 2446-2461) | `isValidSectionTransition` opera a nivel de SECCIÓN completa, no de fila individual | Confirmado que no participa en el cálculo de índices por fila — sin impacto, igual que en el verify original |
+   | `POST /tasks/reorder` (`ordered_task_ids`, `persistReorder` línea 2545 / `moveTaskTo` líneas 2589-2609) | `destinationContainer.map((task) => task.id)` (drop) o `topLevelOf(...)` directo (Mover a…) | Ambos caminos consumen arrays ya derivados de la corrección — `moveTaskTo` llama `this.topLevelOf(...)` explícitamente (líneas 2600-2601), heredando el filtro `is_context !== true` sin lógica propia adicional |
+
+   No existe ningún punto de los 4 pedidos donde el array de datos y los `cdkDrag` reales del DOM puedan desalinearse tras esta corrección — el mismo predicado (`parent_task_id == null && is_context !== true`) gobierna ambos lados.
+
+3. **Suite de tests de frontend**: sigue sin existir runner configurado (`WARNING-2`, no resuelto por este commit, no era su alcance). La verificación de la correspondencia 1:1 es por lectura de código, no por test de interacción real — mismo límite metodológico documentado en el verify original.
+
+### Evaluación del ajuste extra — `topLevelOf()` excluye también `is_context !== true`
+
+**Correcto, sin riesgo de excluir una tarea legítima arrastrable.**
+
+Razonamiento verificado:
+
+- `is_context` es un campo que el **backend** (no el cliente) computa de forma autoritativa: `service.py` solo lo pone en `true` en la segunda pasada, exclusivamente cuando `assignee_id` está presente y la tarea NO matchea el filtro por sí misma — es decir, por construcción, `is_context: true` significa "esta fila viaja solo como contexto de una subtarea ajena que sí matchea, nunca como resultado real" (regla innegociable, Prioridad 1, ya verificada COMPLIANT en el verify original con 6/6 puntos probados por test).
+- La regla de producto (tarea 2.10, y el propio hallazgo CRITICAL-1) exige que un padre de contexto sea **no arrastrable siempre**, sin excepción por sección — no hay ninguna cláusula en `design.md` ni en `tasks.md` que diga "salvo en su propia sección de origen". Por tanto, excluirlo también quando aparece como top-level genuino de su propia sección (caso hipotético bajo `assignee_id` activo) es consistente con el requisito, no una sobre-corrección.
+- **Caso límite verificado por lectura directa** (`sectionRows()`, líneas 1641-1685): para una fila NATIVA de la sección (`task.parent_task_id == null` y la tarea pertenece a `sectionTasks`), `row.isContext = task.is_context === true` — el mismo flag exacto que usa `topLevelOf()`. Nunca hay una fila nativa con `row.isContext: false` cuyo `task.is_context` sea `true`, ni viceversa: son la misma fuente de verdad, leída dos veces con el mismo predicado. No hay divergencia posible entre "lo que se renderiza arrastrable" y "lo que se cuenta como arrastrable".
+- **Alcance real actual**: `loadTasks()` (confirmado en el verify original y sin cambios en este commit) NO envía `assignee_id`, así que `is_context` es hoy siempre `false` para toda tarea — el ajuste es efectivamente inerte en el uso actual de la pantalla y solo se activa preventivamente para cuando un futuro filtro por asignado (cambio 33) empiece a enviar `assignee_id`. Esto es exactamente lo que `tasks.md` documenta como "caso límite verificado explícitamente" en la sección de corrección post-verify, y coincide con la relectura de código de este verify de cierre.
+- No hay mecanismo por el cual una tarea que SÍ deba ser arrastrable (porque matchea el filtro o porque no hay filtro activo) termine con `is_context: true` — el flag nunca se activa fuera de la segunda pasada explícita del backend.
+
+**Veredicto**: el ajuste es necesario (sin él se reabriría el mismo bug en sentido inverso, como documenta correctamente `tasks.md`) y correcto — no hay riesgo de falso positivo sobre una tarea legítimamente arrastrable.
+
+### Comportamiento preservado (sin regresión)
+
+Confirmado por lectura de `taskCardTpl` (líneas 896-905, sin cambios en este commit) y de las dos ramas de contexto:
+
+- **Atenuado**: `[class.opacity-60]="isContext"` intacto, se sigue pasando `isContext: true` explícitamente en el `ngTemplateOutlet` de la rama de contexto (líneas 473, 628).
+- **Clicable solo al drawer de detalle**: `(click)="isContext ? openTaskDrawer(task) : openEdit(task)"` intacto, sin cambios.
+- **Fuera del menú "Mover a…"**: la rama de contexto (`@else`) nunca renderiza `moveMenuTpl` en ninguna de las dos secciones — el `ngTemplateOutlet` de `moveMenuTpl` vive exclusivamente dentro de la rama `!row.isContext`.
+
+### Suite completa y build (evidencia de ejecución real)
+
+**Backend** — comando ejecutado en este verify de cierre:
+```text
+$ cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q
+1352 passed, 1 warning in 380.40s (0:06:20)
+```
+1352/1352 verdes, 0 fallos — mismo conteo exacto que el verify original (1352). El único warning es el mismo pre-existente de Alembic/SQLAlchemy sobre ciclo de FKs (`dependencies, organizations, users`), ajeno a este cambio y ya documentado en el verify original. Este commit de corrección no tocó ningún archivo de backend (`git show 5dd7729 --stat` confirma un solo archivo de producción, frontend), por lo que la ausencia de regresión backend era la expectativa correcta.
+
+**Frontend** — comando ejecutado en este verify de cierre:
+```text
+$ source ~/.nvm/nvm.sh && nvm use 22.22.3 && cd frontend && npm run build
+Application bundle generation complete. [6.411 seconds]
+Output location: frontend/dist/frontend
+```
+Build verde, sin errores de compilación ni de plantilla (los `@if`/`@else` estructurales del fix compilan sin warnings de Angular).
+
+**`frontend/package.json`**: confirmado que sigue declarando `"solercia-ui": "file:./vendor/solercia-ui-0.3.0.tgz"` (línea 22) — sin migración de dependencia colada en la corrección.
+
+### WARNING pendientes (documentados, no bloqueantes)
+
+Ambos WARNING del verify original se mantienen sin cambios — no eran parte del alcance de la corrección de `5dd7729` y ninguno de los dos es CRITICAL:
+
+1. **WARNING-1** — el escenario de spec "Total y agregados no se inflan por contexto" no tiene un test runtime dedicado que combine explícitamente padre-de-contexto + agregado de sprint; sigue probado solo por independencia arquitectónica de la query `aggregate_tasks_by_sprint` (`sprints/repository.py:240-265`). Riesgo bajo, sin cambios en este ciclo.
+2. **WARNING-2** — ausencia total de test runner de frontend, ya documentada como riesgo aceptado en `tasks.md`. Recomendado priorizar para el cambio 33 o un cambio de tooling dedicado; no bloquea este archivo.
+
+### Verdict
+
+**PASS**
+
+CRITICAL-1 quedó completamente resuelto: la exclusión de `cdkDrag` es ahora estructural (rama de plantilla separada, no un `[cdkDragDisabled]` condicional) en las dos secciones donde el hallazgo original aplicaba, y la corrección complementaria de `topLevelOf()` (excluir también `is_context === true`) cierra el mismo riesgo en sentido inverso sin introducir posibilidad de excluir por error una tarea legítimamente arrastrable — el flag `is_context` es una fuente de verdad única, autoritativa desde el backend, leída con el mismo predicado exacto en ambos lados (DOM y array de datos). La correspondencia 1:1 entre `[cdkDropListData]` y los `cdkDrag` realmente presentes en el DOM se sostiene en los 4 puntos que entregan listas/índices a CDK. Suite backend completa en 1352/1352 verdes (sin regresión, el commit de corrección no tocó backend) y build de frontend verde. Los 2 WARNING abiertos (WARNING-1, WARNING-2) quedan documentados como no bloqueantes para el archivo de este cambio. Queda habilitado `sdd-archive`.
