@@ -128,10 +128,10 @@ Commit 2: `feat(project-workspace): agrega arrastrar y soltar entre backlog y sp
 
 ## Fase 3 — Suite completa + no regresión (Commit 3 condicional)
 
-- [ ] 3.1 Suite completa del backend sin regresión: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q`
-- [ ] 3.2 Build de frontend verde (repetir tras cualquier ajuste de Fase 2): `cd frontend && npm run build`
-- [ ] 3.3 Commit final (solo si 3.1 generó correcciones no cubiertas por los commits 1-2; caso contrario no aporta commit nuevo).
-- [ ] 3.4 Merge local a `preview` (single-pr, sin PR encadenado).
+- [x] 3.1 Suite completa del backend sin regresión: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test .venv/bin/python -m pytest -q` → **1345 passed, 1 warning en 380.33s** (baseline preview era 1337 + 8 tests nuevos de esta fase = 1345, cuadra exacto). Nota de entorno: una corrida intermedia falló con `OSError: Connect call failed` masivo porque `gestion_proyectos-postgres-1` colapsó por disco lleno de la VM de Docker Desktop (ajeno a este cambio — `gestion_proyectos_pgdata` solo pesa 89MB; el resto son imágenes/build-cache/volúmenes de OTROS proyectos en la máquina); se liberó espacio con `docker builder prune -f` y el contenedor se recuperó solo (WAL redo exitoso, sin pérdida de datos) — la corrida limpia posterior confirma que no hubo regresión real.
+- [x] 3.2 Build de frontend verde (repetir tras cualquier ajuste de Fase 2): `cd frontend && npm run build` → verde (warning de presupuesto de bundle, 416 bytes sobre 1MB, no bloqueante). `npm run lint` también verde.
+- [x] 3.3 Commit final: no aportó commit nuevo — 3.1 no generó hallazgos no cubiertos por los commits 1-2.
+- [ ] 3.4 Merge local a `preview`: **diferido al orquestador por instrucción explícita de esta invocación** ("el merge lo hace el orquestador"; además esta sesión tiene prohibido tocar `main`/`preview`). Rama `feat/backlog-drag-drop` queda lista para el merge con ambos commits (1 y 2) y la suite completa en verde.
 
 Commit 3 (solo si 3.3 generó cambios): `fix(tasks): cierra hallazgos de la suite completa`
 
