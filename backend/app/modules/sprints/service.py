@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.methodology.board_aware import resolve_board_strategy
 from app.methodology.factory import get_strategy
+from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.sprints.models import Sprint
+from app.modules.sprints.naming import next_sprint_name
 from app.modules.sprints.repository import SprintRepository
 from app.modules.sprints.schemas import (
     SprintCreate,
@@ -23,7 +25,7 @@ from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
 # Lifecycle values a sprint may take.
-_ALLOWED_STATUSES = ("active", "closed")
+_ALLOWED_STATUSES = ("draft", "active", "closed")
 
 
 class SprintService:
@@ -56,16 +58,31 @@ class SprintService:
         *,
         actor_id: uuid.UUID | None = None,
     ) -> SprintRead:
-        """Create a sprint within a sprint-enabled project."""
+        """Create a sprint within a sprint-enabled project.
 
-        await self._require_sprints_enabled(organization_id, project_id)
+        ``name`` blank/omitted (change 29-sprint-borrador): auto-named from
+        the project's most recently created sprint via ``next_sprint_name``.
+        ``status`` is derived from the presence of BOTH dates — ``active``
+        when both ``start_date``/``end_date`` are given (retrocompatible with
+        the previous hardcoded behavior), ``draft`` otherwise.
+        """
+
+        project = await self._require_sprints_enabled(organization_id, project_id)
+
+        name = data.name
+        if name is None:
+            previous = await self.repo.last_for_project(organization_id, project_id)
+            name = next_sprint_name(previous.name if previous else None, project.code)
+
+        status = "active" if data.start_date and data.end_date else "draft"
+
         sprint = Sprint(
             project_id=project_id,
-            name=data.name,
+            name=name,
             goal=data.goal,
             start_date=data.start_date,
             end_date=data.end_date,
-            status="active",
+            status=status,
             created_by=actor_id,
             updated_by=actor_id,
         )
@@ -378,7 +395,16 @@ class SprintService:
 
     async def _require_sprints_enabled(
         self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> None:
+    ) -> Project:
+        """Return the resolved project, or raise if sprints aren't enabled.
+
+        The single point of reading ``get_strategy(project.methodology)
+        .sprints_enabled`` in this module (never ``if methodology == ...``).
+        Returns the ``Project`` (not just ``None``) so callers that need it —
+        e.g. ``create_sprint``'s ``project.code`` for auto-naming — don't
+        have to re-fetch it.
+        """
+
         project = await self.projects.get(organization_id, project_id)
         if project is None:
             raise AppException(
@@ -392,3 +418,4 @@ class SprintService:
                 code="sprints_not_enabled",
                 status_code=422,
             )
+        return project
