@@ -9,7 +9,7 @@ phases:
   tasks: done
   apply: done
   verify: done
-  archive: pending
+  archive: done
 artifacts:
   proposal: true
   specs: true
@@ -59,7 +59,7 @@ facts_verified:
   - "Task.order existe y se usa para ordenar listados (repository.py:27,122 order_by Task.order.asc()); es patchable via update_task"
   - "Vista de 30 deja ids estables sprint-<uuid>/backlog y ordena tareas por task.order como seams para 31 (30/design.md D7)"
   - "Permisos: modulo tasks usa get_current_membership (org + rol); DnD reutiliza el mismo endpoint -> mismos permisos y aislamiento por organization_id"
-last_updated: 2026-07-21
+last_updated: 2026-07-20
 spec_notes:
   - "Default: sin delta spec-level (reutiliza PATCH /tasks/{id}); Modified capabilities = None"
   - "Condicional: si design adopta guard de movimiento server-side (rechazar destino invalido/closed) o endpoint reorder por lotes, capability 'tasks' pasa a Modified con delta + TDD (reglas de movimiento + orden)"

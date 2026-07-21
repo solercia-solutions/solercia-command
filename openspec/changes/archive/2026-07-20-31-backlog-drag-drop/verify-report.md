@@ -264,3 +264,10 @@ Se leyeron completos `test_task_sprint_closed_guard.py` (175 líneas) y `test_ta
 **PASS WITH WARNINGS**
 
 Backend (`tasks`): 9/9 escenarios COMPLIANT con test que pasa en runtime, suite completa 1345/1345 verde, `ruff`/`mypy` limpios, guard `closed` y `POST /tasks/reorder` transaccional correctamente implementados y probados (incluyendo la transaccionalidad real vía spy, no una aserción de conteo tautológica). Frontend (`frontend-backlog-dnd`): implementación correctamente verificada por lectura de fuente + build AOT + lint en verde, pero sin cobertura runtime propia — mismo patrón ya aceptado del repo (WARNING, no CRITICAL). El commit de dependencia fuera de alcance (`5e98b18`) se probó experimentalmente innecesario para compilar y su workaround de `SolDrawerComponent` se probó correcto — ambos quedan documentados como WARNING de alcance, no como bloqueo. La discrepancia spec/código del guard cross-org (404 vs 422) se corrigió en `specs/tasks/spec.md` durante esta verificación (reconciliación documental pura — comportamiento preexistente sin cambios en este alcance). Nada bloquea `sdd-archive`.
+
+---
+
+## Resolución (orquestador)
+
+El commit `5e98b18` (`chore(deps): migra @solercia/ui del tarball vendido al paquete de npm 0.3.1`) fue extraído de la rama `feat/backlog-drag-drop` a una rama independiente `chore/solercia-ui-npm` para decisión separada, ya que el veredicto experimental concluyó que **NO era necesario** para que el cambio 31 compliara. La rama `feat/backlog-drag-drop` ahora contiene 4 commits con `package.json` revertido al tarball `file:./vendor/solercia-ui-0.3.0.tgz`, y el build se re-verificó verde en ese estado (sin cambios en el comportamiento funcional de este cambio). La rama queda lista para merge a `preview` con el alcance limitado únicamente a arrastre y reordenamiento de tareas.
+
