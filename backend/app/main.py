@@ -44,6 +44,12 @@ from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.time_logs.router import router as time_logs_router
 from app.modules.users.router import router as users_admin_router
+from app.modules.work_calendar.router import (
+    organization_calendar_router,
+)
+from app.modules.work_calendar.router import (
+    project_calendar_router as work_calendar_project_router,
+)
 from app.notify.dispatcher import has_active_durable_channel
 from app.realtime.router import router as realtime_router
 from app.reminders.scheduler import register_reminders_job
@@ -151,7 +157,9 @@ register_exception_handlers(app)
 
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(organizations_router, prefix=API_PREFIX)
+app.include_router(organization_calendar_router, prefix=API_PREFIX)
 app.include_router(projects_router, prefix=API_PREFIX)
+app.include_router(work_calendar_project_router, prefix=API_PREFIX)
 app.include_router(org_role_templates_router, prefix=API_PREFIX)
 app.include_router(boards_router, prefix=API_PREFIX)
 app.include_router(tasks_router, prefix=API_PREFIX)

@@ -13,8 +13,11 @@ tested for R4; adding PATCH/DELETE assertions here would test routes that
 do not exist.
 """
 
+from decimal import Decimal
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import TwoOrgs, skip_no_db
 
@@ -379,3 +382,89 @@ async def test_create_project_persists_in_a_single_call_no_regression(
     fetched = await client.get(f"/projects/{project_id}", headers=_auth(token))
     assert fetched.status_code == 200
     assert fetched.json()["data"]["name"] == "Persistencia Atómica"
+
+
+# ---------------------------------------------------------------------------
+# Override de calendario laboral en ProjectRead (change 28-calendario-laboral)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_project_exposes_root_work_calendar_override_values(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """A root project's own override columns are exposed as-is on GET."""
+
+    _, token = user
+    create_response = await client.post(
+        "/projects",
+        json={"name": "Raíz Con Override", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert create_response.status_code == 201, create_response.text
+    project_id = create_response.json()["data"]["id"]
+
+    from app.modules.projects.models import Project
+
+    project = await session.get(Project, project_id)
+    project.working_hours_per_day = Decimal("6")
+    project.working_days = [6, 7]
+    await session.flush()
+
+    response = await client.get(f"/projects/{project_id}", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert float(data["working_hours_per_day"]) == 6
+    assert data["working_days"] == [6, 7]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_project_child_always_exposes_null_work_calendar_override(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """A child project ALWAYS shows null overrides, even if its root has one."""
+
+    _, token = user
+    root_response = await client.post(
+        "/projects",
+        json={"name": "Raíz Con Override Hijo", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert root_response.status_code == 201, root_response.text
+    root_id = root_response.json()["data"]["id"]
+
+    from app.modules.projects.models import Project
+
+    root = await session.get(Project, root_id)
+    root.working_hours_per_day = Decimal("6")
+    root.working_days = [6, 7]
+    await session.flush()
+
+    child_response = await client.post(
+        "/projects",
+        json={
+            "name": "Hijo De Override",
+            "methodology": "kanban",
+            "parent_project_id": root_id,
+        },
+        headers=_auth(token),
+    )
+    assert child_response.status_code == 201, child_response.text
+    child_id = child_response.json()["data"]["id"]
+
+    detail_response = await client.get(f"/projects/{child_id}", headers=_auth(token))
+    assert detail_response.status_code == 200, detail_response.text
+    detail_data = detail_response.json()["data"]
+    assert detail_data["working_hours_per_day"] is None
+    assert detail_data["working_days"] is None
+
+    listing_response = await client.get("/projects", headers=_auth(token))
+    assert listing_response.status_code == 200, listing_response.text
+    listing_entry = next(
+        item for item in listing_response.json()["data"] if item["id"] == child_id
+    )
+    assert listing_entry["working_hours_per_day"] is None
+    assert listing_entry["working_days"] is None

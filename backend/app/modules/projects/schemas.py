@@ -3,6 +3,7 @@
 import re
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -135,6 +136,14 @@ class ProjectRead(BaseModel):
     lead_user_id: uuid.UUID | None = None
     # Topological kind (change 27-plantillas-idempotentes): "area"|"proyecto".
     project_kind: ProjectKind = ProjectKind.proyecto
+    # Override de calendario laboral del equipo (change 28-calendario-
+    # laboral): refleja las columnas ORM tal cual (``from_attributes=True``).
+    # ``null`` para todo proyecto no-raíz, o para una raíz sin override
+    # configurado — el invariante "solo la raíz persiste valores" lo
+    # garantiza ``WorkCalendarService.set_project_override``
+    # (``override_requires_root``), nunca este schema.
+    working_hours_per_day: Decimal | None = None
+    working_days: list[int] | None = None
 
 
 class ProjectTreeNode(BaseModel):

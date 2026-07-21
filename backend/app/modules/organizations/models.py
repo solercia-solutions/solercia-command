@@ -1,10 +1,11 @@
 """Organization and membership ORM models."""
 
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String, UniqueConstraint, Uuid
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import ForeignKey, Integer, Numeric, String, UniqueConstraint, Uuid
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,6 +29,16 @@ class Organization(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     # primitives → semantic → component). ``NULL`` = tema por defecto
     # empaquetado en el frontend; el backend nunca interpreta su contenido.
     theme: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Calendario laboral de la empresa (change 28-calendario-laboral):
+    # default global explícito 8h/Lun-Vie. NOT NULL — siempre resoluble sin
+    # caer al default global salvo el caso defensivo teórico documentado en
+    # ``WorkCalendarResolver`` (design.md, "Data Flow").
+    working_hours_per_day: Mapped[Decimal] = mapped_column(
+        Numeric(4, 2), default=Decimal("8"), nullable=False
+    )
+    working_days: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer), default=[1, 2, 3, 4, 5], nullable=False
+    )
 
 
 class OrganizationMember(PkMixin, TimestampMixin, Base):
