@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
-from app.modules.tasks.schemas import TaskColumnMove, TaskCreate, TaskUpdate
+from app.modules.tasks.schemas import (
+    TaskColumnMove,
+    TaskCreate,
+    TaskReorder,
+    TaskUpdate,
+)
 from app.modules.tasks.service import TaskService
 from app.shared.enums import Priority
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
@@ -140,6 +145,32 @@ async def get_task_by_key(
 
     service = TaskService(db)
     task = await service.get_task_by_key(membership.organization_id, key)
+    return {"data": task}
+
+
+@router.post("/tasks/reorder")
+async def reorder_tasks(
+    payload: TaskReorder,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Move a task to ``sprint_id`` and reindex the destination container's
+    ``order`` from ``ordered_task_ids`` in a single transaction.
+
+    Consumed by the drag & drop view and the "Mover a…" keyboard menu
+    (change 31-backlog-drag-drop). Applies the same ``closed``-sprint guard
+    as ``PATCH /tasks/{id}``.
+    """
+
+    service = TaskService(db)
+    task = await service.reorder_tasks(
+        membership.organization_id,
+        payload.task_id,
+        payload.sprint_id,
+        payload.ordered_task_ids,
+        actor_id=actor_id,
+    )
     return {"data": task}
 
 
