@@ -72,11 +72,11 @@ Commit 2: `feat(project-workspace): reorganiza el backlog en secciones colapsabl
 
 ## Fase 3 — Estados vacíos + textos es-CO + build verde (Commit 3)
 
-- [ ] 3.1 Estado vacío "sin sprints": cuando `openSprintSections().length === 0 && closedSprints().length === 0`, ocultar el enlace "Ver sprints cerrados" y mostrar un mensaje breve (`text.backlogNoSprintsYet()`) antes de la sección Backlog fija (que sigue visible siempre).
-- [ ] 3.2 Estado vacío de la sección Backlog: reemplazar el mensaje genérico actual (`text.backlogEmpty()`, línea 328) por el mismo texto reutilizado como cuerpo de la sección Backlog cuando `backlogTasks().length === 0`.
-- [ ] 3.3 Estado vacío por sprint sin historias: dentro de cada sección de sprint abierta, si `(tasksBySprint().get(sprint.id) ?? []).length === 0`, mostrar un mensaje corto (`text.sprintSectionEmpty()`) en vez de una lista en blanco.
-- [ ] 3.4 `frontend/src/assets/i18n/es-CO.json`: bajo un bloque nuevo `workspace.backlog` (mismo patrón que `workspace.sprints`) agregar, en tuteo formal: `noSprintsYet: "Todavía no hay sprints; el backlog se muestra abajo."`, `sprintSectionEmpty: "Este sprint no tiene historias todavía."`, `viewClosedSprints: "Ver sprints cerrados ({{ count }})"`, `hideClosedSprints: "Ocultar sprints cerrados"`, `collapseAria: "Colapsa la sección {{ name }}"`, `expandAria: "Expande la sección {{ name }}"`, `storyCount: "{{ count }} historias"`, `hoursSum: "{{ hours }} h"`. No duplicar claves ya existentes en `workspace.sprints` (`addDates`, `start`, `statusDraft` de 29) — reutilizarlas.
-- [ ] 3.5 Build verde: Verify: `cd frontend && npm run build`.
+- [x] 3.1 Estado vacío "sin sprints": cuando `openSprintSections().length === 0 && closedSprints().length === 0`, ocultar el enlace "Ver sprints cerrados" y mostrar un mensaje breve (`text.backlogNoSprintsYet()`) antes de la sección Backlog fija (que sigue visible siempre).
+- [x] 3.2 Estado vacío de la sección Backlog: reemplazar el mensaje genérico actual (`text.backlogEmpty()`, línea 328) por el mismo texto reutilizado como cuerpo de la sección Backlog cuando `backlogTasks().length === 0`.
+- [x] 3.3 Estado vacío por sprint sin historias: dentro de cada sección de sprint abierta, si `(tasksBySprint().get(sprint.id) ?? []).length === 0`, mostrar un mensaje corto (`text.sprintSectionEmpty()`) en vez de una lista en blanco.
+- [x] 3.4 `frontend/src/assets/i18n/es-CO.json`: bajo un bloque nuevo `workspace.backlog` (mismo patrón que `workspace.sprints`) agregar, en tuteo formal: `noSprintsYet: "Todavía no hay sprints; el backlog se muestra abajo."`, `sprintSectionEmpty: "Este sprint no tiene historias todavía."`, `viewClosedSprints: "Ver sprints cerrados ({{ count }})"`, `hideClosedSprints: "Ocultar sprints cerrados"`, `collapseAria: "Colapsa la sección {{ name }}"`, `expandAria: "Expande la sección {{ name }}"`, `storyCount: "{{ count }} historias"`, `hoursSum: "{{ hours }} h"`. No duplicar claves ya existentes en `workspace.sprints` (`addDates`, `start`, `statusDraft` de 29) — reutilizarlas.
+- [x] 3.5 Build verde: Verify: `cd frontend && npm run build`.
 
 Commit 3: `feat(project-workspace): agrega estados vacios y textos en espanol para el backlog agrupado`
 

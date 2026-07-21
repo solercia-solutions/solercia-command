@@ -325,6 +325,10 @@ type ViewMode = 'board' | 'grid';
               </sol-button>
             </div>
 
+            @if (openSprintSections().length === 0 && closedSprints().length === 0) {
+              <p class="text-sm text-muted">{{ text.backlogNoSprintsYet() }}</p>
+            }
+
             @for (sprint of openSprintSections(); track sprint.id) {
               <ng-container
                 *ngTemplateOutlet="sprintSectionTpl; context: { sprint: sprint, readOnly: false }"
@@ -478,10 +482,16 @@ type ViewMode = 'board' | 'grid';
               </div>
               @if (!collapsedSections().has(sectionId(sprint))) {
                 <div class="flex flex-col gap-3 border-t border-border p-4">
-                  @for (task of tasksBySprint().get(sprint.id) ?? []; track task.id) {
-                    <ng-container
-                      *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
-                    ></ng-container>
+                  @if ((tasksBySprint().get(sprint.id) ?? []).length === 0) {
+                    <p class="py-4 text-center text-sm text-muted">
+                      {{ text.sprintSectionEmpty() }}
+                    </p>
+                  } @else {
+                    @for (task of tasksBySprint().get(sprint.id) ?? []; track task.id) {
+                      <ng-container
+                        *ngTemplateOutlet="taskCardTpl; context: { $implicit: task }"
+                      ></ng-container>
+                    }
                   }
                 </div>
               }
@@ -1078,6 +1088,8 @@ export class ProjectWorkspaceComponent implements OnInit {
     backlogAddAria: this.i18n.t('workspace.backlog.addAria'),
     backlogEmpty: this.i18n.t('workspace.backlog.empty'),
     backlogNoDates: this.i18n.t('workspace.backlog.noDates'),
+    backlogNoSprintsYet: this.i18n.t('workspace.backlog.noSprintsYet'),
+    sprintSectionEmpty: this.i18n.t('workspace.backlog.sprintSectionEmpty'),
     hideClosedSprints: this.i18n.t('workspace.backlog.hideClosedSprints'),
     newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
     sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
