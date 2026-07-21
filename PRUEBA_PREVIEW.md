@@ -1,35 +1,45 @@
-# Guía de prueba — rama `preview` (OLA 2 estabilizada + ola de UX)
+# Guía de prueba — rama `preview` (OLA 2 + ola de UX + OLA 4 parcial)
 
 Esta guía te permite probar todo lo entregado sobre la rama `preview`, sin tocar
 `main`. Indica qué se puede probar sin credenciales externas (todo lo mockeable)
 y qué requiere servicios o credenciales reales.
 
-> **Novedades de la ola de UX** (además de lo de la OLA 2, más abajo): sidebar
-> izquierdo colapsable, edición y vinculación de proyectos desde la UI, onboarding
-> de Equipos, sección de Conexiones, detalle de tareas en drawer, cronograma estilo
-> Jira, estimación con puntos + tiempo, y personalización de apariencia por
-> organización. Todo esto está en la sección 3 con su guía de prueba.
+> **Novedades de la OLA 4** (cambios 25 a 32, sección 3): multi-empresa con selector
+> de empresa activa, calendario laboral configurable por equipo, plantillas que ya
+> no duplican al reaplicarse, sprints en borrador con autonombre, backlog estilo Jira
+> con secciones colapsables, arrastrar y soltar entre sprints, y subtareas indentadas.
+>
+> **Novedades de la ola de UX** (sección 4): sidebar colapsable, edición y vinculación
+> de proyectos desde la UI, onboarding de Equipos, sección de Conexiones, detalle de
+> tareas en drawer, cronograma estilo Jira, estimación con puntos + tiempo, y
+> personalización de apariencia por organización.
+>
+> La OLA 4 se detuvo en el cambio 32 por presupuesto. Lo que falta (cambios 33 a 41)
+> está planificado y documentado en `openspec/OLA_4_PENDIENTE.md`.
 
 ## 1. Arranque del entorno
 
 ```bash
 git switch preview
-docker compose up -d --build
+./gestion.sh on        # levanta Docker + frontend en el host + túnel
 ```
 
 | Servicio | URL |
 |----------|-----|
 | Frontend | http://localhost:4242 |
-| API + Swagger | http://localhost:8000/docs |
+| API + Swagger | http://localhost:8081/docs |
 | Postgres | localhost:5432 |
 | Redis | localhost:6379 |
+
+Otros comandos: `./gestion.sh status` (estado y URL del túnel), `./gestion.sh logs`,
+`./gestion.sh rebuild` (tras cambiar código del backend), `./gestion.sh off`.
 
 El seed corre automáticamente al arrancar el backend (idempotente): organización
 "Solercia", usuarios, menús, roles, 3 proyectos demo ("Plataforma Web" Scrum,
 "Soporte Técnico" Kanban, "Mejoras Internas" Planner), un sprint y ~12 tareas.
 
-> Nota: si el puerto 8000 está ocupado por otro contenedor (por ejemplo `boki-ai`),
-> deténlo primero: `docker stop boki-ai`.
+> Nota: el backend publica el 8081 en el host (internamente sigue en 8000) porque el
+> 8080 lo ocupa `traefik-idt`. Si algo no responde, revisa `./gestion.sh status`.
 
 ## 2. Credenciales de prueba
 
@@ -43,14 +53,84 @@ El seed corre automáticamente al arrancar el backend (idempotente): organizaci�
 Para las pruebas por API, obtén un token y úsalo como Bearer:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:8081/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@solercia.com","password":"Admin123*"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['access_token'])")
 ```
 
-También puedes usar Swagger (http://localhost:8000/docs → botón "Authorize").
+También puedes usar Swagger (http://localhost:8081/docs → botón "Authorize").
 
-## 3. Ola de UX (mejoras sobre el feedback) — todo sin credenciales externas
+## 3. OLA 4 — lo nuevo (cambios 25 a 32)
+
+Todo se prueba sin credenciales externas. Ingresa en http://localhost:4242 con
+`admin@solercia.com` / `Admin123*`.
+
+### 3.1 Multi-empresa y selector de empresa activa (cambios 25 y 26)
+
+1. En **Administración → Empresas**, crea una segunda empresa (quedas admin de ella
+   automáticamente). Agrega a `ana@solercia.com` como miembro con rol distinto.
+2. Usa el **selector de empresa** del encabezado para cambiar entre las dos. Al
+   cambiar, la aplicación recarga y todo el contexto cambia con ella: proyectos,
+   tareas, menús y tema.
+3. Comprueba el aislamiento: con la empresa nueva activa, no debe verse ni un solo
+   proyecto o tarea de "Solercia". Si intentas abrir por URL el id de un proyecto de
+   la otra empresa, debe responder "no encontrado", nunca mostrarlo.
+4. Prueba la protección: intenta quitarle el rol de administrador al único admin de
+   una empresa. Debe rechazarlo con un mensaje claro.
+
+> Este bloque está respaldado por 52 pruebas automáticas de fuga entre empresas que
+> recorren los 25 módulos del backend. La auditoría no encontró ninguna fuga real.
+
+### 3.2 Calendario laboral por equipo (cambio 28)
+
+1. En la empresa, define la jornada: horas por día y días laborales (por defecto 8h,
+   lunes a viernes).
+2. En un **proyecto raíz** (un equipo), define un override — por ejemplo, soporte que
+   trabaja sábados. Los proyectos hijos lo heredan.
+3. Consulta el calendario resuelto de un proyecto hijo: debe indicar de dónde viene el
+   valor (`team`, `organization` o `default`).
+4. Intenta poner un override en un proyecto que **no** es raíz: debe rechazarlo con un
+   mensaje claro.
+
+### 3.3 Plantillas que ya no duplican (cambio 27)
+
+Este era un bug confirmado en la prueba anterior.
+
+1. Instancia una plantilla organizacional y anota los proyectos creados.
+2. Vuelve a instanciar **la misma plantilla con otro responsable**. Antes esto creaba
+   un árbol duplicado completo; ahora debe reconciliar: el mismo árbol, con el
+   responsable actualizado.
+3. Verifica que los nodos quedan marcados por tipo: las áreas (contenedores del
+   organigrama) se distinguen de los proyectos de trabajo real.
+4. Renombra un proyecto creado desde plantilla y vuelve a instanciar: el rename debe
+   respetarse, porque la reconciliación se ancla al registro interno, no al nombre.
+
+### 3.4 Sprints en borrador (cambio 29)
+
+1. En un proyecto Scrum, crea un sprint **solo con nombre**. Queda en estado Borrador,
+   sin fechas.
+2. Fíjate en el nombre sugerido: toma el del sprint anterior y le sube el consecutivo
+   (`PANDORA 2026-1` → `PANDORA 2026-2`). Sin sprint previo usa la clave del proyecto.
+3. Intenta iniciarlo sin fechas: el botón está deshabilitado y explica por qué.
+4. Añade fechas y ahora sí inícialo.
+
+### 3.5 Backlog estilo Jira con arrastrar y soltar (cambios 30, 31 y 32)
+
+1. Entra al **Backlog** de un proyecto Scrum. Los sprints aparecen arriba como
+   secciones colapsables, cada una con su nombre, fechas, conteo de historias, suma de
+   horas y la acción que corresponde a su estado.
+2. Colapsa y expande secciones; recarga la página: el estado del colapso se conserva.
+3. **Arrastra** una historia del backlog a un sprint y entre sprints no iniciados. La
+   tarjeta se mueve de inmediato; si algo falla, vuelve a su lugar con un aviso.
+4. Prueba el camino accesible: el menú **"Mover a…"** hace lo mismo sin ratón.
+5. Verifica las reglas: no debes poder soltar nada en un sprint cerrado.
+6. Las **subtareas** aparecen indentadas bajo su padre, con su clave, estado,
+   estimación y avatar.
+7. Filtra por una persona que tenga una subtarea cuyo padre está asignado a otra: la
+   subtarea **debe** aparecer igual, con el padre atenuado como contexto. Nada se
+   oculta por su posición en la jerarquía.
+
+## 4. Ola de UX (mejoras sobre el feedback) — todo sin credenciales externas
 
 Ingresa en http://localhost:4242 con `admin@solercia.com` / `Admin123*`.
 
@@ -87,7 +167,7 @@ Ingresa en http://localhost:4242 con `admin@solercia.com` / `Admin123*`.
    Restablecer vuelve al tema por defecto. El interruptor claro/oscuro sigue
    funcionando encima del tema del tenant.
 
-## 4. Qué probar por cada ítem de la OLA 2
+## 5. Qué probar por cada ítem de la OLA 2
 
 ### 3.1 Login local + SSO (cambio 20)
 
@@ -214,11 +294,15 @@ Transversal: toda la UI usa `@solercia/ui` ≥ 0.3.0. Se verifica navegando —
 tema claro/oscuro, componentes consistentes en login, proyectos, tablero,
 jerarquía y administración.
 
-## 4. Estado de la suite y verificaciones
+## 6. Estado de la suite y verificaciones
 
-- Backend: **1096 pruebas, 0 fallas** (las 13 legacy que "siempre fallaban"
-  fueron resueltas: 9 reescritas in-process y 4 eliminadas por redundantes, con
-  su cobertura preservada en otras pruebas).
+- Backend: **1352 pruebas, 0 fallas** (1096 al cerrar la OLA 2 → 1158 tras la ola de
+  UX → 1352 al cerrar el cambio 32 de la OLA 4).
+- Cada uno de los ocho cambios de la OLA 4 pasó por verificación independiente antes
+  de integrarse. Dos fueron devueltos por hallazgos críticos y solo se integraron tras
+  corregirlos: el cambio 27 (una promesa de la especificación sin implementar) y el 32
+  (desincronización de índices de arrastre que podía guardar el orden equivocado).
+- Migraciones `0021` a `0024` verificadas con ciclo real subir → bajar → subir.
 - Red de regresión GLPI: 5 tests de persistencia real con dos sesiones
   independientes (validados por mutación).
 - Frontend: build (AOT/tsc) y ESLint en verde.
@@ -226,17 +310,43 @@ jerarquía y administración.
 
 Comando para reproducir la suite backend:
 ```bash
-docker compose up -d postgres redis
-cd backend && source .venv/bin/activate && \
-TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test pytest tests/ -q
+cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/solercia_test \
+  .venv/bin/python -m pytest -q
 ```
 
-## 5. Limitaciones conocidas en esta preview
+Build del frontend (requiere Node 22.22.3; el del sistema no alcanza para Angular CLI):
+```bash
+source ~/.nvm/nvm.sh && nvm use 22.22.3 && cd frontend && npm run build
+```
+
+## 7. Limitaciones conocidas en esta preview
 
 - Conectores, clasificador de insumos, plantillas organizacionales e import de
   Jira no tienen pantalla en el frontend: se prueban por Swagger/curl (la UI de
   esas secciones es alcance post-MVP).
-- El flujo SSO end-to-end requiere Keycloak externo (sección 3.1).
+- El flujo SSO end-to-end requiere Keycloak externo (sección 5.1).
 - En bases de datos sembradas antes de esta rama, "Jerarquía" y "Vista de jefe"
   pueden compartir el mismo orden en el menú (el seed no reordena filas
   existentes); cosmético, listado como pendiente.
+
+### Específicas de la OLA 4
+
+- **El frontend no tiene runner de pruebas** (`package.json` solo trae `build` y
+  `lint`). Todo el comportamiento de UI de los cambios 28 a 32 se verificó por lectura
+  de código y compilación AOT, no por pruebas automáticas. Con el arrastrar y soltar y
+  la jerarquía de subtareas ya en juego, montar un runner es la mejora pendiente de
+  mayor retorno: el bug crítico del cambio 32 existió precisamente porque nada lo podía
+  atrapar automáticamente.
+- **Dos pruebas manuales del cambio 26 quedaron sin ejecutar** por requerir a alguien
+  frente a la pantalla: el selector de empresa cambiando en vivo y el CRUD de miembros.
+- **La migración `0023`** (limpieza de árboles OAP-TI duplicados) se probó con datos
+  sintéticos. Al levantar el entorno se aplica sobre la base real: vale la pena revisar
+  el resultado con los datos de verdad.
+- **Lo que aún no existe**: búsqueda y filtros en el backlog, estimación normalizada
+  w/d/h, avance esperado vs. real, árbol de proyectos como vista principal, cambio de
+  metodología, OAuth de Microsoft y Google reparado, panel de acciones de conectores e
+  importación desde Jira. Todo eso son los cambios 33 a 41, planificados en detalle en
+  `openspec/OLA_4_PENDIENTE.md`.
+- **La dependencia `@solercia/ui`** sigue apuntando al tarball local. Hay una rama
+  `chore/solercia-ui-npm` con la migración al paquete publicado 0.3.1 (que corrige
+  menús flotantes y desbordamiento de selects), pendiente de tu decisión.

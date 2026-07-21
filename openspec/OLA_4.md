@@ -1,6 +1,11 @@
 # OLA 4 — Plan aprobado y guía de ejecución
 
-> **Estado**: APROBADO por el usuario (2026-07-20) — decisiones 1 a 4 resueltas.
+> **Estado**: EJECUTADA PARCIALMENTE — cambios 25 a 32 cerrados y en `preview`;
+> cambios 33 a 41 planificados pero sin implementar (corte por presupuesto, 2026-07-21).
+> **→ Para retomar, lee primero `openspec/OLA_4_PENDIENTE.md`**, que tiene el estado
+> exacto de cada cambio pendiente, el orden obligatorio y las compuertas entre ellos.
+>
+> **Aprobado** por el usuario (2026-07-20) — decisiones 1 a 4 resueltas.
 > **Rama base**: `preview` · **Ejecución**: vía briefing `openspec/OLA_4_BRIEFING.md`.
 > Este documento es la fuente de verdad de la ola: fases, cambios SDD, reglas y criterios.
 
