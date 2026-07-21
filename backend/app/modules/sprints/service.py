@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.methodology.board_aware import resolve_board_strategy
 from app.methodology.factory import get_strategy
+from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.sprints.models import Sprint
+from app.modules.sprints.naming import next_sprint_name
 from app.modules.sprints.repository import SprintRepository
 from app.modules.sprints.schemas import (
     SprintCreate,
@@ -23,7 +25,7 @@ from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
 
 # Lifecycle values a sprint may take.
-_ALLOWED_STATUSES = ("active", "closed")
+_ALLOWED_STATUSES = ("draft", "active", "closed")
 
 
 class SprintService:
@@ -56,21 +58,50 @@ class SprintService:
         *,
         actor_id: uuid.UUID | None = None,
     ) -> SprintRead:
-        """Create a sprint within a sprint-enabled project."""
+        """Create a sprint within a sprint-enabled project.
 
-        await self._require_sprints_enabled(organization_id, project_id)
+        ``name`` blank/omitted (change 29-sprint-borrador): auto-named from
+        the project's most recently created sprint via ``next_sprint_name``.
+        ``status`` is derived from the presence of BOTH dates — ``active``
+        when both ``start_date``/``end_date`` are given (retrocompatible with
+        the previous hardcoded behavior), ``draft`` otherwise.
+        """
+
+        project = await self._require_sprints_enabled(organization_id, project_id)
+
+        name = data.name
+        if name is None:
+            previous = await self.repo.last_for_project(organization_id, project_id)
+            name = next_sprint_name(previous.name if previous else None, project.code)
+
+        status = "active" if data.start_date and data.end_date else "draft"
+
         sprint = Sprint(
             project_id=project_id,
-            name=data.name,
+            name=name,
             goal=data.goal,
             start_date=data.start_date,
             end_date=data.end_date,
-            status="active",
+            status=status,
             created_by=actor_id,
             updated_by=actor_id,
         )
         sprint = await self.repo.create(sprint)
         return SprintRead.model_validate(sprint)
+
+    async def suggest_next_name(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> str:
+        """Return the SUGGESTED name for the project's next sprint.
+
+        Reuses the exact same computation as ``create_sprint``'s auto-name
+        fallback (``repo.last_for_project`` + ``next_sprint_name``) but never
+        persists anything — no ``INSERT``/``commit``, purely a read.
+        """
+
+        project = await self._require_sprints_enabled(organization_id, project_id)
+        previous = await self.repo.last_for_project(organization_id, project_id)
+        return next_sprint_name(previous.name if previous else None, project.code)
 
     async def update_sprint(
         self,
@@ -91,20 +122,84 @@ class SprintService:
             )
 
         changes = data.model_dump(exclude_unset=True)
-        if "status" in changes:
-            status = changes["status"]
-            if status not in _ALLOWED_STATUSES:
-                raise AppException(
-                    "El estado del sprint debe ser 'active' o 'closed'.",
-                    code="invalid_sprint_status",
-                    status_code=422,
-                )
-            sprint.status = status
 
+        # Name/goal/dates are applied FIRST so the "status=active" dates
+        # guard below evaluates the state RESULTING from this same payload
+        # (e.g. status + dates sent together in one PATCH), not the state
+        # before the request (Reconciliación #3 — the guard applies to ANY
+        # transition mechanism, not only POST /sprints/{id}/start).
         for field in ("name", "goal", "start_date", "end_date"):
             if field in changes:
                 setattr(sprint, field, changes[field])
 
+        if "status" in changes:
+            status = changes["status"]
+            if status not in _ALLOWED_STATUSES:
+                raise AppException(
+                    "El estado del sprint debe ser 'draft', 'active' o 'closed'.",
+                    code="invalid_sprint_status",
+                    status_code=422,
+                )
+            if status == "active" and (
+                sprint.start_date is None or sprint.end_date is None
+            ):
+                raise AppException(
+                    "El sprint necesita fecha de inicio y fin antes de iniciarse.",
+                    code="sprint_missing_dates",
+                    status_code=422,
+                )
+            sprint.status = status
+
+        sprint.updated_by = actor_id
+        sprint = await self.repo.save(sprint)
+        return SprintRead.model_validate(sprint)
+
+    async def start_sprint(
+        self,
+        organization_id: uuid.UUID,
+        sprint_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> SprintRead:
+        """Transition a ``draft`` sprint to ``active`` (mirrors ``close_sprint``).
+
+        404 if the sprint doesn't exist/isn't in this org; 409
+        ``sprint_already_started`` if already ``active``; 422
+        ``sprint_already_closed`` if ``closed`` (Reconciliación #2 — the same
+        ``code`` as the 409 of ``/close``, distinguished by ``status_code``
+        and endpoint); 422 ``sprint_missing_dates`` if either date is absent.
+        """
+
+        sprint = await self.repo.get(organization_id, sprint_id)
+        if sprint is None:
+            raise AppException(
+                "El sprint no existe o no tienes acceso a él.",
+                code="sprint_not_found",
+                status_code=404,
+            )
+
+        if sprint.status == "active":
+            raise AppException(
+                "Este sprint ya está iniciado.",
+                code="sprint_already_started",
+                status_code=409,
+            )
+
+        if sprint.status == "closed":
+            raise AppException(
+                "Este sprint ya está cerrado y no puede iniciarse.",
+                code="sprint_already_closed",
+                status_code=422,
+            )
+
+        if sprint.start_date is None or sprint.end_date is None:
+            raise AppException(
+                "El sprint necesita fecha de inicio y fin antes de iniciarse.",
+                code="sprint_missing_dates",
+                status_code=422,
+            )
+
+        sprint.status = "active"
         sprint.updated_by = actor_id
         sprint = await self.repo.save(sprint)
         return SprintRead.model_validate(sprint)
@@ -378,7 +473,16 @@ class SprintService:
 
     async def _require_sprints_enabled(
         self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> None:
+    ) -> Project:
+        """Return the resolved project, or raise if sprints aren't enabled.
+
+        The single point of reading ``get_strategy(project.methodology)
+        .sprints_enabled`` in this module (never ``if methodology == ...``).
+        Returns the ``Project`` (not just ``None``) so callers that need it —
+        e.g. ``create_sprint``'s ``project.code`` for auto-naming — don't
+        have to re-fetch it.
+        """
+
         project = await self.projects.get(organization_id, project_id)
         if project is None:
             raise AppException(
@@ -392,3 +496,4 @@ class SprintService:
                 code="sprints_not_enabled",
                 status_code=422,
             )
+        return project

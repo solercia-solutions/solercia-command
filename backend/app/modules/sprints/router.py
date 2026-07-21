@@ -12,7 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
-from app.modules.sprints.schemas import SprintCloseBody, SprintCreate, SprintUpdate
+from app.modules.sprints.schemas import (
+    SprintCloseBody,
+    SprintCreate,
+    SprintUpdate,
+)
 from app.modules.sprints.service import SprintService
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
 
@@ -58,6 +62,24 @@ async def create_sprint(
     return {"data": sprint}
 
 
+@router.get("/projects/{project_id}/sprints/suggested-name")
+async def suggested_sprint_name(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Suggest (without persisting) the name for the project's next sprint.
+
+    Declared BEFORE any ``{sprint_id}``-scoped route on this router so a
+    future ``GET /projects/{project_id}/sprints/{sprint_id}`` route can never
+    capture ``suggested-name`` as a ``sprint_id`` path segment.
+    """
+
+    service = SprintService(db)
+    name = await service.suggest_next_name(membership.organization_id, project_id)
+    return {"data": {"name": name}}
+
+
 @router.get("/projects/{project_id}/sprints/{sprint_id}/burndown")
 async def sprint_burndown(
     project_id: uuid.UUID,
@@ -87,6 +109,28 @@ async def update_sprint(
     service = SprintService(db)
     sprint = await service.update_sprint(
         membership.organization_id, sprint_id, payload, actor_id=actor_id
+    )
+    return {"data": sprint}
+
+
+@router.post("/sprints/{sprint_id}/start")
+async def start_sprint(
+    sprint_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Transition a ``draft`` sprint to ``active``.
+
+    Requires both ``start_date`` and ``end_date`` to already be set (add them
+    via ``PATCH /sprints/{id}`` first) — otherwise returns **422** with
+    ``code=sprint_missing_dates``. Already ``active`` returns **409**;
+    already ``closed`` returns **422**.
+    """
+
+    service = SprintService(db)
+    sprint = await service.start_sprint(
+        membership.organization_id, sprint_id, actor_id=actor_id
     )
     return {"data": sprint}
 

@@ -7,20 +7,27 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SprintCreate(BaseModel):
-    """Payload to create a sprint."""
+    """Payload to create a sprint.
 
-    name: str = Field(min_length=1, max_length=160)
+    ``name`` is optional (change 29-sprint-borrador): omitted or blank means
+    "use the auto-suggested name" — the service computes it via
+    ``next_sprint_name``. A blank string is normalized to ``None`` here
+    rather than raising, since the empty value is itself the signal to
+    auto-name, not a validation error.
+    """
+
+    name: str | None = Field(default=None, max_length=160)
     goal: str | None = Field(default=None, max_length=2000)
     start_date: datetime | None = None
     end_date: datetime | None = None
 
     @field_validator("name")
     @classmethod
-    def _validate_name(cls, value: str) -> str:
+    def _validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         cleaned = value.strip()
-        if not cleaned:
-            raise ValueError("El nombre del sprint es obligatorio.")
-        return cleaned
+        return cleaned or None
 
     @field_validator("goal")
     @classmethod
@@ -70,6 +77,12 @@ class SprintRead(BaseModel):
     # written before the audit migration or outside a request context.
     created_by: uuid.UUID | None = None
     updated_by: uuid.UUID | None = None
+
+
+class SprintSuggestedName(BaseModel):
+    """Suggested (non-persisted) name for the next sprint of a project."""
+
+    name: str
 
 
 class SprintCloseBody(BaseModel):

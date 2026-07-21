@@ -53,6 +53,29 @@ class SprintRepository:
         rows = result.scalars().all()
         return rows, len(rows)
 
+    async def last_for_project(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> Sprint | None:
+        """Return the most recently created sprint of the project, or ``None``.
+
+        Used to seed the auto-naming suggestion (``next_sprint_name``): ANY
+        status counts (not just ``active``), so a ``draft``/``closed`` sprint
+        can still be the base for the next suggested name.
+        """
+
+        result = await self.db.execute(
+            select(Sprint)
+            .join(Project, Project.id == Sprint.project_id)
+            .where(
+                Sprint.project_id == project_id,
+                Project.organization_id == organization_id,
+                Sprint.is_active.is_(True),
+            )
+            .order_by(Sprint.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get(
         self, organization_id: uuid.UUID, sprint_id: uuid.UUID
     ) -> Sprint | None:

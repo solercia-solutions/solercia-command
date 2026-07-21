@@ -11,11 +11,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
-import {
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import {
   KanbanColumn,
   KanbanItemMoved,
@@ -363,11 +359,6 @@ type ViewMode = 'board' | 'grid';
                       [placeholder]="text.sprintNamePlaceholder()"
                       [class]="fieldClass"
                     />
-                    @if (sprintNameError()) {
-                      <p class="mt-1 text-xs text-danger">
-                        {{ text.sprintNameRequired() }}
-                      </p>
-                    }
                   </label>
                   <label class="block">
                     <span class="mb-1.5 block text-sm font-medium text-text"
@@ -379,28 +370,9 @@ type ViewMode = 'board' | 'grid';
                       [class]="fieldClass"
                     />
                   </label>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label class="block">
-                      <span class="mb-1.5 block text-sm font-medium text-text"
-                        >{{ text.sprintStartLabel() }}</span
-                      >
-                      <input
-                        type="date"
-                        formControlName="start_date"
-                        [class]="fieldClass"
-                      />
-                    </label>
-                    <label class="block">
-                      <span class="mb-1.5 block text-sm font-medium text-text"
-                        >{{ text.sprintEndLabel() }}</span
-                      >
-                      <input
-                        type="date"
-                        formControlName="end_date"
-                        [class]="fieldClass"
-                      />
-                    </label>
-                  </div>
+                  <!-- Sin fechas aquí a propósito: el sprint nace en
+                       "Borrador" y las fechas se agregan luego con
+                       "Añadir fechas" (modal dedicado). -->
                   <sol-button
                     type="submit"
                     variant="primary"
@@ -414,6 +386,18 @@ type ViewMode = 'board' | 'grid';
             </div>
 
             <div class="flex flex-col gap-3 lg:col-span-2">
+              @if (startSprintError()) {
+                <!-- El servidor sigue siendo la fuente de verdad (D3/D4):
+                     el botón "Iniciar sprint" se deshabilita en el cliente
+                     sin fechas, pero una carrera entre pestañas puede llegar
+                     igual a un 422/409 desde el backend. -->
+                <div
+                  role="alert"
+                  class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+                >
+                  {{ startSprintError() }}
+                </div>
+              }
               @if (sprints().length === 0) {
                 <sol-card>
                   <p class="py-6 text-center text-sm text-muted">
@@ -437,7 +421,7 @@ type ViewMode = 'board' | 'grid';
                             class="rounded-full px-2.5 py-0.5 text-xs font-medium"
                             [class]="sprintBadgeClass(sprint)"
                           >
-                            {{ sprint.status === 'active' ? text.sprintActive() : text.sprintClosed() }}
+                            {{ sprintStatusLabel(sprint) }}
                           </span>
                           @if (sprint.status === 'closed' && sprint.completed_points != null) {
                             <span class="text-xs text-muted">
@@ -468,7 +452,26 @@ type ViewMode = 'board' | 'grid';
                               : text.showBurndown()
                           }}
                         </sol-button>
-                        @if (sprint.status === 'active') {
+                        @if (sprint.status === 'draft') {
+                          <sol-button
+                            type="button"
+                            variant="secondary"
+                            (click)="openAddDates(sprint)"
+                            [ariaLabel]="addDatesAria(sprint.name)"
+                          >
+                            {{ text.addDates() }}
+                          </sol-button>
+                          <sol-button
+                            type="button"
+                            variant="primary"
+                            [disabled]="!canStartSprint(sprint) || startingSprintId() === sprint.id"
+                            [title]="canStartSprint(sprint) ? '' : text.startDisabledTooltip()"
+                            (click)="startSprint(sprint)"
+                            [ariaLabel]="startSprintAria(sprint.name)"
+                          >
+                            {{ text.startSprint() }}
+                          </sol-button>
+                        } @else if (sprint.status === 'active') {
                           <sol-button
                             type="button"
                             variant="secondary"
@@ -795,6 +798,77 @@ type ViewMode = 'board' | 'grid';
         </sol-modal>
       }
 
+      <!-- Add dates modal (sprint "Borrador" -> fechas antes de iniciar) -->
+      @if (addDatesOpen()) {
+        <sol-modal [open]="true"
+          [title]="text.addDatesModalTitle()"
+          size="sm"
+          (closed)="cancelAddDates()"
+        >
+          <form
+            [formGroup]="addDatesForm"
+            (ngSubmit)="confirmAddDates()"
+            class="flex flex-col gap-4"
+            novalidate
+          >
+            <p class="text-sm text-muted">
+              {{ text.addDatesModalDescription() }}
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block">
+                <span class="mb-1.5 block text-sm font-medium text-text"
+                  >{{ text.sprintStartLabel() }}</span
+                >
+                <input
+                  type="date"
+                  formControlName="start_date"
+                  [class]="fieldClass"
+                />
+              </label>
+              <label class="block">
+                <span class="mb-1.5 block text-sm font-medium text-text"
+                  >{{ text.sprintEndLabel() }}</span
+                >
+                <input
+                  type="date"
+                  formControlName="end_date"
+                  [class]="fieldClass"
+                />
+              </label>
+            </div>
+
+            @if (addDatesError()) {
+              <div
+                role="alert"
+                class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+              >
+                {{ addDatesError() }}
+              </div>
+            }
+
+            <div class="flex gap-3">
+              <sol-button
+                type="button"
+                variant="secondary"
+                class="w-full"
+                [disabled]="addingDatesBusy()"
+                (click)="cancelAddDates()"
+              >
+                {{ text.addDatesModalCancel() }}
+              </sol-button>
+              <sol-button
+                type="submit"
+                variant="primary"
+                class="w-full"
+                [disabled]="addingDatesBusy()"
+              >
+                {{ addingDatesBusy() ? text.addDatesModalSaving() : text.addDatesModalSave() }}
+              </sol-button>
+            </div>
+          </form>
+        </sol-modal>
+      }
+
       <!-- Task detail drawer (estilo Jira): hospeda el panel de detalle sin
            salir del workspace. En el cronograma abre SIN blur (blur=false)
            para no difuminar la vista densa de barras. -->
@@ -855,7 +929,6 @@ export class ProjectWorkspaceComponent implements OnInit {
     newSprintTitle: this.i18n.t('workspace.sprints.newTitle'),
     sprintNameLabel: this.i18n.t('workspace.sprints.nameLabel'),
     sprintNamePlaceholder: this.i18n.t('workspace.sprints.namePlaceholder'),
-    sprintNameRequired: this.i18n.t('workspace.sprints.nameRequired'),
     sprintGoalLabel: this.i18n.t('workspace.sprints.goalLabel'),
     sprintGoalPlaceholder: this.i18n.t('workspace.sprints.goalPlaceholder'),
     sprintStartLabel: this.i18n.t('workspace.sprints.startLabel'),
@@ -865,10 +938,19 @@ export class ProjectWorkspaceComponent implements OnInit {
     sprintsEmpty: this.i18n.t('workspace.sprints.empty'),
     sprintActive: this.i18n.t('workspace.sprints.statusActive'),
     sprintClosed: this.i18n.t('workspace.sprints.statusClosed'),
+    sprintDraft: this.i18n.t('workspace.sprints.statusDraft'),
     hideBurndown: this.i18n.t('workspace.sprints.hideBurndown'),
     showBurndown: this.i18n.t('workspace.sprints.showBurndown'),
     closeSprint: this.i18n.t('workspace.sprints.close'),
     reactivate: this.i18n.t('workspace.sprints.reactivate'),
+    addDates: this.i18n.t('workspace.sprints.addDates'),
+    startSprint: this.i18n.t('workspace.sprints.start'),
+    startDisabledTooltip: this.i18n.t('workspace.sprints.startDisabledTooltip'),
+    addDatesModalTitle: this.i18n.t('workspace.addDates.title'),
+    addDatesModalDescription: this.i18n.t('workspace.addDates.description'),
+    addDatesModalCancel: this.i18n.t('workspace.addDates.cancel'),
+    addDatesModalSave: this.i18n.t('workspace.addDates.save'),
+    addDatesModalSaving: this.i18n.t('workspace.addDates.saving'),
     burndownLoading: this.i18n.t('workspace.sprints.burndownLoading'),
     burndownTotal: this.i18n.t('workspace.sprints.totalLabel'),
     burndownCompleted: this.i18n.t('workspace.sprints.completedLabel'),
@@ -971,11 +1053,27 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly velocityError = signal<string | null>(null);
   protected readonly velocityLoaded = signal(false);
 
-  protected readonly sprintForm = this.fb.group({
-    name: ['', [Validators.required]],
-    goal: [''],
+  /* ---- Draft sprint flow (change 29-sprint-borrador) --------------------- */
+  /** "Iniciar sprint" en curso para este id (deshabilita ese botón puntual). */
+  protected readonly startingSprintId = signal<string | null>(null);
+  /** Mensaje visible cuando el servidor rechaza "Iniciar sprint" (422/409). */
+  protected readonly startSprintError = signal<string | null>(null);
+
+  protected readonly addDatesOpen = signal(false);
+  protected readonly addingDatesSprintId = signal<string | null>(null);
+  protected readonly addingDatesBusy = signal(false);
+  protected readonly addDatesError = signal<string | null>(null);
+
+  protected readonly addDatesForm = this.fb.group({
     start_date: [''],
     end_date: [''],
+  });
+
+  /** Sin fechas a propósito: el sprint nace "Borrador" (nombre opcional —
+   * el backend autonombra cuando queda vacío). */
+  protected readonly sprintForm = this.fb.group({
+    name: [''],
+    goal: [''],
   });
 
   constructor() {
@@ -983,6 +1081,22 @@ export class ProjectWorkspaceComponent implements OnInit {
     effect(() => {
       if (this.activeTab() === 'sprints' && !this.velocityLoaded()) {
         this.loadVelocity();
+      }
+    });
+
+    // Prefill the sprint name with the backend's auto-name suggestion the
+    // first time the sprints tab is opened (same lazy pattern as loadVelocity
+    // above), only while the user hasn't typed anything yet.
+    effect(() => {
+      if (this.activeTab() === 'sprints' && this.sprintForm.controls.name.pristine) {
+        this.workspace.suggestedSprintName(this.projectId()).subscribe({
+          next: (res) => {
+            if (this.sprintForm.controls.name.pristine) {
+              this.sprintForm.patchValue({ name: res.data.name });
+            }
+          },
+          error: () => undefined,
+        });
       }
     });
   }
@@ -1095,6 +1209,14 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   protected reactivateSprintAria(name: string): string {
     return this.i18n.translate('workspace.sprints.reactivateAria', { name });
+  }
+
+  protected addDatesAria(name: string): string {
+    return this.i18n.translate('workspace.sprints.addDatesAria', { name });
+  }
+
+  protected startSprintAria(name: string): string {
+    return this.i18n.translate('workspace.sprints.startAria', { name });
   }
 
   protected completedOfTotalLabel(done: number, total: number): string {
@@ -1425,34 +1547,19 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   /* ---- Sprints ----------------------------------------------------------- */
 
-  protected sprintNameError(): boolean {
-    const c = this.sprintForm.controls.name;
-    return c.invalid && (c.touched || c.dirty);
-  }
-
   protected onCreateSprint(): void {
-    if (this.sprintForm.invalid) {
-      this.sprintForm.markAllAsTouched();
-      return;
-    }
     const raw = this.sprintForm.getRawValue();
     this.savingSprint.set(true);
     this.workspace
       .createSprint(this.projectId(), {
-        name: (raw.name ?? '').trim(),
+        // Blank -> omitted entirely: the backend auto-names the sprint.
+        name: (raw.name ?? '').trim() || undefined,
         goal: (raw.goal ?? '').trim() || null,
-        start_date: raw.start_date || null,
-        end_date: raw.end_date || null,
       })
       .subscribe({
         next: () => {
           this.savingSprint.set(false);
-          this.sprintForm.reset({
-            name: '',
-            goal: '',
-            start_date: '',
-            end_date: '',
-          });
+          this.sprintForm.reset({ name: '', goal: '' });
           this.loadSprints();
         },
         error: () => this.savingSprint.set(false),
@@ -1464,6 +1571,83 @@ export class ProjectWorkspaceComponent implements OnInit {
     this.workspace
       .updateSprint(sprint.id, { status: next })
       .subscribe({ next: () => this.loadSprints() });
+  }
+
+  /* ---- Draft sprint: add dates + start (change 29-sprint-borrador) ------- */
+
+  protected canStartSprint(sprint: Sprint): boolean {
+    return !!sprint.start_date && !!sprint.end_date;
+  }
+
+  protected openAddDates(sprint: Sprint): void {
+    this.addingDatesSprintId.set(sprint.id);
+    this.addDatesError.set(null);
+    this.addDatesForm.reset({
+      start_date: sprint.start_date ? sprint.start_date.slice(0, 10) : '',
+      end_date: sprint.end_date ? sprint.end_date.slice(0, 10) : '',
+    });
+    this.addDatesOpen.set(true);
+  }
+
+  protected cancelAddDates(): void {
+    this.addDatesOpen.set(false);
+    this.addingDatesSprintId.set(null);
+    this.addDatesError.set(null);
+  }
+
+  protected confirmAddDates(): void {
+    const sprintId = this.addingDatesSprintId();
+    if (!sprintId) return;
+
+    const raw = this.addDatesForm.getRawValue();
+    this.addingDatesBusy.set(true);
+    this.addDatesError.set(null);
+
+    this.workspace
+      .updateSprint(sprintId, {
+        start_date: raw.start_date || null,
+        end_date: raw.end_date || null,
+      })
+      .subscribe({
+        next: () => {
+          this.addingDatesBusy.set(false);
+          this.addDatesOpen.set(false);
+          this.addingDatesSprintId.set(null);
+          this.loadSprints();
+        },
+        error: () => {
+          this.addingDatesBusy.set(false);
+          this.addDatesError.set(this.i18n.translate('workspace.addDates.error'));
+        },
+      });
+  }
+
+  protected startSprint(sprint: Sprint): void {
+    this.startingSprintId.set(sprint.id);
+    this.startSprintError.set(null);
+    this.workspace.startSprint(sprint.id).subscribe({
+      next: () => {
+        this.startingSprintId.set(null);
+        this.loadSprints();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.startingSprintId.set(null);
+        if (err.status === 422) {
+          this.startSprintError.set(
+            this.i18n.translate('workspace.errors.sprintMissingDates'),
+          );
+        } else if (err.status === 409) {
+          this.startSprintError.set(
+            this.i18n.translate('workspace.errors.sprintAlreadyStarted'),
+          );
+        } else {
+          this.startSprintError.set(
+            this.i18n.translate('workspace.errors.sprintStart'),
+          );
+        }
+        this.loadSprints();
+      },
+    });
   }
 
   /* ---- Close sprint ------------------------------------------------------ */
@@ -1564,8 +1748,22 @@ export class ProjectWorkspaceComponent implements OnInit {
   }
 
   protected sprintBadgeClass(sprint: Sprint): string {
-    return sprint.status === 'active'
-      ? 'bg-success/10 text-success'
-      : 'bg-muted/15 text-muted';
+    if (sprint.status === 'active') {
+      return 'bg-success/10 text-success';
+    }
+    if (sprint.status === 'draft') {
+      return 'bg-warning/10 text-warning';
+    }
+    return 'bg-muted/15 text-muted';
+  }
+
+  protected sprintStatusLabel(sprint: Sprint): string {
+    if (sprint.status === 'active') {
+      return this.text.sprintActive();
+    }
+    if (sprint.status === 'draft') {
+      return this.text.sprintDraft();
+    }
+    return this.text.sprintClosed();
   }
 }
