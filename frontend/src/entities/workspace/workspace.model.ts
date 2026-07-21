@@ -2,7 +2,7 @@
 import { Methodology } from '@entities/project/project.model';
 
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
-export type SprintStatus = 'active' | 'closed';
+export type SprintStatus = 'draft' | 'active' | 'closed';
 export type TaskType = 'task' | 'bug' | 'story' | 'epic';
 
 /** A work item. `status` is a free string validated against the methodology. */
@@ -85,8 +85,10 @@ export interface UpdateTaskPayload {
   order?: number;
 }
 
+/** ``name`` is optional (change 29-sprint-borrador): omitted -> the backend
+ * auto-names it. */
 export interface CreateSprintPayload {
-  name: string;
+  name?: string;
   goal?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -117,6 +119,12 @@ export interface SprintListResponse {
 }
 export interface SprintItemResponse {
   data: Sprint;
+}
+
+/** Response of ``GET /projects/{id}/sprints/suggested-name`` — a suggestion
+ * only, never persisted. */
+export interface SprintSuggestedNameResponse {
+  data: { name: string };
 }
 
 /* ---- Sprint close --------------------------------------------------------- */

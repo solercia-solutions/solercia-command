@@ -11,6 +11,7 @@ import {
   SprintCloseResponse,
   SprintItemResponse,
   SprintListResponse,
+  SprintSuggestedNameResponse,
   TaskItemResponse,
   TaskListResponse,
   UpdateSprintPayload,
@@ -123,6 +124,23 @@ export class WorkspaceService {
     return this.http.patch<SprintItemResponse>(
       `${apiBase}/sprints/${sprintId}`,
       payload,
+    );
+  }
+
+  /** Transition a `draft` sprint to `active`. Requires both dates already set. */
+  startSprint(sprintId: string): Observable<SprintItemResponse> {
+    return this.http.post<SprintItemResponse>(
+      `${apiBase}/sprints/${sprintId}/start`,
+      {},
+    );
+  }
+
+  /** Suggested (non-persisted) name for the project's next sprint. */
+  suggestedSprintName(
+    projectId: string,
+  ): Observable<SprintSuggestedNameResponse> {
+    return this.http.get<SprintSuggestedNameResponse>(
+      `${apiBase}/projects/${projectId}/sprints/suggested-name`,
     );
   }
 
