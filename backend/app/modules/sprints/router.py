@@ -91,6 +91,28 @@ async def update_sprint(
     return {"data": sprint}
 
 
+@router.post("/sprints/{sprint_id}/start")
+async def start_sprint(
+    sprint_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Transition a ``draft`` sprint to ``active``.
+
+    Requires both ``start_date`` and ``end_date`` to already be set (add them
+    via ``PATCH /sprints/{id}`` first) — otherwise returns **422** with
+    ``code=sprint_missing_dates``. Already ``active`` returns **409**;
+    already ``closed`` returns **422**.
+    """
+
+    service = SprintService(db)
+    sprint = await service.start_sprint(
+        membership.organization_id, sprint_id, actor_id=actor_id
+    )
+    return {"data": sprint}
+
+
 @router.post("/sprints/{sprint_id}/close")
 async def close_sprint(
     sprint_id: uuid.UUID,
