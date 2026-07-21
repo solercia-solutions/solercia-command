@@ -29,6 +29,10 @@ export interface TaskQuery {
   task_type?: string;
   /** Direct children of a task (epic → stories/tasks). */
   parent_task_id?: string;
+  /** Include subtasks flat alongside top-level tasks in the same listing
+   * (change 32-jerarquia-subtareas); omitted/false preserves the previous
+   * top-level-only listing (board/Gantt). */
+  include_subtasks?: boolean;
 }
 
 /**
@@ -65,6 +69,9 @@ export class WorkspaceService {
     }
     if (query.parent_task_id) {
       params = params.set('parent_task_id', query.parent_task_id);
+    }
+    if (query.include_subtasks) {
+      params = params.set('include_subtasks', 'true');
     }
     return this.http.get<TaskListResponse>(
       `${apiBase}/projects/${projectId}/tasks`,

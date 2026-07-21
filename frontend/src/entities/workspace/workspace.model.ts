@@ -30,6 +30,11 @@ export interface Task {
   risk_reason?: string | null;
   created_at: string;
   task_key?: string | null;
+  /** true only under `assignee_id` (change 32-jerarquia-subtareas): the row
+   * is a foreign parent returned as context (its subtask matched the
+   * assignee filter, the parent did not), never a real match. Additive,
+   * default omitted/falsy outside that filter. */
+  is_context?: boolean;
 }
 
 export interface Sprint {
