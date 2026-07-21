@@ -962,8 +962,17 @@
     "backlog": {
       "add": "Agregar al backlog",
       "addAria": "Agrega una tarea al backlog",
+      "collapseAria": "Colapsa la sección {{ name }}",
       "empty": "No hay tareas en el backlog.",
-      "title": "Backlog"
+      "expandAria": "Expande la sección {{ name }}",
+      "hideClosedSprints": "Ocultar sprints cerrados",
+      "hoursSum": "{{ hours }} h",
+      "noDates": "Sin fechas",
+      "noSprintsYet": "Todavía no hay sprints; el backlog se muestra abajo.",
+      "sprintSectionEmpty": "Este sprint no tiene historias todavía.",
+      "storyCount": "{{ count }} historias",
+      "title": "Backlog",
+      "viewClosedSprints": "Ver sprints cerrados ({{ count }})"
     },
     "board": {
       "empty": "No hay tareas en este proyecto.",

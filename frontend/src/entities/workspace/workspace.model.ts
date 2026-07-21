@@ -45,6 +45,20 @@ export interface Sprint {
   created_at: string;
 }
 
+/** A sprint as returned by ``GET /projects/{id}/sprints`` (change
+ * 30-backlog-sprints-agrupados): additive over ``Sprint`` — the aggregates
+ * are computed server-side in a single grouped query. */
+export interface SprintListItem extends Sprint {
+  story_count: number;
+  estimation_hours_sum: number;
+}
+
+/** Aggregate of the project's tasks with no sprint (``meta.backlog``). */
+export interface BacklogAggregate {
+  story_count: number;
+  estimation_hours_sum: number;
+}
+
 /** An assignable organization member (as exposed for a project). */
 export interface Member {
   user_id: string;
@@ -115,7 +129,8 @@ export interface MemberListResponse {
   data: Member[];
 }
 export interface SprintListResponse {
-  data: Sprint[];
+  data: SprintListItem[];
+  meta: { total: number; backlog: BacklogAggregate };
 }
 export interface SprintItemResponse {
   data: Sprint;
