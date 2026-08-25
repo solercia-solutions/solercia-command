@@ -208,6 +208,24 @@ class Settings(BaseSettings):
     # especifica explícitamente (mapper.py, change 17 Lote 6).
     GLPI_DEFAULT_DOCUMENT_FIELD: str = "registration_number"
 
+    # Solercia Connect adapter — lectura de correo, calendario y notas de
+    # reunión a través de un runtime local de Connect, por su contrato
+    # loopback. El registro de decisiones de plataforma
+    # (`docs/decisions/2026-08-23-solercia-platform-decisions.md` §2.2)
+    # prohíbe importar el repositorio hermano, así que la frontera es HTTP.
+    #
+    # Ese runtime escucha en loopback y sostiene la sesión viva de una
+    # persona (perfil de navegador o tokens OAuth). Apuntar a un host
+    # equivocado sería leer el buzón de alguien más, así que la allowlist es
+    # la guarda anti-SSRF, con el mismo criterio que `GLPI_BASE_URL_ALLOWLIST`.
+    # `host.docker.internal` cubre el caso normal: Command en contenedor,
+    # Connect en la máquina del usuario, que es donde vive la sesión.
+    SOLERCIA_CONNECT_BASE_URL_ALLOWLIST: list[str] = [
+        "http://127.0.0.1:8765",
+        "http://host.docker.internal:8765",
+    ]
+    SOLERCIA_CONNECT_TIMEOUT_SECONDS: float = 60.0
+
     # Jira adapter (change 18-adapter-jira) — read-only issue import over
     # Jira Cloud's REST API v3 and CSV/XLSX export, `credential_kind=
     # api_token` (email + API token, HTTP Basic, validated via `GET
