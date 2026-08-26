@@ -30,8 +30,9 @@ Contrato transversal del backend: envelope de respuestas, formato de errores, so
   - **R1.A2** (Auditoría exposición): Endpoints de detalle y lista de los 11 modelos auditados DEBEN exponer `created_by` y `updated_by` (null cuando no pobladas).
 - **R2**: Todo error DEBE serializarse como `{"detail", "code", "status"}` (con `errors` adicional en validaciones 422) a través de `AppException` y los handlers registrados.
 - **R3**: El borrado de entidades de dominio DEBE ser suave (`is_active` + `deleted_at`); las consultas DEBEN excluir registros borrados.
-- **R4**: `seed_default` DEBE ser idempotente: arranques repetidos no duplican datos.
-- **R5**: El esquema de base de datos DEBE originarse y evolucionar mediante revisiones de Alembic versionadas. El arranque asume que las migraciones ya se aplicaron y se limita a ejecutar `seed_default` sobre el esquema ya migrado. `seed_default` NO cambia de comportamiento (sigue siendo idempotente).
+- **R3b — Alcance del borrado suave y excepción de mantenimiento para borrado físico**: El requisito R3 (borrado suave: `is_active` + `deleted_at`) DEBE aplicarse a las operaciones de dominio en tiempo de ejecución (endpoints de la API y servicios de negocio invocados desde ellos). El sistema PUEDE exponer, fuera de la API HTTP, una operación de mantenimiento que ejecute borrado físico (DELETE real, no soft delete) SIEMPRE QUE: (1) viva en un caso de uso dedicado (`backend/app/maintenance/`) que sea dueño de su propia transacción, nunca en un repositorio de dominio que haga `commit`; (2) exija un respaldo (`--backup-file`) verificado — archivo existente y de tamaño mayor a cero bytes — antes de ejecutar cualquier borrado; (3) por defecto se ejecute en modo `--dry-run` (solo reporta, no borra) y exija la bandera explícita `--execute` para aplicar el borrado; (4) NUNCA se exponga como endpoint HTTP.
+- **R4**: `seed_default` DEBE ser idempotente: arranques repetidos no duplican datos. La semilla estructural (organización "Solercia", 3 dependencias, roles ADMIN/MANAGER/MEMBER, 8 menús, role_menus, usuario `admin@solercia.com`, 4 alert rules, catálogo de 5 `org_role_templates` de sistema) DEBE ejecutarse SIN condición en cada arranque. La semilla de datos demo (usuarios `ana@`/`carlos@`/`diana@`, proyectos y tareas de muestra, sprint demo) DEBE ejecutarse ÚNICAMENTE cuando `settings.SEED_DEMO_DATA` sea `true`, leído EN TIEMPO DE LLAMADA (nunca fijado en una constante de módulo capturada al importar). Con `SEED_DEMO_DATA=false` (valor por defecto), ningún dato demo se crea en el primer arranque ni se recrea en arranques sucesivos, aunque ya existan tareas en la base.
+- **R5**: El esquema de base de datos DEBE originarse y evolucionar mediante revisiones de Alembic versionadas. El arranque asume que las migraciones ya se aplicaron y se limita a ejecutar `seed_default` sobre el esquema ya migrado. `seed_default` sigue siendo idempotente; dentro de él, la semilla estructural corre sin condición y la semilla de datos demo queda condicionada por `settings.SEED_DEMO_DATA` (ver R4). La introducción del flag `SEED_DEMO_DATA` es un cambio de `Settings`, no de esquema: NO requiere ninguna revisión Alembic nueva.
 - **R6**: Todo cambio de esquema posterior a la línea base DEBE expresarse como una nueva revisión de Alembic generada con `alembic revision --autogenerate`, revisada y versionada junto con el código que la origina.
 
 ### Escenarios centrales
@@ -72,20 +73,56 @@ Contrato transversal del backend: envelope de respuestas, formato de errores, so
 - Cuando el servicio lanza la excepción de dominio
 - Entonces el cliente recibe `{"detail": "...", "code": "...", "status": 404}`.
 
-**R4 — Seed idempotente**
+**R3b — Borrado suave vs. excepción de mantenimiento**
+
+*Escenario 1: Borrado suave en dominio*
+- Dado una tarea activa
+- Cuando se llama `DELETE /tasks/{id}` desde la API
+- Entonces la tarea queda con `is_active=false` y `deleted_at` poblado, y la fila NO se elimina físicamente
+
+*Escenario 2: Mantenimiento exige backup*
+- Dado un script de mantenimiento invocado con `--execute` sin `--backup-file` válido
+- Cuando se ejecuta
+- Entonces la operación se rechaza antes de borrar cualquier fila
+
+*Escenario 3: Mantenimiento NO se expone por HTTP*
+- Dado el backend en ejecución
+- Cuando se inspeccionan las rutas registradas bajo `/api/v1`
+- Entonces ninguna ruta ejecuta borrado físico de datos
+
+**R4 — Seed idempotente con semilla estructural incondicional y semilla demo condicionada**
+
+*Escenario 1: Seed idempotente*
 - Dado una base de datos ya sembrada
 - Cuando la aplicación reinicia
-- Entonces `seed_default` no crea duplicados.
+- Entonces `seed_default` no crea duplicados
+
+*Escenario 2: Demo desactivada por defecto*
+- Dado `settings.SEED_DEMO_DATA = false` y una base de datos vacía
+- Cuando `seed_default` corre
+- Entonces existen "Solercia" y `admin@solercia.com`, pero ningún usuario demo se crea
+
+*Escenario 3: Miembros demo no reviven sin el flag*
+- Dado una base purgada (sin usuarios demo) con `SEED_DEMO_DATA=false`
+- Cuando la aplicación reinicia
+- Entonces ningún usuario demo se recrea, aunque ya existan tareas reales en la base
 
 **R5 — Inicialización de esquema gestionada por Alembic**
+
+*Escenario 1: Inicialización de esquema gestionada por Alembic*
 - Dado una base de datos vacía
 - Cuando se ejecuta `alembic upgrade head`
-- Entonces el esquema resultante es equivalente al que hoy produce `Base.metadata.create_all` (mismas tablas y columnas).
+- Entonces el esquema resultante es equivalente al que hoy produce `Base.metadata.create_all` (mismas tablas y columnas)
 
-**R5 — El arranque ya no recrea el esquema con create_all**
+*Escenario 2: El arranque ya no recrea el esquema con create_all*
 - Dado un entorno donde las migraciones Alembic ya se aplicaron
 - Cuando la aplicación arranca
-- Entonces el arranque NO ejecuta `create_all` para definir el esquema; solo corre `seed_default` sobre el esquema ya migrado.
+- Entonces el arranque NO ejecuta `create_all` para definir el esquema; solo corre `seed_default` sobre el esquema ya migrado
+
+*Escenario 3: Sin migración nueva para el flag de semilla demo*
+- Dado el flag `SEED_DEMO_DATA` agregado a `Settings`
+- Cuando se ejecuta `alembic revision --autogenerate` contra la base con el baseline aplicado
+- Entonces no se genera ninguna revisión nueva relacionada con este cambio, porque el esquema no varió
 
 **R6 — Cambio de modelo requiere revisión Alembic**
 - Dado un modelo SQLAlchemy modificado (campo o tabla nueva)

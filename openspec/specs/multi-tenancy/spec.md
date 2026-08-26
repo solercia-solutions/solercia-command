@@ -28,7 +28,7 @@ Mecánica de scope:
 - **R1**: Toda entidad tenant-scoped DEBE llevar `organization_id` (TenantMixin) y toda consulta de dominio DEBE filtrar por la organización de la membresía activa.
 - **R2**: El tenant DEBE resolverse en el backend desde el header `X-Organization-Id` validado contra las membresías del usuario autenticado; si el header referencia una empresa donde el usuario no es miembro, la resolución DEBE fallar con `403`. Si el header está ausente, DEBE conservarse el comportamiento previo (primera membresía por `created_at`), sin intervención del cliente.
 - **R3**: `MemberRole` DEBE ser la base de `require_role` para autorización por membresía.
-- **R4**: El seed inicial DEBE ser idempotente y crear la organización "Solercia" con sus miembros demo.
+- **R4**: El seed inicial DEBE ser idempotente y crear la organización "Solercia" con el usuario `admin@solercia.com` SIN condición, en cada arranque. Los miembros demo (`ana@`, `carlos@`, `diana@`) DEBEN crearse ÚNICAMENTE cuando `settings.SEED_DEMO_DATA` sea `true` (ver capability `data-maintenance`); con el flag en `false` (valor por defecto), la organización "Solercia" y el usuario `admin@solercia.com` existen, pero ningún miembro demo se crea ni se recrea en arranques sucesivos.
 - **R5**: `organization_members` DEBE tener una restricción única sobre `(organization_id, user_id)`. La migración que la introduce DEBE deduplicar cualquier fila preexistente que viole la unicidad antes de crear la constraint, y DEBE ser reversible.
 
 ### Escenarios centrales
@@ -37,6 +37,23 @@ Mecánica de scope:
 - Dado dos organizaciones con proyectos propios
 - Cuando un miembro de la organización A lista `/projects`
 - Entonces solo recibe proyectos con `organization_id` de A.
+
+**R4 — Seed idempotente con miembros demo condicionales**
+
+*Escenario 1: Organización y admin incondicionales*
+- DADO una base de datos vacía
+- CUANDO la aplicación arranca, sin importar el valor de `SEED_DEMO_DATA`
+- ENTONCES existen la organización "Solercia" y `admin@solercia.com` como miembro
+
+*Escenario 2: Miembros demo condicionados al flag*
+- DADO `settings.SEED_DEMO_DATA = false`
+- CUANDO la aplicación arranca
+- ENTONCES NO se crean `ana@`, `carlos@` ni `diana@` como miembros de "Solercia"
+
+*Escenario 3: Restart no revive miembros demo tras la purga*
+- DADO una base purgada (sin miembros demo) con `settings.SEED_DEMO_DATA = false`
+- CUANDO el backend reinicia
+- ENTONCES `organization_members` de "Solercia" contiene únicamente a `admin@solercia.com`
 
 **R2 — Resolución de tenant**
 - Dado un usuario con una o varias membresías
