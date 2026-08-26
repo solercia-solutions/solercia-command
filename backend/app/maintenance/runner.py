@@ -57,4 +57,5 @@ async def run_maintenance(
         deleted=purge_outcome.deleted,
         bootstrap=bootstrap_messages,
         invariants=invariants,
+        orphans_swept=purge_outcome.orphans_swept,
     )

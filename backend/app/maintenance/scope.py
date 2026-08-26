@@ -41,6 +41,21 @@ class DemoScope:
     connector_providers: tuple[str, ...] = ("fake",)
     asset_names: tuple[str, ...] = ("Verify Test Asset",)
 
+    # Corrección 2 (Fase 5, decisión #3682): template-instantiated trees
+    # under the PROTECTED organization are demo too — the real OAP-TI tree
+    # was instantiated under "Solercia" in production, never under
+    # "Acme Consultores". Its soft-deleted duplicate, orphaned from the
+    # ``org_role_template_instantiations`` ledger once reconciliation
+    # retargets it at a NEWER active tree (see that model's docstring),
+    # closes by ``deleted_at IS NOT NULL`` inside this same organization.
+    # Explicit scope rule, never a heuristic.
+    soft_deleted_scope_organization_names: tuple[str, ...] = ("Solercia",)
+    # Defense in depth for the OAP-TI umbrella specifically: both hyphen
+    # variants (U+2011 non-breaking — the one the seeder actually uses —
+    # and the plain ASCII U+002D) close the scope by NAME alone, even when
+    # no ledger row exists for it.
+    template_root_name_aliases: tuple[str, ...] = ("OAP‑TI", "OAP-TI")
+
     # Never touched by the purge — read by the fail-closed guards.
     protected_admin_email: str = "admin@solercia.com"
     protected_organization_names: tuple[str, ...] = ("Solercia",)

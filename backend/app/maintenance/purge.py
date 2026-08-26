@@ -37,6 +37,9 @@ async def purge_demo_data(session: AsyncSession, scope: DemoScope | None = None)
     notifications = await repo.delete_notifications_for_tasks(resolved.task_ids)
     reminders = await repo.delete_reminders_for_tasks(resolved.task_ids)
     tasks = await repo.delete_tasks(resolved.task_ids)
+    # Counted BEFORE the project DELETE — the rows cascade away with it, so
+    # this is the only chance to report them (I7, design.md D8).
+    instantiations = await repo.count_org_role_template_instantiations(resolved.project_ids)
     projects = await repo.delete_projects_leaf_first(resolved.project_ids)
     connectors = await repo.delete_fake_connectors(resolved.connector_ids)
     assets = await repo.delete_demo_assets(resolved.asset_ids)
@@ -47,6 +50,7 @@ async def purge_demo_data(session: AsyncSession, scope: DemoScope | None = None)
         DeletionResult("notifications", notifications),
         DeletionResult("reminders", reminders),
         DeletionResult("tasks", tasks),
+        DeletionResult("org_role_template_instantiations", instantiations),
         DeletionResult("projects", projects),
         DeletionResult("connectors", connectors),
         DeletionResult("assets", assets),
@@ -54,7 +58,22 @@ async def purge_demo_data(session: AsyncSession, scope: DemoScope | None = None)
         DeletionResult("organizations", organizations),
     )
 
-    return PurgeOutcome(inventory=inventory, planned=planned, deleted=deleted)
+    # Corrección 2 (I6): PRE-EXISTING orphans unrelated to resolved.task_ids
+    # — the scoped deletes above only clean orphans tied to THIS run's
+    # tasks; these survive independently and are reported separately so the
+    # dry-run stays honest.
+    orphan_attachments = await repo.delete_orphan_attachments()
+    orphan_notifications = await repo.delete_orphan_notifications()
+    orphan_reminders = await repo.delete_orphan_reminders()
+    orphans_swept = (
+        DeletionResult("attachments", orphan_attachments),
+        DeletionResult("notifications", orphan_notifications),
+        DeletionResult("reminders", orphan_reminders),
+    )
+
+    return PurgeOutcome(
+        inventory=inventory, planned=planned, deleted=deleted, orphans_swept=orphans_swept
+    )
 
 
 def _build_planned(resolved: ResolvedScope) -> tuple[PlannedDeletion, ...]:

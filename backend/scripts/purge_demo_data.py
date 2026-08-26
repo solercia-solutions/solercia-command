@@ -168,6 +168,10 @@ def format_report(report: MaintenanceReport, *, database_url: str, backup_file: 
     for deletion in report.deleted:
         lines.append(f"  {deletion.table}: {deletion.deleted}")
 
+    lines += ["", "HUÉRFANOS PREEXISTENTES BARRIDOS"]
+    for swept in report.orphans_swept:
+        lines.append(f"  {swept.table}: {swept.deleted}")
+
     lines += ["", "BOOTSTRAP"]
     for message in report.bootstrap:
         lines.append(f"  {message}")

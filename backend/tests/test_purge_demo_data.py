@@ -29,7 +29,7 @@ from app.modules.assets.models import Asset, AssetLicense
 from app.modules.attachments.models import Attachment
 from app.modules.connectors.models import ConnectedAccount, Connector
 from app.modules.notifications.models import Notification
-from app.modules.org_role_templates.models import OrgRoleTemplate
+from app.modules.org_role_templates.models import OrgRoleTemplate, OrgRoleTemplateInstantiation
 from app.modules.org_role_templates.seeder import ensure_system_templates
 from app.modules.org_role_templates.service import OrgRoleTemplateService
 from app.modules.organizations.models import Organization, OrganizationMember
@@ -465,3 +465,143 @@ async def test_execute_persiste_cambios_y_reporta_invariantes_en_pass(
     assert await _exists(session, User, admin_id)
     seg = await session.execute(select(Project.id).where(Project.code == "SEG"))
     assert seg.scalar_one_or_none() is not None
+
+
+# -- Corrección 2 (Fase 5): reproduce el defecto real del dry-run del ------
+# orquestador contra `solercia` — I7 fallaba porque el árbol OAP-TI vivía
+# bajo la organización PROTEGIDA "Solercia", nunca "Acme Consultores", y
+# `resolve_demo_scope` solo cerraba `org_role_template_instantiations` bajo
+# las organizaciones demo. I6 fallaba porque la purga nunca barría
+# huérfanos preexistentes sin relación con los `task_ids` recién borrados.
+
+
+async def _seed_scope_gap_and_orphans(
+    session: AsyncSession, fixture: DemoFixture
+) -> dict[str, object]:
+    """Un árbol instanciado bajo "Solercia" (protegida), su duplicado
+    soft-deleted huérfano del ledger, una raíz literal "OAP-TI" (guion
+    ASCII, SIN fila de ledger) y dos huérfanos preexistentes."""
+
+    template = (
+        await session.execute(
+            select(OrgRoleTemplate).where(
+                OrgRoleTemplate.organization_id.is_(None),
+                OrgRoleTemplate.name.ilike("Jefe OAP%TI"),
+            )
+        )
+    ).scalar_one()
+    solercia_tree = await OrgRoleTemplateService(session).instantiate(
+        fixture.solercia.id, template.id, fixture.admin.id, actor_id=fixture.admin.id
+    )
+
+    duplicate_root = Project(
+        organization_id=fixture.solercia.id,
+        name="QST",
+        methodology=Methodology.kanban,
+        task_counter=0,
+        is_active=False,
+        deleted_at=datetime.now(UTC),
+    )
+    alias_root = Project(
+        organization_id=fixture.solercia.id,
+        name="OAP-TI",  # guion ASCII — sin fila de ledger en absoluto
+        methodology=Methodology.kanban,
+        task_counter=0,
+    )
+    session.add_all([duplicate_root, alias_root])
+    await session.flush()
+
+    orphan_attachment = Attachment(
+        organization_id=fixture.solercia.id,
+        target_type="task",
+        target_id=uuid.uuid4(),  # colgante desde ANTES de esta purga
+        original_name="preexistente.pdf",
+        stored_name=str(uuid.uuid4()),
+        content_type="application/pdf",
+        size_bytes=1,
+        uploaded_by=fixture.admin.id,
+    )
+    orphan_notification = Notification(
+        organization_id=fixture.solercia.id,
+        recipient_user_id=fixture.admin.id,
+        rule_type="task_overdue",
+        title="Huérfana preexistente",
+        body="Sin tarea real desde antes de esta purga.",
+        target_type="task",
+        target_id=uuid.uuid4(),
+        dedup_key=f"orphan-preexistente:{uuid.uuid4()}",
+    )
+    session.add_all([orphan_attachment, orphan_notification])
+    await session.flush()
+
+    return {
+        "solercia_tree": solercia_tree,
+        "duplicate_root_id": duplicate_root.id,
+        "alias_root_id": alias_root.id,
+        "orphan_attachment_id": orphan_attachment.id,
+        "orphan_notification_id": orphan_notification.id,
+    }
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_purga_borra_arbol_bajo_solercia_alias_oap_ti_y_barre_huerfanos_preexistentes(
+    session: AsyncSession,
+) -> None:
+    fixture = await _seed_demo_fixture(session)
+    extra = await _seed_scope_gap_and_orphans(session, fixture)
+
+    outcome = await purge_demo_data(session, DemoScope())
+
+    for project in extra["solercia_tree"]:
+        assert not await _exists(session, Project, project.id)
+    assert not await _exists(session, Project, extra["duplicate_root_id"])
+    assert not await _exists(session, Project, extra["alias_root_id"])
+    assert not await _exists(session, Attachment, extra["orphan_attachment_id"])
+    assert not await _exists(session, Notification, extra["orphan_notification_id"])
+
+    templates = (
+        (
+            await session.execute(
+                select(OrgRoleTemplate).where(OrgRoleTemplate.organization_id.is_(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(templates) == 5
+    assert all(template.is_system for template in templates)
+    assert await _count(session, OrgRoleTemplateInstantiation) == 0
+
+    instantiations_deleted = next(
+        d.deleted for d in outcome.deleted if d.table == "org_role_template_instantiations"
+    )
+    assert instantiations_deleted >= 11
+    orphan_attachments_swept = next(
+        d.deleted for d in outcome.orphans_swept if d.table == "attachments"
+    )
+    orphan_notifications_swept = next(
+        d.deleted for d in outcome.orphans_swept if d.table == "notifications"
+    )
+    assert orphan_attachments_swept >= 1
+    assert orphan_notifications_swept >= 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_execute_con_arbol_bajo_solercia_y_huerfanos_preexistentes_deja_i6_e_i7_en_pass(
+    session: AsyncSession,
+) -> None:
+    """Reproduce, extremo a extremo, el `--execute` real que reportó el
+    orquestador: antes de esta corrección terminaba con `report.ok is
+    False` e I6/I7 en FAIL."""
+
+    fixture = await _seed_demo_fixture(session)
+    await _seed_scope_gap_and_orphans(session, fixture)
+
+    report = await run_maintenance(session, execute=True)
+
+    results = {result.key: result for result in report.invariants}
+    assert results["I6"].passed is True, results["I6"].detail
+    assert results["I7"].passed is True, results["I7"].detail
+    assert report.ok is True

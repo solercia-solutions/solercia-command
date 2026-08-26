@@ -41,6 +41,9 @@ class PurgeOutcome:
     inventory: tuple[InventoryRow, ...]
     planned: tuple[PlannedDeletion, ...]
     deleted: tuple[DeletionResult, ...]
+    # Corrección 2 (I6): PRE-EXISTING orphans swept independently of this
+    # run's demo scope — reported separately so the dry-run stays honest.
+    orphans_swept: tuple[DeletionResult, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,7 @@ class MaintenanceReport:
     deleted: tuple[DeletionResult, ...]
     bootstrap: tuple[str, ...]
     invariants: tuple[InvariantResult, ...]
+    orphans_swept: tuple[DeletionResult, ...] = ()
 
     @property
     def ok(self) -> bool:

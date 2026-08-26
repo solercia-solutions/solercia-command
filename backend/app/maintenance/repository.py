@@ -23,7 +23,7 @@ from sqlalchemy.sql.selectable import CompoundSelect
 
 from app.maintenance.report import ConnectedAccountRisk, InventoryRow
 from app.maintenance.scope import DemoScope
-from app.modules.assets.models import Asset
+from app.modules.assets.models import Asset, AssetLicense
 from app.modules.attachments.models import Attachment
 from app.modules.boards.models import Board, BoardColumn
 from app.modules.comments.models import TaskComment
@@ -34,6 +34,7 @@ from app.modules.org_role_templates.models import OrgRoleTemplateInstantiation
 from app.modules.organizations.models import Organization
 from app.modules.projects.models import Project
 from app.modules.reminders.models import Reminder
+from app.modules.sprints.models import Sprint
 from app.modules.tasks.models import Task
 from app.modules.users.models import User
 from app.notify.models import NotificationDelivery
@@ -81,7 +82,15 @@ class MaintenanceRepository:
 
     async def resolve_demo_scope(self, scope: DemoScope) -> ResolvedScope:
         """Resolve ``scope`` into concrete row ids, closed under the full
-        project subtree (design.md D3)."""
+        project subtree (design.md D3). Corrección 2 (decisión #3682):
+        ``org_role_template_instantiations`` closes EVERY project it
+        references, never only rows under the demo organizations — every
+        template tree in this database is demo, and the real OAP-TI tree
+        was instantiated under the PROTECTED "Solercia" organization, not
+        "Acme Consultores". Its soft-deleted duplicate (orphaned from the
+        ledger once reconciliation retargets a NEWER active tree) closes by
+        ``deleted_at IS NOT NULL`` inside that same protected organization;
+        the umbrella's name aliases close by name alone, defense in depth."""
 
         organization_ids = await self._scalars(
             select(Organization.id).where(Organization.name.in_(scope.organization_names))
@@ -89,18 +98,29 @@ class MaintenanceRepository:
         user_ids = await self._scalars(select(User.id).where(User.email.in_(scope.user_emails)))
 
         project_seed_parts: list[Select] = [
-            select(Project.id).where(Project.name.in_(scope.project_names))
+            select(Project.id).where(
+                Project.name.in_(scope.project_names + scope.template_root_name_aliases)
+            )
         ]
         if organization_ids:
             project_seed_parts.append(
                 select(Project.id).where(Project.organization_id.in_(organization_ids))
             )
-        if scope.include_template_instantiations and organization_ids:
-            project_seed_parts.append(
-                select(OrgRoleTemplateInstantiation.project_id).where(
-                    OrgRoleTemplateInstantiation.organization_id.in_(organization_ids)
+        if scope.include_template_instantiations:
+            project_seed_parts.append(select(OrgRoleTemplateInstantiation.project_id))
+        if scope.soft_deleted_scope_organization_names:
+            soft_deleted_org_ids = await self._scalars(
+                select(Organization.id).where(
+                    Organization.name.in_(scope.soft_deleted_scope_organization_names)
                 )
             )
+            if soft_deleted_org_ids:
+                project_seed_parts.append(
+                    select(Project.id).where(
+                        Project.organization_id.in_(soft_deleted_org_ids),
+                        Project.deleted_at.is_not(None),
+                    )
+                )
         seed_projects: Select | CompoundSelect = (
             union(*project_seed_parts) if len(project_seed_parts) > 1 else project_seed_parts[0]
         )
@@ -230,10 +250,88 @@ class MaintenanceRepository:
 
         return await self._delete_by_ids(Reminder, Reminder.task_id, task_ids)
 
+    # -- orphan sweep, PRE-EXISTING rows unrelated to this run's scope (I6) --
+
+    async def delete_orphan_attachments(self) -> int:
+        """Sweep attachments whose target no longer exists AT ALL —
+        independent of this run's demo scope (same gap ``invariants.py``'s
+        ``_i6_no_orphans`` reads; ``target_id`` carries no FK, design.md D4)."""
+
+        valid_targets = select(Task.id).union(select(TaskComment.id))
+        result = await self.db.execute(
+            delete(Attachment)
+            .where(Attachment.target_id.not_in(valid_targets))
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount or 0
+
+    async def delete_orphan_notifications(self) -> int:
+        """Sweep notifications whose ``target_id`` no longer resolves for
+        its ``target_type`` — covers every type the codebase ever writes
+        (``app/alerts/strategies/*.py``, ``comments/service.py``) except
+        ``user``, whose own row cascades independently. Deliveries go first,
+        same as ``delete_notifications_for_tasks``."""
+
+        orphan_ids_stmt = union(
+            select(Notification.id).where(
+                Notification.target_type == "task",
+                Notification.target_id.not_in(select(Task.id)),
+            ),
+            select(Notification.id).where(
+                Notification.target_type == "sprint",
+                Notification.target_id.not_in(select(Sprint.id)),
+            ),
+            select(Notification.id).where(
+                Notification.target_type == "asset_license",
+                Notification.target_id.not_in(select(AssetLicense.id)),
+            ),
+        )
+        result = await self.db.execute(orphan_ids_stmt)
+        orphan_ids = tuple(row[0] for row in result.all())
+        if not orphan_ids:
+            return 0
+        await self.db.execute(
+            delete(NotificationDelivery)
+            .where(NotificationDelivery.notification_id.in_(orphan_ids))
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.db.execute(
+            delete(Notification)
+            .where(Notification.id.in_(orphan_ids))
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount or 0
+
+    async def delete_orphan_reminders(self) -> int:
+        """Sweep reminders with a dangling ``task_id`` — independent of
+        this run's scope (I6)."""
+
+        result = await self.db.execute(
+            delete(Reminder)
+            .where(Reminder.task_id.is_not(None), Reminder.task_id.not_in(select(Task.id)))
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount or 0
+
     async def delete_tasks(self, task_ids: Sequence[uuid.UUID]) -> int:
         """Cascades checklists/logs/comments/dependencies/labels/asset_tasks."""
 
         return await self._delete_by_ids(Task, Task.id, task_ids)
+
+    async def count_org_role_template_instantiations(
+        self, project_ids: Sequence[uuid.UUID]
+    ) -> int:
+        """Rows about to cascade away when ``project_ids`` deletes — counted
+        BEFORE the ``DELETE`` so the report can show them (I7, design.md D8)."""
+
+        if not project_ids:
+            return 0
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(OrgRoleTemplateInstantiation)
+            .where(OrgRoleTemplateInstantiation.project_id.in_(project_ids))
+        )
+        return result.scalar_one()
 
     async def delete_projects_leaf_first(self, ordered_project_ids: Sequence[uuid.UUID]) -> int:
         """One statement for the whole ordered id set — safe regardless of
