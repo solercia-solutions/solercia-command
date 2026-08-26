@@ -135,4 +135,9 @@ Diagrama de dependencia: `tracker feat/42-purga-datos-demo → PR1 (compuerta) �
 - [x] 6.3 Confirmar que `backend/alembic/versions/` sigue con exactamente los archivos `0001`-`0024` — sin migración nueva. Verificado: 24 archivos, sin ninguno nuevo.
 - [x] 6.4 [sdd-archive, NO de apply] Nota: la fusión de `specs/data-maintenance/` y los deltas hacia `openspec/specs/{api-conventions,multi-tenancy,org-role-templates,intake-classifier}/` es trabajo de `sdd-archive`. **Confirmado**: apply no fusionó ninguna spec; la fusión queda registrada como trabajo de `sdd-archive`.
 - [x] 6.5 Commits convencionales en español por unidad de trabajo — de esta rebanada (1, como indica la tabla de arriba): `feat(maintenance): agrega CLI de purga y runbook operativo`. Las unidades de las rebanadas 1/2a/2b ya están comiteadas en el tracker (`d5328c1`, `5590963`, `5beca2a`).
+
+## Fase 7: Remediación del verify (2026-08-26)
+
+- [x] 7.1 CRITICAL «--purge-upload-files borra solo los archivos referenciados» (verify-report.md): `tests/test_purge_upload_files.py` invoca `delete_referenced_files` de extremo a extremo contra `tmp_path`.
+- [x] 7.2 CRITICAL «El mantenimiento nunca se expone por HTTP» (verify-report.md): `tests/test_maintenance_http_exposure.py` enumera `app.routes` en tiempo de ejecución y recorre `app.maintenance`/`scripts` sin hallar ningún `APIRouter`.
 - [x] 6.6 [orquestador, NO de apply] Ramas hijas sobre el tracker `feat/42-purga-datos-demo` (feature-branch-chain): `…--01-compuerta` (base: tracker) → `…--02a-purga` (base: 01) → `…--02b-bootstrap-invariantes` (base: 02a) → `…--03-cli-runbook` (base: 02b, esta rama `feat/42-s3-cli`). Solo el tracker se integra a `preview`. **Hecho**: cuatro rebanadas encadenadas más dos correcciones posteriores al dry-run (`e082769` y `fc97125`, esta última en `feat/42-fix2-alcance-plantillas`); el tracker `feat/42-purga-datos-demo` se avanzó por referencia a la punta de la cadena. Solo el tracker se integra a `preview`.
