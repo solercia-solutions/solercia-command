@@ -39,6 +39,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: dev-secret-change-me
       INTEGRATIONS_FERNET_KEY: GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8=
+      # Off by default (change 42-purga-datos-demo): a fresh deploy never
+      # creates ana@/carlos@/diana@ or their demo projects/tasks/sprint.
+      SEED_DEMO_DATA: "false"
     depends_on:
       postgres:
         condition: service_healthy

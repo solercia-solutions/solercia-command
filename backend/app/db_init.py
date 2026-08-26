@@ -35,6 +35,7 @@ import app.integrations.adapters.mcp  # noqa: F401,E402
 import app.integrations.adapters.microsoft365  # noqa: F401,E402
 import app.integrations.adapters.solercia_connect  # noqa: F401,E402
 import app.realtime.publisher  # noqa: F401,E402
+from app.config import settings
 from app.database import AsyncSessionLocal, Base, engine
 
 # Import ALL models so they register on the shared metadata.
@@ -570,7 +571,14 @@ async def _seed_demo_workitems(
     Members and the admin already exist (ensured by :func:`seed_default`); this
     only creates the work-item demo data so the board, executive view, burndown
     and performance views are populated out of the box.
+
+    Gated by ``settings.SEED_DEMO_DATA`` (change 42-purga-datos-demo, design
+    D5): reads the flag at call time and returns early without creating
+    anything when it is off.
     """
+
+    if not settings.SEED_DEMO_DATA:
+        return
 
     assignees = members + [admin]
 
@@ -589,7 +597,15 @@ async def _ensure_demo_members(
     dependencies: dict[str, Dependency],
     roles: dict[str, Role],
 ) -> list[User]:
-    """Create demo users with split names, membership, dependency and roles."""
+    """Create demo users with split names, membership, dependency and roles.
+
+    Gated by ``settings.SEED_DEMO_DATA`` (change 42-purga-datos-demo, design
+    D5): reads the flag at call time and returns an empty list without
+    creating anything when it is off.
+    """
+
+    if not settings.SEED_DEMO_DATA:
+        return []
 
     members: list[User] = []
     for email, primer_nombre, primer_apellido, dep_name, role_codes in (

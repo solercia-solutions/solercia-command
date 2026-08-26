@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Demo seed gate (change 42-purga-datos-demo) — off by default so a fresh
+    # deploy never creates ana@/carlos@/diana@ or their demo projects/tasks/
+    # sprint. `db_init.py`'s `_ensure_demo_members`/`_seed_demo_workitems`
+    # read this attribute AT CALL TIME (never a module-level constant
+    # captured at import), so flipping it and restarting is enough to seed
+    # or keep purged the demo data. The structural seed (organization
+    # "Solercia", RBAC catalog, `admin@solercia.com`) always runs regardless
+    # of this flag.
+    SEED_DEMO_DATA: bool = False
+
     # Project hierarchy — maximum nesting depth (root = depth 1), configurable
     # per change 21-project-hierarchy design.md Decision 3.
     PROJECT_HIERARCHY_MAX_DEPTH: int = 5

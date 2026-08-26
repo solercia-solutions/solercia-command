@@ -38,30 +38,30 @@ Diagrama de dependencia: `tracker feat/42-purga-datos-demo → PR1 (compuerta) �
 
 ## Fase 0: Verificación previa (gate)
 
-- [ ] 0.1 Verificar `alembic heads` en disco: la cadena `0001→…→0024_add_work_calendar` es la única punta; este cambio NO agrega ninguna revisión nueva bajo `backend/alembic/versions/`.
-- [ ] 0.2 Confirmar en disco que `db_init.py` no importa `app.config`; `_seed_demo_workitems` (línea 562) y `_ensure_demo_members` (línea 586) siguen sin compuerta; `seed_default` (341-379) las invoca sin condición salvo el `COUNT(tasks)==0` (367-369).
-- [ ] 0.3 Confirmar en disco que `config.py` no declara `SEED_DEMO_DATA`; `docker-compose.yml` (bloque `environment:` del backend, 36-41) y `env.example` no la incluyen.
-- [ ] 0.4 Confirmar en disco: `ProjectService._create_project_unit` (`projects/service.py:128`); `BoardService.add_column` slugifica (`boards/service.py:203`) y comitea por columna (`:221`); `boards/models.py` con `uq_board_column_status_key` (:51) y `status_key String(60)` (:66).
-- [ ] 0.5 Confirmar en disco: `IntakeService._ensure_default_project` (`intake/service.py:581`) y `IntakeSettingsRepository.get_or_create` comitea (`intake/repository.py:265`).
-- [ ] 0.6 Confirmar en disco: `attachments/models.py` `target_type`/`target_id` sin FK (:29,32); `connectors/models.py` `connected_accounts.user_id` con `ondelete="CASCADE"` (:92); `tasks/service.py._resolve_completed_at` (:855).
-- [ ] 0.7 Confirmar que `backend/tests/test_intake_classifier_endpoints.py::test_first_use_creates_default_project_and_second_use_reuses_it` (línea 359) ya cubre el escenario «sin bootstrap previo, el comportamiento perezoso original sigue vigente» de la spec `intake-classifier` — no requiere una prueba nueva.
-- [ ] 0.8 Confirmar que `backend/app/maintenance/` y `backend/scripts/` no existen todavía en disco (paquetes nuevos de este cambio).
+- [x] 0.1 Verificar `alembic heads` en disco: la cadena `0001→…→0024_add_work_calendar` es la única punta; este cambio NO agrega ninguna revisión nueva bajo `backend/alembic/versions/`.
+- [x] 0.2 Confirmar en disco que `db_init.py` no importa `app.config`; `_seed_demo_workitems` (línea 562) y `_ensure_demo_members` (línea 586) siguen sin compuerta; `seed_default` (341-379) las invoca sin condición salvo el `COUNT(tasks)==0` (367-369).
+- [x] 0.3 Confirmar en disco que `config.py` no declara `SEED_DEMO_DATA`; `docker-compose.yml` (bloque `environment:` del backend, 36-41) y `env.example` no la incluyen.
+- [x] 0.4 Confirmar en disco: `ProjectService._create_project_unit` (`projects/service.py:128`); `BoardService.add_column` slugifica (`boards/service.py:203`) y comitea por columna (`:221`); `boards/models.py` con `uq_board_column_status_key` (:51) y `status_key String(60)` (:66).
+- [x] 0.5 Confirmar en disco: `IntakeService._ensure_default_project` (`intake/service.py:581`) y `IntakeSettingsRepository.get_or_create` comitea (`intake/repository.py:265`).
+- [x] 0.6 Confirmar en disco: `attachments/models.py` `target_type`/`target_id` sin FK (:29,32); `connectors/models.py` `connected_accounts.user_id` con `ondelete="CASCADE"` (:92); `tasks/service.py._resolve_completed_at` (:855).
+- [x] 0.7 Confirmar que `backend/tests/test_intake_classifier_endpoints.py::test_first_use_creates_default_project_and_second_use_reuses_it` (línea 359) ya cubre el escenario «sin bootstrap previo, el comportamiento perezoso original sigue vigente» de la spec `intake-classifier` — no requiere una prueba nueva.
+- [x] 0.8 Confirmar que `backend/app/maintenance/` y `backend/scripts/` no existen todavía en disco (paquetes nuevos de este cambio).
 
 ## Fase 1: Compuerta `SEED_DEMO_DATA` [Rebanada 1]
 
 > Spec: Requirement «Compuerta de la semilla demo por SEED_DEMO_DATA»; deltas `multi-tenancy` R4, `api-conventions` R4/R5. Design: D5.
 
-- [ ] 1.1 RED — `backend/tests/test_seed_demo_flag.py::test_ensure_demo_members_no_crea_usuarios_con_flag_apagado`: con `settings.SEED_DEMO_DATA=False` (valor por defecto) y BD vacía, `_ensure_demo_members` no crea usuarios demo.
-- [ ] 1.2 RED — `test_ensure_demo_members_crea_usuarios_con_flag_encendido`: `monkeypatch.setattr(settings, "SEED_DEMO_DATA", True)`; `_ensure_demo_members` crea ana/carlos/diana.
-- [ ] 1.3 RED — `test_seed_demo_workitems_no_crea_proyectos_con_flag_apagado`: flag apagado, `_seed_demo_workitems` no crea proyectos ni tareas.
-- [ ] 1.4 RED (inclusión obligatoria #1) — `test_seed_demo_workitems_crea_proyectos_tareas_y_sprint_con_flag_encendido`: flag encendido, `_seed_demo_workitems` crea los proyectos demo, las tareas demo y el sprint scrum (assert conteos > 0 en las tres entidades, no solo miembros).
-- [ ] 1.5 RED — `test_compuerta_se_lee_en_tiempo_de_llamada`: cambia `settings.SEED_DEMO_DATA` entre dos llamadas dentro del mismo test; cada llamada respeta el valor vigente (nunca una constante capturada al importar).
-- [ ] 1.6 RED — `test_restart_con_flag_apagado_no_revive_miembros_tras_purga`: BD ya purgada (sin ana/carlos/diana) y `seed_default()` corre de nuevo con el flag apagado; la cuenta de usuarios de «Solercia» permanece en 1.
-- [ ] 1.7 GREEN — agregar `SEED_DEMO_DATA: bool = False` a `backend/app/config.py` (`Settings`).
-- [ ] 1.8 GREEN — `db_init.py`: importar `from app.config import settings`; retorno temprano `if not settings.SEED_DEMO_DATA: return []` al inicio de `_ensure_demo_members` (:586) y `return` al inicio de `_seed_demo_workitems` (:562).
-- [ ] 1.9 GREEN — `docker-compose.yml`: agregar `SEED_DEMO_DATA: "false"` al bloque `environment:` del backend (:36-41).
-- [ ] 1.10 GREEN — `env.example`: documentar `SEED_DEMO_DATA=false`.
-- [ ] 1.11 Verificar en verde: `cd backend && pytest tests/test_seed_demo_flag.py -v`.
+- [x] 1.1 RED — `backend/tests/test_seed_demo_flag.py::test_ensure_demo_members_no_crea_usuarios_con_flag_apagado`: con `settings.SEED_DEMO_DATA=False` (valor por defecto) y BD vacía, `_ensure_demo_members` no crea usuarios demo.
+- [x] 1.2 RED — `test_ensure_demo_members_crea_usuarios_con_flag_encendido`: `monkeypatch.setattr(settings, "SEED_DEMO_DATA", True)`; `_ensure_demo_members` crea ana/carlos/diana.
+- [x] 1.3 RED — `test_seed_demo_workitems_no_crea_proyectos_con_flag_apagado`: flag apagado, `_seed_demo_workitems` no crea proyectos ni tareas.
+- [x] 1.4 RED (inclusión obligatoria #1) — `test_seed_demo_workitems_crea_proyectos_tareas_y_sprint_con_flag_encendido`: flag encendido, `_seed_demo_workitems` crea los proyectos demo, las tareas demo y el sprint scrum (assert conteos > 0 en las tres entidades, no solo miembros).
+- [x] 1.5 RED — `test_compuerta_se_lee_en_tiempo_de_llamada`: cambia `settings.SEED_DEMO_DATA` entre dos llamadas dentro del mismo test; cada llamada respeta el valor vigente (nunca una constante capturada al importar).
+- [x] 1.6 RED — `test_restart_con_flag_apagado_no_revive_miembros_tras_purga`: BD ya purgada (sin ana/carlos/diana) y `seed_default()` corre de nuevo con el flag apagado; la cuenta de usuarios de «Solercia» permanece en 1.
+- [x] 1.7 GREEN — agregar `SEED_DEMO_DATA: bool = False` a `backend/app/config.py` (`Settings`).
+- [x] 1.8 GREEN — `db_init.py`: importar `from app.config import settings`; retorno temprano `if not settings.SEED_DEMO_DATA: return []` al inicio de `_ensure_demo_members` (:586) y `return` al inicio de `_seed_demo_workitems` (:562).
+- [x] 1.9 GREEN — `docker-compose.yml`: agregar `SEED_DEMO_DATA: "false"` al bloque `environment:` del backend (:36-41).
+- [x] 1.10 GREEN — `env.example`: documentar `SEED_DEMO_DATA=false`.
+- [x] 1.11 Verificar en verde: `cd backend && pytest tests/test_seed_demo_flag.py -v`.
 
 ## Fase 2: Ruta de purga [Rebanada 2a]
 
