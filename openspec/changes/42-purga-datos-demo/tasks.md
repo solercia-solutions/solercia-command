@@ -67,20 +67,20 @@ Diagrama de dependencia: `tracker feat/42-purga-datos-demo → PR1 (compuerta) �
 
 > Spec: «Purga idempotente con dry-run por defecto», «Orden de borrado de hoja a raíz…», «Protección del catálogo de sistema y de conectores reales», «Fallo cerrado si una connected_account pertenece a un usuario a borrar». Design: D1, D3, D4. `purge_demo_data` nunca comitea (D2) — el `commit()` llega con `runner.py` en la Fase 3.
 
-- [ ] 2.1 Crear helper `_seed_demo_fixture(session)` (local en `test_purge_demo_data.py`, inspirado en `_seed_org_data` de `conftest.py:376-460`): organización `Acme Consultores`, admin/org `Solercia`, ana/carlos/diana, proyectos con subárbol, adjuntos/notificaciones/recordatorios huérfanos, conector `fake`.
-- [ ] 2.2 RED — `test_purga_borra_org_demo_usuarios_y_proyectos`.
-- [ ] 2.3 RED — `test_purga_conserva_admin_org_solercia_y_plantillas_de_sistema`.
-- [ ] 2.4 RED — `test_purga_borra_adjuntos_notificaciones_y_recordatorios_huerfanos`.
-- [ ] 2.5 RED — `test_purga_borra_subarbol_completo_de_hoja_a_raiz`.
-- [ ] 2.6 RED — `test_purga_borra_conector_fake_y_conserva_los_reales`.
-- [ ] 2.7 RED — `test_purga_falla_cerrado_si_una_cuenta_conectada_pertenece_a_un_usuario_demo`.
-- [ ] 2.8 RED — `test_purga_es_idempotente_en_segunda_corrida`.
-- [ ] 2.9 GREEN — crear `backend/app/maintenance/__init__.py` (paquete).
-- [ ] 2.10 GREEN — crear `backend/app/maintenance/scope.py`: `DemoScope` (frozen dataclass, D3) con `organization_names`, `user_emails`, `project_names`, `include_template_instantiations`, `connector_providers`, `asset_names`, `protected_*`.
-- [ ] 2.11 GREEN — crear `backend/app/maintenance/report.py` (parcial): `InventoryRow`, `PlannedDeletion`, `DeletionResult`, `PurgeOutcome`.
-- [ ] 2.12 GREEN — crear `backend/app/maintenance/repository.py` (parcial, `MaintenanceRepository`): `resolve_demo_scope` (CTE recursivo sobre `parent_project_id`), `find_connected_accounts_owned_by`, `count_inventory` (parcial), y los métodos de borrado del orden D4 (checklists → logs/historial/comentarios/labels/asset_tasks → `attachments` por `target_id` → `notification_deliveries`→`notifications` por `target_id` → `reminders`/`reminder_rules` → intake del alcance → `tasks` → sprints/board_columns/boards/labels → `org_role_template_instantiations` → `projects` de hoja a raíz → conector `fake` → usuarios demo → organización). Ningún método comitea.
-- [ ] 2.13 GREEN — crear `backend/app/maintenance/purge.py`: `purge_demo_data(session, scope) -> PurgeOutcome` — resuelve alcance, aplica guardas de fallo cerrado (admin/org/códigos/proveedores protegidos + cuentas conectadas), ejecuta el orden D4 vía `MaintenanceRepository`, retorna el reporte.
-- [ ] 2.14 Verificar en verde: `cd backend && pytest tests/test_purge_demo_data.py -v` (7/8 casos; `test_dry_run_no_deja_cambios_visibles` se agrega en la Fase 3).
+- [x] 2.1 Crear helper `_seed_demo_fixture(session)` (local en `test_purge_demo_data.py`, inspirado en `_seed_org_data` de `conftest.py:376-460`): organización `Acme Consultores`, admin/org `Solercia`, ana/carlos/diana, proyectos con subárbol, adjuntos/notificaciones/recordatorios huérfanos, conector `fake`.
+- [x] 2.2 RED — `test_purga_borra_org_demo_usuarios_y_proyectos`.
+- [x] 2.3 RED — `test_purga_conserva_admin_org_solercia_y_plantillas_de_sistema`.
+- [x] 2.4 RED — `test_purga_borra_adjuntos_notificaciones_y_recordatorios_huerfanos`.
+- [x] 2.5 RED — `test_purga_borra_subarbol_completo_de_hoja_a_raiz`.
+- [x] 2.6 RED — `test_purga_borra_conector_fake_y_conserva_los_reales`.
+- [x] 2.7 RED — `test_purga_falla_cerrado_si_una_cuenta_conectada_pertenece_a_un_usuario_demo`.
+- [x] 2.8 RED — `test_purga_es_idempotente_en_segunda_corrida`.
+- [x] 2.9 GREEN — crear `backend/app/maintenance/__init__.py` (paquete).
+- [x] 2.10 GREEN — crear `backend/app/maintenance/scope.py`: `DemoScope` (frozen dataclass, D3) con `organization_names`, `user_emails`, `project_names`, `include_template_instantiations`, `connector_providers`, `asset_names`, `protected_*`.
+- [x] 2.11 GREEN — crear `backend/app/maintenance/report.py` (parcial): `InventoryRow`, `PlannedDeletion`, `DeletionResult`, `PurgeOutcome`.
+- [x] 2.12 GREEN — crear `backend/app/maintenance/repository.py` (parcial, `MaintenanceRepository`): `resolve_demo_scope` (CTE recursivo sobre `parent_project_id`), `find_connected_accounts_owned_by`, `count_inventory` (parcial), y los métodos de borrado del orden D4 (checklists → logs/historial/comentarios/labels/asset_tasks → `attachments` por `target_id` → `notification_deliveries`→`notifications` por `target_id` → `reminders`/`reminder_rules` → intake del alcance → `tasks` → sprints/board_columns/boards/labels → `org_role_template_instantiations` → `projects` de hoja a raíz → conector `fake` → usuarios demo → organización). Ningún método comitea.
+- [x] 2.13 GREEN — crear `backend/app/maintenance/purge.py`: `purge_demo_data(session, scope) -> PurgeOutcome` — resuelve alcance, aplica guardas de fallo cerrado (admin/org/códigos/proveedores protegidos + cuentas conectadas), ejecuta el orden D4 vía `MaintenanceRepository`, retorna el reporte.
+- [x] 2.14 Verificar en verde: `cd backend && pytest tests/test_purge_demo_data.py -v` (7/8 casos; `test_dry_run_no_deja_cambios_visibles` se agrega en la Fase 3).
 
 ## Fase 3: Bootstrap, invariantes y `runner.py` [Rebanada 2b]
 
