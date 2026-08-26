@@ -1,4 +1,4 @@
-# Estado de características por metodología — Solercia Project Manager
+# Estado de características por metodología — Solercia Command
 
 Este documento es el **insumo de planeación** para decidir qué construir a continuación.
 Para cada metodología muestra qué características debería tener, cuál es su estado real

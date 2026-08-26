@@ -1,9 +1,10 @@
-# Solercia Project Manager
+# Solercia Command
 
-Gestor de proyectos multi-tenant que reemplaza Jira y Microsoft Planner. Cada
-proyecto elige su metodología al crearse (Planner, Kanban, Scrum o personalizada)
-y eso define su comportamiento: columnas del tablero, estados permitidos, sprints
-y modo de estimación.
+Centro operativo de trabajo multi-tenant que reúne proyectos, tareas, alertas y
+agenda operativa. Puede reemplazar Jira y Microsoft Planner; cada proyecto elige
+su metodología al crearse (Planner, Kanban, Scrum o personalizada), y esa elección
+define las columnas del tablero, los estados permitidos, los sprints y el modo de
+estimación.
 
 ## Arranque rápido
 

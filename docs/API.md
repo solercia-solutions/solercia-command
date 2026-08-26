@@ -1,6 +1,6 @@
 # Contrato de API — v1
 
-API REST del backend de **Solercia Project Manager**.
+API REST del backend de **Solercia Command**.
 
 - **Base URL (desde el navegador):** `http://localhost:8000/api/v1`
 - **Formato:** JSON (`Content-Type: application/json`).

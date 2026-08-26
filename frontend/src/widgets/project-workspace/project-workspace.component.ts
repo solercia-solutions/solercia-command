@@ -99,6 +99,18 @@ interface HierarchyRow {
     BurndownChartComponent,
     VelocityChartComponent,
   ],
+  // El drawer de @solercia/ui resuelve el desenfoque del fondo con el token
+  // `--sol-overlay-blur` en vez del input `blur` que tenía el drawer local.
+  // Sobrescribir el token en el host reproduce el mismo comportamiento: el
+  // cronograma abre el detalle con velo suave (sin desenfoque) para no
+  // difuminar la vista densa de barras; el resto conserva el desenfoque.
+  styles: [
+    `
+      .pw-drawer--sin-velo {
+        --sol-overlay-blur: none;
+      }
+    `,
+  ],
   template: `
     @if (loading()) {
       <p class="text-sm text-muted">{{ text.loading() }}</p>
@@ -1265,7 +1277,7 @@ interface HierarchyRow {
           [open]="true"
           [title]="drawerTitle()"
           size="lg"
-          [blur]="drawerBlur()"
+          [class.pw-drawer--sin-velo]="!drawerBlur()"
           (closed)="closeTaskDrawer()"
         >
           <sol-task-detail-panel

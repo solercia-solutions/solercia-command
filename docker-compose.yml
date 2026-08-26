@@ -1,3 +1,5 @@
+name: gestion_proyectos
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,8 +10,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/docker/initdb:/docker-entrypoint-initdb.d
+    # 5434 y no 5432: `sgsi-test-pg` (Postgres de pruebas de solercia_security)
+    # publica 0.0.0.0:5432 y el arranque fallaba con "port is already allocated".
+    # Se ata a 127.0.0.1 para no exponer la base a la red local.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d solercia"]
       interval: 5s
@@ -18,8 +23,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    # 6380 en el host por la misma razón que Postgres: 6379 es el puerto por
+    # defecto y lo reclama cualquier Redis de otro producto. Dentro de la red de
+    # Docker los servicios siguen hablándose por `redis:6379`.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6380:6379"
 
   backend:
     build: ./backend

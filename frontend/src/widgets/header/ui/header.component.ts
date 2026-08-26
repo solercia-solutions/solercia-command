@@ -14,7 +14,7 @@ import { I18nService } from '@shared/i18n';
  *
  * Left side: sidebar toggle (hamburger, desktop only), tenant logo from
  * `ThemeService` when the active theme provides one — otherwise the host
- * brand ("S" badge + "Solercia PM") — and an optional title. Right side:
+ * brand ("S" badge + "Solercia Command") — and an optional title. Right side:
  * a projected actions slot (theme toggle, notification bell, logout...).
  */
 @Component({
@@ -64,7 +64,7 @@ import { I18nService } from '@shared/i18n';
             />
           } @else {
             <span class="sol-header__brand-badge" aria-hidden="true">S</span>
-            <span class="sol-header__brand-name">Solercia PM</span>
+            <span class="sol-header__brand-name">Solercia Command</span>
           }
         </a>
 

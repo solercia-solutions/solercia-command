@@ -2,108 +2,93 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   output,
   signal,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { NotificationsService } from '@entities/notification/notifications.service';
-import { AppNotification, RULE_TYPE_LABELS } from '@entities/notification/notification.model';
-import { SolBadgeComponent, SolSpinnerComponent } from '@shared/ui';
+import {
+  AppNotification,
+  RULE_TYPE_LABELS,
+} from '@entities/notification/notification.model';
+import {
+  SolNotificationItem,
+  SolNotificationPanelComponent,
+  SolNotificationTone,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 
 /**
- * Notification center dropdown panel.
- * Lists active notifications with actions (mark as read, resolve, navigate to task).
- * Emits `closed` when an action should dismiss the panel (e.g. task navigation).
+ * Carga opaca que viaja en `SolNotificationItem.data`. La librería nunca la
+ * lee: solo la devuelve intacta en `itemSelected`/`markedRead`, y es lo único
+ * que este contenedor necesita para decidir a dónde navega cada notificación.
+ * Así el panel de `@solercia/ui` no conoce `target_type` ni `target_id`.
+ */
+interface NotificationTarget {
+  readonly targetType: string;
+  readonly targetId: string | null;
+}
+
+/** Notificación ya mapeada al tipo genérico de la librería. */
+type NotificationRow = SolNotificationItem<NotificationTarget>;
+
+/**
+ * Tono del `sol-badge` por tipo de regla. Vive aquí (y no en `@entities`)
+ * porque es una decisión de presentación del panel, no del dominio: la
+ * entidad solo aporta el texto de la etiqueta (`RULE_TYPE_LABELS`).
+ */
+const RULE_TYPE_TONES: Record<string, SolNotificationTone> = {
+  task_overdue: 'danger',
+  task_at_risk: 'warning',
+  sprint_at_risk: 'warning',
+  license_expiring: 'warning',
+  license_expired: 'danger',
+  workload_imbalance: 'info',
+  blocked_task: 'danger',
+};
+
+/**
+ * Contenedor del centro de notificaciones: trae los datos, los mapea al tipo
+ * genérico de la librería y reacciona a los eventos del panel.
+ *
+ * La presentación (encabezado, contador de no leídas, estados, filas y
+ * acciones) la resuelve `SolNotificationPanelComponent` de `@solercia/ui`.
+ * Aquí se queda todo lo que NO es presentación: `NotificationsService`, el
+ * `Router` y la resolución UUID → `task_key` para navegar a la tarea.
+ *
+ * El selector es `sol-notification-center` —y no `sol-notification-panel`—
+ * porque ese último es el del componente de la librería que este contenedor
+ * monta: dos componentes con el mismo selector en el mismo ámbito harían que
+ * la plantilla se resolviera contra sí misma.
+ *
+ * Mejora que aporta la librería: el estado de error deja de confundirse con
+ * el vacío. Antes, una carga fallida mostraba "no tienes notificaciones"
+ * (deuda registrada en la auditoría `2026-07-19-13-ui-component-audit`);
+ * ahora el fallo se pinta como error, con el mensaje real y un reintento.
  */
 @Component({
-  selector: 'sol-notification-panel',
+  selector: 'sol-notification-center',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SolBadgeComponent, SolSpinnerComponent],
+  imports: [SolNotificationPanelComponent],
+  // El panel de la librería ocupa el 100 % del ancho disponible, así que el
+  // ancho del desplegable lo fija el contenedor (mismo que el markup previo).
+  host: { class: 'block w-80 sm:w-96' },
   template: `
-    <div
-      role="dialog"
-      [attr.aria-label]="text.dialogAria()"
-      class="w-80 rounded-xl border border-border bg-elevated shadow-lg sm:w-96"
-    >
-      <!-- Header -->
-      <div class="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 class="text-sm font-semibold text-text">{{ text.title() }}</h2>
-        @if (notifications().length > 0) {
-          <button
-            type="button"
-            (click)="markAllRead()"
-            class="text-xs font-medium text-brand hover:underline
-                   focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
-          >
-            {{ text.markAllRead() }}
-          </button>
-        }
-      </div>
-
-      <!-- Body -->
-      <div class="max-h-[28rem] overflow-y-auto">
-        @if (loading()) {
-          <div class="flex items-center justify-center py-10">
-            <sol-spinner size="md" />
-          </div>
-        } @else if (notifications().length === 0) {
-          <p class="px-4 py-10 text-center text-sm text-muted">
-            {{ text.empty() }}
-          </p>
-        } @else {
-          <ul role="list" class="divide-y divide-border">
-            @for (n of notifications(); track n.id) {
-              <li class="px-4 py-3 transition-colors hover:bg-sunken">
-                <!-- Content -->
-                <p class="truncate text-sm font-medium text-text">{{ n.title }}</p>
-                <p class="mt-0.5 line-clamp-2 text-xs text-muted">{{ n.body }}</p>
-
-                <!-- Meta row -->
-                <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                  <sol-badge variant="neutral" size="sm">{{ ruleLabel(n.rule_type) }}</sol-badge>
-                  <span class="text-[11px] text-subtle">{{ relativeTime(n.created_at) }}</span>
-                </div>
-
-                <!-- Action row -->
-                <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  @if (n.target_type === 'task' && n.target_id) {
-                    <button
-                      type="button"
-                      (click)="openTask(n)"
-                      class="text-xs font-medium text-brand hover:underline
-                             focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
-                    >
-                      {{ text.viewTask() }}
-                    </button>
-                    <span class="text-subtle" aria-hidden="true">·</span>
-                  }
-                  <button
-                    type="button"
-                    (click)="markRead(n)"
-                    class="text-xs text-muted transition-colors hover:text-text
-                           focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
-                  >
-                    {{ text.markRead() }}
-                  </button>
-                  <span class="text-subtle" aria-hidden="true">·</span>
-                  <button
-                    type="button"
-                    (click)="markResolved(n)"
-                    class="text-xs text-muted transition-colors hover:text-text
-                           focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/55"
-                  >
-                    {{ text.resolve() }}
-                  </button>
-                </div>
-              </li>
-            }
-          </ul>
-        }
-      </div>
-    </div>
+    <sol-notification-panel
+      [items]="items()"
+      [loading]="loading()"
+      [error]="failed()"
+      [errorMessage]="errorMessage()"
+      (itemSelected)="openNotification($event)"
+      (markedRead)="markRead($event)"
+      (markedAllRead)="markAllRead()"
+      (retryRequested)="load()"
+      (closed)="closed.emit()"
+    />
   `,
 })
 export class NotificationPanelComponent implements OnInit {
@@ -111,73 +96,72 @@ export class NotificationPanelComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
 
-  /** Emitted when the panel should be closed (e.g. after navigating to a task). */
+  /** Se emite cuando el panel debe cerrarse (cierre explícito o navegación). */
   readonly closed = output<void>();
 
-  /** Static UI text resolved via i18n (reactive to language change). */
-  protected readonly text = {
-    dialogAria: this.i18n.t('notificationPanel.dialogAria'),
-    title: this.i18n.t('notificationPanel.title'),
-    markAllRead: this.i18n.t('notificationPanel.markAllRead'),
-    empty: this.i18n.t('notificationPanel.empty'),
-    viewTask: this.i18n.t('notificationPanel.viewTask'),
-    markRead: this.i18n.t('notificationPanel.markRead'),
-    resolve: this.i18n.t('notificationPanel.resolve'),
-  } as const;
+  /** Notificaciones activas tal como las devuelve el backend. */
+  private readonly notifications = signal<AppNotification[]>([]);
 
-  protected readonly notifications = signal<AppNotification[]>([]);
   protected readonly loading = signal(false);
+  protected readonly failed = signal(false);
+  /** Detalle del error ya resuelto a texto; vacío cuando no hay error. */
+  protected readonly errorMessage = signal('');
 
-  /** Formats an ISO timestamp as a relative Spanish string ("hace 2 h"). */
-  protected relativeTime(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return this.i18n.translate('notificationPanel.relativeTime.now');
-    if (mins < 60) {
-      return this.i18n.translate('notificationPanel.relativeTime.minutes', {
-        count: mins,
-      });
-    }
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) {
-      return this.i18n.translate('notificationPanel.relativeTime.hours', {
-        count: hours,
-      });
-    }
-    const days = Math.floor(hours / 24);
-    return this.i18n.translate('notificationPanel.relativeTime.days', {
-      count: days,
-    });
-  }
-
-  protected ruleLabel(ruleType: string): string {
-    return RULE_TYPE_LABELS[ruleType] ?? ruleType;
-  }
+  /**
+   * `AppNotification` → `SolNotificationItem`: la etiqueta de tipo llega ya
+   * resuelta a texto en `typeLabel` (con su `tone`), y lo necesario para
+   * enrutar viaja opaco en `data`.
+   *
+   * La lista es la de notificaciones activas, así que ninguna está leída:
+   * `read: false` es un hecho del filtro, no una suposición.
+   */
+  protected readonly items = computed<readonly NotificationRow[]>(() =>
+    this.notifications().map((notification) => ({
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      timestamp: notification.created_at,
+      read: false,
+      typeLabel: RULE_TYPE_LABELS[notification.rule_type] ?? notification.rule_type,
+      tone: RULE_TYPE_TONES[notification.rule_type] ?? 'neutral',
+      data: {
+        targetType: notification.target_type,
+        targetId: notification.target_id,
+      },
+    })),
+  );
 
   ngOnInit(): void {
     this.load();
   }
 
-  private load(): void {
+  /** Carga (o recarga, desde `retryRequested`) las notificaciones activas. */
+  protected load(): void {
     this.loading.set(true);
+    this.failed.set(false);
+    this.errorMessage.set('');
     this.notifService.list('active').subscribe({
       next: (res) => {
         this.notifications.set(res.data);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: (err: HttpErrorResponse) => {
+        this.loading.set(false);
+        // La lista queda vacía, pero el panel debe decir "no pudimos saberlo"
+        // y no "no tienes notificaciones".
+        this.notifications.set([]);
+        this.failed.set(true);
+        this.errorMessage.set(this.messageFor(err));
+      },
     });
   }
 
-  protected markRead(n: AppNotification): void {
-    this.notifService.updateStatus(n.id, 'read').subscribe({
-      next: () => this.notifications.update((list) => list.filter((x) => x.id !== n.id)),
-    });
-  }
-
-  protected markResolved(n: AppNotification): void {
-    this.notifService.updateStatus(n.id, 'resolved').subscribe({
-      next: () => this.notifications.update((list) => list.filter((x) => x.id !== n.id)),
+  protected markRead(item: NotificationRow): void {
+    this.notifService.updateStatus(String(item.id), 'read').subscribe({
+      next: () =>
+        this.notifications.update((list) =>
+          list.filter((notification) => notification.id !== item.id),
+        ),
     });
   }
 
@@ -190,12 +174,15 @@ export class NotificationPanelComponent implements OnInit {
   }
 
   /**
-   * For target_type='task': fetches the task by UUID to resolve its task_key,
-   * then navigates to /task/{task_key}. If the key is unavailable, silently no-ops.
+   * Notificación activada. Para `target_type='task'` resuelve el `task_key`
+   * a partir del UUID y navega a `/task/{task_key}`; si no hay clave (o la
+   * notificación no apunta a una tarea) no hace nada, igual que antes.
    */
-  protected openTask(n: AppNotification): void {
-    if (n.target_type !== 'task' || !n.target_id) return;
-    this.notifService.resolveTaskKey(n.target_id).subscribe({
+  protected openNotification(item: NotificationRow): void {
+    const target = item.data;
+    if (!target || target.targetType !== 'task' || !target.targetId) return;
+
+    this.notifService.resolveTaskKey(target.targetId).subscribe({
       next: (res) => {
         const key = res.data.task_key;
         if (key) {
@@ -204,8 +191,15 @@ export class NotificationPanelComponent implements OnInit {
         }
       },
       error: () => {
-        // task not found or no task_key — silently ignore
+        // Tarea inexistente o sin task_key: se ignora en silencio.
       },
     });
+  }
+
+  /** Traduce el fallo HTTP al texto que el panel muestra bajo el error. */
+  private messageFor(err: HttpErrorResponse): string {
+    return err.status === 0
+      ? this.i18n.translate('notificationPanel.errors.network')
+      : this.i18n.translate('notificationPanel.errors.load');
   }
 }

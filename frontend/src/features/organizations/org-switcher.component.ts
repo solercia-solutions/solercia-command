@@ -9,96 +9,57 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { OrganizationsService } from '@entities/organization/organizations.service';
 import { OrganizationMembership } from '@entities/organization/organization.model';
+import {
+  SolScope,
+  SolScopeSwitcherComponent,
+  SolScopeSwitcherStatus,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ActiveOrgStore } from './active-org.store';
 
+/** Ámbito del selector con la membresía completa como carga opaca. */
+type OrgScope = SolScope<OrganizationMembership>;
+
 /**
- * Selector de empresa activa proyectado en `[header-actions]` (app.component).
+ * Contenedor del selector de empresa activa, proyectado en `[header-actions]`
+ * (app.component).
  *
- * Lista las empresas del usuario (`GET /organizations/mine`) y resalta la
- * activa. Con una sola empresa se muestra como texto simple, sin obligar a
- * elegir (frontend-org-switcher, "Usuario con una sola empresa"). Al elegir
- * una distinta, primero VERIFICA el acceso con `GET /organizations/{id}`
- * (independiente del header activo — cualquier miembro puede leerla) antes
- * de persistir y recargar; si la verificación falla (red o 403/404), se
- * muestra un error y el layout conserva el contexto de la empresa anterior
- * sin invocar el cambio (Scenario "Falla al cambiar de empresa conserva el
- * contexto anterior").
+ * La presentación (disparador, panel, estados de carga/vacío/error, teclado y
+ * accesibilidad) la resuelve `SolScopeSwitcherComponent` de `@solercia/ui`.
+ * Aquí se queda la política de la aplicación, que es todo lo que exige
+ * `frontend-org-switcher` y la librería deliberadamente NO hace:
+ *
+ * - Lista las empresas del usuario (`GET /organizations/mine`) con su rol.
+ * - Al elegir una distinta, VERIFICA el acceso con `GET /organizations/{id}`
+ *   antes de persistir: ese endpoint solo exige membresía (no depende del
+ *   header activo), así que un fallo ahí es señal real de red o de acceso
+ *   perdido. Si falla, se muestra el error y el layout conserva el contexto
+ *   de la empresa anterior (Scenario "Falla al cambiar de empresa conserva
+ *   el contexto anterior").
+ * - La persistencia en `localStorage`, el reinicio de los stores de dominio,
+ *   la recarga del menú y la reconexión con el nuevo scope las ejecuta
+ *   `ActiveOrgStore.setActiveOrg()`.
+ *
+ * Mejora que aporta la librería: `activeScopeId` se valida contra la lista
+ * antes de usarse — un id persistido que ya no corresponde a ninguna membresía
+ * cae al primer ámbito disponible en vez de dejar el disparador en blanco.
+ * Por eso aquí se pasa el id crudo del store, sin respaldo local.
  */
 @Component({
   selector: 'sol-org-switcher',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolScopeSwitcherComponent],
   template: `
-    @if (loading()) {
-      <span class="text-xs text-muted">{{ text.loading() }}</span>
-    } @else if (memberships().length === 0) {
-      <span class="text-xs text-muted">{{ text.empty() }}</span>
-    } @else if (memberships().length === 1) {
-      <span
-        class="inline-flex h-9 items-center gap-2 rounded-lg border border-border
-               bg-surface px-3 text-sm font-medium text-text"
-      >
-        {{ memberships()[0].organization.name }}
-      </span>
-    } @else {
-      <div class="relative">
-        <button
-          type="button"
-          (click)="toggleOpen()"
-          [attr.aria-expanded]="open()"
-          [attr.aria-label]="text.triggerAria()"
-          class="inline-flex h-9 items-center gap-2 rounded-lg border border-border
-                 bg-surface px-3 text-sm font-medium text-text transition-colors
-                 hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
-        >
-          <span>{{ activeName() }}</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-
-        @if (open()) {
-          <div
-            class="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-border
-                   bg-surface p-1 shadow-lg"
-            role="listbox"
-            [attr.aria-label]="text.toggle()"
-          >
-            @for (membership of memberships(); track membership.organization.id) {
-              <button
-                type="button"
-                role="option"
-                [attr.aria-selected]="membership.organization.id === activeOrgId()"
-                (click)="selectOrganization(membership)"
-                [disabled]="switching()"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2
-                       text-left text-sm text-text transition-colors hover:bg-sunken
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
-              >
-                <span class="truncate">{{ membership.organization.name }}</span>
-                <span class="shrink-0 text-xs text-muted">{{ roleLabel(membership.role) }}</span>
-              </button>
-            }
-          </div>
-        }
-      </div>
-    }
-
-    @if (error()) {
-      <p role="alert" class="mt-1 text-xs text-danger">{{ error() }}</p>
-    }
+    <sol-scope-switcher
+      [scopes]="scopes()"
+      [activeScopeId]="activeScopeId()"
+      [status]="status()"
+      [disabled]="switching()"
+      [errorMessage]="errorMessage()"
+      align="end"
+      (scopeSelected)="selectOrganization($event)"
+    />
   `,
 })
 export class OrgSwitcherComponent implements OnInit {
@@ -106,76 +67,73 @@ export class OrgSwitcherComponent implements OnInit {
   private readonly activeOrgStore = inject(ActiveOrgStore);
   private readonly i18n = inject(I18nService);
 
-  protected readonly text = {
-    loading: this.i18n.t('orgSwitcher.loading'),
-    empty: this.i18n.t('orgSwitcher.empty'),
-    triggerAria: this.i18n.t('orgSwitcher.triggerAria'),
-    toggle: this.i18n.t('orgSwitcher.toggle'),
-  } as const;
+  private readonly memberships = signal<OrganizationMembership[]>([]);
+  private readonly loading = signal(true);
 
-  protected readonly loading = signal(true);
-  protected readonly open = signal(false);
+  /** Congela el disparador mientras se verifica el acceso a la empresa elegida. */
   protected readonly switching = signal(false);
-  protected readonly error = signal<string | null>(null);
-  protected readonly memberships = signal<OrganizationMembership[]>([]);
+  /** Mensaje de error ya resuelto; vacío cuando no hay error. */
+  protected readonly errorMessage = signal('');
 
-  /** Empresa activa: la explícitamente elegida o, en su defecto, la primera
-   * de la lista (proxy visual del fallback del backend, nunca escrita). */
-  protected readonly activeOrgId = computed<string | null>(
-    () =>
-      this.activeOrgStore.activeOrgId() ??
-      this.memberships()[0]?.organization.id ??
-      null,
-  );
+  /**
+   * Id de la empresa activa tal como está persistido. La validación contra la
+   * lista (y el respaldo a la primera empresa) la hace el selector.
+   */
+  protected readonly activeScopeId = this.activeOrgStore.activeOrgId;
 
-  protected readonly activeName = computed<string>(() => {
-    const id = this.activeOrgId();
-    const found = this.memberships().find(
-      (membership) => membership.organization.id === id,
-    );
-    return found?.organization.name ?? '';
+  /** `OrganizationMembership` → `SolScope`: el rol va en `sublabel`. */
+  protected readonly scopes = computed<readonly OrgScope[]>(() => {
+    // Se lee el idioma activo para remapear los roles al cambiarlo.
+    this.i18n.activeLang();
+    return this.memberships().map((membership) => ({
+      id: membership.organization.id,
+      label: membership.organization.name,
+      sublabel: this.i18n.translate(`orgSwitcher.roles.${membership.role}`),
+      data: membership,
+    }));
+  });
+
+  /**
+   * Estado excluyente del selector. El vacío legítimo NO se modela aquí: lo
+   * deriva la librería de una lista vacía sin error.
+   */
+  protected readonly status = computed<SolScopeSwitcherStatus>(() => {
+    if (this.loading()) return 'loading';
+    return this.errorMessage() ? 'error' : 'idle';
   });
 
   ngOnInit(): void {
     this.load();
   }
 
-  protected toggleOpen(): void {
-    this.open.update((value) => !value);
-  }
+  /**
+   * Cambio de empresa activa. El selector no emite cuando se vuelve a elegir
+   * la que ya está activa, así que aquí solo llegan cambios reales.
+   */
+  protected selectOrganization(scope: OrgScope): void {
+    const membership = scope.data;
+    if (!membership) return;
 
-  protected roleLabel(role: OrganizationMembership['role']): string {
-    return this.i18n.translate(`orgSwitcher.roles.${role}`);
-  }
-
-  protected selectOrganization(membership: OrganizationMembership): void {
-    this.open.set(false);
-    if (membership.organization.id === this.activeOrgId()) {
-      return;
-    }
-
-    this.error.set(null);
+    this.errorMessage.set('');
     this.switching.set(true);
 
-    // Verifica el acceso ANTES de persistir/recargar: GET /organizations/{id}
-    // solo exige membresía (no depende del header activo), así que una
-    // falla aquí es una señal real de red o de acceso perdido — nunca del
-    // header vigente.
     this.service.get(membership.organization.id).subscribe({
       next: () => {
         this.switching.set(false);
+        // Persiste en localStorage y refresca todo el contexto (stores de
+        // dominio, menú, tema y conexiones) con el nuevo `X-Organization-Id`.
         this.activeOrgStore.setActiveOrg(membership.organization.id);
       },
       error: (err: HttpErrorResponse) => {
         this.switching.set(false);
-        this.error.set(this.messageFor(err));
+        this.errorMessage.set(this.messageFor(err));
       },
     });
   }
 
   private load(): void {
     this.loading.set(true);
-    this.error.set(null);
+    this.errorMessage.set('');
     this.service.mine().subscribe({
       next: (res) => {
         this.memberships.set(res.data ?? []);
@@ -183,7 +141,7 @@ export class OrgSwitcherComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.error.set(this.messageFor(err, 'orgSwitcher.errors.load'));
+        this.errorMessage.set(this.messageFor(err, 'orgSwitcher.errors.load'));
       },
     });
   }

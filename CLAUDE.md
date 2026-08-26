@@ -1,8 +1,8 @@
-# Solercia Project Manager — CLAUDE.md
+# Solercia Command — CLAUDE.md
 
 ## Visión del producto
 
-Sistema de gestión de proyectos multi-tenant que reemplaza Planner y Jira en distintas entidades. Cada tenant (entidad) puede activar módulos según su necesidad:
+Solercia Command es un centro operativo de trabajo multi-tenant que puede reemplazar Planner y Jira en distintas entidades. Cada tenant (entidad) puede activar módulos según su necesidad:
 
 | Tenant | Reemplaza | Módulos clave |
 |--------|-----------|---------------|
@@ -370,3 +370,7 @@ Asset
 18. WebSocket real-time
 19. Burndown chart
 20. Filtros avanzados y búsqueda global
+
+## Regla obligatoria de persistencia
+
+Antes de modificar repositorios, servicios/casos de uso, transacciones, migraciones o pruebas de persistencia, se DEBE leer `agents/rules/solercia-persistence.md` y el skill global que esta regla exige.

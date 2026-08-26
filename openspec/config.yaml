@@ -2,7 +2,7 @@
 schema: spec-driven
 
 context: |
-  Sistema de gestión de proyectos multi-tenant (reemplaza Planner/Jira).
+  Solercia Command: centro operativo de trabajo multi-tenant (reemplaza Planner/Jira).
   Backend: FastAPI (Python 3.12), SQLAlchemy 2.0 async, asyncpg, Alembic, Pydantic v2.
   Arquitectura backend: router -> service -> repository, patrón Strategy por metodología.
   Frontend: Angular 22 (FSD), Tailwind — consumiendo @solercia/ui@0.1.0 — DESCONGELADO (migración PR5 07-e9).

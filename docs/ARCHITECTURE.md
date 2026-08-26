@@ -1,7 +1,7 @@
-# Arquitectura — Solercia Project Manager
+# Arquitectura — Solercia Command
 
-Este documento describe la arquitectura del MVP de **Solercia Project Manager**, un
-gestor de proyectos multi-tenant que reemplaza a Jira/Planner. Captura las decisiones
+Este documento describe la arquitectura del MVP de **Solercia Command**, un centro
+operativo de trabajo multi-tenant que reemplaza a Jira/Planner. Captura las decisiones
 de diseño transversales; las decisiones puntuales con alternativas evaluadas viven en
 los registros de decisión (`docs/adr/`).
 

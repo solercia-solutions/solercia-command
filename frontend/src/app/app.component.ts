@@ -98,7 +98,7 @@ import { OrgSwitcherComponent } from '@features/organizations/org-switcher.compo
             <!-- Notification panel dropdown -->
             @if (notifOpen()) {
               <div class="absolute right-0 top-full z-40 mt-2">
-                <sol-notification-panel (closed)="closeNotif()" />
+                <sol-notification-center (closed)="closeNotif()" />
               </div>
             }
           </div>

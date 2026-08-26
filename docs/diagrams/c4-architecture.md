@@ -1,4 +1,4 @@
-# Arquitectura C4 — Solercia Project Manager
+# Arquitectura C4 — Solercia Command
 
 **Propósito**: este es el **documento vivo** de la arquitectura del sistema en tres niveles
 del modelo C4 (contexto, contenedores, componentes). Refleja el código **actual** —verificado
@@ -28,13 +28,13 @@ organización conecta un conector `provider=google`, también únicamente en mod
 
 ```mermaid
 C4Context
-    title C1 - Contexto: Solercia Project Manager
+    title C1 - Contexto: Solercia Command
 
     Person(jefe, "Jefe / Ejecutivo", "Consulta la vista ejecutiva: quien hace que, riesgos, carga de trabajo y alertas.")
     Person(miembro, "Miembro de equipo", "Gestiona sus tareas, tableros, sprints, comentarios y registro de horas.")
     Person(admin, "Administrador", "Administra usuarios, roles RBAC, menús, dependencias y reglas de alerta.")
 
-    System(spm, "Solercia Project Manager", "Gestión de proyectos multi-tenant con metodología configurable (planner, kanban, scrum, custom), alertas, recordatorios y activos de información.")
+    System(spm, "Solercia Command", "Centro operativo de trabajo multi-tenant con metodología configurable (planner, kanban, scrum, custom), alertas, recordatorios y activos de información.")
 
     System_Ext(smtp, "Servidor SMTP", "Entrega de correos (inmediatos y digest). Solo activo con EMAIL_ENABLED=true y EMAIL_BACKEND=smtp.")
     System_Ext(m365, "Microsoft 365 (Graph + Entra ID)", "Correo, calendario, tareas Planner y transcripciones de reuniones vía Graph API, solo lectura; autorización delegada OAuth vía Entra ID. Activo solo si la organización conecta un conector provider=microsoft365 (change 15).")
@@ -59,11 +59,11 @@ instancia se registran los jobs de alertas, recordatorios y entregas de correo.
 
 ```mermaid
 C4Container
-    title C2 - Contenedores: Solercia Project Manager
+    title C2 - Contenedores: Solercia Command
 
     Person(usuario, "Usuario", "Jefe, miembro de equipo o administrador.")
 
-    System_Boundary(spm, "Solercia Project Manager (docker compose)") {
+    System_Boundary(spm, "Solercia Command (docker compose)") {
         Container(frontend, "Frontend Angular", "Angular 20, @solercia/ui, puerto 4200", "SPA con Feature-Sliced Design. Consume la API REST y el WebSocket de notificaciones.")
         Container(backend, "Backend FastAPI", "Python 3.12, uvicorn, puerto 8000", "API REST /api/v1 + WebSocket /api/v1/ws/notifications. Incluye in-process el AsyncIOScheduler con los jobs de alertas (1 h), recordatorios (5 min) y entregas de correo (5/15 min).")
         ContainerDb(postgres, "PostgreSQL 16", "postgres:16-alpine, puerto 5432", "Datos multi-tenant por fila (organization_id). Esquema gestionado con Alembic (entrypoint ejecuta alembic upgrade head).")

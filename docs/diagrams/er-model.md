@@ -1,4 +1,4 @@
-# Modelo entidad-relación — Solercia Project Manager
+# Modelo entidad-relación — Solercia Command
 
 **Propósito**: este es el **documento vivo** del esquema de base de datos. Refleja, tabla por
 tabla, los modelos SQLAlchemy reales de `backend/app/modules/*/models.py`,

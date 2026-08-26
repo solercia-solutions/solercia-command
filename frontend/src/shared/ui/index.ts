@@ -3,6 +3,11 @@
 // al nombre del paquete. Por ahora es un re-export puro.
 export * from '@solercia/ui';
 
-// Componentes app-local que complementan la lib (candidatos a subir a
-// @solercia/ui cuando maduren). Mismo prefijo `sol-` y tokens `--sol-*`.
-export * from './drawer/drawer.component';
+// Sin componentes app-local: `sol-drawer` vivía aquí mientras la librería no lo
+// exponía (0.3.0). Desde 0.5.0 `SolDrawerComponent` llega por el re-export de
+// arriba, así que el local se eliminó — mantener ambos dejaba el mismo símbolo
+// exportado dos veces por este barril y el nombre quedaba ambiguo.
+//
+// Diferencias que absorbió la migración: el input `position="right"` es ahora
+// `side="end"` (ningún consumidor lo usaba), y el input `blur` desapareció
+// porque la librería resuelve el desenfoque con el token `--sol-overlay-blur`.

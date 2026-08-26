@@ -8,7 +8,7 @@ autónoma y no parás hasta cumplir la Definition of Done. Al terminar, entregá
 concretas de prueba.
 
 ## Contexto del repositorio
-- Proyecto: `/Users/camilocalderont/Proyectos/SOLERCIA/gestion_proyectos` (git).
+- Proyecto: `/Users/camilocalderont/Proyectos/SOLERCIA/solercia-command` (git).
 - La OLA 2 completa (12 cambios SDD, 13–24) YA está implementada y archivada en la rama
   `feat/consume-solercia-ui`. Ver `openspec/OLA_2.md` (documento orquestador con la tabla de
   estado en 12/12) y `openspec/changes/archive/2026-07-1*`.

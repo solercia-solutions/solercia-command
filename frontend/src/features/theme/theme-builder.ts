@@ -111,7 +111,7 @@ export function buildThemeFile(form: AppearanceFormValue): ThemeFile {
 
   file.meta = {
     tenant: brand || file.meta.tenant,
-    logo: { url: logoUrl, altText: brand || 'Solercia PM', width: 120 },
+    logo: { url: logoUrl, altText: brand || 'Solercia Command', width: 120 },
   };
 
   const radius = clampInt(form.radius, 0, 24);
@@ -176,7 +176,7 @@ export function readAppearance(theme: ThemeFile | null): AppearanceFormValue {
 
   return {
     brandName:
-      shape.meta?.logo?.altText && shape.meta.logo.altText !== 'Solercia PM'
+      shape.meta?.logo?.altText && shape.meta.logo.altText !== 'Solercia Command'
         ? shape.meta.logo.altText
         : tenant !== 'solercia-pm'
           ? tenant

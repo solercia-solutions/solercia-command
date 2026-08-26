@@ -585,7 +585,7 @@
     }
   },
   "nav": {
-    "brandAria": "Solercia PM, inicio",
+    "brandAria": "Solercia Command, inicio",
     "closeNotifications": "Cierra las notificaciones",
     "links": {
       "executive": "Vista de jefe",
@@ -605,36 +605,23 @@
     "themeToLight": "Activa el modo claro"
   },
   "notificationPanel": {
-    "dialogAria": "Centro de notificaciones",
-    "empty": "No tienes notificaciones pendientes.",
-    "markAllRead": "Marcar todas como leídas",
-    "markRead": "Marcar como leída",
-    "relativeTime": {
-      "days": "hace {{ count }} d",
-      "hours": "hace {{ count }} h",
-      "minutes": "hace {{ count }} min",
-      "now": "ahora mismo"
-    },
-    "resolve": "Resolver",
-    "title": "Notificaciones",
-    "viewTask": "Ver tarea"
+    "errors": {
+      "load": "No se pudieron cargar tus notificaciones. Inténtalo de nuevo.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    }
   },
   "orgSwitcher": {
-    "empty": "No perteneces a ninguna empresa todavía.",
     "errors": {
       "load": "No se pudieron cargar tus empresas. Inténtalo más tarde.",
       "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
       "switchFailed": "No se pudo cambiar de empresa. Verifica tu acceso e inténtalo de nuevo."
     },
-    "loading": "Cargando empresas…",
     "roles": {
       "admin": "Administrador",
       "manager": "Gestor",
       "member": "Miembro",
       "viewer": "Observador"
-    },
-    "toggle": "Selecciona la empresa activa",
-    "triggerAria": "Cambia la empresa activa"
+    }
   },
   "performance": {
     "aria": {
@@ -733,6 +720,26 @@
     "nav": {
       "more": "Más"
     },
+    "notificationPanel": {
+      "close": "Cierra las notificaciones",
+      "dialogAria": "Centro de notificaciones",
+      "emptyDescription": "Te avisaremos aquí cuando algo necesite tu atención.",
+      "emptyTitle": "No tienes notificaciones pendientes.",
+      "errorDescription": "No pudimos cargar tus notificaciones. Inténtalo de nuevo.",
+      "errorTitle": "No fue posible cargar las notificaciones",
+      "markAllRead": "Marcar todas como leídas",
+      "markRead": "Marcar como leída",
+      "relativeTime": {
+        "days": "hace {{ count }} d",
+        "hours": "hace {{ count }} h",
+        "minutes": "hace {{ count }} min",
+        "now": "ahora mismo"
+      },
+      "retry": "Reintentar",
+      "title": "Notificaciones",
+      "unreadCount": "{{ count }} notificaciones sin leer",
+      "unreadDot": "Sin leer"
+    },
     "kanban": {
       "addColumn": "Agregar",
       "columnAria": "Columna {{ title }}",
@@ -749,6 +756,14 @@
     },
     "progressBar": {
       "aria": "Progreso"
+    },
+    "scopeSwitcher": {
+      "activeOption": "Empresa activa",
+      "empty": "No perteneces a ninguna empresa todavía.",
+      "error": "No fue posible completar la acción sobre tus empresas. Inténtalo de nuevo.",
+      "loading": "Cargando empresas…",
+      "panel": "Selecciona la empresa activa",
+      "trigger": "Cambia la empresa activa"
     },
     "spinner": {
       "loading": "Cargando…"
@@ -772,6 +787,10 @@
         "dic"
       ],
       "undatedTitle": "Elementos sin fechas definidas"
+    },
+    "tree": {
+      "collapseAria": "Colapsar {{ label }}",
+      "expandAria": "Expandir {{ label }}"
     }
   },
   "taskCard": {

@@ -1,6 +1,6 @@
-# Solercia PM — Backend
+# Solercia Command — Backend
 
-API del gestor de proyectos Solercia, construida con FastAPI, SQLAlchemy 2.0
+API de Solercia Command para coordinar proyectos y trabajo multi-tenant, construida con FastAPI, SQLAlchemy 2.0
 async, asyncpg, Pydantic v2 y autenticación JWT.
 
 ## Arquitectura

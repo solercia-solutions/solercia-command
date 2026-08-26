@@ -1,5 +1,5 @@
 #!/bin/bash
-# gestion.sh — EL script para correr Gestión de Proyectos en local (único punto de entrada).
+# gestion.sh — EL script para correr Solercia Command en local (único punto de entrada).
 #
 #   ./gestion.sh on        Enciende todo: Docker (postgres + redis + backend :8080),
 #                          front dev en el HOST (:4242, ng serve con recarga en caliente)
@@ -9,9 +9,10 @@
 #   ./gestion.sh logs X    Sigue logs (front | tunel | backend | postgres | redis).
 #   ./gestion.sh rebuild   Reconstruye la imagen del backend con el código actual.
 #
-# Puertos elegidos para NO pisarse con solercia_flows (que usa 4200, 3000, 8000,
-# 5433, 9000/9001 y 27017):
-#   Front  :4242  ·  Backend :8080 (→ 8000 interno)  ·  Postgres :5432  ·  Redis :6379
+# Puertos elegidos para NO pisarse con los otros productos de Solercia
+# (solercia_flows usa 4200, 3000, 8000, 5433, 9000/9001 y 27017;
+#  solercia_security usa 14200, 18000, 15432 y su `sgsi-test-pg` toma el 5432):
+#   Front  :4242  ·  Backend :8081 (→ 8000 interno)  ·  Postgres :5434  ·  Redis :6380
 #
 # Por qué el front va FUERA de Docker en desarrollo: la imagen del frontend copia
 # el código al construirse (compose sin volúmenes), así que el contenedor sirve
@@ -191,10 +192,10 @@ cmd_on() {
   start_front
   [ -z "$sin_tunel" ] && start_tunnel
   echo ""
-  echo -e "${GREEN}══════════ GESTIÓN DE PROYECTOS ENCENDIDO ══════════${NC}"
+  echo -e "${GREEN}══════════ SOLERCIA COMMAND ENCENDIDO ══════════${NC}"
   echo -e "  Front:    http://localhost:$FRONT_PORT"
   echo -e "  API:      http://localhost:$API_PORT  (Swagger: /docs)"
-  echo -e "  Postgres: 127.0.0.1:5432 · Redis: 127.0.0.1:6379"
+  echo -e "  Postgres: 127.0.0.1:5434 · Redis: 127.0.0.1:6380"
   echo ""
   echo -e "  Estado:  ${YELLOW}./gestion.sh status${NC}   Logs: ${YELLOW}./gestion.sh logs front${NC}"
   echo -e "  Apagar:  ${YELLOW}./gestion.sh off${NC}"
@@ -206,12 +207,12 @@ cmd_off() {
   check_docker_running
   echo -e "${YELLOW}[DOCKER]${NC} Deteniendo contenedores (datos intactos)..."
   dc stop "${DEV_SERVICES[@]}" frontend 2>/dev/null || true
-  echo -e "${GREEN}══════════ GESTIÓN DE PROYECTOS APAGADO ══════════${NC}"
+  echo -e "${GREEN}══════════ SOLERCIA COMMAND APAGADO ══════════${NC}"
   echo -e "  (los volúmenes de BD se conservan; './gestion.sh on' lo revive)"
 }
 
 cmd_status() {
-  echo -e "${BLUE}═══ Estado Gestión de Proyectos ═══${NC}"
+  echo -e "${BLUE}═══ Estado Solercia Command ═══${NC}"
   if "$DOCKER" info >/dev/null 2>&1; then
     for svc in "${DEV_SERVICES[@]}"; do
       st=$(dc ps "$svc" --format '{{.Status}}' 2>/dev/null | head -1)

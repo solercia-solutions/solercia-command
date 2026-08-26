@@ -1,4 +1,4 @@
-# Autenticación y autorización — Solercia Project Manager
+# Autenticación y autorización — Solercia Command
 
 Este documento describe cómo **inicia sesión** una persona usuaria, cómo se **mantiene** la
 sesión de forma segura (token de acceso de vida corta en el cuerpo + token de refresco en

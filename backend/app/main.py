@@ -138,9 +138,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Solercia PM",
+    title="Solercia Command",
     version="1.0.0",
-    description="API del gestor de proyectos Solercia.",
+    description="API del centro operativo de trabajo Solercia Command.",
     lifespan=lifespan,
 )
 
