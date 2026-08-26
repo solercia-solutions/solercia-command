@@ -102,14 +102,14 @@ REGLA: cuando el origen es conector, `tasks.source` DEBE ser exactamente `connec
 ## 6. Reanclaje del 40 (planificado, sin aplicar)
 Sin reanclar habría DOBLE migración de `tasks.source`/`external_key` y fallo duro en `op.add_column`.
 - `40/tasks.md:59` (0.4): head ya no es 0021 sino 0024; tras el 43 será 0025.
-- `40/tasks.md:60` (0.5): próximo libre no es 0022 sino 0026.
-- `40/tasks.md:64` (1.1): renombrar a `0026_add_external_anchor_projects_sprints.py`; ELIMINAR `tasks` y `uq_tasks_project_source_external_key`; alinear `source` a String(50).
+- `40/tasks.md:60` (0.5): próximo libre no es 0022 sino el siguiente consecutivo libre en el momento del apply del 40, verificado entonces con `alembic heads` y con los cambios pendientes (hoy sería 0029 si el 44 y el 45a aterrizan antes). SIN NÚMERO RESERVADO.
+- `40/tasks.md:64` (1.1): renombrar a `00NN_add_external_anchor_projects_sprints.py` (`00NN` = consecutivo libre resuelto en el apply del 40); ELIMINAR `tasks` y `uq_tasks_project_source_external_key`; alinear `source` a String(50).
 - `40/tasks.md:65` (1.2): quitar `tasks/models.py` de la lista.
 - `40/tasks.md:66` (1.3): `test_external_anchor_migration.py` pierde las aserciones sobre tasks.
 - `40/tasks.md:68-69` (1.5, 1.6): TaskRead ya expone los campos → pasan de RED/GREEN a verificación.
 - `40/tasks.md:47` (fila U1) y `:72` (Commit 1): reducir alcance/mensaje a projects+sprints; restar ~40-60 líneas.
 - `40/design.md:26-31` (D2): marcar la fila de `tasks` como entregada por el 43.
-- `40/design.md:75-76`: `app/modules/{projects,sprints}/models.py`; migración `0026_...`.
+- `40/design.md:75-76`: `app/modules/{projects,sprints}/models.py`; migración `00NN_...` (consecutivo libre resuelto en el apply del 40).
 - `40/design.md:116-121`: down_revision real y alcance de dos tablas.
 - `40/specs/tasks/spec.md:10-22`: MOVER al 43 «Ancla de procedencia externa». Sin esto `sdd-archive` fusionaría el requisito dos veces.
 - `40/specs/tasks/spec.md:33-40`: «Clave local y externa conviven» → también al 43 (es exposición).

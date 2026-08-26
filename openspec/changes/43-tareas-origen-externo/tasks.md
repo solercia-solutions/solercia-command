@@ -57,16 +57,16 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 
 - [ ] 1.1 `40/tasks.md:47` (fila U1) — reducir objetivo y mensaje de commit a `projects`+`sprints`; restar ≈40–60 líneas de la estimación de la unidad.
 - [ ] 1.2 `40/tasks.md:59` (0.4) — el head real ya no es `0021_unique_org_member`: hoy es `0024`, y tras el 43 será `0025`.
-- [ ] 1.3 `40/tasks.md:60` (0.5) — el próximo consecutivo libre no es `0022`: es `0026`.
-- [ ] 1.4 `40/tasks.md:64` (1.1) — renombrar a `0026_add_external_anchor_projects_sprints.py`; eliminar `tasks` y `uq_tasks_project_source_external_key` de sus listas; alinear `source` de `VARCHAR(20)` a `String(50)` (D3).
+- [ ] 1.3 `40/tasks.md:60` (0.5) — el próximo consecutivo libre no es `0022`: es **el siguiente consecutivo libre en el momento del `apply` del 40**, que se verifica entonces con `alembic heads` y con los cambios pendientes (hoy sería `0029` si el 44 y el 45a aterrizan antes). **No se reserva ningún número por adelantado**: un `down_revision` hacia una revisión que nadie ha escrito rompe `alembic upgrade head` en despliegue.
+- [ ] 1.4 `40/tasks.md:64` (1.1) — renombrar a `00NN_add_external_anchor_projects_sprints.py`, donde `00NN` es el consecutivo libre que la compuerta fije en el `apply` del 40; eliminar `tasks` y `uq_tasks_project_source_external_key` de sus listas; alinear `source` de `VARCHAR(20)` a `String(50)` (D3).
 - [ ] 1.5 `40/tasks.md:65` (1.2) — quitar `backend/app/modules/tasks/models.py` de la lista de modelos a editar.
 - [ ] 1.6 `40/tasks.md:66` (1.3) — `test_external_anchor_migration.py` pierde las aserciones sobre `tasks`.
 - [ ] 1.7 `40/tasks.md:68-69` (1.5, 1.6) — `TaskRead` ya expone ambos campos: pasan de RED/GREEN a verificación de que siguen expuestos.
 - [ ] 1.8 `40/tasks.md:72` (Commit 1) — mensaje → `feat(anchors): agrega source/external_key con únicos parciales a projects/sprints`.
 - [ ] 1.9 `40/design.md:26-31` (D2) — marcar la fila de `tasks` como entregada por el 43; conservar la decisión para `projects`/`sprints`.
 - [ ] 1.10 `40/design.md:75` — `app/modules/{projects,sprints}/models.py`, sin `tasks`.
-- [ ] 1.11 `40/design.md:76` — `alembic/versions/0026_add_external_anchor_projects_sprints.py`.
-- [ ] 1.12 `40/design.md:116-121` — `down_revision` real (`0025`) y alcance de dos tablas, no tres.
+- [ ] 1.11 `40/design.md:76` — `alembic/versions/00NN_add_external_anchor_projects_sprints.py`, con `00NN` resuelto por la compuerta en el `apply` del 40.
+- [ ] 1.12 `40/design.md:116-121` — `down_revision` real (la cabeza en vivo en el momento del `apply` del 40, verificada con `alembic heads`; no un literal fijado hoy) y alcance de dos tablas, no tres.
 - [ ] 1.13 `40/specs/tasks/spec.md:3-6` (preámbulo) — reescribir: el delta ya no agrega el ancla, la consume; el ancla la entrega el 43, este delta agrega solo la reconciliación idempotente del importador.
 - [ ] 1.14 `40/specs/tasks/spec.md:10-22` — eliminar el requisito «Ancla de procedencia externa (source + external_key)» y sus 2 escenarios.
 - [ ] 1.15 `40/specs/tasks/spec.md:33-40` — eliminar «Clave local y clave externa conviven como referencias distintas» y su escenario.

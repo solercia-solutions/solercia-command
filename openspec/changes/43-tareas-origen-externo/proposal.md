@@ -26,7 +26,7 @@ La decisión de plataforma §5.5 exige **idempotencia obligatoria en la ingesti�
 - Costura de repositorio `TaskRepository.get_by_external_key(organization_id, source, external_key)` — el contrato de **lectura** que consumen 44 y 47.
 - Vocabulario cerrado en `backend/app/modules/tasks/sources.py` (`KNOWN_TASK_SOURCES` + `validate_task_source`) y **camino de escritura** `TaskService.create_task(..., *, external_origin=(source, external_key))`. **Corrección del diseño (D-G)**: originalmente diferido a 44/47 como nota de contrato, se implementa dentro del 43 porque sin él el validador de vocabulario nace sin llamador y el requisito de spec «Vocabulario de `source`» no queda satisfecho por nada.
 - Tipo del frontend: `source?: string | null` y `external_key?: string | null` en la interfaz `Task`.
-- Reanclaje documentado del cambio 40 (migración `0026`, alcance reducido a `projects`+`sprints`, repartición de requisitos de spec).
+- Reanclaje documentado del cambio 40 (migración `00NN`: el siguiente consecutivo libre en el momento del `apply` del 40, sin número reservado por adelantado; alcance reducido a `projects`+`sprints`, repartición de requisitos de spec).
 
 ### Out of Scope
 
@@ -137,7 +137,7 @@ Los importadores escriben el ancla por un **único camino interno**: `TaskServic
 
 | # | Riesgo | Prob. | Mitigación |
 |---|---|---|---|
-| R1 | Colisión de migraciones con el 40: doble `add_column` de `tasks.source`/`external_key` y fallo duro | Alta | Reanclaje del 40 como unidad de trabajo verificable dentro del 43 (D8): migración renombrada a `0026`, `tasks` eliminado de su alcance, `String(50)` alineado |
+| R1 | Colisión de migraciones con el 40: doble `add_column` de `tasks.source`/`external_key` y fallo duro | Alta | Reanclaje del 40 como unidad de trabajo verificable dentro del 43 (D8): migración renombrada a `00NN` —el siguiente consecutivo libre en el momento del `apply` del 40, verificado entonces con `alembic heads` y con los cambios pendientes; sin número reservado—, `tasks` eliminado de su alcance, `String(50)` alineado |
 | R2 | El modelo y la migración divergen sin que nadie lo note: `alembic check` 1.14.0 no compara `postgresql_where` ni `CheckConstraint` (falso negativo silencioso; corregido en el diseño, D-B) | Media | Declarar los dos objetos en `__table_args__` con el **mismo** `postgresql_where`, siguiendo `users/models.py:30-38`, y protegerlo con la prueba de equivalencia de DDL (`pg_get_indexdef`/`pg_get_constraintdef`) entre `create_all` y `upgrade head` |
 | R3 | El harness de pruebas construye el esquema con `create_all`, no con Alembic: una restricción solo en la migración no existiría en las pruebas | Media | Misma mitigación que R2. Es la razón por la que el espejado es obligatorio, no opcional |
 | R4 | `external_key` de 255 caracteres podría truncar un `internetMessageId` largo | Baja | Alineado con `intake_items.external_id`, que ya almacena ese valor en producción. La verificación con datos reales es tarea del 47 |
@@ -149,7 +149,7 @@ Los importadores escriben el ancla por un **único camino interno**: `TaskServic
 
 - **Cambio 42 (`purga-datos-demo`) archivado antes del `apply` del 43.** Su `state.yaml:55` excluye explícitamente `tasks.source`/`external_key` y declara que bloquea al 43. Además deja la base en 1 organización, 1 usuario, `SDMUJER > SEGURIDAD + PANDORA` y **0 tareas**, que es la precondición que hace trivial esta migración.
 - **Cambio 40 reanclado** (D8) antes de que el 40 llegue a `apply`.
-- Cabeza de Alembic en disco: `0024` (`0024_add_work_calendar.py`). El 43 toma `0025`; el 40 pasa a `0026`.
+- Cabeza de Alembic en disco: `0024` (`0024_add_work_calendar.py`). El 43 toma `0025`. **Al 40 no se le reserva ningún número**: toma el siguiente consecutivo libre en el momento de su propio `apply` (hoy sería `0029` si el 44 —`0026` y `0027`— y el 45a —`0028`— aterrizan antes).
 - El 43 **bloquea** al 44 (importador de checklist) y al 47 (ingesta de correo).
 
 ## Success Criteria
@@ -161,7 +161,7 @@ Los importadores escriben el ancla por un **único camino interno**: `TaskServic
 - [ ] **Gate real del espejado**: `test_create_all_and_migration_declare_the_same_anchor_ddl` en verde (compara `pg_get_indexdef` y `pg_get_constraintdef` entre `create_all` y `upgrade head`). `test_migrations_baseline.py::test_alembic_check_reports_no_diff_after_upgrade` se conserva **sin cambios** como guardia de existencia por nombre, no como gate del predicado ni del `CHECK` (D-B).
 - [ ] Sin regresión frente a la línea base **1411 pasadas / 3 fallidas preexistentes** (`tests/test_adapter_microsoft365.py`, dependientes del reloj), con `TEST_DATABASE_URL` configurada. Sin esa variable, `skip_no_db` salta 898 pruebas y la corrida no sirve de referencia.
 - [ ] `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_migration_task_external_origin.py tests/test_tasks_external_origin.py tests/test_migrations_baseline.py`
-- [ ] `openspec/changes/40-jira-import-usuario/` reanclado: migración `0026`, `tasks` fuera de su alcance, `String(50)` alineado, y los dos requisitos de spec movidos al 43 sin dejar duplicado.
+- [ ] `openspec/changes/40-jira-import-usuario/` reanclado: migración `00NN` (consecutivo libre resuelto en el `apply` del 40, sin reserva), `tasks` fuera de su alcance, `String(50)` alineado, y los dos requisitos de spec movidos al 43 sin dejar duplicado.
 
 ## Carga de revisión
 

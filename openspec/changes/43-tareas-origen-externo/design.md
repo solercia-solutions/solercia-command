@@ -904,16 +904,16 @@ el 40 llegue a `apply` y **antes** de cualquier `sdd-archive` de 40 o 43.
 |---|---|
 | `40/tasks.md:47` (fila U1) | Reducir el objetivo y el mensaje de commit a `projects`+`sprints`; restar ≈40–60 líneas de la estimación de la unidad |
 | `40/tasks.md:59` (0.4) | El head real ya no es `0021_unique_org_member`: en disco es `0024`, y tras el 43 será `0025` |
-| `40/tasks.md:60` (0.5) | El próximo consecutivo libre no es `0022`: es `0026` |
-| `40/tasks.md:64` (1.1) | Renombrar a `0026_add_external_anchor_projects_sprints.py`; **eliminar** `tasks` de la lista de tablas y el índice `uq_tasks_project_source_external_key` de la de índices (el 43 lo entrega con otro nombre y otro orden de columnas: `uq_tasks_source_external_key_project`); alinear `source` de `VARCHAR(20)` a `String(50)` (D3) |
+| `40/tasks.md:60` (0.5) | El próximo consecutivo libre no es `0022`: es **el siguiente consecutivo libre en el momento del `apply` del 40**, verificado entonces con `alembic heads` y con los cambios pendientes (hoy sería `0029` si el 44 y el 45a aterrizan antes). **No se reserva ningún número por adelantado**: un `down_revision` hacia una revisión que nadie ha escrito rompe `alembic upgrade head` en despliegue |
+| `40/tasks.md:64` (1.1) | Renombrar a `00NN_add_external_anchor_projects_sprints.py`, con `00NN` resuelto por la compuerta en el `apply` del 40; **eliminar** `tasks` de la lista de tablas y el índice `uq_tasks_project_source_external_key` de la de índices (el 43 lo entrega con otro nombre y otro orden de columnas: `uq_tasks_source_external_key_project`); alinear `source` de `VARCHAR(20)` a `String(50)` (D3) |
 | `40/tasks.md:65` (1.2) | Quitar `backend/app/modules/tasks/models.py` de la lista de modelos a editar |
 | `40/tasks.md:66` (1.3) | `test_external_anchor_migration.py` pierde las aserciones sobre `tasks` (las cubre `test_migration_task_external_origin.py` del 43) |
 | `40/tasks.md:68-69` (1.5, 1.6) | `TaskRead` ya expone ambos campos: pasan de RED/GREEN a **verificación** de que siguen expuestos |
 | `40/tasks.md:72` (Commit 1) | Mensaje → `feat(anchors): agrega source/external_key con únicos parciales a projects/sprints` |
 | `40/design.md:26-31` (D2) | Marcar la fila de `tasks` como **entregada por el 43**; conservar la decisión para `projects`/`sprints` |
 | `40/design.md:75` | `app/modules/{projects,sprints}/models.py` — sin `tasks` |
-| `40/design.md:76` | `alembic/versions/0026_add_external_anchor_projects_sprints.py` |
-| `40/design.md:116-121` | `down_revision` real (`0025`) y alcance de **dos** tablas, no tres |
+| `40/design.md:76` | `alembic/versions/00NN_add_external_anchor_projects_sprints.py`, con `00NN` resuelto por la compuerta en el `apply` del 40 |
+| `40/design.md:116-121` | `down_revision` real (la cabeza en vivo en el momento del `apply` del 40, verificada con `alembic heads`; nunca un literal fijado hoy) y alcance de **dos** tablas, no tres |
 | `40/specs/tasks/spec.md:3-6` (preámbulo) | **Reescribir**: hoy dice que el delta «AGREGA el ancla de procedencia externa». Tras el traslado el delta ya no agrega el ancla — la **consume**. Debe decir que el ancla la entrega el cambio 43 y que este delta agrega sólo la reconciliación idempotente del importador. Sin esta edición el preámbulo contradice el cuerpo del propio archivo |
 | `40/specs/tasks/spec.md:10-22` | **Eliminar** el requisito «Ancla de procedencia externa (source + external_key)» y sus 2 escenarios: reescrito y trasladado al 43 (D7) |
 | `40/specs/tasks/spec.md:33-40` | **Eliminar** «Clave local y clave externa conviven como referencias distintas» y su escenario: trasladado al 43 |
@@ -942,8 +942,10 @@ funcionalidad, sin ventana de mantenimiento.
   resolver. Es la razón por la que este es el momento exacto para agregar la restricción.
 - **Reversa completa**: `alembic downgrade -1`. Ambas columnas son nulables, así que ninguna fila
   existente cambia al subir ni al bajar.
-- **Cabeza de Alembic**: `0024` en disco hoy; el 43 toma `0025`; el 40, tras el reanclaje, `0026`.
-  El gate `0.4` del 40 (`40/tasks.md:59`) debe re-verificar el head en vivo antes de fijarlo.
+- **Cabeza de Alembic**: `0024` en disco hoy; el 43 toma `0025`. **Ningún número queda reservado al
+  40**: tras el reanclaje toma el siguiente consecutivo libre en el momento de su propio `apply`
+  (hoy sería `0029` si el 44 —`0026` y `0027`— y el 45a —`0028`— aterrizan antes). El gate `0.4` del
+  40 (`40/tasks.md:59`) debe verificar el head en vivo y los cambios pendientes antes de fijarlo.
 - **Frontend**: dos propiedades opcionales de una interfaz. Sin build especial, sin migración de
   datos en cliente, sin cambio visible para el usuario.
 - **Desbloqueo**: al terminar el 43 — en rigor, al terminar la rebanada **B**; la C es opcional — el
