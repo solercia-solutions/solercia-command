@@ -15,11 +15,13 @@ artifacts:
   specs: true
   tasks: false
 spec_counts:
-  # Conteo autoritativo por encabezados en disco (rg '^### Requirement' / '^#### Scenario'), 2026-08-27
+  # Conteo autoritativo por encabezados en disco (rg '^### Requirement' / '^#### Scenario'), 2026-08-26
+  # Corrida correctiva de sdd-spec: json_schema -> output_schema (D1) y max_tokens opcional en el
+  # DTO / obligatorio en el alambre (D2), con un escenario nuevo para el invariante de Anthropic.
   requirements: 12
-  scenarios: 29
+  scenarios: 30
   by_domain:
-    llm-port: { requirements: 8, scenarios: 20 }
+    llm-port: { requirements: 8, scenarios: 21 }
     assistant-health: { requirements: 4, scenarios: 9 }
 capabilities:
   new:

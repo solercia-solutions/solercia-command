@@ -8,7 +8,7 @@ Puerto neutro para completions de modelos de lenguaje (`LlmPort`) con tres adapt
 
 ### Requirement: Contrato del puerto y DTOs congelados
 
-El sistema DEBE exponer `LlmPort` con un único método asíncrono `complete(request: LlmRequest) -> LlmResponse`. `LlmRequest` DEBE incluir `system`, `messages` (rol en `{system, user, assistant}` y `content`), `json_schema` opcional, `temperature` opcional, `max_tokens` obligatorio y `timeout_seconds` opcional. `LlmResponse` DEBE incluir `text`, `parsed` (solo si se pidió esquema y validó localmente), `usage` (tokens de entrada y salida), `provider`, `model`, `prompt_version`, `latency_ms` y `finish_reason` en `{stop, length, refusal, tool}`. Ambos DTOs DEBEN ser inmutables (frozen dataclasses).
+El sistema DEBE exponer `LlmPort` con un único método asíncrono `complete(request: LlmRequest) -> LlmResponse`. `LlmRequest` DEBE incluir `system`, `messages` (rol en `{system, user, assistant}` y `content`), `output_schema` opcional como tipo de modelo Pydantic (`type[BaseModel] | None`), `temperature` opcional, `max_tokens` opcional (`int | None`, resuelto por el adaptador contra `settings.LLM_MAX_TOKENS` cuando es `None`) y `timeout_seconds` opcional. `LlmResponse` DEBE incluir `text`, `parsed` (instancia del modelo pedido en `output_schema`, presente solo si se pidió esquema y validó localmente), `usage` (tokens de entrada y salida), `provider`, `model`, `prompt_version`, `latency_ms` y `finish_reason` en `{stop, length, refusal, tool}`. Ambos DTOs DEBEN ser inmutables (frozen dataclasses).
 
 #### Scenario: Petición mínima produce una respuesta completa
 - DADO un `LlmRequest` con `system`, un mensaje `user` y `max_tokens=200`
@@ -41,26 +41,26 @@ El sistema DEBE resolver un único adaptador activo por proceso desde `settings.
 
 ### Requirement: Adaptador fake sin red
 
-El adaptador `fake` DEBE completar sin abrir ninguna conexión y DEBE aceptar respuestas inyectables para pruebas de contrato. Con `json_schema`, DEBE validar localmente con Pydantic v2 y devolver `parsed` solo si valida; si no valida, DEBE lanzar `llm_schema_mismatch`.
+El adaptador `fake` DEBE completar sin abrir ninguna conexión y DEBE aceptar respuestas inyectables para pruebas de contrato. Con `output_schema`, DEBE validar localmente con Pydantic v2 y devolver `parsed` (instancia del modelo pedido) solo si valida; si no valida, DEBE lanzar `llm_schema_mismatch`.
 
 #### Scenario: Esquema válido devuelve parsed
-- DADO un `json_schema` y una respuesta inyectada que lo cumple
+- DADO un `output_schema` (modelo Pydantic) y una respuesta inyectada que lo cumple
 - CUANDO se invoca `complete()`
-- ENTONCES `parsed` no es `None` y coincide con el esquema
+- ENTONCES `parsed` es una instancia de `output_schema` con los valores validados
 
 #### Scenario: Esquema incumplido falla explícito
-- DADO un `json_schema` y una respuesta inyectada que lo incumple
+- DADO un `output_schema` (modelo Pydantic) y una respuesta inyectada que lo incumple
 - CUANDO se invoca `complete()`
 - ENTONCES se lanza `llm_schema_mismatch` (502), nunca un `parsed` inválido
 
 ### Requirement: Adaptador openai_compatible
 
-El adaptador DEBE enviar `POST {base_url}/chat/completions` con `model`, `messages`, `temperature`, `max_tokens`, `stream=false`. La forma del cuerpo estructurado DEBE seleccionarse por `LLM_JSON_MODE` en `{json_schema_openai, json_schema_llamacpp, json_object}`. DEBE parsear `choices[0].message.content` y `usage`, validar localmente cuando se pidió esquema, y mapear: 401/403 → `llm_auth_error`; 429 → `llm_rate_limited` tras reintentos acotados respetando `Retry-After`; 5xx o error de conexión → `llm_unavailable`; timeout → `llm_timeout`; JSON de respuesta inválido → `llm_invalid_output`. Los reintentos DEBEN ser deterministas (`LLM_MAX_RETRIES`, techo `LLM_MAX_BACKOFF_SECONDS`), nunca decididos por el modelo.
+El adaptador DEBE enviar `POST {base_url}/chat/completions` con `model`, `messages`, `temperature`, `max_tokens`, `stream=false`. La forma del cuerpo estructurado DEBE seleccionarse por `LLM_JSON_MODE` en `{json_schema_openai, json_schema_llamacpp, json_object}`. DEBE parsear `choices[0].message.content` y `usage`, derivar el esquema de alambre desde `output_schema.model_json_schema()` y validar localmente con `output_schema.model_validate(...)` cuando se pidió esquema, y mapear: 401/403 → `llm_auth_error`; 429 → `llm_rate_limited` tras reintentos acotados respetando `Retry-After`; 5xx o error de conexión → `llm_unavailable`; timeout → `llm_timeout`; JSON de respuesta inválido → `llm_invalid_output`. Los reintentos DEBEN ser deterministas (`LLM_MAX_RETRIES`, techo `LLM_MAX_BACKOFF_SECONDS`), nunca decididos por el modelo.
 
 #### Scenario: json_schema_llamacpp usa el esquema al nivel superior
-- DADO `LLM_JSON_MODE="json_schema_llamacpp"` y un `json_schema`
+- DADO `LLM_JSON_MODE="json_schema_llamacpp"` y un `output_schema` (modelo Pydantic)
 - CUANDO se invoca `complete()`
-- ENTONCES el cuerpo enviado lleva el esquema sin anidar bajo `json_schema`
+- ENTONCES el cuerpo enviado lleva el esquema derivado de `output_schema.model_json_schema()` sin anidar bajo `json_schema`
 
 #### Scenario: 429 agota reintentos y falla
 - DADO un `MockTransport` que responde 429 con `Retry-After` hasta agotar `LLM_MAX_RETRIES`
@@ -74,7 +74,7 @@ El adaptador DEBE enviar `POST {base_url}/chat/completions` con `model`, `messag
 
 ### Requirement: Adaptador anthropic sobre el SDK oficial
 
-El adaptador DEBE usar `AsyncAnthropic` con importación perezosa (el paquete `anthropic` NO DEBE estar en `sys.modules` cuando `LLM_PROVIDER` es distinto de `anthropic`). DEBE enviar `system` de nivel superior y `max_tokens` obligatorio, SIN reenviar `temperature`. La salida estructurada DEBE usar `output_config.format` o `messages.parse`, con validación local. `stop_reason` DEBE mapearse: `end_turn` → `finish_reason="stop"`; `max_tokens` → `finish_reason="length"` (y `llm_invalid_output` si se pidió esquema y no se completó); `refusal` (HTTP 200) → `llm_content_filtered` (422). Las excepciones tipadas del SDK DEBEN mapearse a la taxonomía del puerto. Reintentos y timeout DEBEN delegarse al SDK (`LLM_MAX_RETRIES`, `LLM_TIMEOUT_SECONDS`), sin backoff propio.
+El adaptador DEBE usar `AsyncAnthropic` con importación perezosa (el paquete `anthropic` NO DEBE estar en `sys.modules` cuando `LLM_PROVIDER` es distinto de `anthropic`). DEBE enviar `system` de nivel superior y `max_tokens` como entero obligatorio en el cuerpo de la petición (resuelto desde `request.max_tokens` o, si el DTO lo omite, desde `settings.LLM_MAX_TOKENS`), SIN reenviar `temperature`. La salida estructurada DEBE usar `output_config.format` o `messages.parse(output_format=output_schema)`, con validación local mediante `output_schema.model_validate(...)`. `stop_reason` DEBE mapearse: `end_turn` → `finish_reason="stop"`; `max_tokens` → `finish_reason="length"` (y `llm_invalid_output` si se pidió esquema y no se completó); `refusal` (HTTP 200) → `llm_content_filtered` (422). Las excepciones tipadas del SDK DEBEN mapearse a la taxonomía del puerto. Reintentos y timeout DEBEN delegarse al SDK (`LLM_MAX_RETRIES`, `LLM_TIMEOUT_SECONDS`), sin backoff propio.
 
 #### Scenario: Aislamiento de dependencia con otro proveedor activo
 - DADO `LLM_PROVIDER="fake"` durante la suite de pruebas
@@ -87,7 +87,7 @@ El adaptador DEBE usar `AsyncAnthropic` con importación perezosa (el paquete `a
 - ENTONCES se lanza `llm_content_filtered` (422), nunca una respuesta con texto parcial como válida
 
 #### Scenario: max_tokens con esquema pedido trunca de forma explícita
-- DADO `json_schema` presente y `stop_reason="max_tokens"`
+- DADO `output_schema` presente y `stop_reason="max_tokens"`
 - CUANDO se invoca `complete()`
 - ENTONCES se lanza `llm_invalid_output` (502) en vez de un `parsed` a partir de JSON incompleto
 
@@ -95,6 +95,11 @@ El adaptador DEBE usar `AsyncAnthropic` con importación perezosa (el paquete `a
 - DADO `LLM_PROVIDER="anthropic"` y `LLM_API_KEY=""`
 - CUANDO se resuelve el adaptador activo
 - ENTONCES se lanza `llm_config_invalid` (422) antes de instanciar el cliente del SDK
+
+#### Scenario: max_tokens ausente en el DTO resuelve el valor configurado en el alambre
+- DADO un `LlmRequest` con `max_tokens=None`
+- CUANDO se invoca `complete()` contra el adaptador `anthropic`
+- ENTONCES el cuerpo de la petición a Anthropic lleva `max_tokens` como entero igual a `settings.LLM_MAX_TOKENS`
 
 ### Requirement: Guarda de destino por allowlist
 
