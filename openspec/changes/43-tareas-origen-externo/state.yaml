@@ -1,0 +1,208 @@
+change: 43-tareas-origen-externo
+artifact_store: hybrid
+depends_on:
+  - 42-purga-datos-demo
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+spec_counts:
+  tasks:
+    added:
+      requirements: 11
+      scenarios: 26
+    modified:
+      requirements: 0
+      scenarios: 0
+    removed:
+      requirements: 0
+    total_requirements: 11
+    total_scenarios: 26
+capabilities:
+  new: []
+  modified:
+    - tasks
+target_capabilities:
+  - tasks
+constraints:
+  - migracion-estrictamente-aditiva-ambas-columnas-nulables
+  - restricciones-espejadas-en-table-args-con-el-mismo-postgresql-where
+  - equivalencia-de-ddl-probada-como-gate-real-del-espejado-alembic-check-solo-existencia-por-nombre
+  - source-y-external-key-inmutables-por-api-fuera-de-taskcreate-y-taskupdate
+  - source-como-string-libre-validado-en-servicio-nunca-saenum
+  - tarea-manual-deja-ambas-columnas-null-sin-centinela
+  - unicidad-por-proyecto-en-el-motor-org-wide-en-el-servicio
+  - unicidad-del-motor-solo-sobre-filas-activas-el-borrado-suave-libera-el-ancla
+  - toda-lectura-por-ancla-pasa-por-get-by-external-key-con-organization-id
+  - toda-escritura-del-ancla-pasa-por-create-task-con-external-origin-keyword-only
+  - prohibido-denormalizar-organization-id-en-tasks
+  - source-de-conector-igual-a-connector-provider
+  - sin-retrollenado-la-base-tiene-cero-tareas-tras-el-42
+  - sin-task-history-para-campos-inmutables
+  - filtros-fuera-de-sortable-fields
+  - frontend-solo-el-tipo-sin-insignia
+  - tdd-estricto-pytest
+boundary:
+  - "Migración 0025_add_task_external_origin (down_revision 0024): tasks.source VARCHAR(50) NULL y tasks.external_key VARCHAR(255) NULL"
+  - "CHECK ck_tasks_external_key_requires_source: external_key IS NULL OR source IS NOT NULL («clave exige origen»)"
+  - "Único parcial uq_tasks_source_external_key_project (source, external_key, project_id) WHERE source IS NOT NULL AND external_key IS NOT NULL AND is_active. El orden (source, external_key) como prefijo sirve además a la búsqueda org-wide, así que NO hay índice de apoyo: son DOS objetos de esquema, no tres (D-A). El AND is_active hace que una tarea con borrado suave libere su ancla (D-I)"
+  - "Los DOS objetos espejados en Task.__table_args__ con el mismo postgresql_where, porque el harness construye el esquema con Base.metadata.create_all. El gate real del espejado es test_create_all_and_migration_declare_the_same_anchor_ddl, NO alembic check (D-B)"
+  - "Camino de escritura del ancla: TaskService.create_task(..., *, external_origin=(source, external_key)) keyword-only, ausente de TaskCreate e invisible al router. Valida el vocabulario, comprueba la unicidad org-wide con get_by_external_key y persiste en el MISMO INSERT; si el ancla ya está activa en la organización lanza AppException code=task_external_anchor_conflict status_code=409 sin insertar (D-G)"
+  - "Exposición de solo lectura: TaskRead.source y TaskRead.external_key como str | None = None; llegan gratis a TaskService._to_read y DashboardService._to_read por model_validate + from_attributes"
+  - "Filtros de igualdad exacta ?source= y ?external_key= por la cadena router -> service -> repository; NO se agregan a SORTABLE_FIELDS"
+  - "Costura de repositorio TaskRepository.get_by_external_key(organization_id, source, external_key) con JOIN Project, filtro de tenant, Project.is_active y Task.is_active, orden determinista (created_at asc, id asc) y limit(1): es el contrato de lectura que consumen 44 y 47"
+  - "Frontend: source?: string | null y external_key?: string | null en la interfaz Task de frontend/src/entities/workspace/workspace.model.ts; TaskDetail los hereda"
+  - "Reanclaje del cambio 40 como unidad de trabajo de artefactos: migración renombrada a 0026_add_external_anchor_projects_sprints, tasks fuera de su alcance, source alineado a String(50), y traslado al 43 de los requisitos «Ancla de procedencia externa» y «Clave local y externa conviven». Incluye reescribir el preámbulo 40/specs/tasks/spec.md:3-6, la referencia :45 y la nota 40/state.yaml:76, que hoy siguen diciendo que el 40 entrega el ancla"
+  - "Fuera de alcance: is_context y merge_into como columnas (los declara el 44), endpoint dedicado GET /tasks/by-external-key, insignia de UI, cambios en TaskCreate/TaskUpdate, task_history, reconciliación idempotente (se queda en el 40) y retrollenado de datos"
+module_decision:
+  - "D1 (Q1) Unicidad org-wide en el SERVICIO, no en el motor (opción E de la exploración §3.3): garantía dura por proyecto en BD más búsqueda org-wide en el repositorio antes de insertar. Descartadas: solo por proyecto sin seam (no cubre el caso real), denormalizar organization_id (prohibido por el ADR y por D2 del 40), tabla puente task_external_anchors (desproporcionada), trigger o EXCLUDE (PostgreSQL no admite subconsultas y esconde lógica en el motor)"
+  - "D2 (Q2) CHECK de «clave exige origen» (external_key IS NULL OR source IS NOT NULL), no de par estricto (source IS NULL) = (external_key IS NULL). Cierra el agujero silencioso donde (P, NULL, 'T-05') duplicado no colisiona, sin prohibir registrar procedencia sin clave estable"
+  - "D3 (Q3) source como String(50) y external_key como String(255), nunca SAEnum. Precedentes: connectors.provider String(50) «deliberately NOT a PG enum», intake_items.source_provider String(50), intake_items.external_id String(255), tasks.status String(60) validado por la strategy. El VARCHAR(20) que fijaba 40/tasks.md:64 se realinea"
+  - "D4 (Q4) Tarea manual deja ambas columnas NULL; no se usa centinela 'manual'. Evita retrollenado, respeta la semántica del índice parcial y no mete un valor falso en el espacio de claves"
+  - "D5 (Q5) Endpoint dedicado diferido; en el 43 solo filtros ?source= y ?external_key=. Los consumidores 44 y 47 son importadores de backend que llaman al repositorio. Si alguna vez se agrega, será con query params y nunca con path: un internetMessageId de Outlook tiene forma <...@...> y admite /"
+  - "D6 (Q6) Insignia de UI diferida al 44; el 43 aporta solo los dos campos opcionales del tipo. Tras el 43 no existe ni una sola tarea anclada (el 42 dejó 0 tareas), sería interfaz muerta imposible de verificar, el 44 sabe cómo etiquetarla y tocar task-modal obligaría a una pasada de UX sobre un componente que no gana información"
+  - "D7 (Q7) El 43 asume los requisitos «Ancla de procedencia externa» y «Clave local y externa conviven como referencias distintas»; el 40 conserva «Reconciliación idempotente por procedencia externa» porque es comportamiento del importador. Sin esta repartición sdd-archive fusionaría el mismo requisito dos veces"
+  - "D8 (Q8) El reanclaje del 40 se hace dentro del 43 como unidad de trabajo de artefactos OpenSpec: no cuenta contra el presupuesto de revisión pero debe ser tarea explícita y verificable, porque es la mitigación de R1"
+  - "D9 (Q9) source y external_key NO se agregan a _HISTORY_TRACKED_FIELDS: son inmutables por API, así que el diff sería siempre vacío"
+  - "D-INM Inmutabilidad por API: source y external_key fuera de TaskCreate y TaskUpdate por tres razones independientes — seguridad (un cliente podría pre-crear ('checklist_xlsx','T-05') y secuestrar la fila del importador), integridad (un PATCH que viole el único daría IntegrityError -> 500 porque update_task no lo captura) y la regla de persistencia que prohíbe controladores genéricos sobre recursos de tenant. Corregir un ancla es operación de mantenimiento en backend/app/maintenance/"
+  - "D-A (design, CORREGIDA en la pasada correctiva) Forma exacta: DOS objetos, no tres — uq_tasks_source_external_key_project (source, external_key, project_id) WHERE source IS NOT NULL AND external_key IS NOT NULL AND is_active + ck_tasks_external_key_requires_source CHECK (external_key IS NULL OR source IS NOT NULL). El índice de apoyo ix_tasks_source_external_key SE ELIMINA: con el orden (source, external_key, project_id) la unicidad por proyecto es la misma y el prefijo (source, external_key) sirve además a la búsqueda org-wide de get_by_external_key, así que el segundo índice era escritura, mantenimiento, espejado y prueba de más. El CHECK es lo que vuelve sana la semántica del parcial: toda fila con clave tiene origen, luego toda fila con clave cae dentro del predicado. Es el PRIMER CheckConstraint del repositorio (cero apariciones de CheckConstraint/op.create_check_constraint en backend/); nombre explícito porque Base no declara naming_convention"
+  - "D-B (design) El gate alembic check NO cubre el espejado completo. Verificado sobre alembic==1.14.0 instalado: autogenerate/compare.py no tiene comparador de CheckConstraint (cero apariciones) y ddl/postgresql.py:322-380 compare_indexes sólo compara unicidad, expresiones y _dialect_options (:313-320, sólo postgresql_nulls_not_distinct) — NO compara postgresql_where. El gate sólo detecta ausencia del índice por nombre/columnas/unicidad. El riesgo real es un falso NEGATIVO silencioso (create_all probaría una regla distinta de producción). Mitigación: test_create_all_and_migration_declare_the_same_anchor_ddl compara pg_get_indexdef y pg_get_constraintdef entre dos bases desechables (una por alembic upgrade 0025, otra por Base.metadata.create_all). NO se comparte una constante entre modelo y migración: cero migraciones importan app.* (verificado sobre las 24)"
+  - "D-C (design, CORREGIDA en la pasada correctiva) Vocabulario en backend/app/modules/tasks/sources.py (módulo nuevo, precedente de estructura activity/recorder.py): KNOWN_TASK_SOURCES: Final[frozenset[str]] + validate_task_source(value) -> str que lanza AppException 422 code=invalid_task_source sin hacer eco del valor. Contenido: OCHO valores — checklist_xlsx más los SIETE provider registrados microsoft365, google, jira, glpi, mcp, fake y solercia_connect. solercia_connect faltaba en la versión anterior: declara PROVIDER='solercia_connect' (adapters/solercia_connect/adapter.py:53), se registra en adapters/solercia_connect/__init__.py:14 y app/db_init.py:36 lo importa; como intake/service.py:295 escribe source_provider=connector.provider sin filtrar, su omisión era un 422 latente. planner NO está, con comentario. Descartado leer app.integrations.registry._ADAPTERS (se puebla en tiempo de importación, crearía dependencia tasks -> integrations, y checklist_xlsx no es conector) y descartada constante dentro de service.py (~970 líneas para leer un frozenset desde 44/47). La deriva se cubre con una GUARDIA de prueba: tras import app.db_init, {a.provider for a in _ADAPTERS.values()} <= KNOWN_TASK_SOURCES (subconjunto, no igualdad). La prueba importa integrations; el módulo tasks sigue sin importarlo"
+  - "D-D (design, matizada) SIN envoltorio de LECTURA en el servicio: no se agrega TaskService.find_by_external_key porque nacería sin llamador (create_task consume el repositorio directamente) y ningún requisito de spec lo pide. El repositorio ES el puerto de lectura del agregado (regla de persistencia: métodos semánticos por agregado con tenant obligatorio). La ESCRITURA sí tiene caso de uso en el servicio: es D-G. Precedente de consumo cruzado: TaskService instancia SprintRepository(self.repo.db) en service.py:931. Desviación preexistente respetada: TaskRepository.create/save SÍ comitean (repository.py:229-242) contra la regla; el 43 no la corrige ni la empeora — el ancla viaja en el mismo INSERT, sin estado intermedio observable"
+  - "D-E (design, ARGUMENTO CORREGIDO) get_by_external_key usa .order_by(Task.created_at.asc(), Task.id.asc()).limit(1) + .scalars().first(). Corrección: con LIMIT 1, scalar_one_or_none() TAMBIÉN sería seguro — no puede lanzar MultipleResultsFound sobre una sola fila. La razón real de .first()/limit(1) es tolerar de forma determinista varias filas legítimas (misma ancla en proyectos distintos de la misma organización, que la spec exige que funcione) sin depender de que un lector futuro entienda que el LIMIT es lo que vuelve seguro al scalar_one_or_none. El desempate por id evita empates de created_at al milisegundo dentro de una misma transacción: dos llamadas consecutivas devuelven siempre la misma fila y una reimportación reconcilia contra el registro original"
+  - "D-F (design) Los campos extra se IGNORAN, no se rechazan: verificado que TaskCreate (schemas.py:13-59), TaskUpdate (:62-92) y TaskRead (:95-153) no declaran extra='forbid'; TaskRead sólo declara ConfigDict(from_attributes=True) (:98). No se agrega extra='forbid' porque cambiaría el contrato para TODO campo desconocido del endpoint, no sólo para estos dos. La protección es estructural: model_dump(exclude_unset=True) en service.py:422 nunca ve un campo que el esquema no declara"
+  - "D-G (design, IMPLEMENTADA en la pasada correctiva; antes diferida) Camino de escritura del ancla DENTRO del 43: TaskService.create_task(self, organization_id, project_id, data: TaskCreate, *, actor_id=None, external_origin: tuple[str, str] | None = None). Keyword-only, ausente de TaskCreate y no pasado por el router: inalcanzable por HTTP, D-INM intacto. Cuando viene informado: valida con validate_task_source (422 invalid_task_source), comprueba unicidad org-wide con self.repo.get_by_external_key y, si ya hay una tarea activa con ese ancla en la organización, lanza AppException code=task_external_anchor_conflict status_code=409 SIN insertar; si no, asigna source/external_key al objeto Task ANTES de repo.create, de modo que el ancla entra en el mismo INSERT. Se implementa y no se difiere porque (1) validate_task_source nacía sin un solo llamador y el requisito de spec «Vocabulario de source» no quedaba satisfecho por nada, (2) las pruebas de exposición y de la costura tendrían que anclar con UPDATE crudo, probando contra un camino que la aplicación no usa, y (3) cierra R9 en vez de mitigarlo. Código en lower_snake_case como los 25 códigos vigentes de tasks/service.py, no en MAYÚSCULAS. Alternativas rechazadas: UPDATE posterior (ventana de duplicación), ancla en TaskCreate (rompe D-INM), create_imported_task aparte (duplicaría ~80 líneas de validación de metodología/jerarquía/estimación)"
+  - "D-I (design, NUEVA en la pasada correctiva) Una tarea con borrado suave LIBERA su ancla: el predicado del único parcial incluye AND is_active. Secuencia de fallo que lo motivó: importar ('jira','PROJ-1') -> borrado suave -> reimportar -> get_by_external_key devuelve None (excluye is_active=false) pero el INSERT choca con el índice -> UniqueViolation -> 500 sin salida, porque el proyecto prohíbe el delete físico. La costura y el índice discrepaban sobre qué significa «ocupado»; con AND is_active cubren el mismo conjunto de filas. Alternativas rechazadas: incluir borradas en la costura (rompe la convención de todo el repositorio y resucitaría tareas borradas a propósito), capturar UniqueViolation en el importador (convierte un caso normal en error a traducir) y usar deleted_at en vez de is_active (columna que ninguna lectura consulta). SALVEDAD: hoy NO existe ruta de restauración de tareas (verificado: tasks/service.py:645 sólo pone is_active=False; las reactivaciones de task_links/connectors/glpi_sync son de otros agregados). Si alguna vez se agrega, DEBE comprobar el ancla con get_by_external_key antes de reactivar; registrado como R10"
+  - "D-H (design) Frontend sin prueba de tipos, verificado con npm run build. Razones concretas: frontend/package.json:5-11 no define script de pruebas ni runner; tsconfig.app.json:7-10 declara files=['src/main.ts'] e include=['src/**/*.d.ts'], así que un archivo suelto de aserciones de tipo NUNCA se compilaría (falsa cobertura); y agregar dos propiedades opcionales es aditivo puro que no puede romper la compilación. La existencia del contrato la prueba el backend (escenarios 11 y 12)"
+facts_verified:
+  - "Task.__table_args__ (tasks/models.py:43-58) tiene HOY solo dos índices GIN trigram (ix_tasks_title_trgm, ix_tasks_description_trgm) y CERO restricciones únicas"
+  - "tasks NO tiene organization_id: el tenant es transitivo por project_id vía JOIN a Project, documentado en el docstring del módulo (tasks/models.py:1-8) y del repositorio (repository.py:1-5)"
+  - "TaskCreate (schemas.py:13-59) y TaskUpdate (schemas.py:62-92) no incluyen source ni external_key; TaskUpdate tampoco acepta project_id y el servicio nunca lo reasigna, así que hoy una tarea NO puede moverse entre proyectos por la API (verificado sobre las 29 apariciones de project_id en service.py)"
+  - "TaskService._to_read (service.py:954-969) y DashboardService._to_read (dashboard/service.py:469-473) usan TaskRead.model_validate(task) sin mapeo manual, con ConfigDict(from_attributes=True): agregar campos al esquema los expone en todos los consumidores con cero cambios de servicio"
+  - "No existe clase TaskFilters: los filtros son Query sueltos en router.py:44-121, reenviados por service.py:67-156 y aplicados en repository.py:42-125. SORTABLE_FIELDS (repository.py:26-33) contiene order, title, status, priority, due_date, created_at"
+  - "No existe búsqueda por clave externa en el repositorio: las lecturas puntuales son get, get_by_ids, get_by_project_and_number y list_for_org"
+  - "Precedente de ancla de procedencia: IntakeItem (intake/models.py:39-71) con source_provider String(50) indexado, external_id String(255) indexado y UNIQUE(organization_id, connector_id, external_id)"
+  - "Al convertir un intake_item en tarea (intake/service.py:560-580) NO se ancla nada: solo item.created_task_id = task.id y la línea de texto f\"Origen: {item.source_provider} — {item.origin_actor}\" (:177-185). La trazabilidad actual es texto libre más FK inversa"
+  - "Cabeza real de Alembic en disco: 0024 (0024_add_work_calendar.py:38-39, down_revision=\"0023\"). Siguiente número libre: 0025. 24 archivos con convención 00NN_verbo_sustantivo.py"
+  - "Patrón aditivo canónico: 0022_add_project_kind.py (docstring que cita el cambio, op.add_column, server_default solo si NOT NULL y luego alter_column(server_default=None)). NO hay batch_alter_table en ninguna migración: PostgreSQL exclusivo"
+  - "Índices únicos parciales ya establecidos y aprobados por el gate: 0017:58-63 (uq_users_numero_documento con postgresql_where), 0018:89-101 (dos parciales complementarios) y 0023:416-421"
+  - "Regla dura verificada: el índice parcial debe declararse TAMBIÉN en el modelo ORM (nota explícita en users/models.py:30-38 y org_role_templates/models.py:36-51) porque tests/conftest.py:43-84 construye el esquema con Base.metadata.create_all, no con Alembic"
+  - "Gate automático: tests/test_migrations_baseline.py:192-214 (test_alembic_check_reports_no_diff_after_upgrade) ejecuta alembic check y falla ante cualquier diff modelo↔migración"
+  - "Patrón literal de prueba de migración aislada: test_migration_project_kind.py:73-244 (base desechable, upgrade a head-1, siembra por SQL crudo con asyncpg, upgrade, aserciones sobre information_schema, downgrade y aserción de no pérdida de filas)"
+  - "Vocabulario de proveedores: Connector.provider es String(50) indexado con comentario normativo «deliberately NOT a PG enum» (connectors/models.py:50-53). Adaptadores REGISTRADOS: SIETE, no seis — microsoft365 (microsoft365/adapter.py:35), google (google/adapter.py:33), jira (jira/adapter.py:208), glpi (glpi/adapter.py:305), mcp (mcp/adapter.py:20), fake (fake.py:115) y solercia_connect (solercia_connect/adapter.py:53 PROVIDER, :253 provider=PROVIDER, registrado en solercia_connect/__init__.py:14). app/db_init.py:30-36 importa los siete. intake/service.py:295 escribe source_provider=connector.provider sin filtrar por proveedor. shared/enums.py NO tiene enum de proveedor. Planner no es proveedor: se lee vía microsoft365 más Capability.external_tasks"
+  - "NO existe ruta de restauración de tareas: rg sobre backend/app/ devuelve sólo task.is_active = False (tasks/service.py:645). Las reactivaciones existentes (is_active = True) son de otros agregados: task_links/service.py:117, connectors/repository.py:136, glpi_sync/repository.py:74. Por eso D-I (el borrado suave libera el ancla) es seguro hoy y su salvedad es futura"
+  - "Convención de códigos de error verificada: los 25 códigos de tasks/service.py son lower_snake_case (task_not_found, invalid_task_type, sprint_closed, invalid_estimation...), igual que el valor por defecto app_error de AppException (shared/exceptions.py:20). El ejemplo TASK_NOT_FOUND en mayúsculas de CLAUDE.md NO refleja el código real; manda el código"
+  - "TaskService.create_task (service.py:252-335) tiene hoy la firma (self, organization_id, project_id, data: TaskCreate, *, actor_id=None) -- el parámetro se llama `data`, no `payload`. Ya existe el bloque keyword-only donde entra external_origin"
+  - "is_context NO es columna: es campo transitorio de TaskRead (schemas.py:153) calculado en _to_read. El cambio 44 lo necesita como columna real, junto con merge_into"
+  - "Punto de extensión del frontend: interfaz Task en frontend/src/entities/workspace/workspace.model.ts:9-38, casi todo opcional (task_key?, is_context?); TaskDetail extends Task en entities/task/task-detail.model.ts:4-9; no existe entities/task/task.model.ts"
+  - "Estilo de prueba de API: test_task_filters.py:1-64 con helpers _auth, _create_project, _create_task y _list_tasks (el bloque de andamiaje termina en :64; la cita previa :1-59 dejaba fuera _list_tasks), API real vía httpx in-process, @skip_no_db y @pytest.mark.asyncio(loop_scope=\"session\"); fixtures engine (create_all + CREATE EXTENSION pg_trgm), session (SAVEPOINT), client, tenant, user"
+  - "Línea base de pruebas: 1411 pasadas / 3 fallidas preexistentes en tests/test_adapter_microsoft365.py (dependientes del reloj), con TEST_DATABASE_URL configurada. Sin esa variable skip_no_db salta 898 pruebas y la corrida no sirve de referencia"
+  - "El cambio 42 excluye explícitamente tasks.source/external_key y declara que bloquea al 43 (42/state.yaml:55). Tras el 42 la base queda con 1 organización, 1 usuario, SDMUJER > SEGURIDAD + PANDORA y 0 tareas"
+  - "Brecha detectada en el 40: su texto de spec (40/specs/tasks/spec.md:10-22) promete unicidad org-wide mientras su decisión D2 (40/design.md:26-31) implementa unicidad por proyecto. El 43 debe explicitar qué garantiza el motor y qué el servicio"
+  - "CORRECCIÓN de R2/R3 (fase design, verificado sobre alembic==1.14.0 instalado): alembic check NO compara postgresql_where de índices (ddl/postgresql.py:322-380 compare_indexes -> unicidad + expresiones + _dialect_options, y _dialect_options :313-320 sólo mira postgresql_nulls_not_distinct) NI CheckConstraint (cero apariciones en autogenerate/compare.py). Sólo detecta ausencia del índice por nombre/columnas/unicidad. El riesgo real no es un falso positivo del gate sino un falso NEGATIVO silencioso"
+  - "alembic/env.py configura compare_type=True y target_metadata=Base.metadata, sin include_object ni compare_server_default. Cero migraciones de las 24 importan app.* (verificado con rg '^from app|^import app' sobre alembic/versions)"
+  - "backend/app/database.py:32-33 — Base(DeclarativeBase) SIN naming_convention: toda restricción debe nombrarse explícitamente, como uq_project_code_per_org (projects/models.py:38)"
+  - "Precedente de RED rápido de API dentro de un archivo de prueba de migración: test_migration_project_kind.py:48-65 (T1.1) convive con las dos pruebas de migración síncronas (:156-244) en el mismo archivo"
+  - "Precedente de consumo cruzado de repositorio desde un servicio de otro módulo: TaskService._require_sprint instancia SprintRepository(self.repo.db) en tasks/service.py:931"
+  - "Desviación preexistente de la regla de persistencia: TaskRepository.create y save SÍ hacen commit (repository.py:229-242), contra «los repositorios nunca hacen commit». El 43 no la corrige ni la propaga"
+  - "app/integrations/registry.py:11-23 — _ADAPTERS se puebla en tiempo de importación por el módulo de cada adaptador (register_adapter); leerlo desde tasks haría que la validez de un source dependiera de qué adaptadores se importaron"
+  - "Precedente de archivo extra dentro de un módulo (fuera de models/schemas/repository/service/router): app/modules/activity/recorder.py"
+  - "Frontend sin runner de pruebas: package.json:5-11 declara sólo ng, start, build, lint, watch. tsconfig.app.json:7-10 declara files=['src/main.ts'] e include=['src/**/*.d.ts'], así que sólo se compila lo alcanzable desde main.ts"
+  - "Endpoint del tablero que consume TaskRead vía DashboardService._to_read (dashboard/service.py:468-473): GET /dashboard/executive (dashboard/router.py:23)"
+dependency_gating:
+  - "El cambio 42 (purga-datos-demo) debe estar archivado antes del apply del 43: su state.yaml:55 declara que bloquea a este cambio y deja la base en 0 tareas, precondición que hace trivial la migración"
+  - "El reanclaje del cambio 40 debe completarse dentro del 43 y antes de que el 40 llegue a apply; sin él habría doble migración de tasks.source/external_key y fallo duro en op.add_column"
+  - "La repartición de requisitos entre 40 y 43 (D7) debe estar ejecutada antes de cualquier sdd-archive, o el requisito «Ancla de procedencia externa» se fusionaría dos veces hacia openspec/specs/tasks/spec.md"
+  - "El 43 bloquea al 44 (importador de CHECKLIST_TAREAS.xlsx, source='checklist_xlsx', external_key='T-01'…'T-131') y al 47 (ingesta de correo, source = connector.provider, external_key = intake_items.external_id)"
+open_questions: []
+delivery:
+  strategy: auto-chain
+  topology: feature-branch-chain
+  tracker_branch: feat/43-tareas-origen-externo
+  budget_risk: High
+  estimated_lines: "770-920"
+  slices:
+    - id: A
+      branch: feat/43-a-migracion
+      target: feat/43-tareas-origen-externo
+      content: "Migración 0025 + espejo en __table_args__ (2 columnas + CheckConstraint + 1 Index) + test_migration_task_external_origin.py"
+      scenarios: "1-9"
+      estimated_lines: "294-344"
+      recommended_budget: 400
+      rollback: "alembic downgrade -1 más revert de commits; cero filas afectadas"
+    - id: B
+      branch: feat/43-b-escritura
+      target: feat/43-a-migracion
+      content: "sources.py (KNOWN_TASK_SOURCES + validate_task_source) + get_by_external_key + create_task(..., external_origin=...) (D-G) + TaskRead.source/external_key + tipo del frontend + test_tasks_external_origin.py"
+      scenarios: "10-13, 16-26"
+      estimated_lines: "327-427"
+      recommended_budget: 500
+      rollback: "revert de commits; las columnas y los dos objetos de esquema permanecen"
+    - id: C
+      branch: feat/43-c-filtros
+      target: feat/43-b-escritura
+      content: "Filtros ?source=/?external_key= en los tres saltos router -> service -> repository + sus dos pruebas"
+      scenarios: "14, 15"
+      estimated_lines: "~150"
+      recommended_budget: 200
+      rollback: "revert de commits; 44 y 47 siguen desbloqueados, consumen la costura y el camino de escritura, no los filtros"
+  notes:
+    - "El reanclaje del cambio 40 es edición de artefactos OpenSpec: NO cuenta contra el presupuesto de revisión, pero es unidad de trabajo explícita (D8). Lista exacta de 19 ediciones con ruta:línea en design.md, sección «Unidad de artefactos: Reanclaje del 40»"
+    - "El pronóstico formal (Decision needed before apply, Chained PRs recommended, 400-line budget risk) lo emite sdd-tasks"
+    - "La rebanada C nace en la pasada correctiva: implementar D-G (+~25 código, +~50 prueba) y mover a B las dos pruebas de exposición (12 y 13, que ahora anclan con create_task(..., external_origin=...)) dejaba a B en ~477-577 líneas y su presupuesto en 700, por encima del techo de ~600 de la cadena. Se aplicó la contingencia ya prevista: los filtros salen a rebanada propia y pueden posponerse sin bloquear a 44 ni a 47"
+verification:
+  test_command: "cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_migration_task_external_origin.py tests/test_tasks_external_origin.py tests/test_migrations_baseline.py"
+  gate: "El gate REAL del espejado es tests/test_migration_task_external_origin.py::test_create_all_and_migration_declare_the_same_anchor_ddl (compara pg_get_indexdef del único parcial y pg_get_constraintdef del CHECK entre una base construida con alembic upgrade 0025 y otra con Base.metadata.create_all). tests/test_migrations_baseline.py::test_alembic_check_reports_no_diff_after_upgrade se conserva SIN CAMBIOS como guardia de existencia por nombre: verificado en design (D-B) que NO compara postgresql_where ni CheckConstraint"
+  build_command_frontend: "cd frontend && npm run build"
+  baseline: "1411 pasadas / 3 fallidas preexistentes (tests/test_adapter_microsoft365.py, dependientes del reloj) con TEST_DATABASE_URL configurada"
+  new_tests:
+    - "backend/tests/test_migration_task_external_origin.py (rebanada A, escenarios 1-9) — patrón test_migration_project_kind.py:73-244; base desechable solercia_test_task_external_origin_migration; TODAS síncronas con asyncio.run y @skip_no_db (ya NO aloja pruebas de API: las de exposición pasaron a B porque anclan con create_task(..., external_origin=...)). Incluye unicidad (dos ('checklist_xlsx','T-05',P) -> UniqueViolation), N filas (NULL,NULL,P) sin conflicto, misma clave en proyectos distintos sin conflicto, (NULL,'T-05',P) violando el CHECK, borrado suave que LIBERA el ancla (D-I), y la equivalencia de DDL en dos aserciones (índice y CHECK). La segunda base desechable ejecuta en este orden: CREATE EXTENSION pg_trgm -> import app.db_init -> Base.metadata.create_all; el import app.db_init NO es opcional (conftest.py:66-69 lo hace por la misma razón: sin él Base.metadata queda incompleto y la comparación es vacua)"
+    - "backend/tests/test_tasks_external_origin.py (rebanadas B y C, escenarios 10-26) — patrón test_task_filters.py:1-64. Toda fila anclada se crea con create_task(..., external_origin=...), NUNCA con UPDATE crudo. Guardia de deriva del vocabulario tras import app.db_init, planner rechazado, exposición con valores NO nulos en listado y GET /dashboard/executive, POST/PATCH que no persisten el ancla, create_task que persiste y que rechaza con 409, get_by_external_key encuentra/no cruza organizaciones/excluye tareas y proyectos con borrado suave, sin entrada de task_history, is_context y merge_into no persistidos. Las pruebas 10, 11 y 24 son unidades puras SIN @skip_no_db. La prueba 15 (filtro sin coincidencias) exige un proyecto con al menos una tarea SIN ancla, o nacería verde"
+    - "GUARDIAS (verdes desde el primer momento, NO siguen RED/GREEN): escenarios 23 y 24 más la prueba de apoyo test_alembic_check_reports_no_diff_after_upgrade. La 10 es mixta: nace roja porque sources.py no existe y QUEDA como guardia permanente contra la deriva del catálogo de adaptadores"
+risks:
+  - "R1 Colisión de migraciones con el 40 (doble add_column y fallo duro) — Alta — reanclaje del 40 como unidad de trabajo verificable dentro del 43"
+  - "R2 CORREGIDO en design (D-B): el riesgo no es que alembic check falle, es que NO falle. Verificado sobre alembic==1.14.0: el gate no compara postgresql_where ni CheckConstraint, así que un predicado divergente o un CHECK ausente del modelo pasan en verde — Media/Alta — mitigación: test_create_all_and_migration_declare_the_same_anchor_ddl compara pg_get_indexdef y pg_get_constraintdef entre la base migrada y la construida con create_all. alembic check se conserva sólo para la existencia por nombre"
+  - "R3 El harness construye el esquema con create_all (conftest.py:74-80), no con Alembic: una restricción sólo en la migración no existiría en las pruebas y, peor, un predicado divergente haría que las pruebas validen una regla distinta de la de producción — Media — misma mitigación que R2; el espejado es obligatorio y su equivalencia se prueba, no se supone"
+  - "R8 (nuevo, design) Primer CheckConstraint del repositorio: cero precedentes de op.create_check_constraint y de drop_constraint(..., type_='check') — Baja — la prueba de migración ejercita el downgrade completo, así que un type_ mal puesto se cae en rojo antes del merge"
+  - "R9 CERRADO en la pasada correctiva: 44 y 47 ya no pueden inventar su propio camino de escritura porque create_task(..., *, external_origin=(source, external_key)) se implementa dentro del 43, con validación de vocabulario, guarda org-wide 409 y dos escenarios de spec propios (18, 19). Deja de ser riesgo documentado y pasa a ser código entregado"
+  - "R10 (nuevo, pasada correctiva) Una futura ruta de restauración de tarea (is_active=false -> true) puede chocar contra el ancla que D-I liberó y producir UniqueViolation en la reactivación — Baja/futuro — hoy NO existe ninguna ruta de restauración (verificado: tasks/service.py:645 sólo pone is_active=False), así que no afecta al 43. El cambio que la introduzca DEBE llamar a get_by_external_key antes de reactivar y rechazar si el ancla ya está ocupada; queda escrito en D-I"
+  - "R4 external_key de 255 podría truncar un internetMessageId largo — Baja — alineado con intake_items.external_id, que ya almacena ese valor; verificación con datos reales es tarea del 47"
+  - "R5 La unicidad org-wide es de aplicación, no de motor — Media/Baja tras D-G — reducida a un ÚNICO camino de escritura (create_task con external_origin) que ya trae la guarda org-wide y devuelve 409 task_external_anchor_conflict; la limitación queda igualmente escrita en la spec"
+  - "R6 Duplicación de requisitos al archivar 40 y 43 — Media — repartición explícita (D7) ejecutada antes de cualquier sdd-archive"
+  - "R7 El 44 necesita is_context y merge_into como datos reales y podría asumirlos entregados — Media — declarados fuera de alcance por escrito; is_context sigue siendo transitorio hasta que el 44 lo convierta en columna"
+last_updated: 2026-08-26
+tasks_notes:
+  - "tasks.md escrito en openspec/changes/43-tareas-origen-externo/tasks.md. 78 tareas en 6 fases: Fase 0 (gate, 7), Fase 1 (reanclaje del 40, 22, D8, sin código, aplicada directo sobre el tracker), Fase 2 (migración 0025 + espejo ORM, rebanada A, 15, escenarios 1-9), Fase 3 (vocabulario/costura/escritura del ancla, rebanada B, 20, escenarios 10-13 y 16-26), Fase 4 (filtros, rebanada C, 7, escenarios 14-15), Fase 5 (suite/calidad/cierre, 7)"
+  - "Cobertura 26/26 escenarios de spec, cada uno con una prueba nombrada tomada literalmente de la tabla de design.md; guardias (10 mixta, 23, 24) marcadas explícitamente como verdes desde el inicio (H10), no como RED/GREEN"
+  - "Pronóstico formal emitido por sdd-tasks: 400-line budget risk High, Chained PRs recommended Yes, Chain strategy feature-branch-chain, Decision needed before apply No (delivery_strategy=auto-chain). Ramas: tracker feat/43-tareas-origen-externo -> A feat/43-a-migracion -> B feat/43-b-escritura -> C feat/43-c-filtros"
+  - "La línea base de pruebas se deja como 'la vigente en el tracker al iniciar cada rebanada' (tarea 0.6), no como cifra congelada: el 48-puerto-llm agrega pruebas nuevas en paralelo (1411 en design.md vs 1415 al escribir tasks.md), así que cada rebanada re-verifica el conteo exacto antes de fijar su referencia de 'sin regresión'"
+  - "La Fase 1 (reanclaje del 40, D8) reproduce las 19 ediciones ruta:línea de design.md más los 2 comandos rg de verificación; se marca explícitamente que no cuenta contra el presupuesto de revisión de A/B/C y que debe completarse antes del apply del 40 y de cualquier sdd-archive de 40 o 43"
+spec_notes:
+  - "Delta escrito en openspec/changes/43-tareas-origen-externo/specs/tasks/spec.md: 11 requisitos ADDED, 26 escenarios, 0 MODIFIED/REMOVED (contados en disco tras la pasada correctiva: 10/23 + 1 escenario de D-I + 1 requisito nuevo con 2 escenarios). Cobertura: migración 0025 y su reversibilidad, espejado en __table_args__, semántica de unicidad (motor por proyecto sobre filas activas + servicio org-wide), liberación del ancla por borrado suave, vocabulario de source, exposición de solo lectura (task_key/external_key conviven), filtros de igualdad, inmutabilidad por API, ESCRITURA reservada al caso de uso (external_origin), seam get_by_external_key (excluye tareas y proyectos con borrado suave, aislado por organización, determinista), exclusión de task_history/is_context/merge_into, tipo de frontend"
+  - "Requisito NUEVO en la pasada correctiva, no trasladado del 40: «Escritura del ancla reservada al caso de uso de creación» (2 escenarios). Es el registro durable de la forma external_origin que consumen 44 y 47 y lo que da llamador real a validate_task_source"
+  - "Decisión de spec: los campos extra source/external_key enviados a POST/PATCH se IGNORAN silenciosamente (comportamiento por defecto de Pydantic v2, ninguno de los dos esquemas declara extra=forbid), no se rechazan con error de validación"
+  - "Decisión de spec: get_by_external_key EXCLUYE tareas con borrado suave (is_active=false) Y tareas cuyo proyecto tiene borrado suave (Project.is_active=false), replicando list_for_org (repository.py:157-171), no sólo get (:173-187)"
+  - "Los dos requisitos trasladados desde 40/specs/tasks/spec.md:10-40 (Ancla de procedencia externa, Clave local y externa conviven) fueron reescritos, no copiados: el texto original prometía unicidad org-wide sin distinguir motor de servicio; este delta explicita la repartición (D1/D7). Los artefactos del 40 NO fueron editados en esta fase — el reanclaje es unidad de trabajo de apply (D8)"
+design_notes:
+  - "Diseño escrito en openspec/changes/43-tareas-origen-externo/design.md. NUEVE decisiones técnicas D-A..D-I, todas cerradas; ninguna pregunta abierta que requiera al usuario. Cobertura escenario -> prueba nombrada: 26/26 (24 pruebas automatizadas de backend, 2 de frontend cerrados con npm run build y la justificación de D-H)"
+  - "PASADA CORRECTIVA 2026-08-26: verificación independiente del diseño con veredicto FAIL acotado y 14 hallazgos, todos resueltos. Los tres de fondo: (1) faltaba solercia_connect en KNOWN_TASK_SOURCES — son SIETE adaptadores, no seis — y la prueba de vocabulario pasa a ser guardia de subconjunto sobre _ADAPTERS; (2) el ancla quedaba retenida por una tarea con borrado suave, produciendo UniqueViolation -> 500 sin salida al reimportar, resuelto con AND is_active en el predicado (D-I); (3) validate_task_source nacía sin llamador, resuelto implementando D-G dentro del 43. Los once restantes eran precisión de argumento, de nombres y de cobertura"
+  - "Hallazgo principal del diseño: alembic check NO es el gate del espejado que la propuesta suponía. Verificado sobre el alembic==1.14.0 instalado — no compara postgresql_where (ddl/postgresql.py:322-380) ni CheckConstraint (cero apariciones en autogenerate/compare.py). R2/R3 quedaron reescritos: el riesgo es un falso NEGATIVO, y la mitigación real es una prueba de equivalencia de DDL entre las dos rutas de construcción del esquema (alembic upgrade 0025 vs Base.metadata.create_all), comparando pg_get_indexdef y pg_get_constraintdef"
+  - "El 43 introduce el PRIMER CheckConstraint del repositorio: cero apariciones previas de CheckConstraint u op.create_check_constraint en backend/. Nombre explícito obligatorio (Base sin naming_convention)"
+  - "Módulo nuevo backend/app/modules/tasks/sources.py con KNOWN_TASK_SOURCES + validate_task_source: es lo que satisface el requisito de spec «Vocabulario de source» (que exige una capa de escritura que rechace 'planner'), sin acoplar tasks a app.integrations.registry"
+  - "get_by_external_key devuelve la fila MÁS ANTIGUA con .order_by(created_at asc, id asc).limit(1).first(). Argumento corregido (D-E): con LIMIT 1, scalar_one_or_none() también sería seguro; la razón real de .first()/limit(1) es tolerar de forma determinista varias filas legítimas (misma ancla en proyectos distintos) sin MultipleResultsFound, y el desempate por id evita empates de created_at en la misma transacción"
+  - "D-G IMPLEMENTADA en el 43 (ya no es nota de contrato): create_task(..., *, external_origin=(source, external_key)), keyword-only e invisible en el esquema HTTP; valida el vocabulario, comprueba la unicidad org-wide y persiste en el mismo INSERT; 409 task_external_anchor_conflict si el ancla ya está activa en la organización"
+  - "Ramas fijadas: tracker feat/43-tareas-origen-externo; A feat/43-a-migracion (apunta al tracker); B feat/43-b-escritura (apunta a la rama de A); C feat/43-c-filtros (apunta a la rama de B)"
+  - "El reanclaje del 40 quedó desglosado en 19 ediciones con ruta:línea verificadas (40/tasks.md:47,59,60,64,65,66,68-69,72; 40/design.md:26-31,75,76,116-121; 40/specs/tasks/spec.md:3-6 preámbulo, :10-22 eliminar, :24-31 conservar, :33-40 eliminar, :45 referencias; 40/state.yaml:72 last_updated y :76 spec_notes), con dos comandos rg de verificación"
+proposal_notes:
+  - "Nueve preguntas abiertas de la exploración resueltas por el orquestador el 2026-08-26 adoptando las recomendaciones; registradas como D1-D9 en module_decision. open_questions queda vacío: nada bloquea sdd-spec ni sdd-design"
+  - "Dos puntos anotados que NO bloquean el 43: el etiquetado visible de la procedencia se define en el 44 (cuando existan tareas ancladas reales) y la longitud efectiva de external_key frente a un internetMessageId se verifica con datos reales en el 47"
+  - "Capacidad modificada única: tasks (openspec/specs/tasks/spec.md). Sin capacidades nuevas. El delta debe AGREGAR «Ancla de procedencia externa» y «Clave local y externa conviven como referencias distintas», y explicitar la repartición motor/servicio de la garantía de unicidad"
