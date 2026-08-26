@@ -143,8 +143,8 @@ determinista: `json.loads` → sin cercas Markdown → subcadena entre el primer
 ### Contrato del puerto (`ports.py`)
 
 ```python
-Role = Literal["user", "assistant"]           # `system` es campo aparte, nunca un mensaje
-FinishReason = Literal["stop", "other"]       # `length`/`content_filter` son errores, no resultados
+Role = Literal["user", "assistant"]                          # `system` es campo aparte, nunca un mensaje
+FinishReason = Literal["stop", "length", "refusal", "tool"]  # enum literal del contrato (spec `llm-port`)
 Reachability = Literal["ok", "unreachable", "not_probed"]
 
 @dataclass(frozen=True)
@@ -188,6 +188,30 @@ class LlmPort(Protocol):
     async def complete(self, request: LlmRequest) -> LlmResponse: ...
     async def probe(self) -> LlmProbe: ...
 ```
+
+#### `FinishReason`, valor por valor
+
+El enum es el de la spec (`llm-port`, requisito «Contrato del puerto y DTOs congelados»): `stop`,
+`length`, `refusal`, `tool`. El diseño lo adopta completo y declara, valor por valor, quién lo emite en
+este cambio. Un valor «reservado por contrato» existe en el `Literal` para que un adaptador posterior
+pueda devolverlo sin romper el contrato del puerto, pero **ningún adaptador del 48 lo produce**.
+
+| Valor | ¿Lo emite un adaptador de este cambio? |
+|---|---|
+| `stop` | **Sí.** Fin normal: `stop_reason ∈ {end_turn, stop_sequence}` en `anthropic`, `finish_reason == "stop"` en `openai_compatible`, y siempre en `fake`. Es el valor que afirma la prueba de contrato `test_complete_returns_text_and_provider_metadata` |
+| `length` | **Sí.** Truncado por `max_tokens` **sin** `output_schema` pedido: `stop_reason == "max_tokens"` (anthropic) o `finish_reason == "length"` (openai-compatible) devuelven una respuesta **válida** con `finish_reason="length"`, y el llamador ve el truncado en el DTO. Con `output_schema` pedido no hay respuesta: el JSON incompleto es `llm_invalid_output` (502) |
+| `refusal` | **No: reservado por contrato, nunca emitido.** El único escenario de la spec que lo produce («Refusal con HTTP 200 se mapea a contenido filtrado») exige lanzar `llm_content_filtered` (422), así que la señal se convierte en excepción y jamás llega a `LlmResponse.finish_reason`. El `finish_reason == "content_filter"` de las APIs compatibles con OpenAI sigue la misma regla. Un rechazo debe verse como error, no viajar disfrazado de respuesta con texto parcial |
+| `tool` | **No: reservado por contrato, nunca emitido.** El uso de herramientas está fuera de alcance (`proposal.md`, Out of Scope: «streaming, *embeddings*, herramientas agénticas»): ningún adaptador declara herramientas, así que ningún proveedor puede devolver `tool_use`, y ningún escenario de la spec lo produce |
+
+**Desviación declarada** (`Role`): la primera redacción de la spec listaba el rol de `LlmMessage` en
+`{system, user, assistant}`. El diseño fija `{user, assistant}` y la corrección se aplica en la spec,
+porque la decisión aceptada en `proposal.md:76` es que `system` es campo de nivel superior y
+`LlmRequest.system` **no viaja como mensaje**. Un rol `system` admitido en el DTO abriría dos caminos
+para el mismo dato y volvería ambiguo qué gana cuando ambos están presentes. El adaptador
+`openai_compatible` sí construye `messages[0] = {"role": "system", …}` **en el alambre**, pero eso es
+traducción del adaptador, no un valor admitido en `LlmMessage.role`. La corrección tocó una sola frase
+del requisito: no se añadieron ni quitaron requisitos ni escenarios (llm-port sigue en 8 requisitos /
+21 escenarios).
 
 `prompts/__init__.py`: `PROMPT_VERSION: Final[str] = "v1"` — cualquier cambio material de una plantilla
 lo incrementa; el 49 lo persiste en `assistant_suggestions`.
@@ -270,9 +294,14 @@ Con esquema: extracción tolerante (D7) → `Model.model_validate(...)` → `par
 | `401` / `403` | `LlmAuthError` |
 | `404` y demás `4xx` | `LlmConfigInvalid` (el cuerpo lo arma el adaptador: un 4xx señala `LLM_MODEL`/`LLM_BASE_URL`/`LLM_MAX_TOKENS`) |
 | Cuerpo no JSON o sin `choices[0].message.content` | `LlmInvalidOutput` |
-| `finish_reason == "length"` | `LlmInvalidOutput` (nunca texto truncado como válido) |
+| `finish_reason == "length"` **con** `output_schema` pedido | `LlmInvalidOutput` (un JSON incompleto nunca se valida ni se presenta como válido) |
+| `finish_reason == "length"` **sin** `output_schema` | **No es fallo**: `LlmResponse` válida con `finish_reason="length"` y `parsed is None` |
 | `finish_reason == "content_filter"` | `LlmContentFiltered` |
 | Esquema pedido y validación falla | `LlmSchemaMismatch`, `parsed is None` |
+
+El truncado sólo es error cuando había un esquema que cumplir: sin esquema, el texto parcial es un
+resultado legítimo que el llamador reconoce por `finish_reason` (spec `llm-port`, requisito del
+adaptador `anthropic`, misma regla adoptada aquí por simetría del puerto).
 
 Backoff: `_retry_after_seconds()` = cabecera `Retry-After` como `float`, si no `1.0`, siempre
 `min(valor, LLM_MAX_BACKOFF_SECONDS)` — calco literal de `jira/client.py:230-240`. El `sleep`
@@ -315,8 +344,10 @@ SDK 1.x), nunca `budget_tokens`, nunca prefill, nunca `fallbacks`/`betas`
 
 | Señal | Resultado |
 |---|---|
+| `stop_reason ∈ {end_turn, stop_sequence}` | `LlmResponse` válida con `finish_reason="stop"` |
 | `stop_reason == "refusal"` (HTTP 200) | `LlmContentFiltered`, motivo desde `stop_details.category`/`.explanation` |
-| `stop_reason == "max_tokens"` | `LlmInvalidOutput` |
+| `stop_reason == "max_tokens"` **con** `output_schema` pedido | `LlmInvalidOutput` (nunca un `parsed` armado desde JSON incompleto) |
+| `stop_reason == "max_tokens"` **sin** esquema | **No es fallo**: `LlmResponse` válida con `finish_reason="length"` y `parsed is None` |
 | `parsed_output is None` o `pydantic.ValidationError` | `LlmSchemaMismatch` |
 | `AuthenticationError` / `PermissionDeniedError` | `LlmAuthError` |
 | `NotFoundError` / `BadRequestError` | `LlmConfigInvalid` |
@@ -400,10 +431,21 @@ GET /api/v1/assistant/health?probe=false
 | Sonda ok | `ok` | `None`, o aviso de modelo no listado |
 | Sonda falla o el puerto no se puede construir | `unreachable` | Motivo legible que **nombra el ajuste**, nunca el valor |
 
-**Redacción de secretos** (frontera crítica): `base_url_host` se construye con
-`parts.hostname` + `:{parts.port}`, **nunca** con `parts.netloc` — `netloc` incluye el `userinfo`, así
-que una `LLM_BASE_URL` con `usuario:secreto@host` filtraría la credencial en un endpoint de salud.
-`api_key_configured` es un `bool` derivado de `bool(settings.LLM_API_KEY.strip())`.
+**Aislamiento por organización**: la configuración del `LlmPort` es **global por proceso** — un único
+adaptador activo elegido por `settings.LLM_PROVIDER`, sin credenciales ni estado por organización.
+`require_role(admin, manager)` resuelve el tenant desde el JWT y protege el acceso al endpoint, como en
+el resto de módulos de integración. El requisito «ninguna organización ve el estado del `LlmPort` de
+otra» (spec `assistant-health`) se cumple por construcción: no existe estado por tenant que una
+organización pueda observar de otra, y el endpoint no acepta ningún identificador de organización.
+
+**Redacción de secretos** (frontera crítica): `base_url_host` se deriva de `urlsplit(...)` como
+`f"{parts.hostname}:{parts.port}" if parts.port else parts.hostname`, **nunca** con `parts.netloc` —
+`netloc` incluye el `userinfo`, así que una `LLM_BASE_URL` con `usuario:secreto@host` filtraría la
+credencial en un endpoint de salud. La rama explícita del puerto es obligatoria: `urlsplit` sólo
+materializa `port` cuando la URL lo escribe, así que `urlsplit("https://api.anthropic.com").port` es
+`None` y una concatenación incondicional publicaría `"api.anthropic.com:None"` para una URL que está en
+la propia allowlist por defecto. `api_key_configured` es un `bool` derivado de
+`bool(settings.LLM_API_KEY.strip())`.
 
 **Inyección para pruebas**: `AssistantHealthService(port_factory=None)` resuelve
 `self._port_factory or get_llm_port` **dentro** de `describe()`, para que un `monkeypatch` del atributo
@@ -463,12 +505,21 @@ modules/assistant (o el 49)          app/ai                      Proveedor
 | Archivo | Pruebas en rojo (nombre → aserción decisiva) |
 |---|---|
 | `test_ai_port_contract.py` (fixture parametrizada `fake` / `openai_compatible` / `anthropic`, dobles herméticos) | `test_complete_returns_text_and_provider_metadata` → `finish_reason == "stop"`, `latency_ms >= 0`, `prompt_version` es eco de la petición · `test_parsed_is_none_when_no_schema_requested` → `parsed is None` · `test_parsed_is_a_validated_model_when_schema_requested` → `isinstance(parsed, TriageDecision)` · `test_schema_mismatch_never_returns_unvalidated_parsed` → `raises(LlmSchemaMismatch)`, `code == "llm_schema_mismatch"`, `status_code == 502` · `test_dtos_are_frozen` → `FrozenInstanceError` · `test_probe_never_generates_text` → el doble registra cero llamadas de generación |
-| `test_ai_adapter_openai_compatible.py` (`Settings(**overrides)` + `httpx.MockTransport`, `sleep` inyectado) | `test_rejects_a_base_url_outside_the_allowlist_before_any_request` → el handler lanza `AssertionError` y **nunca** se ejecuta · `test_rejects_an_empty_model_before_any_request` · `test_system_travels_as_the_first_message_and_stream_is_false` · `test_json_mode_openai_sends_the_nested_envelope` / `_llamacpp_sends_the_schema_at_top_level` / `_json_object_sends_the_schema_as_a_prompt_hint` → forma exacta de `response_format`, `additionalProperties is False` · `test_parses_a_fenced_json_body` · `test_429_retries_then_raises_rate_limited` → sleeps registrados, cero espera real · `test_clamps_retry_after_to_max_backoff` → `Retry-After: 999` con techo 5.0 ⇒ `5.0` · `test_maps_500_401_404_timeout_connect_error` · `test_finish_reason_length_maps_to_invalid_output` · `test_finish_reason_content_filter_maps_to_content_filtered` · `test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt` (`caplog`) · `test_probe_hits_models_and_reports_ok` / `test_probe_reports_unreachable_with_reason` |
-| `test_ai_adapter_anthropic.py` (`DefaultAsyncHttpxClient(transport=httpx2.MockTransport(...))`; sin `skip`: el pin es requisito de la rebanada) | `test_system_is_top_level_and_temperature_is_never_sent` → `"temperature" not in body`, idem `top_p`/`top_k` · `test_always_sends_an_integer_max_tokens` · `test_sends_adaptive_thinking_without_budget_tokens` · `test_schema_request_carries_required_and_additional_properties_false` · `test_refusal_stop_reason_maps_to_content_filtered` → 200 con `stop_details` · `test_max_tokens_stop_reason_maps_to_invalid_output` · `test_typed_exceptions_map_to_the_port_taxonomy` (401/429/500/529/conexión/timeout, `APITimeoutError` antes que `APIConnectionError`) · `test_empty_api_key_and_base_url_outside_allowlist_raise_config_invalid_before_any_request` · `test_fallbacks_and_betas_are_never_requested` · `test_usage_maps_input_and_output_tokens` · `test_timeout_and_max_retries_come_from_settings` |
+| `test_ai_adapter_openai_compatible.py` (`Settings(**overrides)` + `httpx.MockTransport`, `sleep` inyectado) | `test_rejects_a_base_url_outside_the_allowlist_before_any_request` → el handler lanza `AssertionError` y **nunca** se ejecuta · `test_rejects_an_empty_model_before_any_request` · `test_system_travels_as_the_first_message_and_stream_is_false` · `test_json_mode_openai_sends_the_nested_envelope` / `_llamacpp_sends_the_schema_at_top_level` / `_json_object_sends_the_schema_as_a_prompt_hint` → forma exacta de `response_format`, `additionalProperties is False` · `test_parses_a_fenced_json_body` · `test_429_retries_then_raises_rate_limited` → sleeps registrados, cero espera real · `test_clamps_retry_after_to_max_backoff` → `Retry-After: 999` con techo 5.0 ⇒ `5.0` · `test_maps_500_401_404_timeout_connect_error` · `test_finish_reason_length_maps_to_invalid_output` (camino **con** esquema pedido) · `test_max_tokens_without_schema_returns_length` → sin `output_schema`, `finish_reason == "length"`, `parsed is None` y **ninguna** excepción · `test_finish_reason_content_filter_maps_to_content_filtered` · `test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt` (`caplog`) · `test_probe_hits_models_and_reports_ok` / `test_probe_reports_unreachable_with_reason` |
+| `test_ai_adapter_anthropic.py` (`DefaultAsyncHttpxClient(transport=httpx2.MockTransport(...))`; sin `skip`: el pin es requisito de la rebanada) | `test_system_is_top_level_and_temperature_is_never_sent` → `"temperature" not in body`, idem `top_p`/`top_k` · `test_always_sends_an_integer_max_tokens` · `test_sends_adaptive_thinking_without_budget_tokens` · `test_schema_request_carries_required_and_additional_properties_false` · `test_refusal_stop_reason_maps_to_content_filtered` → 200 con `stop_details` · `test_max_tokens_stop_reason_maps_to_invalid_output` (camino **con** esquema pedido) · `test_max_tokens_without_schema_returns_length` → `stop_reason="max_tokens"` sin `output_format`, `finish_reason == "length"`, `parsed is None` y **ninguna** excepción · `test_typed_exceptions_map_to_the_port_taxonomy` (401/429/500/529/conexión/timeout, `APITimeoutError` antes que `APIConnectionError`) · `test_empty_api_key_and_base_url_outside_allowlist_raise_config_invalid_before_any_request` · `test_fallbacks_and_betas_are_never_requested` · `test_usage_maps_input_and_output_tokens` · `test_timeout_and_max_retries_come_from_settings` |
 | `test_ai_registry.py` | `test_returns_the_fake_adapter_by_default` · `test_selects_the_adapter_named_by_llm_provider` · `test_unknown_provider_raises_llm_config_invalid_not_key_error` → `status_code == 422` y el valor **no** aparece en `detail` · `test_reads_the_setting_at_call_time_not_at_import` · `test_does_not_import_the_anthropic_package_for_other_providers` → `monkeypatch` de `builtins.__import__` que lanza ante `"anthropic"` (robusto aunque `sys.modules` esté contaminado), complementado con `"app.ai.adapters.anthropic" not in sys.modules` · `test_fake_adapter_is_a_process_singleton` |
-| `test_assistant_health_endpoint.py` (`@skip_no_db`, `make_member`) | `test_admin_and_manager_get_200` · `test_member_and_viewer_get_403` → `code == "forbidden"` · `test_default_response_is_not_probed` · `test_body_never_contains_the_api_key_or_the_full_base_url` → aserción sobre `response.text` serializado · `test_base_url_userinfo_is_never_echoed` → `http://usuario:secreto@localhost:11434/v1` ⇒ `base_url_host == "localhost:11434"` y `"secreto" not in response.text` · `test_probe_true_reports_ok` / `test_probe_true_reports_unreachable_with_a_readable_reason` · `test_probe_never_generates_text` · `test_invalid_configuration_is_a_reason_not_a_500` |
+| `test_assistant_health_endpoint.py` (`@skip_no_db`, `make_member`) | `test_admin_and_manager_get_200` · `test_member_and_viewer_get_403` → `code == "forbidden"` · `test_default_response_is_not_probed` · `test_body_never_contains_the_api_key_or_the_full_base_url` → aserción sobre `response.text` serializado · `test_base_url_userinfo_is_never_echoed` → `http://usuario:secreto@localhost:11434/v1` ⇒ `base_url_host == "localhost:11434"` y `"secreto" not in response.text` · `test_base_url_host_without_port_has_no_none_suffix` → `LLM_BASE_URL="https://api.anthropic.com"` ⇒ `base_url_host == "api.anthropic.com"`, nunca `"api.anthropic.com:None"` · `test_probe_true_reports_ok` / `test_probe_true_reports_unreachable_with_a_readable_reason` · `test_probe_true_anthropic_never_probes` → `LLM_PROVIDER="anthropic"` ⇒ `reachability == "not_probed"` y el transporte inyectado registra **cero** llamadas · `test_probe_true_fake_reports_ok` → `LLM_PROVIDER="fake"` ⇒ `reachability == "ok"` sin red · `test_probe_never_generates_text` · `test_invalid_configuration_is_a_reason_not_a_500` |
 
-Ninguna prueba toca la red. Línea base a no regresar: **1408 pasadas / 3 saltadas**.
+Ninguna prueba toca la red.
+
+**Línea base a no regresar** (medida en el commit `fc97125`, 2026-08-26): **1411 pasadas / 3 fallidas
+preexistentes** con `cd backend && pytest tests/` y `TEST_DATABASE_URL` configurada. Las tres fallas
+viven en `tests/test_adapter_microsoft365.py`, dependen del reloj y son ajenas a este cambio: se
+heredan, no se arreglan aquí. La línea base **dura** sólo se mide con esa variable puesta; sin
+`TEST_DATABASE_URL`, el marcador `skip_no_db` salta 898 pruebas y la corrida reporta 513 pasadas / 3
+fallidas, cifra que no sirve como referencia de no regresión. (La cifra «1408 pasadas / 3 saltadas» que
+citan `proposal.md` y `state.yaml.facts_verified` es la medición anterior, sin base de datos y en otro
+commit.)
 
 ---
 
@@ -493,7 +544,7 @@ La frontera real de este cambio es **egreso HTTP y secretos**, y sí es aplicabl
 | La clave aparece en logs o en la respuesta HTTP | Sólo `api_key_configured: bool`; logs con status + 200 caracteres del cuerpo de respuesta | `test_error_log_...never_the_key_or_the_prompt`, `test_body_never_contains_the_api_key...` |
 | `userinfo` en la URL base se filtra por `netloc` | `hostname` + `port` explícitos | `test_base_url_userinfo_is_never_echoed` |
 | El proveedor induce control de flujo (bucle, reintento infinito) | Reintentos deterministas acotados por `LLM_MAX_RETRIES`/`LLM_MAX_BACKOFF_SECONDS`; sin reparación por modelo (D7) | `test_429_retries_then_raises_rate_limited`, `test_clamps_retry_after_to_max_backoff` |
-| Salida no validada se presenta como buena | `parsed` sólo tras `model_validate`; truncado y filtrado son errores | `test_schema_mismatch_never_returns_unvalidated_parsed`, `test_finish_reason_length_maps_to_invalid_output` |
+| Salida no validada se presenta como buena | `parsed` sólo tras `model_validate`; con esquema pedido, el truncado es error y el filtrado siempre lo es. Sin esquema, el truncado se declara en `finish_reason="length"`, nunca se disimula | `test_schema_mismatch_never_returns_unvalidated_parsed`, `test_finish_reason_length_maps_to_invalid_output`, `test_max_tokens_without_schema_returns_length` |
 | El endpoint de salud gasta tokens | La sonda nunca genera texto | `test_probe_never_generates_text` |
 
 ---

@@ -4,14 +4,14 @@ depends_on: []
 phases:
   proposal: done
   spec: done
-  design: pending
+  design: done
   tasks: pending
   apply: pending
   verify: pending
   archive: pending
 artifacts:
   proposal: true
-  design: false
+  design: true
   specs: true
   tasks: false
 spec_counts:
@@ -49,7 +49,7 @@ constraints:
   - tdd-estricto-pytest
 boundary:
   - "Núcleo neutro en backend/app/ai/: ports.py (LlmPort Protocol con async complete(LlmRequest) -> LlmResponse), errors.py (taxonomía tipada), registry.py (get_llm_port por settings.LLM_PROVIDER), adapters/{fake,openai_compatible,anthropic}.py y prompts/ con PROMPT_VERSION"
-  - "DTOs congelados: LlmMessage(role, content); LlmRequest(system, messages, json_schema=None, temperature, max_tokens, timeout_seconds=None); LlmResponse(text, parsed, usage, provider, model, prompt_version, latency_ms, finish_reason)"
+  - "DTOs congelados: LlmMessage(role, content); LlmRequest(system, messages, output_schema=None, temperature, max_tokens, timeout_seconds=None); LlmResponse(text, parsed, usage, provider, model, prompt_version, latency_ms, finish_reason)"
   - "Códigos de error estables: llm_unavailable 503, llm_auth_error 401, llm_rate_limited 503, llm_timeout 503, llm_invalid_output 502, llm_schema_mismatch 502, llm_content_filtered 422 (incluye refusal de Anthropic), llm_config_invalid 422"
   - "Adaptador openai_compatible sobre httpx==0.28.1 con transporte y sleep inyectables, reintentos acotados por LLM_MAX_RETRIES/LLM_MAX_BACKOFF_SECONDS/Retry-After y forma de response_format configurable por LLM_JSON_MODE"
   - "Adaptador anthropic sobre el SDK oficial AsyncAnthropic con import perezoso; timeout y max_retries delegados al SDK; sin backoff propio"
@@ -90,7 +90,7 @@ facts_verified:
   - "pyproject.toml:52-60 no declara markers de pytest: un marcador de humo en vivo obligaría a añadir la clave, por eso el humo contra Ollama queda como paso manual del runbook"
   - "Topología local: el backend corre en contenedor (docker-compose.yml:32-49, host 8081 -> 8000) y el runtime de IA escucha en el host; desde el contenedor la dirección es host.docker.internal, desde el venv es localhost. El compose no declara extra_hosts, así que en Linux host.docker.internal no resolvería"
   - "Entorno del usuario: Ollama con qwen3.5:9b-q4_K_M, gpt-oss:20b y qwen3.6:35b-a3b descargados; llama-server instalado; variables ANTHROPIC_MODEL y OLLAMA_MODELS ya presentes (Engram #3709)"
-  - "Línea base de pruebas antes del cambio: 1408 pasadas / 3 saltadas con cd backend && pytest tests/ -v"
+  - "Línea base de pruebas antes del cambio (commit fc97125, 2026-08-26, con TEST_DATABASE_URL configurada): 1411 pasadas / 3 fallidas preexistentes en tests/test_adapter_microsoft365.py (dependientes del reloj); sin la variable, skip_no_db salta 898 pruebas y esa corrida no sirve de referencia"
 dependency_gating:
   - "Compuerta antes de cerrar el diseño de la rebanada 3: verificar en vivo contra PyPI el pin de anthropic y su compatibilidad con pydantic==2.10.4, con el rigor documentado en requirements.txt:18-29. Si no hay versión compatible, la rebanada cae a un cliente httpx a mano y se registra la excepción"
   - "El diseño debe fijar la técnica exacta de doble para el adaptador anthropic, porque el SDK corre sobre httpx2 y httpx.MockTransport no aplica. Criterio irrenunciable: ninguna prueba toca la red"
@@ -102,7 +102,7 @@ open_questions:
   - "Tope de gasto por tokens o alerta de coste como requisito de producto (supuesto: LLM_MAX_TOKENS por llamada es suficiente; un tope de consumo sería requisito del 49 en adelante)"
   - "Auditoría de prompt y respuesta de cada sugerencia (supuesto: basta con provider/model/prompt_version; el 48 no persiste nada y el 49 decide qué guarda assistant_suggestions)"
   - "Compromiso explícito de latencia o acierto del modelo local para clasificar correo (supuesto: no; el 48 solo garantiza la frontera y la calidad se mide en el 49 con datos reales)"
-last_updated: 2026-08-27
+last_updated: 2026-08-26
 spec_notes:
   - "Capacidad nueva llm-port (openspec/specs/llm-port/spec.md). Requisitos a especificar: contrato del puerto con complete asíncrono y DTOs congelados; LLM_PROVIDER=fake por defecto con cero red; selección de un único adaptador activo con llm_config_invalid 422 ante valor desconocido; salida estructurada con validación local obligatoria y parsed solo si validó, con llm_schema_mismatch 502 en caso contrario; taxonomía completa de códigos y estados HTTP; reintentos deterministas acotados en el adaptador httpx y delegados al SDK en el adaptador anthropic; allowlist cerrada validada antes de cualquier petición; prohibición de registrar o devolver la credencial y la URL completa; PROMPT_VERSION disponible en la metadata de la respuesta"
   - "Capacidad nueva assistant-health (openspec/specs/assistant-health/spec.md). Requisitos a especificar: GET /api/v1/assistant/health con require_role(admin, manager) y 403 para member/viewer; sobre {data, message}; campos exactos de data incluido base_url_host como netloc y api_key_configured como booleano; reachability en {ok, unreachable, not_probed} con reachability_reason legible; ?probe=true opt-in que nunca genera texto ni consume tokens; el cuerpo de la respuesta nunca contiene la clave ni la URL base completa"
