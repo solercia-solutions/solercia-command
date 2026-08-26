@@ -1,11 +1,24 @@
 """Tests for ``scripts.purge_demo_data`` (Fase 4 — Rebanada 3).
 
-Every test here runs WITHOUT a database (mandatory inclusion #3, design.md
+Most tests here run WITHOUT a database (mandatory inclusion #3, design.md
 D7): argument parsing, backup verification and upload-path containment are
 pure functions; the exit-code translation is exercised by replacing
 ``run_maintenance`` with a fake — the CLI never touches a real Postgres in
-this file.
+those cases. The single exception is
+``test_dry_run_real_via_subprocess_registra_el_orm_completo`` (Corrección 1,
+Fase 5): it launches the CLI as a FRESH ``python -m`` subprocess against
+``TEST_DATABASE_URL``, exactly like the orchestrator's manual dry-run.
+A same-process call would NOT reproduce the defect — the ``engine`` fixture
+in ``conftest.py`` already imports ``app.db_init`` (to build the schema),
+which pre-registers every ORM model for the rest of the pytest process
+before this module's own tests run, masking the incomplete-registry bug
+that a real standalone invocation hits.
 """
+
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from app.maintenance.report import (
     ConnectedAccountRisk,
@@ -19,6 +32,7 @@ from scripts.purge_demo_data import (
     main,
     redact_database_url,
 )
+from tests.conftest import skip_no_db
 
 _FAKE_DATABASE_URL = "postgresql+asyncpg://app:app@127.0.0.1:5434/solercia"
 
@@ -193,3 +207,40 @@ def test_excepcion_inesperada_retorna_codigo_4(monkeypatch) -> None:
     monkeypatch.setattr("scripts.purge_demo_data.run_maintenance", fake_run_maintenance)
 
     assert main(["--database-url", _FAKE_DATABASE_URL]) == 4
+
+
+# -- Corrección 1 (Fase 5): registro ORM real, sin fakes, subprocess real ---
+
+
+@skip_no_db
+def test_dry_run_real_via_subprocess_registra_el_orm_completo() -> None:
+    """Antes de la corrección, el módulo solo importaba ``app.config`` y
+    ``app.maintenance.*``; el registro de SQLAlchemy quedaba incompleto y el
+    primer query fallaba con ``NameError: name 'Role' is not defined`` al
+    resolver ``relationship("Role", order_by="Role.name")`` en ``User``,
+    saliendo con código 4 (EXIT_UNEXPECTED_ERROR) SIN imprimir ningún
+    reporte. Este test invoca la MISMA CLI real, en un subproceso limpio, en
+    modo dry-run (sin ``--execute``) contra ``TEST_DATABASE_URL`` —
+    ``solercia_test`` está vacía (sin seed), así que las invariantes I1-I5/
+    I8 fallan legítimamente (código 3); lo que prueba el registro ORM
+    completo es que la consulta real corrió de principio a fin y produjo el
+    reporte, en vez de reventar antes con la excepción del mapper."""
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.purge_demo_data",
+            "--database-url",
+            os.environ["TEST_DATABASE_URL"],
+        ],
+        cwd=backend_dir,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode in (0, 3), result.stderr
+    assert "ERROR INESPERADO" not in result.stderr
+    assert "Modo: dry-run" in result.stdout

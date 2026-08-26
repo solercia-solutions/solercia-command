@@ -37,6 +37,10 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# Pulls in every ORM model so relationship() string references (e.g. User ->
+# Role) resolve before the first session query; same pattern as
+# tests/conftest.py:66-68 (Corrección 1, Fase 5).
+import app.db_init  # noqa: F401
 from app.config import settings
 from app.maintenance.report import MaintenanceReport, PurgeGuardError
 from app.maintenance.repository import MaintenanceRepository
