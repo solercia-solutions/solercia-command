@@ -347,3 +347,20 @@ class MaintenanceRepository:
             select(Board.id).where(Board.project_id == project_id, Board.is_active.is_(True))
         )
         return result.scalar_one_or_none()
+
+    # -- CLI upload-file cleanup (design.md D7) --------------------------
+
+    async def find_attachment_stored_names(
+        self, target_ids: Sequence[uuid.UUID]
+    ) -> tuple[str, ...]:
+        """``stored_name``s of attachments whose ``target_id`` is in
+        ``target_ids`` — resolved by ``scripts/purge_demo_data.py`` BEFORE
+        ``run_maintenance`` deletes those rows, so ``--purge-upload-files``
+        knows exactly which files on disk to remove."""
+
+        if not target_ids:
+            return ()
+        result = await self.db.execute(
+            select(Attachment.stored_name).where(Attachment.target_id.in_(target_ids))
+        )
+        return tuple(row[0] for row in result.all())
