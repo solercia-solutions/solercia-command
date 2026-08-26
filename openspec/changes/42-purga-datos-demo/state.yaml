@@ -5,7 +5,7 @@ phases:
   proposal: done
   spec: done
   design: done
-  tasks: pending
+  tasks: done
   apply: pending
   verify: pending
   archive: pending
@@ -13,7 +13,7 @@ artifacts:
   proposal: true
   design: true
   specs: true
-  tasks: false
+  tasks: true
 capabilities:
   new:
     - data-maintenance
@@ -93,6 +93,10 @@ open_questions:
   - "verify-smoke-11@solercia.com y «Verify Test Asset» se tratan como artefactos de verificación desechables (supuesto: sin valor de auditoría)"
   - "Custodia del volcado de respaldo, que incluye datos reales y hashes de contraseña (supuesto: fuera del repositorio en SOLERCIA/backups/, sin cifrar, borrado manual tras cerrar la Ola 5)"
 last_updated: 2026-08-26
+tasks_notes:
+  - "tasks.md: 7 fases (0 gate, 1 compuerta, 2 purga, 3 bootstrap+invariantes+runner, 4 CLI+runbook, 5 ejecución manual, 6 cierre). Rebanadas feature-branch-chain: 1 (~150 líneas) -> 2a (~750) -> 2b (~830) -> 3 (~440), total ~2170, roza el presupuesto de sesión de 2000"
+  - "Inclusiones obligatorias del validador de diseño incorporadas: 1.4 (proyectos+tareas+sprint con flag encendido), 3.10 (fallo por cada invariante I1-I8), 4.1-4.2 (códigos de salida 0-4 sin BD vía fakes), 0.7/6.2 (test existente test_first_use_creates_default_project_and_second_use_reuses_it cubre el escenario perezoso sin bootstrap)"
+  - "Fase 6.4 deja explícito que la fusión de specs hacia openspec/specs/ es trabajo de sdd-archive, no de apply"
 spec_notes:
   - "Capacidad nueva: data-maintenance (openspec/specs/data-maintenance/spec.md). Requisitos a especificar: compuerta SEED_DEMO_DATA con default false y semilla estructural incondicional; purga idempotente con dry-run por defecto y execute explícito; respaldo obligatorio verificado antes de cualquier borrado; borrado explícito de huérfanos sin FK; protección del catálogo de sistema y de los conectores reales; fallo cerrado si una connected_account pertenece a un usuario a borrar; bootstrap idempotente de SDMUJER/SEGURIDAD/PANDORA; tablero de 7 columnas con Completada última; intake_settings.default_project_id apuntado a SEGURIDAD; invariantes post-ejecución"
   - "api-conventions: MODIFIED R4/R5 (la semilla demo queda condicionada por SEED_DEMO_DATA; la estructural sigue siendo incondicional) y su descripción :20; ADDED requisito que acota R3 (borrado suave) al dominio en tiempo de ejecución y autoriza el borrado físico como operación de mantenimiento con respaldo previo y confirmación explícita"
