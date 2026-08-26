@@ -5,7 +5,7 @@ phases:
   proposal: done
   spec: done
   design: done
-  tasks: pending
+  tasks: done
   apply: pending
   verify: pending
   archive: pending
@@ -13,7 +13,7 @@ artifacts:
   proposal: true
   design: true
   specs: true
-  tasks: false
+  tasks: true
 spec_counts:
   # Conteo autoritativo por encabezados en disco (rg '^### Requirement' / '^#### Scenario'), 2026-08-26
   # Corrida correctiva de sdd-spec: json_schema -> output_schema (D1) y max_tokens opcional en el
@@ -103,6 +103,12 @@ open_questions:
   - "Auditoría de prompt y respuesta de cada sugerencia (supuesto: basta con provider/model/prompt_version; el 48 no persiste nada y el 49 decide qué guarda assistant_suggestions)"
   - "Compromiso explícito de latencia o acierto del modelo local para clasificar correo (supuesto: no; el 48 solo garantiza la frontera y la calidad se mide en el 49 con datos reales)"
 last_updated: 2026-08-26
+tasks_notes:
+  - "tasks.md: 7 fases (0 gate, 1 núcleo, 2 openai_compatible, 3 anthropic, 4 assistant, 5 validación manual opcional contra Ollama, 6 suite completa+cierre). Rebanadas feature-branch-chain: 1 (~350 líneas, presupuesto 400) -> 2 (~550, presupuesto 700) -> 3 (~500-600, presupuesto 700) -> 4 (~400, presupuesto 500); presupuestos por rebanada, no acumulativos; 2 intentos máx. cada una"
+  - "Cobertura de escenarios: 30/30 (llm-port 21, assistant-health 9) mapeados a al menos una tarea de prueba nombrada dentro de tasks.md; varios escenarios comparten un mismo test (p. ej. R7 escenarios 1-2 en test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt; R1 escenarios 1-2 de assistant-health en test_admin_and_manager_get_200 parametrizado)"
+  - "Fase 0.6 deja constancia explícita de que agents/rules/solercia-persistence.md NO aplica pese a que modules/assistant/service.py coincide por patrón de ruta: sin repositorios, transacciones ni migraciones"
+  - "Fase 3.0 marca [MANUAL — orquestador] la reverificación en vivo del pin anthropic==1.0.0 contra PyPI como compuerta de inicio de la rebanada 3, previa a escribir pruebas"
+  - "Fase 5 (validación manual opcional contra Ollama) y Fase 6.7 (cadena de ramas) marcadas [MANUAL]/[orquestador], fuera del alcance de sdd-apply automatizado"
 spec_notes:
   - "Capacidad nueva llm-port (openspec/specs/llm-port/spec.md). Requisitos a especificar: contrato del puerto con complete asíncrono y DTOs congelados; LLM_PROVIDER=fake por defecto con cero red; selección de un único adaptador activo con llm_config_invalid 422 ante valor desconocido; salida estructurada con validación local obligatoria y parsed solo si validó, con llm_schema_mismatch 502 en caso contrario; taxonomía completa de códigos y estados HTTP; reintentos deterministas acotados en el adaptador httpx y delegados al SDK en el adaptador anthropic; allowlist cerrada validada antes de cualquier petición; prohibición de registrar o devolver la credencial y la URL completa; PROMPT_VERSION disponible en la metadata de la respuesta"
   - "Capacidad nueva assistant-health (openspec/specs/assistant-health/spec.md). Requisitos a especificar: GET /api/v1/assistant/health con require_role(admin, manager) y 403 para member/viewer; sobre {data, message}; campos exactos de data incluido base_url_host como netloc y api_key_configured como booleano; reachability en {ok, unreachable, not_probed} con reachability_reason legible; ?probe=true opt-in que nunca genera texto ni consume tokens; el cuerpo de la respuesta nunca contiene la clave ni la URL base completa"
