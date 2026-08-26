@@ -323,6 +323,27 @@ class Settings(BaseSettings):
     INTAKE_DEFAULT_PROJECT_NAME: str = "Tareas Outlook"
     INTAKE_PULL_MAX_ITEMS: int = 50
 
+    # LLM port (change 48-puerto-llm) — `LLM_PROVIDER` selects the active
+    # `app.ai.ports.LlmPort` adapter, read AT CALL TIME (mirrors
+    # `EMAIL_BACKEND="console"`). `LLM_BASE_URL_ALLOWLIST` is the anti-SSRF
+    # guard, validated before any request (design.md "Configuración").
+    LLM_PROVIDER: str = "fake"
+    LLM_BASE_URL: str = ""
+    LLM_MODEL: str = ""
+    LLM_API_KEY: str = ""
+    LLM_TIMEOUT_SECONDS: float = 60.0
+    LLM_MAX_TOKENS: int = 1024
+    LLM_MAX_RETRIES: int = 2
+    LLM_MAX_BACKOFF_SECONDS: float = 30.0
+    LLM_JSON_MODE: str = "json_object"
+    LLM_ANTHROPIC_FALLBACKS: bool = False
+    LLM_BASE_URL_ALLOWLIST: list[str] = [
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:11434/v1",
+        "http://host.docker.internal:11434/v1",
+        "https://api.anthropic.com",
+    ]
+
 
 @lru_cache
 def get_settings() -> Settings:

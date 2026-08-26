@@ -42,6 +42,9 @@ services:
       # Off by default (change 42-purga-datos-demo): a fresh deploy never
       # creates ana@/carlos@/diana@ or their demo projects/tasks/sprint.
       SEED_DEMO_DATA: "false"
+      # LLM port (change 48-puerto-llm) — `fake` touches no network; see
+      # `env.example` for the activation blocks.
+      LLM_PROVIDER: "fake"
     depends_on:
       postgres:
         condition: service_healthy
