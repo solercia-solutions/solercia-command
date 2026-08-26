@@ -18,6 +18,7 @@ from app.integrations import crypto as integrations_crypto
 from app.modules.activity.router import router as activity_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.assets.router import router as assets_router
+from app.modules.assistant.router import router as assistant_router
 from app.modules.attachments.router import router as attachments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.boards.router import router as boards_router
@@ -188,6 +189,7 @@ app.include_router(connectors_router, prefix=API_PREFIX)
 app.include_router(glpi_sync_router, prefix=API_PREFIX)
 app.include_router(jira_import_router, prefix=API_PREFIX)
 app.include_router(intake_router, prefix=API_PREFIX)
+app.include_router(assistant_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:

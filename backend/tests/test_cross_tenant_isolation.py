@@ -89,7 +89,12 @@ GLOBAL: frozenset[str] = frozenset({"menus", "org_role_templates"})
 
 # Módulos sin superficie de lectura cross-tenant relevante para esta batería
 # (auth: solo login/refresh/logout/me — sin listado ni detalle por id ajeno).
-INFRA_NO_READ: frozenset[str] = frozenset({"auth"})
+# assistant (change 48-puerto-llm): `GET /assistant/health` no lee entidades
+# por id ni lista nada — reporta la configuración del `LlmPort`, global por
+# proceso, sin estado por organización (design.md "Aislamiento por
+# organización"); RBAC (`admin`/`manager`) protege el acceso, no hay dato
+# tenant-scoped que una organización pueda ver de otra.
+INFRA_NO_READ: frozenset[str] = frozenset({"auth", "assistant"})
 
 
 _APP_MODULES_DIR = os.path.normpath(

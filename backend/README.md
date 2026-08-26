@@ -36,6 +36,12 @@ el router nunca usa SQLAlchemy directamente.
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `480`                                                      |
 | `CORS_ORIGINS`                | `["http://localhost:4200"]`                                |
 | `SEED_DEMO_DATA`              | `false` — enciende solo para demos; con `false` la semilla NUNCA crea `ana@`/`carlos@`/`diana@` ni sus proyectos, tareas o el sprint demo. La semilla estructural (organización `Solercia`, catálogo RBAC, `admin@solercia.com`) siempre corre, sin importar este valor. |
+| `LLM_PROVIDER`                | `fake` — selecciona el adaptador `LlmPort` activo (`fake`, `openai_compatible`, `anthropic`), leído en cada llamada, nunca en el import. |
+| `LLM_BASE_URL`                | vacío — URL base del proveedor; DEBE estar en `LLM_BASE_URL_ALLOWLIST` o el adaptador rechaza la petición antes de construirse (anti-SSRF). |
+| `LLM_MODEL`, `LLM_API_KEY`    | vacíos — modelo y credencial del proveedor; `LLM_API_KEY` nunca se expone (solo su presencia, como booleano). |
+| `LLM_TIMEOUT_SECONDS`, `LLM_MAX_TOKENS`, `LLM_MAX_RETRIES`, `LLM_MAX_BACKOFF_SECONDS` | `60.0` / `1024` / `2` / `30.0` — límites deterministas de la llamada y de los reintentos. |
+| `LLM_JSON_MODE`               | `json_object` — forma del cuerpo de salida estructurada (`json_object`, `json_schema_openai`, `json_schema_llamacpp`). |
+| `LLM_BASE_URL_ALLOWLIST`      | Ollama/llama.cpp locales + `https://api.anthropic.com` — única lista de destinos HTTP permitidos para el puerto LLM. |
 
 ## Ejecución
 
@@ -78,6 +84,7 @@ Base: `http://localhost:8000/api/v1`
 | POST   | `/projects`       | Crea un proyecto                         |
 | GET    | `/projects/{id}`  | Detalle de un proyecto                   |
 | GET    | `/api/v1/health`  | Estado del servicio                      |
+| GET    | `/api/v1/assistant/health` | Estado del proveedor de IA activo (`LlmPort`); `admin`/`manager` únicamente, `?probe=true` opcional |
 
 ## Metodologías (patrón Strategy)
 
@@ -90,6 +97,35 @@ funcionalidad. `methodology_info` se adjunta a cada proyecto en la respuesta.
 | kanban      | Backlog / Doing / Done                    | No      | hours      | No      |
 | scrum       | To Do / In Progress / In Review / Done    | Sí      | points     | Sí      |
 | custom      | (vacío, definido por el usuario)          | No      | none       | No      |
+
+## Activación del proveedor LLM local
+
+Por defecto `LLM_PROVIDER=fake` (sin red, sin costo). Para probar contra un
+modelo local con [Ollama](https://ollama.com):
+
+1. Levanta Ollama en el host y descarga el modelo, p. ej.
+   `ollama pull qwen3.5:9b-q4_K_M`.
+2. Exporta las variables `LLM_*` según dónde corra el proceso que las lee:
+   - **Desde el host** (`pytest`, script suelto): `LLM_BASE_URL=http://localhost:11434/v1`.
+   - **Desde el contenedor** (`docker compose up`): `LLM_BASE_URL=http://host.docker.internal:11434/v1`
+     (en Linux `host.docker.internal` no resuelve — la sonda responde
+     `reachability=unreachable` con un motivo legible, no un error crudo).
+   - En ambos casos: `LLM_PROVIDER=openai_compatible`, `LLM_MODEL=qwen3.5:9b-q4_K_M`
+     (o cualquier alternativa ya descargada en Ollama).
+   - Ambas URLs ya viven en `LLM_BASE_URL_ALLOWLIST` por defecto; una URL fuera
+     de esa lista se rechaza antes de cualquier petición.
+3. Reinicia el backend (`docker compose up -d --build backend` o el proceso
+   local) para que tome las variables nuevas.
+4. Verifica con la sonda manual (requiere un token `admin`/`manager`):
+
+   ```bash
+   curl -s -H "Authorization: Bearer <token>" \
+     "http://localhost:8081/api/v1/assistant/health?probe=true"
+   ```
+
+   `reachability` responde `ok` si Ollama contesta en `/v1/models`, o
+   `unreachable` con un motivo legible si no. `anthropic` nunca se sondea
+   (`not_probed`, sondear consumiría cuota); `fake` siempre reporta `ok`.
 
 ## Base de datos de test
 
