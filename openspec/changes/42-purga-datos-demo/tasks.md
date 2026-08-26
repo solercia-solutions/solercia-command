@@ -86,22 +86,22 @@ Diagrama de dependencia: `tracker feat/42-purga-datos-demo → PR1 (compuerta) �
 
 > Spec: «Bootstrap idempotente de la jerarquía SDMUJER», «Invariantes post-ejecución con código de salida no cero». Design: D2, D6, D8.
 
-- [ ] 3.1 RED — `test_bootstrap_crea_sdmujer_seguridad_pandora_con_codigos_y_metodologias`.
-- [ ] 3.2 RED — `test_seguridad_tiene_siete_columnas_y_completada_es_la_de_mayor_order`.
-- [ ] 3.3 RED — `test_status_key_de_las_columnas_es_literal_no_slug` (contraste con `BoardService.add_column`).
-- [ ] 3.4 RED — `test_pandora_recibe_las_columnas_por_defecto_de_kanban`.
-- [ ] 3.5 RED — `test_bootstrap_es_idempotente_y_reutiliza_proyectos_por_codigo`.
-- [ ] 3.6 RED — `test_intake_settings_apunta_a_seguridad_sin_crear_tareas_outlook`.
-- [ ] 3.7 GREEN — extender `backend/app/maintenance/repository.py`: `find_project_by_code`, `ensure_board_columns` (sin slugificar, sin commit — D6), `upsert_intake_default_project` (upsert ORM directo, nunca `IntakeSettingsRepository.get_or_create`).
-- [ ] 3.8 GREEN — crear `backend/app/maintenance/bootstrap.py`: `bootstrap_sdmujer(session, *, organization_id, actor_id)` vía `ProjectService._create_project_unit` (`# noqa: SLF001`, precedente `org_role_templates/service.py:295`) para SDMUJER/SEGURIDAD/PANDORA, `ensure_board_columns` para SEGURIDAD (7 columnas, `order` 0-6), `upsert_intake_default_project`.
-- [ ] 3.9 Verificar en verde: `cd backend && pytest tests/test_bootstrap_hierarchy.py -v`.
-- [ ] 3.10 RED (inclusión obligatoria #2, I1-I8) — en `test_maintenance_invariants.py`: `test_invariante_i1_falla_si_no_existe_admin`, `_i2_falla_si_existe_acme_consultores`, `_i3_falla_si_falta_codigo_o_padre_esperado`, `_i4_falla_si_completada_no_es_la_ultima_columna`, `_i5_falla_si_default_project_id_no_apunta_a_seguridad`, `_i6_falla_si_quedan_adjuntos_huerfanos`, `_i7_falla_si_hay_instantiations_del_alcance_demo`, `_i8_falla_si_sobrevive_un_conector_fake` — un caso de fallo inyectado por cada invariante.
-- [ ] 3.11 GREEN — extender `backend/app/maintenance/report.py`: `InvariantResult`, `MaintenanceReport` (`ok = all(i.passed …)`).
-- [ ] 3.12 GREEN — crear `backend/app/maintenance/invariants.py`: `collect_invariants(session) -> tuple[InvariantResult, ...]` con las 8 verificaciones I1-I8 (D8).
-- [ ] 3.13 Verificar en verde: `cd backend && pytest tests/test_maintenance_invariants.py -v`.
-- [ ] 3.14 RED (carry-over de Fase 2) — agregar a `test_purge_demo_data.py::test_dry_run_no_deja_cambios_visibles`: `run_maintenance(execute=False)` no deja cambios visibles tras `rollback`.
-- [ ] 3.15 GREEN — crear `backend/app/maintenance/runner.py`: `run_maintenance(session, *, execute, scope) -> MaintenanceReport` — llama `purge_demo_data` → `bootstrap_sdmujer` → `collect_invariants`; `commit()` solo si `execute` y todas las invariantes en PASS; en cualquier otro caso `rollback()` (D2).
-- [ ] 3.16 Verificar en verde: `cd backend && pytest tests/test_purge_demo_data.py tests/test_bootstrap_hierarchy.py tests/test_maintenance_invariants.py -v`.
+- [x] 3.1 RED — `test_bootstrap_crea_sdmujer_seguridad_pandora_con_codigos_y_metodologias`.
+- [x] 3.2 RED — `test_seguridad_tiene_siete_columnas_y_completada_es_la_de_mayor_order`.
+- [x] 3.3 RED — `test_status_key_de_las_columnas_es_literal_no_slug` (contraste con `BoardService.add_column`).
+- [x] 3.4 RED — `test_pandora_recibe_las_columnas_por_defecto_de_kanban`.
+- [x] 3.5 RED — `test_bootstrap_es_idempotente_y_reutiliza_proyectos_por_codigo`.
+- [x] 3.6 RED — `test_intake_settings_apunta_a_seguridad_sin_crear_tareas_outlook`.
+- [x] 3.7 GREEN — extender `backend/app/maintenance/repository.py`: `find_project_by_code`, `ensure_board_columns` (sin slugificar, sin commit — D6), `upsert_intake_default_project` (upsert ORM directo, nunca `IntakeSettingsRepository.get_or_create`).
+- [x] 3.8 GREEN — crear `backend/app/maintenance/bootstrap.py`: `bootstrap_sdmujer(session, *, organization_id, actor_id)` vía `ProjectService._create_project_unit` (`# noqa: SLF001`, precedente `org_role_templates/service.py:295`) para SDMUJER/SEGURIDAD/PANDORA, `ensure_board_columns` para SEGURIDAD (7 columnas, `order` 0-6), `upsert_intake_default_project`.
+- [x] 3.9 Verificar en verde: `cd backend && pytest tests/test_bootstrap_hierarchy.py -v`.
+- [x] 3.10 RED (inclusión obligatoria #2, I1-I8) — en `test_maintenance_invariants.py`: `test_invariante_i1_falla_si_no_existe_admin`, `_i2_falla_si_existe_acme_consultores`, `_i3_falla_si_falta_codigo_o_padre_esperado`, `_i4_falla_si_completada_no_es_la_ultima_columna`, `_i5_falla_si_default_project_id_no_apunta_a_seguridad`, `_i6_falla_si_quedan_adjuntos_huerfanos`, `_i7_falla_si_hay_instantiations_del_alcance_demo`, `_i8_falla_si_sobrevive_un_conector_fake` — un caso de fallo inyectado por cada invariante.
+- [x] 3.11 GREEN — extender `backend/app/maintenance/report.py`: `InvariantResult`, `MaintenanceReport` (`ok = all(i.passed …)`).
+- [x] 3.12 GREEN — crear `backend/app/maintenance/invariants.py`: `collect_invariants(session) -> tuple[InvariantResult, ...]` con las 8 verificaciones I1-I8 (D8).
+- [x] 3.13 Verificar en verde: `cd backend && pytest tests/test_maintenance_invariants.py -v`.
+- [x] 3.14 RED (carry-over de Fase 2) — agregar a `test_purge_demo_data.py::test_dry_run_no_deja_cambios_visibles`: `run_maintenance(execute=False)` no deja cambios visibles tras `rollback`.
+- [x] 3.15 GREEN — crear `backend/app/maintenance/runner.py`: `run_maintenance(session, *, execute, scope) -> MaintenanceReport` — llama `purge_demo_data` → `bootstrap_sdmujer` → `collect_invariants`; `commit()` solo si `execute` y todas las invariantes en PASS; en cualquier otro caso `rollback()` (D2).
+- [x] 3.16 Verificar en verde: `cd backend && pytest tests/test_purge_demo_data.py tests/test_bootstrap_hierarchy.py tests/test_maintenance_invariants.py -v`.
 
 ## Fase 4: CLI, códigos de salida y runbook [Rebanada 3]
 

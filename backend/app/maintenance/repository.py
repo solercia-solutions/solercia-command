@@ -25,8 +25,10 @@ from app.maintenance.report import ConnectedAccountRisk, InventoryRow
 from app.maintenance.scope import DemoScope
 from app.modules.assets.models import Asset
 from app.modules.attachments.models import Attachment
+from app.modules.boards.models import Board, BoardColumn
 from app.modules.comments.models import TaskComment
 from app.modules.connectors.models import ConnectedAccount, Connector
+from app.modules.intake.models import IntakeSettings
 from app.modules.notifications.models import Notification
 from app.modules.org_role_templates.models import OrgRoleTemplateInstantiation
 from app.modules.organizations.models import Organization
@@ -259,3 +261,89 @@ class MaintenanceRepository:
         """Run LAST — cascades every remaining tenant-scoped row."""
 
         return await self._delete_by_ids(Organization, Organization.id, organization_ids)
+
+    # -- protected identity lookups (D2, runner.py resolves bootstrap args) --
+
+    async def find_organization_id_by_name(self, name: str) -> uuid.UUID | None:
+        """Resolve e.g. ``scope.protected_organization_names[0]`` to an id."""
+
+        result = await self.db.execute(select(Organization.id).where(Organization.name == name))
+        return result.scalar_one_or_none()
+
+    async def find_user_id_by_email(self, email: str) -> uuid.UUID | None:
+        """Resolve e.g. ``scope.protected_admin_email`` to an id."""
+
+        result = await self.db.execute(select(User.id).where(User.email == email))
+        return result.scalar_one_or_none()
+
+    # -- bootstrap (design.md D6) ----------------------------------------
+
+    async def find_project_by_code(self, organization_id: uuid.UUID, code: str) -> Project | None:
+        """Reuse point for idempotent bootstrap — one project per ``code``
+        within ``organization_id`` (``uq_project_code_per_org``)."""
+
+        result = await self.db.execute(
+            select(Project).where(
+                Project.organization_id == organization_id,
+                Project.code == code,
+                Project.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def ensure_board_columns(self, board_id: uuid.UUID, columns: Sequence[str]) -> int:
+        """Add every missing column of ``columns`` (in order) to ``board_id``
+        and fix the ``order`` of any that already exist but drifted.
+
+        ``status_key`` is the column name VERBATIM — never slugified, in
+        contrast to ``BoardService.add_column`` (design.md D6). Returns how
+        many NEW columns were inserted (``0`` on the idempotent re-run).
+        """
+
+        result = await self.db.execute(
+            select(BoardColumn).where(
+                BoardColumn.board_id == board_id, BoardColumn.is_active.is_(True)
+            )
+        )
+        existing = {column.status_key: column for column in result.scalars().all()}
+
+        inserted = 0
+        for order, name in enumerate(columns):
+            column = existing.get(name)
+            if column is None:
+                self.db.add(
+                    BoardColumn(board_id=board_id, name=name, status_key=name, order=order)
+                )
+                inserted += 1
+            elif column.order != order:
+                column.order = order
+        await self.db.flush()
+        return inserted
+
+    async def upsert_intake_default_project(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> None:
+        """Point ``intake_settings.default_project_id`` at ``project_id`` —
+        direct ORM upsert, NEVER ``IntakeSettingsRepository.get_or_create``
+        (it commits, ``intake/repository.py:265``, design.md D6)."""
+
+        result = await self.db.execute(
+            select(IntakeSettings).where(IntakeSettings.organization_id == organization_id)
+        )
+        settings_row = result.scalar_one_or_none()
+        if settings_row is None:
+            self.db.add(
+                IntakeSettings(organization_id=organization_id, default_project_id=project_id)
+            )
+        elif settings_row.default_project_id != project_id:
+            settings_row.default_project_id = project_id
+        await self.db.flush()
+
+    async def find_board_id_for_project(self, project_id: uuid.UUID) -> uuid.UUID | None:
+        """Resolved here (not via ``BoardRepository``) so ``bootstrap.py``
+        never imports it directly — D1, single adapter."""
+
+        result = await self.db.execute(
+            select(Board.id).where(Board.project_id == project_id, Board.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()

@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.maintenance.purge import purge_demo_data
 from app.maintenance.report import PurgeGuardError
+from app.maintenance.runner import run_maintenance
 from app.maintenance.scope import DemoScope
 from app.modules.assets.models import Asset, AssetLicense
 from app.modules.attachments.models import Attachment
@@ -417,3 +418,50 @@ async def test_purga_es_idempotente_en_segunda_corrida(session: AsyncSession) ->
 
     for result in second.deleted:
         assert result.deleted == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_dry_run_no_deja_cambios_visibles(session: AsyncSession) -> None:
+    """``run_maintenance(execute=False)`` runs purge + bootstrap on the SAME
+    code path as ``--execute``, then rolls back — nothing survives (D2)."""
+
+    fixture = await _seed_demo_fixture(session)
+    # Captured BEFORE the call: ``run_maintenance``'s internal rollback
+    # expires every attached ORM object, and touching an expired attribute
+    # outside an awaited context raises MissingGreenlet (same gotcha as
+    # org_role_templates/service.py's retry-after-rollback path).
+    acme_id = fixture.acme.id
+    ana_id = fixture.ana.id
+    plataforma_web_id = fixture.solercia_projects["Plataforma Web"].id
+
+    report = await run_maintenance(session, execute=False)
+
+    assert report.mode == "dry-run"
+    assert sum(result.deleted for result in report.deleted) > 0  # it DID compute deletions
+    assert await _exists(session, Organization, acme_id)
+    assert await _exists(session, User, ana_id)
+    assert await _exists(session, Project, plataforma_web_id)
+    sdm = await session.execute(select(Project.id).where(Project.code == "SDM"))
+    assert sdm.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_execute_persiste_cambios_y_reporta_invariantes_en_pass(
+    session: AsyncSession,
+) -> None:
+    fixture = await _seed_demo_fixture(session)
+    acme_id = fixture.acme.id
+    admin_id = fixture.admin.id
+
+    report = await run_maintenance(session, execute=True)
+
+    assert report.mode == "execute"
+    assert report.ok is True
+    assert all(result.passed for result in report.invariants), report.invariants
+
+    assert not await _exists(session, Organization, acme_id)
+    assert await _exists(session, User, admin_id)
+    seg = await session.execute(select(Project.id).where(Project.code == "SEG"))
+    assert seg.scalar_one_or_none() is not None

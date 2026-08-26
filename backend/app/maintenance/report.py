@@ -1,7 +1,6 @@
 """Typed report shapes for the maintenance package (design.md Decision D8).
 
-Pure data — no I/O. ``InvariantResult``/``MaintenanceReport`` (bootstrap +
-invariants) are added in Fase 3; this module holds only what Fase 2 needs.
+Pure data — no I/O.
 """
 
 import uuid
@@ -61,3 +60,31 @@ class PurgeGuardError(Exception):
     def __init__(self, message: str, *, risks: tuple[ConnectedAccountRisk, ...] = ()) -> None:
         super().__init__(message)
         self.risks = risks
+
+
+@dataclass(frozen=True)
+class InvariantResult:
+    """One post-execution check (design.md D8, I1-I8) — read-only, never
+    raises; ``runner.py`` gates the ``commit()`` on ``passed``."""
+
+    key: str
+    description: str
+    passed: bool
+    detail: str
+
+
+@dataclass(frozen=True)
+class MaintenanceReport:
+    """The full result of one ``run_maintenance`` call — purge + bootstrap +
+    invariants (design.md D8)."""
+
+    mode: str
+    inventory: tuple[InventoryRow, ...]
+    planned: tuple[PlannedDeletion, ...]
+    deleted: tuple[DeletionResult, ...]
+    bootstrap: tuple[str, ...]
+    invariants: tuple[InvariantResult, ...]
+
+    @property
+    def ok(self) -> bool:
+        return all(result.passed for result in self.invariants)
