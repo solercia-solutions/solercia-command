@@ -2,14 +2,16 @@
 48-puerto-llm, design.md "Registro"). `settings.LLM_PROVIDER` is read AT
 CALL TIME, never cached (D3) — mirrors `get_email_sender()`.
 
-`_ADAPTERS` only registers `"fake"` in this slice; `"openai_compatible"`
-and `"anthropic"` join in slices 2/3 without changing this module's shape.
-Importing this module never imports the `anthropic` SDK.
+`_ADAPTERS` registers `"fake"` and `"openai_compatible"` in this slice;
+`"anthropic"` joins in slice 3 via a lazy `importlib.import_module`
+without changing this module's shape. Importing this module never imports
+the `anthropic` SDK.
 """
 
 from collections.abc import Callable
 
 from app.ai.adapters.fake import get_fake_adapter
+from app.ai.adapters.openai_compatible import OpenAiCompatibleAdapter
 from app.ai.errors import LlmConfigInvalid
 from app.ai.ports import LlmPort
 from app.config import Settings
@@ -20,8 +22,13 @@ def _build_fake(_settings: Settings) -> LlmPort:
     return get_fake_adapter()
 
 
+def _build_openai_compatible(active: Settings) -> LlmPort:
+    return OpenAiCompatibleAdapter(settings=active)
+
+
 _ADAPTERS: dict[str, Callable[[Settings], LlmPort]] = {
     "fake": _build_fake,
+    "openai_compatible": _build_openai_compatible,
 }
 
 

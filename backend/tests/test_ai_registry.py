@@ -1,6 +1,7 @@
 """`get_llm_port()` provider selection (design.md "Registro"). Requirement
-`llm-port` R2, the isolation scenario of R5, and R8. `_ADAPTERS` only
-registers `"fake"` in this slice.
+`llm-port` R2, the isolation scenario of R5, and R8. `_ADAPTERS` registers
+`"fake"` and `"openai_compatible"` as of this slice; `"anthropic"` joins
+in slice 3.
 """
 
 import builtins

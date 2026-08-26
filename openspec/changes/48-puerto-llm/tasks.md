@@ -72,21 +72,21 @@ Cada presupuesto es por rebanada (una revisión a la vez), no acumulativo. Ning�
 
 > Spec `llm-port`: «Adaptador openai_compatible» (R4), «Guarda de destino por allowlist» (R6), «Protección de secretos y datos en logs y errores» (R7). Design: sección del adaptador, D6, D7.
 
-- [ ] 2.1 RED — crear `backend/tests/test_ai_adapter_openai_compatible.py` (`Settings(**overrides)` + `httpx.MockTransport` + `sleep` inyectado); `test_rejects_a_base_url_outside_the_allowlist_before_any_request` (llm-port R6 escenario 1: el handler lanza `AssertionError`, nunca se ejecuta) y `test_base_url_within_the_allowlist_reaches_the_injected_transport` (R6 escenario 2).
-- [ ] 2.2 RED — `test_rejects_an_empty_model_before_any_request`.
-- [ ] 2.3 RED — `test_system_travels_as_the_first_message_and_stream_is_false`.
-- [ ] 2.4 RED — `test_json_mode_openai_sends_the_nested_envelope`, `test_json_mode_llamacpp_sends_the_schema_at_top_level` (llm-port R4 escenario 1), `test_json_mode_json_object_sends_the_schema_as_a_prompt_hint`.
-- [ ] 2.5 RED — `test_parses_a_fenced_json_body`.
-- [ ] 2.6 RED — `test_429_retries_then_raises_rate_limited` (llm-port R4 escenario 2) y `test_clamps_retry_after_to_max_backoff`.
-- [ ] 2.7 RED — `test_maps_500_401_404_timeout_connect_error` (llm-port R4 escenario 3, camino timeout).
-- [ ] 2.8 RED — `test_finish_reason_length_maps_to_invalid_output` (con `output_schema` pedido) y `test_max_tokens_without_schema_returns_length` (sin esquema: `finish_reason == "length"`, `parsed is None`, sin excepción).
-- [ ] 2.9 RED — `test_finish_reason_content_filter_maps_to_content_filtered`.
-- [ ] 2.10 RED — `test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt` (llm-port R7 escenarios 1 y 2, vía `caplog`).
-- [ ] 2.11 RED — `test_probe_hits_models_and_reports_ok` y `test_probe_reports_unreachable_with_reason`.
-- [ ] 2.12 GREEN — crear `backend/app/ai/adapters/openai_compatible.py`: constructor con `transport`/`sleep`/`settings` inyectables, validación de allowlist y modelo antes de cualquier petición, cuerpo por `LLM_JSON_MODE`, mapa de fallos, backoff con techo, log seguro, `probe()` contra `/models`.
-- [ ] 2.13 GREEN — registrar `"openai_compatible"` en `_ADAPTERS` (`backend/app/ai/registry.py`).
-- [ ] 2.14 GREEN — extender `test_ai_port_contract.py`: parametrizar la fixture también con `openai_compatible` (doble hermético vía `MockTransport`), confirmando que el mismo cuerpo de prueba pasa contra los dos adaptadores.
-- [ ] 2.15 Verificar en verde: `cd backend && pytest tests/test_ai_adapter_openai_compatible.py tests/test_ai_port_contract.py tests/test_ai_registry.py -v`.
+- [x] 2.1 RED — crear `backend/tests/test_ai_adapter_openai_compatible.py` (`Settings(**overrides)` + `httpx.MockTransport` + `sleep` inyectado); `test_rejects_a_base_url_outside_the_allowlist_before_any_request` (llm-port R6 escenario 1: el handler lanza `AssertionError`, nunca se ejecuta) y `test_base_url_within_the_allowlist_reaches_the_injected_transport` (R6 escenario 2). Confirmado en rojo: `ModuleNotFoundError: app.ai.adapters.openai_compatible`.
+- [x] 2.2 RED — `test_rejects_an_empty_model_before_any_request`.
+- [x] 2.3 RED — `test_system_travels_as_the_first_message_and_stream_is_false`.
+- [x] 2.4 RED — `test_json_mode_openai_sends_the_nested_envelope`, `test_json_mode_llamacpp_sends_the_schema_at_top_level` (llm-port R4 escenario 1), `test_json_mode_json_object_sends_the_schema_as_a_prompt_hint`.
+- [x] 2.5 RED — `test_parses_a_fenced_json_body`.
+- [x] 2.6 RED — `test_429_retries_then_raises_rate_limited` (llm-port R4 escenario 2) y `test_clamps_retry_after_to_max_backoff`.
+- [x] 2.7 RED — `test_maps_500_401_404_timeout_connect_error` (llm-port R4 escenario 3, camino timeout).
+- [x] 2.8 RED — `test_finish_reason_length_maps_to_invalid_output` (con `output_schema` pedido) y `test_max_tokens_without_schema_returns_length` (sin esquema: `finish_reason == "length"`, `parsed is None`, sin excepción).
+- [x] 2.9 RED — `test_finish_reason_content_filter_maps_to_content_filtered`.
+- [x] 2.10 RED — `test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt` (llm-port R7 escenarios 1 y 2, vía `caplog`).
+- [x] 2.11 RED — `test_probe_hits_models_and_reports_ok` y `test_probe_reports_unreachable_with_reason`.
+- [x] 2.12 GREEN — crear `backend/app/ai/adapters/openai_compatible.py`: constructor con `transport`/`sleep`/`settings` inyectables, validación de allowlist y modelo antes de cualquier petición, cuerpo por `LLM_JSON_MODE`, mapa de fallos, backoff con techo, log seguro, `probe()` contra `/models`. 17/17 pruebas en verde.
+- [x] 2.13 GREEN — registrar `"openai_compatible"` en `_ADAPTERS` (`backend/app/ai/registry.py`).
+- [x] 2.14 GREEN — extender `test_ai_port_contract.py`: parametrizar la fixture también con `openai_compatible` (doble hermético vía `MockTransport`), confirmando que el mismo cuerpo de prueba pasa contra los dos adaptadores.
+- [x] 2.15 Verificar en verde: `cd backend && pytest tests/test_ai_adapter_openai_compatible.py tests/test_ai_port_contract.py tests/test_ai_registry.py -v`. 36/36 pasadas.
 
 ## Fase 3: Adaptador `anthropic` [Rebanada 3]
 
