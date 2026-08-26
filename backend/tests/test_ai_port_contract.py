@@ -1,18 +1,20 @@
 """Contract every `LlmPort` adapter must satisfy (design.md "Estrategia de
-pruebas"). Slice 1 exercised only `fake`; as of slice 2, this SAME `fake`
-fixture also parametrizes over `openai_compatible` through a hermetic
-`httpx.MockTransport` double exposing the identical `next_text`/`calls`/
-`probe_calls` surface as `FakeLlmAdapter` — the test bodies below never
-change per provider. Requirement `llm-port` R1/R3.
+pruebas"). Slice 1 exercised only `fake`; slice 2 added `openai_compatible`;
+as of slice 3, this SAME `fake` fixture also parametrizes over `anthropic`
+through a hermetic `httpx2.MockTransport` double — the test bodies below
+never change per provider. Requirement `llm-port` R1/R3.
 """
 
+import sys
 from dataclasses import FrozenInstanceError
 from typing import Any
 
 import httpx
+import httpx2
 import pytest
 from pydantic import BaseModel
 
+from app.ai.adapters.anthropic import AnthropicAdapter
 from app.ai.adapters.fake import get_fake_adapter
 from app.ai.adapters.openai_compatible import OpenAiCompatibleAdapter
 from app.ai.errors import LlmSchemaMismatch
@@ -20,6 +22,20 @@ from app.ai.ports import LlmMessage, LlmProbe, LlmRequest, LlmResponse
 from app.config import Settings
 
 _OPENAI_COMPATIBLE_BASE_URL = "http://localhost:11434/v1"
+_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _isolate_anthropic_import() -> Any:
+    """Mirrors `test_ai_adapter_anthropic.py`'s teardown: the `anthropic`
+    parametrization below imports the real SDK lazily via
+    `AnthropicAdapter.complete()`; undo that before `test_ai_registry.py`'s
+    isolation scenario runs later in the same session."""
+
+    yield
+    for name in [key for key in sys.modules if key == "anthropic" or key.startswith("anthropic.")]:
+        del sys.modules[name]
+    sys.modules.pop("app.ai.adapters.anthropic", None)
 
 
 class TriageDecision(BaseModel):
@@ -68,12 +84,56 @@ class _OpenAiCompatibleDouble:
         return await self._adapter.probe()
 
 
-@pytest.fixture(params=["fake", "openai_compatible"])
+class _AnthropicDouble:
+    """Same call-log surface as `FakeLlmAdapter`, backed by a real
+    `AnthropicAdapter` behind a hermetic `httpx2.MockTransport`."""
+
+    def __init__(self) -> None:
+        self.calls: list[LlmRequest] = []
+        self.probe_calls = 0
+        self.next_text = "Respuesta de prueba del adaptador anthropic."
+        settings = Settings(
+            LLM_BASE_URL=_ANTHROPIC_BASE_URL,
+            LLM_MODEL="claude-opus-5",
+            LLM_API_KEY="sk-test-key",
+            LLM_BASE_URL_ALLOWLIST=[_ANTHROPIC_BASE_URL],
+        )
+        self._adapter = AnthropicAdapter(
+            settings=settings, transport=httpx2.MockTransport(self._handle)
+        )
+
+    def _handle(self, request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            json={
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-5",
+                "content": [{"type": "text", "text": self.next_text}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            },
+        )
+
+    async def complete(self, request: LlmRequest) -> LlmResponse:
+        self.calls.append(request)
+        return await self._adapter.complete(request)
+
+    async def probe(self) -> LlmProbe:
+        self.probe_calls += 1
+        return await self._adapter.probe()
+
+
+@pytest.fixture(params=["fake", "openai_compatible", "anthropic"])
 def fake(request: pytest.FixtureRequest) -> Any:
-    """Fresh call history per test (D3); `openai_compatible` gets a fresh
-    double per test since it is not a process singleton."""
+    """Fresh call history per test (D3); `openai_compatible`/`anthropic`
+    get a fresh double per test since neither is a process singleton."""
     if request.param == "openai_compatible":
         return _OpenAiCompatibleDouble()
+    if request.param == "anthropic":
+        return _AnthropicDouble()
     adapter = get_fake_adapter()
     adapter.calls.clear()
     adapter.probe_calls = 0

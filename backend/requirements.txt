@@ -27,3 +27,15 @@ openpyxl==3.1.5
 # dependencias indirectas en este archivo): anyio, httpx-sse, jsonschema.
 mcp==1.12.0
 sse-starlette==2.2.1
+# Anthropic SDK (change 48-puerto-llm, adapter `app/ai/adapters/anthropic.py`).
+# Verificado en vivo contra PyPI el 2026-08-26: la última estable es 1.0.0,
+# exige pydantic>=1.9.0,<3 (satisfecho por pydantic==2.10.4 arriba) y
+# Python>=3.10 (el runtime es 3.12+). Arrastra httpx2>=2.0.0,<3 de forma
+# transitiva (sin pin propio, mismo criterio que el resto de dependencias
+# indirectas de este archivo): es un paquete SEPARADO de httpx==0.28.1, ambos
+# conviven sin conflicto de resolución (`pip install --dry-run` confirmado
+# limpio). El SDK se importa de forma perezosa dentro de
+# `app/ai/adapters/anthropic.py::_build_client()`, así que un `LLM_PROVIDER`
+# distinto de `anthropic` nunca lo carga. Extras (`aiohttp`, `aws`/`bedrock`,
+# `google-cloud`/`vertex`, `mcp`, `webhooks`) no se instalan.
+anthropic==1.0.0

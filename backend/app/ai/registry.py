@@ -2,12 +2,14 @@
 48-puerto-llm, design.md "Registro"). `settings.LLM_PROVIDER` is read AT
 CALL TIME, never cached (D3) — mirrors `get_email_sender()`.
 
-`_ADAPTERS` registers `"fake"` and `"openai_compatible"` in this slice;
-`"anthropic"` joins in slice 3 via a lazy `importlib.import_module`
-without changing this module's shape. Importing this module never imports
-the `anthropic` SDK.
+`_ADAPTERS` registers `"fake"`, `"openai_compatible"` and `"anthropic"`.
+`_build_anthropic` reaches the last one through a lazy
+`importlib.import_module` so importing THIS module never imports the
+`anthropic` SDK — only selecting `LLM_PROVIDER="anthropic"` at call time
+does (spec `llm-port` R5 "Aislamiento de dependencia").
 """
 
+import importlib
 from collections.abc import Callable
 
 from app.ai.adapters.fake import get_fake_adapter
@@ -26,9 +28,16 @@ def _build_openai_compatible(active: Settings) -> LlmPort:
     return OpenAiCompatibleAdapter(settings=active)
 
 
+def _build_anthropic(active: Settings) -> LlmPort:
+    module = importlib.import_module("app.ai.adapters.anthropic")
+    adapter: LlmPort = module.AnthropicAdapter(settings=active)
+    return adapter
+
+
 _ADAPTERS: dict[str, Callable[[Settings], LlmPort]] = {
     "fake": _build_fake,
     "openai_compatible": _build_openai_compatible,
+    "anthropic": _build_anthropic,
 }
 
 
