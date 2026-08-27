@@ -40,13 +40,13 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 
 ## Phase 0: Verificación previa (gate)
 
-- [ ] 0.1 Confirmar que el cambio `42-purga-datos-demo` está archivado (precondición dura del `apply`; la base queda en 1 organización, 1 usuario, `SDMUJER > SEGURIDAD + PANDORA`, 0 tareas).
-- [ ] 0.2 Confirmar en disco `alembic heads`: única punta `0024` (`0024_add_work_calendar.py`, `down_revision="0023"`), 24 archivos en `backend/alembic/versions/`; siguiente libre `0025`.
-- [ ] 0.3 Confirmar en disco que `backend/app/modules/tasks/sources.py`, `backend/tests/test_migration_task_external_origin.py` y `backend/tests/test_tasks_external_origin.py` NO existen todavía.
-- [ ] 0.4 Confirmar en disco `Task.__table_args__` (`tasks/models.py:43-58`): solo los 2 índices GIN trigram, cero restricciones únicas ni `CheckConstraint` hoy.
-- [ ] 0.5 Confirmar en disco la firma vigente de `TaskService.create_task` (`service.py:252-335`): `(self, organization_id, project_id, data: TaskCreate, *, actor_id=None)`; el bloque *keyword-only* donde entra `external_origin` ya existe.
-- [ ] 0.6 Registrar la línea base de pruebas vigente en el tracker al iniciar cada rebanada (`cd backend && pytest tests/ -v` con `TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test`); referencia actual **1415 pasadas / 3 fallidas preexistentes** (`test_adapter_microsoft365.py`, dependientes del reloj). El `48-puerto-llm` agrega pruebas nuevas en paralelo: NO asumir la cifra congelada en `design.md` (1411) — re-verificar el conteo exacto al abrir cada rebanada (A, B, C) antes de fijarlo como referencia de «sin regresión».
-- [ ] 0.7 Confirmar en disco que `TaskCreate`/`TaskUpdate` (`schemas.py`) siguen sin `source`/`external_key`, y que ninguno de los tres esquemas de `tasks` declara `extra="forbid"`.
+- [x] 0.1 Confirmar que el cambio `42-purga-datos-demo` está archivado (precondición dura del `apply`; la base queda en 1 organización, 1 usuario, `SDMUJER > SEGURIDAD + PANDORA`, 0 tareas). Evidencia: precondición asumida por el orquestador al reclamar el intento; no reabierta aquí.
+- [x] 0.2 Confirmar en disco `alembic heads`: única punta `0024` (`0024_add_work_calendar.py`, `down_revision="0023"`), 24 archivos en `backend/alembic/versions/`; siguiente libre `0025`. Evidencia: `alembic heads` (disco) → `0024 (head)`; `alembic current` (BD viva) → `0024 (head)`; `fd . alembic/versions -e py | wc -l` → `24` antes de crear `0025`.
+- [x] 0.3 Confirmar en disco que `backend/app/modules/tasks/sources.py`, `backend/tests/test_migration_task_external_origin.py` y `backend/tests/test_tasks_external_origin.py` NO existen todavía. Evidencia: los tres `test -f` reportaron ausentes antes de escribir el archivo de la rebanada A.
+- [x] 0.4 Confirmar en disco `Task.__table_args__` (`tasks/models.py:43-58`): solo los 2 índices GIN trigram, cero restricciones únicas ni `CheckConstraint` hoy. Evidencia: lectura de `models.py` antes de editar — confirmado.
+- [x] 0.5 Confirmar en disco la firma vigente de `TaskService.create_task` (`service.py:252-335`): `(self, organization_id, project_id, data: TaskCreate, *, actor_id=None)`; el bloque *keyword-only* donde entra `external_origin` ya existe. Evidencia: `rg -n "async def create_task" -A 10 app/modules/tasks/service.py` — firma confirmada, sin `external_origin` todavía (llega en la rebanada B).
+- [x] 0.6 Registrar la línea base de pruebas vigente en el tracker al iniciar cada rebanada. Evidencia: suite completa con `TEST_DATABASE_URL` puesta → **1496 passed / 3 failed preexistentes** (`test_adapter_microsoft365.py`, dependientes del reloj) tras agregar las 9 pruebas de la rebanada A (1487 base + 9 nuevas); requirió recrear `solercia_test` porque `create_all` no altera tablas ya existentes en una base persistida de una corrida previa.
+- [x] 0.7 Confirmar en disco que `TaskCreate`/`TaskUpdate` (`schemas.py`) siguen sin `source`/`external_key`, y que ninguno de los tres esquemas de `tasks` declara `extra="forbid"`. Evidencia: `rg -n "class TaskCreate|class TaskUpdate|class TaskRead|extra="` sobre `schemas.py` — sin coincidencias de `extra=`.
 
 ## Phase 1: Reanclaje del cambio 40 — unidad de artefactos OpenSpec (D8)
 
@@ -55,49 +55,49 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 > aplica directamente sobre el tracker `feat/43-tareas-origen-externo` y no cuenta contra el
 > presupuesto de revisión de A/B/C.
 
-- [ ] 1.1 `40/tasks.md:47` (fila U1) — reducir objetivo y mensaje de commit a `projects`+`sprints`; restar ≈40–60 líneas de la estimación de la unidad.
-- [ ] 1.2 `40/tasks.md:59` (0.4) — el head real ya no es `0021_unique_org_member`: hoy es `0024`, y tras el 43 será `0025`.
-- [ ] 1.3 `40/tasks.md:60` (0.5) — el próximo consecutivo libre no es `0022`: es **el siguiente consecutivo libre en el momento del `apply` del 40**, que se verifica entonces con `alembic heads` y con los cambios pendientes (hoy sería `0029` si el 44 y el 45a aterrizan antes). **No se reserva ningún número por adelantado**: un `down_revision` hacia una revisión que nadie ha escrito rompe `alembic upgrade head` en despliegue.
-- [ ] 1.4 `40/tasks.md:64` (1.1) — renombrar a `00NN_add_external_anchor_projects_sprints.py`, donde `00NN` es el consecutivo libre que la compuerta fije en el `apply` del 40; eliminar `tasks` y `uq_tasks_project_source_external_key` de sus listas; alinear `source` de `VARCHAR(20)` a `String(50)` (D3).
-- [ ] 1.5 `40/tasks.md:65` (1.2) — quitar `backend/app/modules/tasks/models.py` de la lista de modelos a editar.
-- [ ] 1.6 `40/tasks.md:66` (1.3) — `test_external_anchor_migration.py` pierde las aserciones sobre `tasks`.
-- [ ] 1.7 `40/tasks.md:68-69` (1.5, 1.6) — `TaskRead` ya expone ambos campos: pasan de RED/GREEN a verificación de que siguen expuestos.
-- [ ] 1.8 `40/tasks.md:72` (Commit 1) — mensaje → `feat(anchors): agrega source/external_key con únicos parciales a projects/sprints`.
-- [ ] 1.9 `40/design.md:26-31` (D2) — marcar la fila de `tasks` como entregada por el 43; conservar la decisión para `projects`/`sprints`.
-- [ ] 1.10 `40/design.md:75` — `app/modules/{projects,sprints}/models.py`, sin `tasks`.
-- [ ] 1.11 `40/design.md:76` — `alembic/versions/00NN_add_external_anchor_projects_sprints.py`, con `00NN` resuelto por la compuerta en el `apply` del 40.
-- [ ] 1.12 `40/design.md:116-121` — `down_revision` real (la cabeza en vivo en el momento del `apply` del 40, verificada con `alembic heads`; no un literal fijado hoy) y alcance de dos tablas, no tres.
-- [ ] 1.13 `40/specs/tasks/spec.md:3-6` (preámbulo) — reescribir: el delta ya no agrega el ancla, la consume; el ancla la entrega el 43, este delta agrega solo la reconciliación idempotente del importador.
-- [ ] 1.14 `40/specs/tasks/spec.md:10-22` — eliminar el requisito «Ancla de procedencia externa (source + external_key)» y sus 2 escenarios.
-- [ ] 1.15 `40/specs/tasks/spec.md:33-40` — eliminar «Clave local y clave externa conviven como referencias distintas» y su escenario.
-- [ ] 1.16 `40/specs/tasks/spec.md:24-31` — conservar «Reconciliación idempotente por procedencia externa» (comportamiento del importador).
-- [ ] 1.17 `40/specs/tasks/spec.md:45` (referencias) — ajustar «precedente de ancla + idempotencia» → solo idempotencia; agregar `openspec/changes/43-tareas-origen-externo/specs/tasks/spec.md` como origen del ancla que este delta presupone.
-- [ ] 1.18 `40/state.yaml:76` (`spec_notes`) — reescribir la nota: el 40 conserva solo la reconciliación idempotente; `source`/`external_key` llegan del 43.
-- [ ] 1.19 `40/state.yaml:72` — registrar el traslado en `spec_notes` y actualizar `last_updated`.
-- [ ] 1.20 Verificar: `rg -n "Ancla de procedencia" openspec/changes/40-jira-import-usuario/` no devuelve ningún requisito (solo referencias al 43 como proveedor).
-- [ ] 1.21 Verificar: `rg -n "0022|VARCHAR\(20\)|uq_tasks_project_source_external_key" openspec/changes/40-jira-import-usuario/` sin coincidencias.
-- [ ] 1.22 Commit convencional: `docs(openspec): reancla el cambio 40 tras ceder el ancla de procedencia externa al 43`.
+- [x] 1.1 `40/tasks.md:47` (fila U1) — reducir objetivo y mensaje de commit a `projects`+`sprints`; restar ≈40–60 líneas de la estimación de la unidad.
+- [x] 1.2 `40/tasks.md:59` (0.4) — el head real ya no es `0021_unique_org_member`: hoy es `0024`, y tras el 43 será `0025`.
+- [x] 1.3 `40/tasks.md:60` (0.5) — el próximo consecutivo libre no es `0022`: es **el siguiente consecutivo libre en el momento del `apply` del 40**, que se verifica entonces con `alembic heads` y con los cambios pendientes (hoy sería `0029` si el 44 y el 45a aterrizan antes). **No se reserva ningún número por adelantado**: un `down_revision` hacia una revisión que nadie ha escrito rompe `alembic upgrade head` en despliegue.
+- [x] 1.4 `40/tasks.md:64` (1.1) — renombrar a `00NN_add_external_anchor_projects_sprints.py`, donde `00NN` es el consecutivo libre que la compuerta fije en el `apply` del 40; eliminar `tasks` y `uq_tasks_project_source_external_key` de sus listas; alinear `source` de `VARCHAR(20)` a `String(50)` (D3).
+- [x] 1.5 `40/tasks.md:65` (1.2) — quitar `backend/app/modules/tasks/models.py` de la lista de modelos a editar.
+- [x] 1.6 `40/tasks.md:66` (1.3) — `test_external_anchor_migration.py` pierde las aserciones sobre `tasks`.
+- [x] 1.7 `40/tasks.md:68-69` (1.5, 1.6) — `TaskRead` ya expone ambos campos: pasan de RED/GREEN a verificación de que siguen expuestos.
+- [x] 1.8 `40/tasks.md:72` (Commit 1) — mensaje → `feat(anchors): agrega source/external_key con únicos parciales a projects/sprints`.
+- [x] 1.9 `40/design.md:26-31` (D2) — marcar la fila de `tasks` como entregada por el 43; conservar la decisión para `projects`/`sprints`.
+- [x] 1.10 `40/design.md:75` — `app/modules/{projects,sprints}/models.py`, sin `tasks`.
+- [x] 1.11 `40/design.md:76` — `alembic/versions/00NN_add_external_anchor_projects_sprints.py`, con `00NN` resuelto por la compuerta en el `apply` del 40.
+- [x] 1.12 `40/design.md:116-121` — `down_revision` real (la cabeza en vivo en el momento del `apply` del 40, verificada con `alembic heads`; no un literal fijado hoy) y alcance de dos tablas, no tres.
+- [x] 1.13 `40/specs/tasks/spec.md:3-6` (preámbulo) — reescribir: el delta ya no agrega el ancla, la consume; el ancla la entrega el 43, este delta agrega solo la reconciliación idempotente del importador.
+- [x] 1.14 `40/specs/tasks/spec.md:10-22` — eliminar el requisito «Ancla de procedencia externa (source + external_key)» y sus 2 escenarios.
+- [x] 1.15 `40/specs/tasks/spec.md:33-40` — eliminar «Clave local y clave externa conviven como referencias distintas» y su escenario.
+- [x] 1.16 `40/specs/tasks/spec.md:24-31` — conservar «Reconciliación idempotente por procedencia externa» (comportamiento del importador).
+- [x] 1.17 `40/specs/tasks/spec.md:45` (referencias) — ajustar «precedente de ancla + idempotencia» → solo idempotencia; agregar `openspec/changes/43-tareas-origen-externo/specs/tasks/spec.md` como origen del ancla que este delta presupone.
+- [x] 1.18 `40/state.yaml:76` (`spec_notes`) — reescribir la nota: el 40 conserva solo la reconciliación idempotente; `source`/`external_key` llegan del 43.
+- [x] 1.19 `40/state.yaml:72` — registrar el traslado en `spec_notes` y actualizar `last_updated`.
+- [x] 1.20 Verificar: `rg -n "Ancla de procedencia" openspec/changes/40-jira-import-usuario/` no devuelve ningún requisito (solo referencias al 43 como proveedor). Evidencia: 6 coincidencias — un encabezado de decisión D2 (`design.md:26`), `proposal.md:46` (histórico, fuera del alcance de esta unidad), y el resto son las propias referencias/notas de traslado agregadas aquí (`specs/tasks/spec.md:6`, `state.yaml:53` histórico sin tocar, `state.yaml:79`, `tasks.md:144`); ninguna es un bloque `### Requirement:` en `specs/tasks/spec.md`.
+- [x] 1.21 Verificar: `rg -n "0022|VARCHAR\(20\)|uq_tasks_project_source_external_key" openspec/changes/40-jira-import-usuario/` sin coincidencias. Evidencia: `0 matches`.
+- [x] 1.22 Commit convencional: `docs(openspec): reancla el cambio 40 tras ceder el ancla de procedencia externa al 43`. Evidencia: commit `20ac6c3`.
 
 ## Phase 2: Migración `0025` + espejo ORM [Rebanada A]
 
 > Spec `tasks`: «Ancla de procedencia externa» (escenarios 1-5), «Migración aditiva 0025…» (6-7),
 > «Restricciones espejadas en el modelo ORM» (8-9). Design: D-A, D-B, D-I.
 
-- [ ] 2.1 RED — crear `backend/tests/test_migration_task_external_origin.py` (calco de `test_migration_project_kind.py:73-244`, base desechable `solercia_test_task_external_origin_migration`, todas síncronas con `asyncio.run` + `@skip_no_db`); `test_duplicate_anchor_in_the_same_project_raises_unique_violation` (escenario 1: `asyncpg.exceptions.UniqueViolation`).
-- [ ] 2.2 RED — `test_many_unanchored_tasks_coexist_in_the_same_project` (escenario 2: 3 filas `(NULL, NULL, P)`).
-- [ ] 2.3 RED — `test_the_same_anchor_in_two_projects_does_not_collide` (escenario 3).
-- [ ] 2.4 RED — `test_external_key_without_source_raises_check_violation` (escenario 4: `asyncpg.exceptions.CheckViolation`).
-- [ ] 2.5 RED — `test_a_soft_deleted_task_releases_its_anchor` (escenario 5, D-I: ancla → `UPDATE is_active=false` → segunda fila activa con el mismo par aceptada).
-- [ ] 2.6 RED — `test_upgrade_adds_nullable_columns_without_touching_existing_rows` (escenario 6: `upgrade 0024` → siembra SQL cruda → `upgrade 0025` → `information_schema.columns` presentes, `is_nullable='YES'`, fila sembrada intacta con ambas `NULL`).
-- [ ] 2.7 RED — `test_downgrade_removes_the_columns_without_losing_rows` (escenario 7: `downgrade 0024` → columnas ausentes, fila viva).
-- [ ] 2.8 RED — `test_create_all_and_migration_declare_the_same_anchor_ddl`: segunda base desechable, en orden `CREATE EXTENSION IF NOT EXISTS pg_trgm` → `import app.db_init` (obligatorio, NO opcional) → `Base.metadata.create_all`; aserción de índice — `pg_get_indexdef` de `uq_tasks_source_external_key_project` idéntico entre `create_all` y `upgrade 0025` (escenario 8) — y aserción de restricción — `pg_get_constraintdef` de `ck_tasks_external_key_requires_source` idéntico en ambas (escenario 9).
-- [ ] 2.9 RED (apoyo, guardia) — `test_anchor_objects_exist_by_name_in_both_schemas` (lo único que `alembic check` sí cubre, D-B).
-- [ ] 2.10 GREEN — crear `backend/alembic/versions/0025_add_task_external_origin.py` (`down_revision="0024"`): `op.add_column` ×2 (`source VARCHAR(50)`, `external_key VARCHAR(255)`, ambas nulables, sin `server_default`), `op.create_check_constraint("ck_tasks_external_key_requires_source", "tasks", "external_key IS NULL OR source IS NOT NULL")`, `op.create_index("uq_tasks_source_external_key_project", "tasks", ["source", "external_key", "project_id"], unique=True, postgresql_where=sa.text("source IS NOT NULL AND external_key IS NOT NULL AND is_active"))`; `downgrade()` en orden inverso estricto (índice → check → `external_key` → `source`).
-- [ ] 2.11 GREEN — `backend/app/modules/tasks/models.py`: importar `CheckConstraint`, `text`; agregar columnas `source: Mapped[str | None] = mapped_column(String(50))` y `external_key: Mapped[str | None] = mapped_column(String(255))` (sin `index=True`); agregar el `CheckConstraint` y el `Index` único parcial a `__table_args__` con predicados byte-idénticos a la migración.
-- [ ] 2.12 Verificar en verde: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_migration_task_external_origin.py tests/test_migrations_baseline.py`.
-- [ ] 2.13 Confirmar `backend/alembic/versions/` con exactamente 25 archivos (24 previos + `0025_add_task_external_origin.py`).
-- [ ] 2.14 Confirmar que 2.1-2.9 ejercitan `alembic upgrade 0024` → `upgrade 0025` → `downgrade 0024` sobre la base desechable, sin dejar ningún paso manual adicional fuera del harness.
-- [ ] 2.15 Commit convencional: `feat(tasks): agrega migración 0025 y espejo ORM del ancla de procedencia externa`.
+- [x] 2.1 RED — crear `backend/tests/test_migration_task_external_origin.py` (calco de `test_migration_project_kind.py:73-244`, base desechable `solercia_test_task_external_origin_migration`, todas síncronas con `asyncio.run` + `@skip_no_db`); `test_duplicate_anchor_in_the_same_project_raises_unique_violation` (escenario 1: `asyncpg.exceptions.UniqueViolationError` — el diseño nombraba la clase sin el sufijo `Error`; corregido contra la API real de `asyncpg`).
+- [x] 2.2 RED — `test_many_unanchored_tasks_coexist_in_the_same_project` (escenario 2: 3 filas `(NULL, NULL, P)`).
+- [x] 2.3 RED — `test_the_same_anchor_in_two_projects_does_not_collide` (escenario 3).
+- [x] 2.4 RED — `test_external_key_without_source_raises_check_violation` (escenario 4: `asyncpg.exceptions.CheckViolationError`, mismo ajuste de nombre que 2.1).
+- [x] 2.5 RED — `test_a_soft_deleted_task_releases_its_anchor` (escenario 5, D-I: ancla → `UPDATE is_active=false` → segunda fila activa con el mismo par aceptada).
+- [x] 2.6 RED — `test_upgrade_adds_nullable_columns_without_touching_existing_rows` (escenario 6: `upgrade 0024` → siembra SQL cruda → `upgrade 0025` → `information_schema.columns` presentes, `is_nullable='YES'`, fila sembrada intacta con ambas `NULL`).
+- [x] 2.7 RED — `test_downgrade_removes_the_columns_without_losing_rows` (escenario 7: `downgrade 0024` → columnas ausentes, fila viva).
+- [x] 2.8 RED — `test_create_all_and_migration_declare_the_same_anchor_ddl`: segunda base desechable, en orden `CREATE EXTENSION IF NOT EXISTS pg_trgm` → `import app.db_init` (obligatorio, NO opcional) → `Base.metadata.create_all`; aserción de índice — `pg_get_indexdef` de `uq_tasks_source_external_key_project` idéntico entre `create_all` y `upgrade 0025` (escenario 8) — y aserción de restricción — `pg_get_constraintdef` de `ck_tasks_external_key_requires_source` idéntico en ambas (escenario 9).
+- [x] 2.9 RED (apoyo, guardia) — `test_anchor_objects_exist_by_name_in_both_schemas` (lo único que `alembic check` sí cubre, D-B).
+- [x] 2.10 GREEN — crear `backend/alembic/versions/0025_add_task_external_origin.py` (`down_revision="0024"`): `op.add_column` ×2 (`source VARCHAR(50)`, `external_key VARCHAR(255)`, ambas nulables, sin `server_default`), `op.create_check_constraint("ck_tasks_external_key_requires_source", "tasks", "external_key IS NULL OR source IS NOT NULL")`, `op.create_index("uq_tasks_source_external_key_project", "tasks", ["source", "external_key", "project_id"], unique=True, postgresql_where=sa.text("source IS NOT NULL AND external_key IS NOT NULL AND is_active"))`; `downgrade()` en orden inverso estricto (índice → check → `external_key` → `source`).
+- [x] 2.11 GREEN — `backend/app/modules/tasks/models.py`: importar `CheckConstraint`, `text`; agregar columnas `source: Mapped[str | None] = mapped_column(String(50))` y `external_key: Mapped[str | None] = mapped_column(String(255))` (sin `index=True`); agregar el `CheckConstraint` y el `Index` único parcial a `__table_args__` con predicados byte-idénticos a la migración.
+- [x] 2.12 Verificar en verde: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_migration_task_external_origin.py tests/test_migrations_baseline.py`. Evidencia: **13 passed**.
+- [x] 2.13 Confirmar `backend/alembic/versions/` con exactamente 25 archivos (24 previos + `0025_add_task_external_origin.py`). Evidencia: `fd . alembic/versions -e py | wc -l` → `25`.
+- [x] 2.14 Confirmar que 2.1-2.9 ejercitan `alembic upgrade 0024` → `upgrade 0025` → `downgrade 0024` sobre la base desechable, sin dejar ningún paso manual adicional fuera del harness. Evidencia: helper `_disposable_database` + `command.upgrade`/`command.downgrade` en cada prueba, sin pasos manuales.
+- [x] 2.15 Commit convencional: `feat(tasks): agrega migración 0025 y espejo ORM del ancla de procedencia externa`.
 
 ## Phase 3: Vocabulario, costura y escritura del ancla [Rebanada B]
 

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -22,6 +23,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    text,
 )
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
@@ -54,6 +56,32 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
             "description",
             postgresql_using="gin",
             postgresql_ops={"description": "gin_trgm_ops"},
+        ),
+        # External-origin anchor (change 43-tareas-origen-externo). Declared HERE
+        # and not only in migration 0025 because the test harness builds the
+        # schema with `Base.metadata.create_all` (tests/conftest.py:74-80), same
+        # rule as `uq_users_numero_documento` (users/models.py:28-39).
+        # The predicates below are BYTE-IDENTICAL to 0025: `alembic check` does
+        # NOT compare partial-index WHERE clauses nor CHECK constraints
+        # (alembic 1.14.0, ddl/postgresql.py:322-380), so the equivalence is
+        # asserted by test_migration_task_external_origin.py, not by the gate.
+        CheckConstraint(
+            "external_key IS NULL OR source IS NOT NULL",
+            name="ck_tasks_external_key_requires_source",
+        ),
+        # `(source, external_key, project_id)`: same per-project uniqueness as the
+        # reverse order, but the leading `(source, external_key)` prefix ALSO
+        # serves `get_by_external_key`'s org-wide lookup — which is why this is
+        # the only index the anchor needs (design.md D-A).
+        # `AND is_active`: a soft-deleted task RELEASES its anchor, so the index
+        # covers exactly the rows the seam considers to exist (design.md D-I).
+        Index(
+            "uq_tasks_source_external_key_project",
+            "source",
+            "external_key",
+            "project_id",
+            unique=True,
+            postgresql_where=text("source IS NOT NULL AND external_key IS NOT NULL AND is_active"),
         ),
     )
 
@@ -141,6 +169,16 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     # → task_key "SDM-7"). Assigned atomically via UPDATE ... RETURNING on
     # projects.task_counter. Nullable for backward-compat with existing rows.
     task_number: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+    # Origin system of an imported task (change 43). Free-form string validated at
+    # the write layer against `app.modules.tasks.sources.KNOWN_TASK_SOURCES`,
+    # deliberately NOT a PG enum (same reason as `connectors.provider`). NULL on
+    # every manually created task — there is no `manual` sentinel (D4).
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Opaque key of the task in `source` (e.g. "T-05", "PROJ-123", an Outlook
+    # internetMessageId). Length aligned with `intake_items.external_id`, the
+    # value change 47 copies verbatim.
+    external_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     if TYPE_CHECKING:
         # Transient attribute attached by TaskService for response
