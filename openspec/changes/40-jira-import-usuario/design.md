@@ -27,8 +27,15 @@ Seam para el 41: `async def importar_proyecto(connector, jira_project_key, mappi
 
 | Opción | Tradeoff | Decisión |
 |--------|----------|----------|
-| `(organization_id, source, external_key)` en las tres tablas | `tasks`/`sprints` NO tienen `organization_id` (scope transitivo por project) → exigiría denormalizar | Rechazada |
-| projects: `(organization_id, source, external_key)`; sprints/tasks: `(project_id, source, external_key)` — partial `WHERE external_key IS NOT NULL` | `project_id` ya implica org (CASCADE); evita denormalizar; adapta el precedente `IntakeItem` a cada scope real | **Elegida** |
+| `(organization_id, source, external_key)` en las dos tablas | `sprints` NO tiene `organization_id` (scope transitivo por project) → exigiría denormalizar | Rechazada |
+| projects: `(organization_id, source, external_key)`; sprints: `(project_id, source, external_key)` — partial `WHERE external_key IS NOT NULL` | `project_id` ya implica org (CASCADE); evita denormalizar; adapta el precedente `IntakeItem` a cada scope real | **Elegida** |
+
+> `tasks` queda **fuera** de esta decisión (reanclaje D8, `43-tareas-origen-externo`): ese
+> cambio ya entregó su propio ancla, `uq_tasks_source_external_key_project (source,
+> external_key, project_id) WHERE source IS NOT NULL AND external_key IS NOT NULL AND
+> is_active`, con orden de columnas y predicado distintos a los que este documento fijaba
+> originalmente para `tasks`. Este documento conserva la decisión de scope únicamente para
+> `projects`/`sprints`.
 
 ### D3 — Jerarquía en dos pasadas (misma transacción)
 
@@ -72,8 +79,8 @@ usuarios de los miembros de la org → `assignee_id`; sin match → `null` + not
 | `app/integrations/adapters/jira/{client,adapter,normalizer}.py` | Modify | `list_projects()`; `_BASE_SEARCH_FIELDS += ("timeoriginalestimate","parent")`; extraer los 3 campos en canonical/`_build_issue` |
 | `app/modules/jira_import/{importer,preview,repository}.py` | Create | `JiraProjectImporter` (seam `importar_proyecto`), `PreviewBuilder`, repo de upsert por `external_key` + `allocate_task_numbers(n)` |
 | `app/modules/jira_import/{router,schemas,service}.py` | Modify | 3 endpoints + schemas request/response + `ImportSummary` |
-| `app/modules/{projects,sprints,tasks}/models.py` | Modify | `source`/`external_key` nullable + índice único parcial |
-| `alembic/versions/00XX_add_external_anchor.py` | Create | Columnas + índices únicos parciales (reanclar `down_revision` en apply) |
+| `app/modules/{projects,sprints}/models.py` | Modify | `source`/`external_key` nullable + índice único parcial (`tasks` ya lo entregó el 43) |
+| `alembic/versions/00NN_add_external_anchor_projects_sprints.py` | Create | Columnas + índices únicos parciales de `projects`/`sprints` (reanclar `00NN` y `down_revision` al head real en el `apply` del 40) |
 | `frontend/src/pages/jira-import/*`, `entities/jira-import/*` | Create | Asistente 3 pasos + tipos/servicio |
 
 ## Interfaces / Contracts
@@ -113,12 +120,15 @@ Frontera aplicable: integración de procesos (HTTP a Jira) + persistencia transa
 
 ## Migration / Rollout
 
-Migración `add_external_anchor`: agrega `source` (varchar) y `external_key` (varchar)
-nullable a `projects`/`sprints`/`tasks`, más índices únicos parciales (D2). El
-`down_revision` debe **reanclarse al head Alembic REAL en apply** (en disco hoy = `0021`;
-34/39 son cero-migración, pero verificar el head efectivo tras 26-39 antes de fijarlo).
-Rollback = `alembic downgrade` quita las columnas; las filas importadas son identificables
-por `external_key` para limpieza puntual; ningún dato preexistente se altera.
+Migración `00NN_add_external_anchor_projects_sprints`: agrega `source` (`String(50)`) y
+`external_key` (varchar) nullable a `projects`/`sprints`, más índices únicos parciales
+(D2). `tasks` queda **fuera**: el `43-tareas-origen-externo` ya entregó su propio ancla.
+El `down_revision` y el propio `00NN` deben **reanclarse al head Alembic REAL en el
+momento del `apply` del 40** (en disco hoy = `0024`, y tras el `43` será `0025`; ningún
+número queda reservado por adelantado — verificar `alembic heads` y los cambios pendientes
+antes de fijarlo). Rollback = `alembic downgrade` quita las columnas; las filas importadas
+son identificables por `external_key` para limpieza puntual; ningún dato preexistente se
+altera.
 
 ## Open Questions
 

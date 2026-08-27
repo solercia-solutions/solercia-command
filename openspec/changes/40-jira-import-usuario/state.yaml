@@ -69,10 +69,11 @@ dependency_gating:
   - "El apply del 40 NO arranca hasta que 34 exponga seconds_to_hours (work_calendar/estimation.py) y 39 provea el punto de entrada del asistente; ambos declarados en depends_on"
   - "34 depende a su vez del 28 (work_calendar) para ResolvedCalendar; seconds_to_hours es puro y no usa calendario, pero el modulo debe existir en disco"
   - "Hallazgo de la fase tasks (verificado en disco): 28, 29, 34 y 39 tienen apply:pending -- backend/app/modules/work_calendar/ no existe, sprints/service.py no reconoce 'draft', connectors/jira_import no exponen ningun endpoint de acciones nuevo; tasks.md Fase 0 (0.1-0.5) es el gate real que debe re-verificarse en apply antes de tocar cualquier archivo de este cambio"
-last_updated: 2026-07-20
+last_updated: 2026-08-26
 spec_notes:
   - "Capability NUEVA: jira-import-wizard (spec completo) — asistente frontend de 3 pasos elegir/previsualizar/importar desde la tarjeta del conector"
   - "Delta MODIFIED jira-import: de extraccion solo-lectura a flujo de importacion (listar proyectos, previsualizar, persistir idempotente, mapeo a metodologia destino, conversion de estimacion)"
-  - "Delta MODIFIED tasks: ancla de procedencia externa (source + external_key) que preserva la clave Jira y habilita reimportacion idempotente (aplica tambien a sprint/project a nivel de diseno)"
+  - "Delta MODIFIED tasks: el ancla de procedencia externa (source + external_key) y 'clave local y externa conviven' las entrega el 43-tareas-origen-externo (D8); este cambio conserva solo la reconciliacion idempotente por procedencia externa al reimportar (el patron de ancla si aplica, a nivel de diseno, a source/external_key propios de sprint/project)"
   - "Requisitos a especificar: listar proyectos Jira; preview con conteos + mapeo propuesto sin persistir; import idempotente con jerarquia/task_key/estimacion/asignado; reconciliacion de reimport; estados carga/vacio/error del asistente"
   - "Dependencia de spec (no delta): methodology-strategies aporta los estados destino leidos por strategy; connectors aporta credenciales/RBAC"
+  - "Reanclaje D8 (43-tareas-origen-externo, aplicado 2026-08-26): el requisito 'Ancla de procedencia externa (source + external_key)' y 'Clave local y clave externa conviven' se trasladaron integros al 43 (specs/tasks/spec.md); tasks.md y design.md de este cambio quedan acotados a projects/sprints (migracion 00NN, down_revision reanclado en apply); tasks/models.py ya no se toca aqui"
