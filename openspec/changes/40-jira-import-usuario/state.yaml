@@ -50,7 +50,7 @@ module_decision:
   - "Reutilizar el adaptador jira del 18 (client.py/normalizer.py/mappings.py/adapter.py) y el JiraImportService del modulo jira_import; NO reescribir extraccion/normalizacion"
   - "Extender JiraClient con /project/search y agregar original_estimate_seconds a _BASE_SEARCH_FIELDS + NormalizedJiraIssue + _canonical_from_api_issue/_canonical_from_file_row"
   - "Nuevo servicio de escritura en jira_import (el actual es solo-lectura y no persiste) que crea Project/Sprint/Task respetando task_counter, jerarquia y strategy destino"
-  - "Ancla de procedencia externa (source + external_key) en Task (+ Sprint + Project) siguiendo el precedente de IntakeItem (UNIQUE(org, connector, external_id) + source_provider); requiere migracion Alembic"
+  - "Ancla de procedencia externa (source + external_key) en Sprint y Project siguiendo el precedente de IntakeItem (UNIQUE(org, connector, external_id) + source_provider); requiere migracion Alembic. NOTA (reanclaje D8, 2026-08-26): el ancla en Task ya NO pertenece a este cambio; la entrego el 43 en la migracion 0025 junto con su CHECK y su unico parcial sobre filas activas"
   - "Credenciales via connectors: crypto.decrypt de ConnectedAccount.access_token_enc -> {base_url, email, api_token} (Fernet), ya resuelto en JiraImportService._decrypt_credentials"
 facts_verified:
   - "Consecutivo 40 libre: no existe openspec/changes/40-* ni memoria Engram sdd/40-*/*"

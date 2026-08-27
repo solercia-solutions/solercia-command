@@ -43,8 +43,8 @@ Extender `JiraClient` con `/project/search` y agregar `original_estimate_seconds
 |---|---|---|
 | `backend/app/modules/jira_import/{router,service,schemas}.py` | Modified | Endpoints projects/preview/import-project + servicio de escritura |
 | `backend/app/integrations/adapters/jira/{client,dtos,normalizer,adapter}.py` | Modified | `/project/search`, `original_estimate_seconds`, campo estimación |
-| `backend/app/modules/tasks/models.py` (+ sprints/projects) | Modified | Ancla de procedencia externa (source + external_key) |
-| `backend/alembic/versions/*` | New | Columnas + índice/único de procedencia externa |
+| `backend/app/modules/{projects,sprints}/models.py` | Modified | Ancla de procedencia externa (source + external_key) en proyectos y sprints. **`tasks` ya NO forma parte de este cambio**: el 43 (`0025_add_task_external_origin`) entregó el ancla en `tasks`, su `CHECK` y su único parcial (reanclaje D8, 2026-08-26) |
+| `backend/alembic/versions/*` | New | Columnas + índice/único de procedencia externa **solo en `projects` y `sprints`**; la revisión toma el consecutivo libre en el momento del apply del 40, verificado con `alembic heads` y `alembic current` |
 | `frontend/src/pages|widgets` (asistente) + `entities/*` | New/Modified | Asistente de 3 pasos + tipos/servicios |
 
 ## Risks
