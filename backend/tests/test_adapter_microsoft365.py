@@ -55,6 +55,20 @@ def _settings(**overrides) -> Settings:
     return Settings(**overrides)
 
 
+@pytest.fixture
+def frozen_microsoft365_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep rolling-window adapter fixtures independent of the wall clock."""
+
+    from app.integrations.adapters.microsoft365 import ports
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            return cls(2026, 7, 20, tzinfo=tz)
+
+    monkeypatch.setattr(ports, "datetime", FixedDateTime)
+
+
 # ---------------------------------------------------------------------------
 # Lote 1 — Cliente Graph base: paginación + TLS obligatorio + anti-SSRF
 # ---------------------------------------------------------------------------
@@ -991,6 +1005,7 @@ class TestPlannerPort:
     @pytest.mark.asyncio
     async def test_list_tasks_maps_dtos_and_filters_by_the_default_since_window(
         self,
+        frozen_microsoft365_clock: None,
     ) -> None:
         """Scenario: Tenant con Planner — every fixture task maps to a
         DTO; the default (no explicit `since`) 30-day window is applied
@@ -1054,7 +1069,10 @@ class TestPlannerPort:
         }
 
     @pytest.mark.asyncio
-    async def test_list_tasks_respects_limit_after_client_side_filtering(self) -> None:
+    async def test_list_tasks_respects_limit_after_client_side_filtering(
+        self,
+        frozen_microsoft365_clock: None,
+    ) -> None:
         """`limit` truncates the CLIENT-side filtered result, not the raw
         Graph page."""
 
@@ -1167,7 +1185,10 @@ class TestMeetingNotesPort:
         assert call_count == 0
 
     @pytest.mark.asyncio
-    async def test_granted_scope_returns_the_mapped_transcript_dto(self) -> None:
+    async def test_granted_scope_returns_the_mapped_transcript_dto(
+        self,
+        frozen_microsoft365_clock: None,
+    ) -> None:
         """Scenario: Consentimiento otorgado — with the scope present, the
         transcript list + its content are fetched and mapped into a
         `MeetingNote`."""
