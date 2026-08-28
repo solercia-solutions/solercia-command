@@ -132,13 +132,13 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 > Spec `tasks`: «Filtros de igualdad exacta por procedencia externa» (14-15). Design: cadena de 3
 > saltos, sin novedad estructural.
 
-- [ ] 4.1 RED — extender `test_tasks_external_origin.py`: `test_source_and_external_key_filters_compose_with_status` (escenario 14: `GET /projects/{id}/tasks?status=in_progress&source=checklist_xlsx&external_key=T-05` devuelve solo la tarea que cumple los 3 criterios).
-- [ ] 4.2 RED — `test_a_filter_without_matches_returns_an_empty_collection_with_200` (escenario 15; el proyecto debe tener al menos una tarea sin ancla para que la prueba no nazca verde).
-- [ ] 4.3 GREEN — `backend/app/modules/tasks/router.py`: `source: str | None = Query(default=None, description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').")` y `external_key: str | None = Query(default=None, description="Filtra por clave exacta en el sistema de origen (ej. 'T-05').")`, reenviados a `service.list_tasks`.
-- [ ] 4.4 GREEN — `backend/app/modules/tasks/service.py`: 2 kwargs más en `list_tasks` y su reenvío a `repo.list_for_project`, sin lógica adicional.
-- [ ] 4.5 GREEN — `backend/app/modules/tasks/repository.py`: `if source is not None: stmt = stmt.where(Task.source == source)` y su gemelo para `external_key`, junto a los `if` existentes; **no** se agregan a `SORTABLE_FIELDS`.
-- [ ] 4.6 Verificar en verde: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_tasks_external_origin.py -k "source_and_external_key_filters_compose or filter_without_matches"`.
-- [ ] 4.7 Commit convencional: `feat(tasks): agrega filtros de igualdad exacta por source y external_key`.
+- [x] 4.1 RED — extender `test_tasks_external_origin.py`: `test_source_and_external_key_filters_compose_with_status` (escenario 14: `GET /projects/{id}/tasks?status=in_progress&source=checklist_xlsx&external_key=T-05` devuelve solo la tarea que cumple los 3 criterios).
+- [x] 4.2 RED — `test_a_filter_without_matches_returns_an_empty_collection_with_200` (escenario 15; el proyecto debe tener al menos una tarea sin ancla para que la prueba no nazca verde).
+- [x] 4.3 GREEN — `backend/app/modules/tasks/router.py`: `source: str | None = Query(default=None, description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').")` y `external_key: str | None = Query(default=None, description="Filtra por clave exacta en el sistema de origen (ej. 'T-05').")`, reenviados a `service.list_tasks`.
+- [x] 4.4 GREEN — `backend/app/modules/tasks/service.py`: 2 kwargs más en `list_tasks` y su reenvío a `repo.list_for_project`, sin lógica adicional.
+- [x] 4.5 GREEN — `backend/app/modules/tasks/repository.py`: `if source is not None: stmt = stmt.where(Task.source == source)` y su gemelo para `external_key`, junto a los `if` existentes; **no** se agregan a `SORTABLE_FIELDS`.
+- [x] 4.6 Verificar en verde: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_tasks_external_origin.py -k "source_and_external_key_filters_compose or filter_without_matches"`.
+- [x] 4.7 Commit convencional: `feat(tasks): agrega filtros de igualdad exacta por source y external_key`.
 
 ## Phase 5: Suite completa, calidad estática y cierre
 

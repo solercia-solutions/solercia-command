@@ -440,3 +440,83 @@ async def test_patch_with_source_never_alters_an_existing_anchor(
     assert data["status"] == "Doing"
     assert data["source"] == "jira"
     assert data["external_key"] == "PROJ-1"
+
+
+# ---- Exact external-origin filters (change 43, rebanada C) ----------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_source_and_external_key_filters_compose_with_status(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+) -> None:
+    """Escenario 14: each exact filter narrows the same listing."""
+
+    _, token = user
+    project_id = await _create_project(client, token)
+    service = TaskService(session)
+
+    await service.create_task(
+        tenant.id,
+        uuid.UUID(project_id),
+        TaskCreate(title="Expected", status="Doing"),
+        external_origin=("checklist_xlsx", "T-05"),
+    )
+    await service.create_task(
+        tenant.id,
+        uuid.UUID(project_id),
+        TaskCreate(title="Wrong key", status="Doing"),
+        external_origin=("checklist_xlsx", "T-06"),
+    )
+    await service.create_task(
+        tenant.id,
+        uuid.UUID(project_id),
+        TaskCreate(title="Wrong source", status="Doing"),
+        external_origin=("jira", "T-05"),
+    )
+
+    response = await client.get(
+        f"/projects/{project_id}/tasks",
+        params={
+            "status": "Doing",
+            "source": "checklist_xlsx",
+            "external_key": "T-05",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["title"] == "Expected"
+    assert data[0]["source"] == "checklist_xlsx"
+    assert data[0]["external_key"] == "T-05"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_a_filter_without_matches_returns_an_empty_collection_with_200(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+) -> None:
+    """Escenario 15: a non-match is an empty successful collection."""
+
+    _, token = user
+    project_id = await _create_project(client, token)
+    await TaskService(session).create_task(
+        tenant.id, uuid.UUID(project_id), TaskCreate(title="Manual task")
+    )
+
+    response = await client.get(
+        f"/projects/{project_id}/tasks",
+        params={"source": "checklist_xlsx", "external_key": "T-404"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == []

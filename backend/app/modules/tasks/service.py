@@ -78,6 +78,8 @@ class TaskService:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        source: str | None = None,
+        external_key: str | None = None,
         task_type: str | None = None,
         parent_task_id: uuid.UUID | None = None,
         include_subtasks: bool = False,
@@ -120,6 +122,8 @@ class TaskService:
             due_from=due_from,
             due_to=due_to,
             q=q,
+            source=source,
+            external_key=external_key,
             task_type=task_type,
             parent_task_id=parent_task_id,
             top_level_only=(

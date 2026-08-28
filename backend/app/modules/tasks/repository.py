@@ -54,6 +54,8 @@ class TaskRepository:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        source: str | None = None,
+        external_key: str | None = None,
         subtasks_only: bool = False,
         top_level_only: bool = False,
         pagination: PaginationParams | None = None,
@@ -115,6 +117,10 @@ class TaskRepository:
         if q is not None:
             pattern = f"%{q}%"
             stmt = stmt.where(Task.title.ilike(pattern) | Task.description.ilike(pattern))
+        if source is not None:
+            stmt = stmt.where(Task.source == source)
+        if external_key is not None:
+            stmt = stmt.where(Task.external_key == external_key)
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)

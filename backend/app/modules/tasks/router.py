@@ -60,6 +60,14 @@ async def list_tasks(
     q: str | None = Query(
         default=None, description="Texto libre sobre título/descripción."
     ),
+    source: str | None = Query(
+        default=None,
+        description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').",
+    ),
+    external_key: str | None = Query(
+        default=None,
+        description="Filtra por clave exacta en el sistema de origen (ej. 'T-05').",
+    ),
     task_type: str | None = Query(
         default=None,
         description="Filtra por tipo exacto de tarea (ej. 'epic', 'story', 'bug').",
@@ -113,6 +121,8 @@ async def list_tasks(
         due_from=due_from,
         due_to=due_to,
         q=q,
+        source=source,
+        external_key=external_key,
         task_type=task_type,
         parent_task_id=parent_task_id,
         include_subtasks=include_subtasks,
