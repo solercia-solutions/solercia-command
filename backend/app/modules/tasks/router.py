@@ -35,9 +35,7 @@ async def list_project_members(
     """List the organization members assignable on a project."""
 
     service = TaskService(db)
-    members = await service.list_members(
-        membership.organization_id, project_id
-    )
+    members = await service.list_members(membership.organization_id, project_id)
     return {"data": members, "meta": {"total": len(members)}}
 
 
@@ -57,9 +55,7 @@ async def list_tasks(
     due_to: date | None = Query(
         default=None, description="Fin del rango de vencimiento (inclusive)."
     ),
-    q: str | None = Query(
-        default=None, description="Texto libre sobre título/descripción."
-    ),
+    q: str | None = Query(default=None, description="Texto libre sobre título/descripción."),
     source: str | None = Query(
         default=None,
         description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').",

@@ -118,9 +118,7 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Work item kind ('task' | 'bug' | 'story' | 'epic'); free-form string.
-    task_type: Mapped[str] = mapped_column(
-        String(40), default="task", nullable=False
-    )
+    task_type: Mapped[str] = mapped_column(String(40), default="task", nullable=False)
     # Board column. Validated against the project methodology's allowed statuses
     # at the service layer; intentionally NOT a global enum.
     status: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -138,31 +136,19 @@ class Task(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     )
 
     estimation_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    estimation_hours: Mapped[Decimal | None] = mapped_column(
-        Numeric(7, 2), nullable=True
-    )
+    estimation_hours: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
 
-    due_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    start_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped when the task enters the methodology's "done" column (the last
     # allowed status) and cleared when it leaves it. Drives burndown/performance.
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Ordering hint within a column/backlog. Mapped to a non-reserved column
     # name to stay clear of the SQL ``ORDER`` keyword.
-    order: Mapped[int] = mapped_column(
-        "task_order", Integer, default=0, nullable=False
-    )
+    order: Mapped[int] = mapped_column("task_order", Integer, default=0, nullable=False)
 
-    risk_flag: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    risk_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     risk_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Sequential number scoped to the project (e.g. task #7 of project "SDM"

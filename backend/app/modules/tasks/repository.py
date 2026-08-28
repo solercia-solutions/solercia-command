@@ -160,9 +160,7 @@ class TaskRepository:
         )
         return result.scalars().all()
 
-    async def list_for_org(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[Task]:
+    async def list_for_org(self, organization_id: uuid.UUID) -> Sequence[Task]:
         """Return every active task across the organization's projects."""
 
         result = await self.db.execute(
@@ -176,9 +174,7 @@ class TaskRepository:
         )
         return result.scalars().all()
 
-    async def get(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task | None:
+    async def get(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
         """Return a single active task scoped to the organization, or ``None``."""
 
         result = await self.db.execute(
@@ -270,13 +266,13 @@ class TaskRepository:
         await self.db.refresh(task)
         return task
 
-    async def get_subtask_counts(
-        self, task_id: uuid.UUID, done_status: str
-    ) -> tuple[int, int]:
+    async def get_subtask_counts(self, task_id: uuid.UUID, done_status: str) -> tuple[int, int]:
         """Return ``(total, done)`` subtask counts for ``task_id``."""
 
         total_result = await self.db.execute(
-            select(func.count()).select_from(Task).where(
+            select(func.count())
+            .select_from(Task)
+            .where(
                 Task.parent_task_id == task_id,
                 Task.is_active.is_(True),
             )
@@ -284,7 +280,9 @@ class TaskRepository:
         total = total_result.scalar_one() or 0
 
         done_result = await self.db.execute(
-            select(func.count()).select_from(Task).where(
+            select(func.count())
+            .select_from(Task)
+            .where(
                 Task.parent_task_id == task_id,
                 Task.status == done_status,
                 Task.is_active.is_(True),
@@ -344,9 +342,7 @@ class TaskRepository:
             if task is not None:
                 task.order = index
 
-    async def is_org_member(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def is_org_member(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Return whether the user belongs to the organization."""
 
         result = await self.db.execute(

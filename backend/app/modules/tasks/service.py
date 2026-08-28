@@ -127,9 +127,7 @@ class TaskService:
             task_type=task_type,
             parent_task_id=parent_task_id,
             top_level_only=(
-                parent_task_id is None
-                and not include_subtasks
-                and assignee_id is None
+                parent_task_id is None and not include_subtasks and assignee_id is None
             ),
             pagination=pagination,
         )
@@ -140,8 +138,7 @@ class TaskService:
             missing_parent_ids = {
                 task.parent_task_id
                 for task in tasks
-                if task.parent_task_id is not None
-                and task.parent_task_id not in matched_ids
+                if task.parent_task_id is not None and task.parent_task_id not in matched_ids
             }
             if missing_parent_ids:
                 context_parents = await self.repo.get_by_ids(
@@ -149,13 +146,8 @@ class TaskService:
                 )
 
         name_map = await self._assignee_name_map(organization_id)
-        reads = [
-            self._to_read(task, name_map, project_code=project.code)
-            for task in tasks
-        ] + [
-            self._to_read(
-                parent, name_map, project_code=project.code, is_context=True
-            )
+        reads = [self._to_read(task, name_map, project_code=project.code) for task in tasks] + [
+            self._to_read(parent, name_map, project_code=project.code, is_context=True)
             for parent in context_parents
         ]
         return reads, total
@@ -171,9 +163,7 @@ class TaskService:
                 status_code=422,
             )
 
-    async def get_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> TaskRead:
+    async def get_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> TaskRead:
         """Return a single task (with subtask progress) or raise a 404."""
 
         task = await self._require_task(organization_id, task_id)
@@ -191,9 +181,7 @@ class TaskService:
 
         return read
 
-    async def get_task_by_key(
-        self, organization_id: uuid.UUID, key: str
-    ) -> TaskRead:
+    async def get_task_by_key(self, organization_id: uuid.UUID, key: str) -> TaskRead:
         """Resolve a human task key (e.g. 'SDM-7') within the organization.
 
         Parses the key into project code + task number, then fetches both the
@@ -218,9 +206,7 @@ class TaskService:
                 status_code=404,
             )
 
-        task = await self.repo.get_by_project_and_number(
-            organization_id, project.id, task_number
-        )
+        task = await self.repo.get_by_project_and_number(organization_id, project.id, task_number)
         if task is None:
             raise AppException(
                 f"La tarea '{key}' no existe o no tienes acceso a ella.",
@@ -239,9 +225,7 @@ class TaskService:
 
         return read
 
-    async def list_subtasks(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> list[TaskRead]:
+    async def list_subtasks(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> list[TaskRead]:
         """Return the direct subtasks of a task."""
 
         task = await self._require_task(organization_id, task_id)
@@ -307,9 +291,7 @@ class TaskService:
             project_id, strategy, data.status, data.board_column_id
         )
         if not is_subtask:
-            self._validate_estimation(
-                strategy, data.estimation_points, data.estimation_hours
-            )
+            self._validate_estimation(strategy, data.estimation_points, data.estimation_hours)
         await self._verify_assignee(organization_id, data.assignee_id)
         await self._verify_sprint(organization_id, project_id, data.sprint_id)
 
@@ -323,8 +305,7 @@ class TaskService:
             )
             if existing is not None:
                 raise AppException(
-                    "Ya existe una tarea activa con esa procedencia externa en "
-                    "esta organización.",
+                    "Ya existe una tarea activa con esa procedencia externa en esta organización.",
                     code="task_external_anchor_conflict",
                     status_code=409,
                 )
@@ -366,9 +347,7 @@ class TaskService:
     _EPIC_CHILD_TYPES = frozenset({"task", "story", "bug", "subtask"})
 
     @classmethod
-    def _resolve_child_type(
-        cls, parent: Task, requested_type: str
-    ) -> tuple[str, bool]:
+    def _resolve_child_type(cls, parent: Task, requested_type: str) -> tuple[str, bool]:
         """Resolve ``(task_type, is_subtask)`` for a child of ``parent``.
 
         - Parent ``subtask`` → 422 ``subtask_nesting_not_allowed``: a subtask
@@ -439,9 +418,7 @@ class TaskService:
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        snapshot = {
-            field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS
-        }
+        snapshot = {field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS}
 
         changes = data.model_dump(exclude_unset=True)
 
@@ -449,9 +426,7 @@ class TaskService:
             from app.modules.boards.repository import BoardRepository
             from app.modules.boards.service import BoardService
 
-            board = await BoardRepository(self.repo.db).get_board_with_columns(
-                task.project_id
-            )
+            board = await BoardRepository(self.repo.db).get_board_with_columns(task.project_id)
             columns = board.columns if board is not None else []
             target = self._resolve_column_for_status(columns, changes["status"])
             # Same WIP-enforcing code path as PATCH /tasks/{id}/column
@@ -461,9 +436,7 @@ class TaskService:
             task = await BoardService(self.repo.db).move_to_column(
                 task, target, actor_id=actor_id, enforce_wip=True, commit=False
             )
-            task.completed_at = self._resolve_completed_at(
-                strategy, task.status, task.completed_at
-            )
+            task.completed_at = self._resolve_completed_at(strategy, task.status, task.completed_at)
 
         # Guard on the EFFECTIVE type/points the row would END with —
         # ``task_type`` itself is applied later in the setattr loop, so
@@ -522,9 +495,7 @@ class TaskService:
             if field in changes:
                 setattr(task, field, changes[field])
 
-        await self._record_history_diff(
-            organization_id, task, snapshot, actor_id=actor_id
-        )
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
 
         task.updated_by = actor_id
         task = await self.repo.save(task)
@@ -591,9 +562,7 @@ class TaskService:
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        board = await BoardRepository(self.repo.db).get_board_with_columns(
-            project.id
-        )
+        board = await BoardRepository(self.repo.db).get_board_with_columns(project.id)
         columns = board.columns if board is not None else []
         target = next((c for c in columns if c.id == board_column_id), None)
         if target is None:
@@ -606,9 +575,7 @@ class TaskService:
         task = await BoardService(self.repo.db).move_to_column(
             task, target, actor_id=actor_id, enforce_wip=True, commit=False
         )
-        task.completed_at = self._resolve_completed_at(
-            strategy, task.status, task.completed_at
-        )
+        task.completed_at = self._resolve_completed_at(strategy, task.status, task.completed_at)
         task = await self.repo.save(task)
 
         name_map = await self._assignee_name_map(organization_id)
@@ -638,13 +605,9 @@ class TaskService:
         task = await self._require_task(organization_id, task_id)
         project = await self._require_project(organization_id, task.project_id)
 
-        snapshot = {
-            field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS
-        }
+        snapshot = {field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS}
 
-        await self._verify_sprint(
-            organization_id, task.project_id, sprint_id, reject_closed=True
-        )
+        await self._verify_sprint(organization_id, task.project_id, sprint_id, reject_closed=True)
         task.sprint_id = sprint_id
         task.updated_by = actor_id
 
@@ -652,17 +615,13 @@ class TaskService:
             organization_id, task.project_id, ordered_task_ids
         )
 
-        await self._record_history_diff(
-            organization_id, task, snapshot, actor_id=actor_id
-        )
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
 
         task = await self.repo.save(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
-    async def delete_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> None:
+    async def delete_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> None:
         """Soft-delete a task."""
 
         task = await self._require_task(organization_id, task_id)
@@ -672,9 +631,7 @@ class TaskService:
 
     # -- helpers -----------------------------------------------------------
 
-    async def _require_project(
-        self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> Project:
+    async def _require_project(self, organization_id: uuid.UUID, project_id: uuid.UUID) -> Project:
         project = await self.projects.get(organization_id, project_id)
         if project is None:
             raise AppException(
@@ -684,9 +641,7 @@ class TaskService:
             )
         return project
 
-    async def _require_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task:
+    async def _require_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task:
         task = await self.repo.get(organization_id, task_id)
         if task is None:
             raise AppException(
@@ -697,9 +652,7 @@ class TaskService:
         return task
 
     @staticmethod
-    def _resolve_column_for_status(
-        columns: Sequence["BoardColumn"], status: str
-    ) -> "BoardColumn":
+    def _resolve_column_for_status(columns: Sequence["BoardColumn"], status: str) -> "BoardColumn":
         """Find the column whose ``status_key`` equals ``status`` among ``columns``.
 
         Raises 422 ``board_has_no_columns`` when the board has none, or 422
@@ -749,9 +702,7 @@ class TaskService:
 
         from app.modules.boards.repository import BoardRepository
 
-        board = await BoardRepository(self.repo.db).get_board_with_columns(
-            project_id
-        )
+        board = await BoardRepository(self.repo.db).get_board_with_columns(project_id)
         columns = board.columns if board is not None else []
 
         if board_column_id is not None:
@@ -784,9 +735,7 @@ class TaskService:
         total, done = await self.repo.get_subtask_counts(task_id, allowed[-1])
         return (done / total) if total > 0 else None
 
-    async def _blocking_state(
-        self, task_id: uuid.UUID
-    ) -> tuple[bool, list["BlockerRef"]]:
+    async def _blocking_state(self, task_id: uuid.UUID) -> tuple[bool, list["BlockerRef"]]:
         """Return ``(is_blocked, blockers)`` for a single-task read (design.md,
         "Enriquecer el detalle sin N+1"). Deferred import: `tasks` never
         depends on `task_links` at module level (design.md C4).
@@ -795,9 +744,7 @@ class TaskService:
         from app.modules.task_links.repository import TaskDependencyRepository
         from app.modules.task_links.schemas import BlockerRef
 
-        rows = await TaskDependencyRepository(self.repo.db).get_incomplete_blockers(
-            task_id
-        )
+        rows = await TaskDependencyRepository(self.repo.db).get_incomplete_blockers(task_id)
         blockers = [BlockerRef(task_id=tid, title=title) for tid, title in rows]
         return (len(blockers) > 0, blockers)
 
@@ -827,9 +774,7 @@ class TaskService:
 
         from app.modules.checklists.service import ChecklistService
 
-        done, total = await ChecklistService(self.repo.db).get_checklist_progress(
-            task_id
-        )
+        done, total = await ChecklistService(self.repo.db).get_checklist_progress(task_id)
         return (done / total) if total > 0 else None
 
     @staticmethod
@@ -953,9 +898,7 @@ class TaskService:
         from app.modules.sprints.repository import SprintRepository
 
         sprint_repo = SprintRepository(self.repo.db)
-        sprint = await sprint_repo.get_for_project(
-            organization_id, project_id, sprint_id
-        )
+        sprint = await sprint_repo.get_for_project(organization_id, project_id, sprint_id)
         if sprint is None:
             raise AppException(
                 "El sprint indicado no existe en este proyecto.",
@@ -969,9 +912,7 @@ class TaskService:
                 status_code=422,
             )
 
-    async def _assignee_name_map(
-        self, organization_id: uuid.UUID
-    ) -> dict[uuid.UUID, str]:
+    async def _assignee_name_map(self, organization_id: uuid.UUID) -> dict[uuid.UUID, str]:
         members = await self.repo.list_org_members(organization_id)
         return {user.id: user.full_name for user, _ in members}
 
@@ -983,9 +924,7 @@ class TaskService:
         project_code: str | None = None,
         is_context: bool = False,
     ) -> TaskRead:
-        task.assignee_name = (
-            name_map.get(task.assignee_id) if task.assignee_id else None
-        )
+        task.assignee_name = name_map.get(task.assignee_id) if task.assignee_id else None
         read = TaskRead.model_validate(task)
         if project_code and task.task_number is not None:
             read.task_key = f"{project_code}-{task.task_number}"
