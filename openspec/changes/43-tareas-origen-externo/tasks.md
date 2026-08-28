@@ -125,7 +125,7 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 - [x] 3.17 GREEN — `frontend/src/entities/workspace/workspace.model.ts`: agregar `source?: string | null` y `external_key?: string | null` a la interfaz `Task` (escenarios 25-26; `TaskDetail extends Task` los hereda sin editar `task-detail.model.ts`).
 - [x] 3.18 Verificar en verde: `cd frontend && npm run build` (D-H: cambio aditivo puro; sin runner de pruebas de tipos dedicado — `tsconfig.app.json` solo compila lo alcanzable desde `main.ts` — la existencia del contrato la prueba el backend en 3.11 y este comando actúa como gate de no regresión, no de existencia).
 - [x] 3.19 Verificar en verde la suite completa de la rebanada: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test .venv/bin/python -m pytest -q tests/test_tasks_external_origin.py`.
-- [ ] 3.20 Commits convencionales: `feat(tasks): agrega vocabulario de source y validate_task_source`, `feat(tasks): agrega get_by_external_key como costura de lectura del ancla`, `feat(tasks): agrega external_origin a create_task y expone el ancla en TaskRead`, `feat(workspace): agrega source y external_key al tipo Task del frontend`.
+- [x] 3.20 Commits convencionales: `feat(tasks): agrega vocabulario de source y validate_task_source`, `feat(tasks): agrega get_by_external_key como costura de lectura del ancla`, `feat(tasks): agrega external_origin a create_task y expone el ancla en TaskRead`, `feat(workspace): agrega source y external_key al tipo Task del frontend`.
 
 ## Phase 4: Filtros de igualdad exacta [Rebanada C]
 
