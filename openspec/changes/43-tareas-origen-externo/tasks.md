@@ -142,10 +142,10 @@ directamente sobre el tracker `feat/43-tareas-origen-externo`.
 
 ## Phase 5: Suite completa, calidad estática y cierre
 
-- [ ] 5.1 Ejecutar `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test pytest tests/ -v` completo; comparar contra la línea base vigente registrada en 0.6; confirmar cero regresiones nuevas más allá de los 3 fallos preexistentes de reloj.
-- [ ] 5.2 Ejecutar `cd backend && ruff format --check .` y `cd backend && ruff check .`; corregir hasta cero hallazgos en `tasks/{models,sources,schemas,repository,service,router}.py` y en los 2 archivos de prueba nuevos.
-- [ ] 5.3 Ejecutar `cd backend && mypy app`; corregir hasta cero errores nuevos en `app/modules/tasks/`.
-- [ ] 5.4 Confirmar que `backend/alembic/versions/` sigue con exactamente 25 archivos (`0001`-`0025`), sin ninguna migración adicional fuera de `0025`.
-- [ ] 5.5 Confirmar que la Fase 1 (reanclaje del 40) está completa y que las dos verificaciones `rg` (1.20, 1.21) siguen sin coincidencias indeseadas antes de cualquier `sdd-archive` de 40 o de 43.
-- [ ] 5.6 Releer las 26 pruebas nombradas en la tabla de cobertura de `design.md` y confirmar que ninguna aserción quedó comentada o debilitada durante el desarrollo, en particular las 3 guardias (10, 23, 24) y `test_alembic_check_reports_no_diff_after_upgrade` (sin cambios).
+- [x] 5.1 Ejecutar `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://app:app@127.0.0.1:5434/solercia_test pytest tests/ -v` completo; comparar contra la línea base vigente registrada en 0.6; confirmar cero regresiones nuevas más allá de los 3 fallos preexistentes de reloj.
+- [x] 5.2 Ejecutar `cd backend && ruff format --check .` y `cd backend && ruff check .`; corregir hasta cero hallazgos en `tasks/{models,sources,schemas,repository,service,router}.py` y en los 2 archivos de prueba nuevos.
+- [x] 5.3 Ejecutar `cd backend && mypy app`; corregir hasta cero errores nuevos en `app/modules/tasks/`.
+- [x] 5.4 Confirmar que `backend/alembic/versions/` sigue con exactamente 25 archivos (`0001`-`0025`), sin ninguna migración adicional fuera de `0025`.
+- [x] 5.5 Confirmar que la Fase 1 (reanclaje del 40) está completa y que las dos verificaciones `rg` (1.20, 1.21) siguen sin coincidencias indeseadas antes de cualquier `sdd-archive` de 40 o de 43.
+- [x] 5.6 Releer las 26 pruebas nombradas en la tabla de cobertura de `design.md` y confirmar que ninguna aserción quedó comentada o debilitada durante el desarrollo, en particular las 3 guardias (10, 23, 24) y `test_alembic_check_reports_no_diff_after_upgrade` (sin cambios).
 - [ ] 5.7 [orquestador, NO de apply] Cadena de ramas (feature-branch-chain): tracker `feat/43-tareas-origen-externo` → `feat/43-a-migracion` (base: tracker) → `feat/43-b-escritura` (base: A) → `feat/43-c-filtros` (base: B), integradas al tracker por *fast-forward*. La Fase 1 (reanclaje del 40) se aplica directamente sobre el tracker. Solo el tracker se integra a `preview`. Confirmar que ningún commit de los cambios 40/44/47/48 cae en estas ramas.
