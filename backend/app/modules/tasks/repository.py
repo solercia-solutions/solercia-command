@@ -186,6 +186,29 @@ class TaskRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_external_key(
+        self,
+        organization_id: uuid.UUID,
+        source: str,
+        external_key: str,
+    ) -> Task | None:
+        """Return an active external anchor within one organization."""
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.source == source,
+                Task.external_key == external_key,
+                Project.organization_id == organization_id,
+                Project.is_active.is_(True),
+                Task.is_active.is_(True),
+            )
+            .order_by(Task.created_at.asc(), Task.id.asc())
+            .limit(1)
+        )
+        return result.scalars().first()
+
     async def get_by_project_and_number(
         self,
         organization_id: uuid.UUID,

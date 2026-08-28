@@ -125,6 +125,8 @@ class TaskRead(BaseModel):
     task_number: int | None = None
     # Human-readable composite key (e.g. "SDM-7"). Set transiently by service.
     task_key: str | None = None
+    source: str | None = None
+    external_key: str | None = None
     # Ratio of done subtasks to total subtasks [0.0, 1.0].
     # None when the task has no subtasks; only populated on single-task reads.
     subtask_progress: float | None = None

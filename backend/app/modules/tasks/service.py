@@ -20,6 +20,7 @@ from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpdate
+from app.modules.tasks.sources import validate_task_source
 from app.shared.enums import EstimationMode, Priority
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
@@ -256,6 +257,7 @@ class TaskService:
         data: TaskCreate,
         *,
         actor_id: uuid.UUID | None = None,
+        external_origin: tuple[str, str] | None = None,
     ) -> TaskRead:
         """Validate against the methodology Strategy and persist a new task.
 
@@ -307,6 +309,22 @@ class TaskService:
         await self._verify_assignee(organization_id, data.assignee_id)
         await self._verify_sprint(organization_id, project_id, data.sprint_id)
 
+        anchor_source: str | None = None
+        anchor_key: str | None = None
+        if external_origin is not None:
+            anchor_source, anchor_key = external_origin
+            validate_task_source(anchor_source)
+            existing = await self.repo.get_by_external_key(
+                organization_id, anchor_source, anchor_key
+            )
+            if existing is not None:
+                raise AppException(
+                    "Ya existe una tarea activa con esa procedencia externa en "
+                    "esta organización.",
+                    code="task_external_anchor_conflict",
+                    status_code=409,
+                )
+
         # Allocate task_number atomically (UPDATE ... RETURNING in same txn).
         task_number = await self.repo.allocate_task_number(project_id)
 
@@ -327,6 +345,8 @@ class TaskService:
             start_date=data.start_date,
             completed_at=self._resolve_completed_at(strategy, status, None),
             task_number=task_number,
+            source=anchor_source,
+            external_key=anchor_key,
             created_by=actor_id,
             updated_by=actor_id,
         )
