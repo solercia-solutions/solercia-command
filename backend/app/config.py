@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -235,6 +236,15 @@ class Settings(BaseSettings):
         "http://host.docker.internal:8765",
     ]
     SOLERCIA_CONNECT_TIMEOUT_SECONDS: float = 60.0
+    # Runtime único que Command registra desde la API (`POST /connectors/
+    # solercia-connect`): la URL debe pertenecer a la allowlist anterior —
+    # se valida al usarla, no al importar, para que un despliegue sin
+    # Connect arranque igual (§2.1 del registro de decisiones). La llave es
+    # la del runtime local, nunca una credencial del proveedor; `SecretStr`
+    # evita que un `repr(settings)` la escriba en un log.
+    SOLERCIA_CONNECT_BASE_URL: str = "http://host.docker.internal:8765"
+    SOLERCIA_CONNECT_API_KEY: SecretStr | None = None
+    SOLERCIA_CONNECT_DEFAULT_TARGET: str = "outlook"
 
     # Jira adapter (change 18-adapter-jira) — read-only issue import over
     # Jira Cloud's REST API v3 and CSV/XLSX export, `credential_kind=

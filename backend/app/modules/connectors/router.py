@@ -41,11 +41,14 @@ from app.modules.connectors.schemas import (
     ConnectorCreate,
     ConnectorUpdate,
     McpToolCallRequest,
+    SolerciaConnectRegister,
+    SolerciaConnectSyncRequest,
 )
 from app.modules.connectors.service import (
     ConnectorService,
     OAuthCallbackRedirectError,
 )
+from app.modules.connectors.solercia_connect_service import SolerciaConnectService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
 
@@ -381,3 +384,142 @@ async def call_mcp_tool(
         membership.organization_id, connector_id, tool_name, payload.arguments
     )
     return {"data": result}
+
+
+# ---------------------------------------------------------------------------
+# Solercia Connect facade (`/connectors/solercia-connect*`). Same RBAC split
+# as the rest of the module: the writes (register, start login, sync) need
+# admin/manager; the reads (status, session poll) are open to any member, the
+# role dependency `GET /connectors/{id}/accounts` uses. Every Connect
+# envelope is mapped in `SolerciaConnectService`, never here.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/connectors/solercia-connect", status_code=status.HTTP_201_CREATED)
+async def register_solercia_connect(
+    payload: SolerciaConnectRegister,
+    membership: OrganizationMember = Depends(require_connector_write_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Register (or re-register) the organization's Solercia Connect connector
+    for ONE Microsoft account (admin or manager only).
+
+    Idempotent on the organization's single ``solercia_connect`` connector:
+    an existing one is reused and its settings replaced, never duplicated.
+    Non-secret configuration (``account``, ``target``,
+    ``allow_browser_fallback``) is stored in ``ConnectorRead.settings
+    ["solercia_connect"]``; the runtime's API key comes from the server's
+    ``SOLERCIA_CONNECT_API_KEY`` and is persisted encrypted, never returned.
+
+    Errors: 422 ``solercia_connect_not_configured`` (server lacks the key or
+    the base URL is outside the allowlist), 503
+    ``solercia_connect_unavailable`` (runtime not answering), 502
+    ``solercia_connect_protocol_error``/``solercia_connect_unauthorized``.
+    """
+
+    service = SolerciaConnectService(db)
+    result = await service.register(membership.organization_id, payload, membership)
+    return {"data": result, "message": "Conexión con Solercia Connect registrada."}
+
+
+@router.get("/connectors/{connector_id}/solercia-connect/status")
+async def solercia_connect_status(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Ask Solercia Connect whether the account's stored session is usable
+    (any authenticated member).
+
+    ``data.state`` is one of ``connected | needs_login | runtime_unavailable
+    | runtime_unauthorized | interactive_disabled | misconfigured | error``
+    and IS the answer: a Connect-side failure never raises here. The
+    connected account's status follows the state. 404 only for an unknown
+    or foreign connector. Do not call it while a login session is
+    ``running`` — the persistent browser profile has a single owner.
+    """
+
+    service = SolerciaConnectService(db)
+    result = await service.status(membership.organization_id, connector_id, actor_id=actor_id)
+    return {"data": result}
+
+
+@router.post(
+    "/connectors/{connector_id}/solercia-connect/connect",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_solercia_connect_login(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_connector_write_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Start the supervised browser login on the person's machine (admin or
+    manager only) — returns ``202`` with the ``session_id`` to poll.
+
+    Errors: 409 ``solercia_connect_busy`` (another login is running;
+    ``meta.session_id`` names it), 409
+    ``solercia_connect_interactive_disabled`` (Connect's HTTP interactive
+    gate is off; ``detail`` carries its remediation), 409
+    ``solercia_connect_fallback_not_allowed`` (this connector was registered
+    without browser fallback), 422 ``solercia_connect_invalid_request``,
+    503 ``solercia_connect_unavailable``, 502
+    ``solercia_connect_unauthorized``/``solercia_connect_protocol_error``.
+    """
+
+    service = SolerciaConnectService(db)
+    result = await service.start_connect(membership.organization_id, connector_id)
+    return {"data": result, "message": "Inicio de sesión supervisado en curso."}
+
+
+@router.get("/connectors/{connector_id}/solercia-connect/sessions/{session_id}")
+async def solercia_connect_session(
+    connector_id: uuid.UUID,
+    session_id: str,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Poll one supervised login session (any authenticated member).
+
+    ``data.state`` is ``running | connected | failed | not_found``; a
+    ``failed`` state carries Connect's ``error_code`` (e.g.
+    ``browser_login_required``, ``browser_mfa_required``,
+    ``browser_account_mismatch``) and remediation. The connected account's
+    status follows a finished session. 422
+    ``solercia_connect_invalid_request`` for a malformed ``session_id``.
+    """
+
+    service = SolerciaConnectService(db)
+    result = await service.session(
+        membership.organization_id, connector_id, session_id, actor_id=actor_id
+    )
+    return {"data": result}
+
+
+@router.post("/connectors/{connector_id}/solercia-connect/sync")
+async def sync_solercia_connect(
+    connector_id: uuid.UUID,
+    payload: SolerciaConnectSyncRequest | None = None,
+    membership: OrganizationMember = Depends(require_connector_write_role),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pull mail for THIS connector into intake/tasks (admin or manager only).
+
+    Runs the intake pull restricted to the connector, over the last
+    ``since_days`` days (1..90, default 7), and returns the run summary plus
+    ``tasks_created``. 409 ``solercia_connect_needs_login`` ONLY when the
+    run read nothing because the person must log in first (the account is
+    marked ``expired``); any other failure is listed in ``data.errors`` with
+    a 200 so partial progress is visible.
+    """
+
+    service = SolerciaConnectService(db)
+    result = await service.sync(
+        membership.organization_id,
+        connector_id,
+        payload or SolerciaConnectSyncRequest(),
+        actor_id=actor_id,
+    )
+    return {"data": result, "message": "Sincronización ejecutada."}

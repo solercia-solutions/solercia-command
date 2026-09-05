@@ -51,6 +51,25 @@ class ConnectorRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_provider(
+        self, organization_id: uuid.UUID, provider: str
+    ) -> Connector | None:
+        """Return the org's single active connector for ``provider``, or ``None``.
+
+        ``uq_connectors_organization_provider`` guarantees at most one row —
+        callers that must "create or reuse" ask here first instead of
+        colliding with the constraint.
+        """
+
+        result = await self.db.execute(
+            select(Connector).where(
+                Connector.organization_id == organization_id,
+                Connector.provider == provider,
+                Connector.is_active.is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def create(self, connector: Connector) -> Connector:
         """Persist a new connector and return the refreshed instance."""
 
@@ -294,6 +313,27 @@ class ConnectedAccountRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def mark_status(
+        self,
+        organization_id: uuid.UUID,
+        account: ConnectedAccount,
+        status: AccountStatus,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> None:
+        """Record an observed lifecycle ``status`` on ``account`` — flushed,
+        NOT committed: the service that observed the state owns the commit
+        (``agents/rules/solercia-persistence.md``). ``organization_id`` is
+        the tenant scope: an account from another organization is refused
+        rather than silently updated."""
+
+        if account.organization_id != organization_id:
+            raise ValueError("connected account does not belong to the organization")
+        if account.status != status:
+            account.status = status
+            account.updated_by = actor_id
+        await self.db.flush()
 
     async def soft_delete_account(
         self, account: ConnectedAccount, *, actor_id: uuid.UUID | None = None

@@ -6,10 +6,12 @@ change 17-adapter-glpi, specs/connectors/spec.md; ``token``/
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.integrations.ports import CredentialKind
+from app.modules.intake.schemas import IntakeRunRead
 from app.shared.enums import AccountStatus, ConnectorStatus
 
 
@@ -165,3 +167,141 @@ class McpToolCallRequest(BaseModel):
     """Payload for `POST /connectors/{id}/mcp/tools/{tool_name}/call`."""
 
     arguments: dict = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Solercia Connect facade (`/connectors/solercia-connect*`). One connector per
+# organization, one Microsoft account, configured from the API so the
+# Conexiones page can register it, start the supervised browser login, poll
+# it, read the connection state and pull mail — without ever seeing the
+# runtime's API key (it lives encrypted in `ConnectionCredentials`).
+# ---------------------------------------------------------------------------
+
+SolerciaConnectTarget = Literal["outlook", "teams", "onedrive"]
+
+SolerciaConnectState = Literal[
+    "connected",
+    "needs_login",
+    "runtime_unavailable",
+    "runtime_unauthorized",
+    "interactive_disabled",
+    "misconfigured",
+    "error",
+]
+
+SolerciaConnectSessionState = Literal["running", "connected", "failed", "not_found"]
+
+
+class SolerciaConnectRegister(BaseModel):
+    """Payload for `POST /connectors/solercia-connect`."""
+
+    account: EmailStr
+    target: SolerciaConnectTarget = "outlook"
+    allow_browser_fallback: bool = True
+
+    @field_validator("account")
+    @classmethod
+    def _normalize_account(cls, value: str) -> str:
+        # Connect compares identities case-insensitively; storing one
+        # canonical form keeps `external_account_id` stable across re-registrations.
+        return value.strip().lower()
+
+
+class SolerciaConnectSettingsRead(BaseModel):
+    """Non-secret connector configuration, as stored in
+    ``connectors.settings["solercia_connect"]``."""
+
+    account: str
+    target: SolerciaConnectTarget
+    allow_browser_fallback: bool
+
+
+class SolerciaConnectRuntimeRead(BaseModel):
+    """What the Connect runtime's health document said.
+
+    ``reachable`` is ``True``/``False`` after a probe and ``None`` when no
+    probe was attempted (the connector is not configured enough to know
+    where the runtime is) — a claim is never made without checking.
+    """
+
+    reachable: bool | None
+    version: str | None = None
+    interactive_login: bool | None = None
+
+
+class SolerciaConnectRegisterRead(BaseModel):
+    """Response `data` of `POST /connectors/solercia-connect`."""
+
+    connector: ConnectorRead
+    account: ConnectedAccountRead
+    settings: SolerciaConnectSettingsRead
+    runtime: SolerciaConnectRuntimeRead
+
+
+class SolerciaConnectStatusRead(BaseModel):
+    """Response `data` of `GET /connectors/{id}/solercia-connect/status`.
+
+    ``state`` IS the answer — a Connect-side failure is reported here, never
+    raised — so the UI shows one of seven known situations and its remedy.
+    """
+
+    state: SolerciaConnectState
+    route: str | None = None
+    account: str | None = None
+    checked_at: datetime
+    detail: str | None = None
+    remediation: list[str] = Field(default_factory=list)
+    runtime: SolerciaConnectRuntimeRead
+
+
+class SolerciaConnectSessionStartRead(BaseModel):
+    """Response `data` (202) of `POST /connectors/{id}/solercia-connect/connect`."""
+
+    session_id: str
+    started: bool = True
+    expires_in_seconds: int | None = None
+
+
+class SolerciaConnectSessionRead(BaseModel):
+    """Response `data` of `GET /connectors/{id}/solercia-connect/sessions/{session_id}`."""
+
+    state: SolerciaConnectSessionState
+    route: str | None = None
+    error_code: str | None = None
+    detail: str | None = None
+    remediation: list[str] = Field(default_factory=list)
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class SolerciaConnectSyncRequest(BaseModel):
+    """Payload for `POST /connectors/{id}/solercia-connect/sync`."""
+
+    since_days: int = Field(default=7, ge=1, le=90)
+
+
+class SolerciaConnectSyncError(BaseModel):
+    """One failure recorded during a sync run — Connect's code when it had one."""
+
+    run_id: uuid.UUID | None = None
+    code: str
+    detail: str
+
+
+class SolerciaConnectSyncRead(BaseModel):
+    """Response `data` of `POST /connectors/{id}/solercia-connect/sync`.
+
+    Aggregates the ``IntakeRun`` rows the pull produced for THIS connector
+    (normally exactly one — one account per connector). ``tasks_created``
+    equals the items the classifier converted during these runs.
+    """
+
+    run_id: uuid.UUID | None = None
+    runs: list[IntakeRunRead] = Field(default_factory=list)
+    status: Literal["completed", "partial", "error", "skipped"]
+    items_fetched: int = 0
+    items_new: int = 0
+    items_duplicated: int = 0
+    items_converted: int = 0
+    tasks_created: int = 0
+    errors: list[SolerciaConnectSyncError] = Field(default_factory=list)

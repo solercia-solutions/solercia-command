@@ -12,17 +12,25 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class AppException(Exception):
-    """Domain error carrying an HTTP status, a stable code and a message."""
+    """Domain error carrying an HTTP status, a stable code and a message.
+
+    ``meta`` is optional structured context the client can act on (e.g. the
+    id of the session that is already running behind a 409) — it travels
+    next to ``detail``/``code``/``status`` and never replaces them.
+    """
 
     def __init__(
         self,
         detail: str,
         code: str = "app_error",
         status_code: int = status.HTTP_400_BAD_REQUEST,
+        *,
+        meta: dict | None = None,
     ) -> None:
         self.detail = detail
         self.code = code
         self.status_code = status_code
+        self.meta = meta
         super().__init__(detail)
 
 
@@ -33,14 +41,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _handle_app_exception(
         request: Request, exc: AppException
     ) -> JSONResponse:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "detail": exc.detail,
-                "code": exc.code,
-                "status": exc.status_code,
-            },
-        )
+        content: dict = {
+            "detail": exc.detail,
+            "code": exc.code,
+            "status": exc.status_code,
+        }
+        if exc.meta is not None:
+            content["meta"] = jsonable_encoder(exc.meta)
+        return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http_exception(
