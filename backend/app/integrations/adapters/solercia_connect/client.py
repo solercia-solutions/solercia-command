@@ -13,8 +13,18 @@ profile or OAuth tokens belonging to one person. Reaching it from the wrong
 host would mean reading somebody's mailbox, so ``SOLERCIA_CONNECT_BASE_URL_ALLOWLIST``
 gates every call before it is made, the same anti-SSRF posture GLPI's
 ``base_url`` already uses.
+
+Two families of calls live here. ``health``/``run`` return the envelope body
+and treat every non-envelope answer as a failure — that is what a read needs.
+The interactive-login calls (``test_connection``/``connect_browser``/
+``session``) return a :class:`ConnectResponse` instead: Connect answers 409,
+422 and 404 with a typed envelope that IS the information ("another login is
+in progress", "log in first", "session unknown"), so turning them into
+exceptions here would force the caller to parse exception text. Transport
+failures, 401/403 and 503 stay exceptions in both families.
 """
 
+import dataclasses
 import logging
 from typing import Any
 
@@ -25,6 +35,7 @@ from app.config import settings as default_settings
 from app.integrations.adapters.solercia_connect.errors import (
     SolerciaConnectAuthError,
     SolerciaConnectConfigError,
+    SolerciaConnectNotConfiguredError,
     SolerciaConnectProtocolError,
     SolerciaConnectUnavailableError,
 )
@@ -38,8 +49,64 @@ _SUPPORTED_ENVELOPE = "solercia.connect/v1"
 _API_KEY_HEADER = "X-Solercia-Connect-Key"
 
 
+@dataclasses.dataclass(frozen=True)
+class ConnectResponse:
+    """One answer from an interactive-login call: HTTP status plus envelope.
+
+    ``body`` is the parsed JSON object; on a 2xx it is always a
+    ``solercia.connect/v1`` envelope. On a 4xx it is the envelope Connect sent
+    when it sent one, or the framework's own error document (e.g. a
+    validation ``{"detail": [...]}``) when it did not — the caller maps by
+    ``status_code`` first and by ``error.code`` second.
+    """
+
+    status_code: int
+    body: dict[str, Any]
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.body.get("ok"))
+
+    @property
+    def status(self) -> str | None:
+        value = self.body.get("status")
+        return value if isinstance(value, str) else None
+
+    @property
+    def error_code(self) -> str | None:
+        error = self.body.get("error")
+        code = error.get("code") if isinstance(error, dict) else None
+        return code if isinstance(code, str) else None
+
+    @property
+    def error_message(self) -> str | None:
+        error = self.body.get("error")
+        message = error.get("message") if isinstance(error, dict) else None
+        return message if isinstance(message, str) and message.strip() else None
+
+    @property
+    def remediation(self) -> list[str]:
+        """Connect's remediation hints, wherever it placed them, as text."""
+        error = self.body.get("error")
+        data = self.body.get("data")
+        for container in (error, data, self.body):
+            if not isinstance(container, dict):
+                continue
+            hints = container.get("remediation")
+            if isinstance(hints, str) and hints.strip():
+                return [hints]
+            if isinstance(hints, list):
+                return [hint for hint in hints if isinstance(hint, str) and hint.strip()]
+        return []
+
+    @property
+    def data(self) -> dict[str, Any]:
+        data = self.body.get("data")
+        return data if isinstance(data, dict) else {}
+
+
 class SolerciaConnectClient:
-    """Read-only client for one Connect runtime."""
+    """Client for one Connect runtime."""
 
     def __init__(
         self,
@@ -77,6 +144,37 @@ class SolerciaConnectClient:
         """Execute one typed capability and return its envelope."""
         return await self._request("POST", "/v1/run", json=payload, authenticated=True)
 
+    async def test_connection(
+        self, *, type_: str, account: str, allow_browser_fallback: bool
+    ) -> ConnectResponse:
+        """``POST /v1/connections/test`` — is the stored session for ``account`` usable?"""
+        return await self._envelope(
+            "POST",
+            "/v1/connections/test",
+            json={
+                "type": type_,
+                "account": account,
+                "allow_browser_fallback": allow_browser_fallback,
+            },
+        )
+
+    async def connect_browser(self, *, type_: str, account: str) -> ConnectResponse:
+        """``POST /v1/connections/connect`` — start the supervised browser login.
+
+        ``allow_browser_fallback`` is always ``True`` here: over HTTP there is
+        no terminal to show a device code on, so the browser route is the
+        only one this call can start (Connect rejects ``False`` with 422).
+        """
+        return await self._envelope(
+            "POST",
+            "/v1/connections/connect",
+            json={"type": type_, "account": account, "allow_browser_fallback": True},
+        )
+
+    async def session(self, session_id: str) -> ConnectResponse:
+        """``GET /v1/connections/sessions/{id}`` — poll one interactive login."""
+        return await self._envelope("GET", f"/v1/connections/sessions/{session_id}", json=None)
+
     async def _request(
         self,
         method: str,
@@ -85,6 +183,30 @@ class SolerciaConnectClient:
         json: dict[str, Any] | None,
         authenticated: bool,
     ) -> dict[str, Any]:
+        _, body = await self._exchange(method, path, json=json, authenticated=authenticated)
+        self._require_schema(body)
+        return body
+
+    async def _envelope(
+        self, method: str, path: str, *, json: dict[str, Any] | None
+    ) -> ConnectResponse:
+        status_code, body = await self._exchange(method, path, json=json, authenticated=True)
+        # A success MUST be an envelope. A 4xx is one when Connect produced it
+        # and a plain framework document when its request validation did —
+        # only an envelope claiming a version this adapter does not speak is
+        # refused, so the caller never maps a foreign contract by accident.
+        if 200 <= status_code < 300 or "schema" in body:
+            self._require_schema(body)
+        return ConnectResponse(status_code=status_code, body=body)
+
+    async def _exchange(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None,
+        authenticated: bool,
+    ) -> tuple[int, dict[str, Any]]:
         headers = {"Accept": "application/json"}
         if authenticated:
             headers[_API_KEY_HEADER] = self._api_key
@@ -106,7 +228,7 @@ class SolerciaConnectClient:
         if response.status_code in {401, 403}:
             raise SolerciaConnectAuthError("Solercia Connect rejected the configured API key")
         if response.status_code == 503:
-            raise SolerciaConnectUnavailableError(
+            raise SolerciaConnectNotConfiguredError(
                 "Solercia Connect is running but not configured to serve this request"
             )
 
@@ -118,10 +240,12 @@ class SolerciaConnectClient:
             ) from failure
         if not isinstance(body, dict):
             raise SolerciaConnectProtocolError("Solercia Connect returned an unexpected body")
+        return response.status_code, body
 
+    @staticmethod
+    def _require_schema(body: dict[str, Any]) -> None:
         schema = body.get("schema")
         if schema != _SUPPORTED_ENVELOPE:
             raise SolerciaConnectProtocolError(
                 f"Solercia Connect envelope is {schema!r}, expected {_SUPPORTED_ENVELOPE!r}"
             )
-        return body

@@ -416,7 +416,8 @@ class TestConnectReadOnly:
         finally:
             built._restore()
 
-        assert seen == [("POST", "/v1/run"), ("POST", "/v1/run")]
+        # Outlook mail is two folder reads (inbox + sent); calendar is one.
+        assert seen == [("POST", "/v1/run")] * 3
 
     @pytest.mark.asyncio
     async def test_the_browser_fallback_is_off_unless_the_connector_asks_for_it(self) -> None:
@@ -430,15 +431,262 @@ class TestConnectReadOnly:
 
         built = _adapter(handler)
         try:
-            await built.port_for(Capability.mail).list_messages(_context())
-            await built.port_for(Capability.mail).list_messages(
+            await built.port_for(Capability.calendar).list_events(_context())
+            await built.port_for(Capability.calendar).list_events(
                 _context(allow_browser_fallback=True)
+            )
+            # The connectors service stores the flag as text ("true"/"false")
+            # inside the encrypted mapping; the adapter must read it the same.
+            await built.port_for(Capability.calendar).list_events(
+                _context(allow_browser_fallback="true")
+            )
+            await built.port_for(Capability.calendar).list_events(
+                _context(allow_browser_fallback="false")
             )
         finally:
             built._restore()
 
-        assert bodies[0]["allow_browser_fallback"] is False
-        assert bodies[1]["allow_browser_fallback"] is True
+        assert [body["allow_browser_fallback"] for body in bodies] == [False, True, True, False]
+
+
+class TestConnectMailFolders:
+    """Outlook reads inbox AND sent items; every other target keeps sent only."""
+
+    @staticmethod
+    def _mail(record_id: str, sent_at: str) -> dict[str, Any]:
+        return {
+            "id": record_id,
+            "subject": f"Asunto {record_id}",
+            "sent_at": sent_at,
+            "body": "cuerpo",
+            "body_format": "text",
+        }
+
+    @pytest.mark.asyncio
+    async def test_outlook_merges_inbox_and_sent_newest_first_without_duplicates(self) -> None:
+        from app.integrations.ports import Capability
+
+        capabilities: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            capabilities.append(body["capability"])
+            if body["capability"] == "mail.inbox.list":
+                records = [
+                    self._mail("shared", "2026-08-20T10:00:00+00:00"),
+                    self._mail("inbox-new", "2026-08-22T09:00:00+00:00"),
+                ]
+            else:
+                records = [
+                    self._mail("shared", "2026-08-20T10:00:00+00:00"),
+                    self._mail("sent-old", "2026-08-18T08:00:00+00:00"),
+                ]
+            return httpx.Response(200, json=_envelope(records))
+
+        built = _adapter(handler)
+        try:
+            messages = await built.port_for(Capability.mail).list_messages(_context(), limit=10)
+        finally:
+            built._restore()
+
+        assert capabilities == ["mail.inbox.list", "mail.sent.list"]
+        assert [message.external_id for message in messages] == ["inbox-new", "shared", "sent-old"]
+
+    @pytest.mark.asyncio
+    async def test_outlook_applies_the_limit_after_merging(self) -> None:
+        from app.integrations.ports import Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            prefix = "in" if body["capability"] == "mail.inbox.list" else "out"
+            records = [
+                self._mail(f"{prefix}-{index}", f"2026-08-2{index}T10:00:00+00:00")
+                for index in range(3)
+            ]
+            return httpx.Response(200, json=_envelope(records))
+
+        built = _adapter(handler)
+        try:
+            messages = await built.port_for(Capability.mail).list_messages(_context(), limit=2)
+        finally:
+            built._restore()
+
+        assert len(messages) == 2
+        assert messages[0].received_at >= messages[1].received_at
+
+    @pytest.mark.asyncio
+    async def test_other_targets_keep_reading_sent_items_only(self) -> None:
+        from app.integrations.ports import Capability
+
+        capabilities: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            capabilities.append(json.loads(request.content)["capability"])
+            return httpx.Response(200, json=_envelope([]))
+
+        built = _adapter(handler)
+        try:
+            await built.port_for(Capability.mail).list_messages(_context(target="teams"))
+        finally:
+            built._restore()
+
+        assert capabilities == ["mail.sent.list"]
+
+
+class TestConnectInteractiveClient:
+    """The interactive-login calls return the envelope + HTTP status instead of
+    raising on 409/422/404, so the connectors facade can map them."""
+
+    @staticmethod
+    def _client(handler: Any) -> Any:
+        from app.integrations.adapters.solercia_connect.client import SolerciaConnectClient
+
+        return SolerciaConnectClient(
+            base_url=_BASE_URL,
+            api_key=_API_KEY,
+            settings=_settings(),
+            transport=httpx.MockTransport(handler),
+        )
+
+    @pytest.mark.asyncio
+    async def test_connect_browser_posts_the_expected_body_and_keeps_a_202(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["header"] = request.headers.get("X-Solercia-Connect-Key")
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(
+                202,
+                json={
+                    "schema": "solercia.connect/v1",
+                    "ok": True,
+                    "operation": "connections.connect",
+                    "status": "started",
+                    "data": {"session_id": "abc", "expires_in_seconds": 300},
+                    "error": None,
+                },
+            )
+
+        response = await self._client(handler).connect_browser(type_="outlook", account=_ACCOUNT)
+
+        assert (seen["method"], seen["path"]) == ("POST", "/v1/connections/connect")
+        assert seen["header"] == _API_KEY
+        assert seen["body"] == {
+            "type": "outlook",
+            "account": _ACCOUNT,
+            "allow_browser_fallback": True,
+        }
+        assert response.status_code == 202
+        assert response.ok is True
+        assert response.data["session_id"] == "abc"
+
+    @pytest.mark.asyncio
+    async def test_a_409_envelope_is_returned_not_raised(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                409,
+                json={
+                    "schema": "solercia.connect/v1",
+                    "ok": False,
+                    "status": "busy",
+                    "data": {"session_id": "running-1"},
+                    "error": {
+                        "code": "interactive_session_busy",
+                        "message": "busy",
+                        "remediation": ["wait"],
+                    },
+                },
+            )
+
+        response = await self._client(handler).connect_browser(type_="outlook", account=_ACCOUNT)
+
+        assert response.status_code == 409
+        assert response.error_code == "interactive_session_busy"
+        assert response.remediation == ["wait"]
+        assert response.data["session_id"] == "running-1"
+
+    @pytest.mark.asyncio
+    async def test_a_framework_422_without_envelope_is_tolerated(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(422, json={"detail": [{"loc": ["body"], "msg": "bad"}]})
+
+        response = await self._client(handler).test_connection(
+            type_="outlook", account=_ACCOUNT, allow_browser_fallback=True
+        )
+
+        assert response.status_code == 422
+        assert response.error_code is None
+
+    @pytest.mark.asyncio
+    async def test_session_uses_the_id_in_the_path_and_keeps_a_404(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.path
+            return httpx.Response(
+                404,
+                json={
+                    "schema": "solercia.connect/v1",
+                    "ok": False,
+                    "status": "not_found",
+                    "error": {"code": "session_not_found", "message": "unknown"},
+                },
+            )
+
+        response = await self._client(handler).session("sess-9")
+
+        assert seen["path"] == "/v1/connections/sessions/sess-9"
+        assert response.status_code == 404
+        assert response.status == "not_found"
+
+    @pytest.mark.asyncio
+    async def test_a_503_is_a_not_configured_flavour_of_unavailable(self) -> None:
+        from app.integrations.adapters.solercia_connect.errors import (
+            SolerciaConnectNotConfiguredError,
+            SolerciaConnectUnavailableError,
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, json={"detail": "not configured"})
+
+        with pytest.raises(SolerciaConnectUnavailableError) as raised:
+            await self._client(handler).test_connection(
+                type_="outlook", account=_ACCOUNT, allow_browser_fallback=False
+            )
+        assert isinstance(raised.value, SolerciaConnectNotConfiguredError)
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_envelope_version_on_a_4xx_is_still_refused(self) -> None:
+        from app.integrations.adapters.solercia_connect.errors import SolerciaConnectProtocolError
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(409, json={"schema": "solercia.connect/v9", "ok": False})
+
+        with pytest.raises(SolerciaConnectProtocolError):
+            await self._client(handler).session("sess-1")
+
+    @pytest.mark.asyncio
+    async def test_envelope_failures_keep_connect_error_code(self) -> None:
+        from app.integrations.adapters.solercia_connect.errors import SolerciaConnectAuthError
+        from app.integrations.ports import Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = _envelope([])
+            body["ok"] = False
+            body["status"] = "action_required"
+            body["error"] = {"code": "action_required", "message": "log in first"}
+            return httpx.Response(409, json=body)
+
+        built = _adapter(handler)
+        try:
+            with pytest.raises(SolerciaConnectAuthError) as raised:
+                await built.port_for(Capability.calendar).list_events(_context())
+        finally:
+            built._restore()
+
+        assert raised.value.code == "action_required"
 
     def test_the_adapter_declares_no_oauth_handshake(self) -> None:
         from app.integrations.adapters.solercia_connect.adapter import SolerciaConnectAdapter

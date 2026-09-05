@@ -57,10 +57,45 @@ PROVIDER = "solercia_connect"
 _TARGETS = frozenset({"outlook", "teams", "onedrive", "gmail", "google_calendar"})
 
 _CAPABILITY_TO_CONNECT = {
-    Capability.mail: "mail.sent.list",
     Capability.calendar: "calendar.events.list",
     Capability.meeting_notes: "meeting.transcript.get",
 }
+
+_MAIL_SENT = "mail.sent.list"
+_MAIL_INBOX = "mail.inbox.list"
+# Outlook is the one target where a person's pending work lives in BOTH
+# folders: what they received and what they promised in reply. Other targets
+# keep the single sent-items read this adapter always did.
+_MAIL_FOLDERS_BY_TARGET: dict[str, tuple[str, ...]] = {"outlook": (_MAIL_INBOX, _MAIL_SENT)}
+_MAIL_FOLDERS_DEFAULT: tuple[str, ...] = (_MAIL_SENT,)
+
+# Connect error codes that mean "the person has to log in again", whichever
+# route produced them. Exposed so the connector facade maps them the same way.
+LOGIN_REQUIRED_CODES = frozenset(
+    {
+        "browser_identity_unavailable",
+        "browser_login_required",
+        "browser_mfa_required",
+        "authorization_denied",
+        "action_required",
+    }
+)
+
+
+def _flag(value: Any) -> bool:
+    """Read a boolean that may have travelled as text.
+
+    The connectors service encrypts the credential mapping as ``dict[str,
+    str]`` (``ApiTokenCredentials.as_mapping``), so ``allow_browser_fallback``
+    arrives back as ``"true"``/``"false"`` on that path and as a real bool on
+    the :func:`encode_access_context` path. Anything else is ``False``: the
+    browser route is opt-in, never inferred.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().casefold() in {"true", "1", "yes"}
+    return False
 
 
 def encode_access_context(
@@ -103,6 +138,7 @@ def _decode_access_context(ctx: AccessContext) -> dict[str, Any]:
             )
     if payload["target"] not in _TARGETS:
         raise SolerciaConnectConfigError("Solercia Connect access context names an unknown target")
+    payload["allow_browser_fallback"] = _flag(payload.get("allow_browser_fallback"))
     return payload
 
 
@@ -125,6 +161,34 @@ class _ConnectReader:
         limit: int,
     ) -> list[dict[str, Any]]:
         payload = _decode_access_context(ctx)
+        return await self._read_records(
+            payload, _CAPABILITY_TO_CONNECT[capability], since=since, limit=limit
+        )
+
+    async def read_mail(
+        self, ctx: AccessContext, *, since: datetime | None, limit: int
+    ) -> list[list[dict[str, Any]]]:
+        """Read every mail folder the connector's target calls for.
+
+        Returns one record list per folder, in folder order, so the port can
+        tell a single-folder target (records handed through untouched) from a
+        multi-folder one (merged, de-duplicated and re-ordered).
+        """
+        payload = _decode_access_context(ctx)
+        folders = _MAIL_FOLDERS_BY_TARGET.get(payload["target"], _MAIL_FOLDERS_DEFAULT)
+        return [
+            await self._read_records(payload, folder, since=since, limit=limit)
+            for folder in folders
+        ]
+
+    async def _read_records(
+        self,
+        payload: dict[str, Any],
+        connect_capability: str,
+        *,
+        since: datetime | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
         client = SolerciaConnectClient(
             base_url=payload["base_url"],
             api_key=payload["api_key"],
@@ -134,9 +198,9 @@ class _ConnectReader:
         body: dict[str, Any] = {
             "type": payload["target"],
             "account": requested,
-            "capability": _CAPABILITY_TO_CONNECT[capability],
+            "capability": connect_capability,
             "limit": min(max(limit, 1), 1000),
-            "allow_browser_fallback": bool(payload.get("allow_browser_fallback", False)),
+            "allow_browser_fallback": payload["allow_browser_fallback"],
         }
         if since is not None:
             # Connect's windows are exact and end-exclusive; it rejects a half
@@ -172,15 +236,25 @@ def _envelope_failure(envelope: Mapping[str, Any]) -> Exception:
     code = error.get("code") if isinstance(error, dict) else None
     message = error.get("message") if isinstance(error, dict) else None
     detail = message if isinstance(message, str) else "Solercia Connect could not serve the request"
-    if code in {"browser_identity_unavailable", "browser_login_required", "authorization_denied"}:
-        return SolerciaConnectAuthError(detail)
-    if code == "browser_account_mismatch":
-        return SolerciaConnectAccountMismatchError(detail)
-    return SolerciaConnectProtocolError(detail)
+    known_code = code if isinstance(code, str) else None
+    if known_code in LOGIN_REQUIRED_CODES:
+        # Including `action_required`: Connect's non-interactive answer when
+        # the person must log in through the supervised browser first. It is
+        # an authentication state of the provider session, not a protocol
+        # defect, and the connector facade tells them apart by `code`.
+        return SolerciaConnectAuthError(detail, code=known_code)
+    if known_code == "browser_account_mismatch":
+        return SolerciaConnectAccountMismatchError(detail, code=known_code)
+    return SolerciaConnectProtocolError(detail, code=known_code)
 
 
 class SolerciaConnectMailPort:
-    """``MailReaderPort`` over Connect's ``mail.sent.list``."""
+    """``MailReaderPort`` over Connect's mail folders.
+
+    ``outlook`` reads the inbox AND sent items, merges them, drops duplicates
+    by external id and returns the newest ``limit`` messages; every other
+    target reads sent items only, exactly as before.
+    """
 
     def __init__(self, reader: _ConnectReader) -> None:
         self._reader = reader
@@ -188,8 +262,19 @@ class SolerciaConnectMailPort:
     async def list_messages(
         self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
     ) -> list[MailMessage]:
-        records = await self._reader.read(ctx, Capability.mail, since=since, limit=limit)
-        return [map_mail_message(record) for record in records]
+        folders = await self._reader.read_mail(ctx, since=since, limit=limit)
+        if len(folders) == 1:
+            return [map_mail_message(record) for record in folders[0]]
+
+        merged: dict[str, MailMessage] = {}
+        for records in folders:
+            for record in records:
+                message = map_mail_message(record)
+                # A message present in both folders is one message: the first
+                # folder listed wins so the read is deterministic.
+                merged.setdefault(message.external_id, message)
+        ordered = sorted(merged.values(), key=lambda message: message.received_at, reverse=True)
+        return ordered[: max(limit, 1)]
 
 
 class SolerciaConnectCalendarPort:
