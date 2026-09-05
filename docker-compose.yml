@@ -45,6 +45,14 @@ services:
       # LLM port (change 48-puerto-llm) — `fake` touches no network; see
       # `env.example` for the activation blocks.
       LLM_PROVIDER: "fake"
+      # Solercia Connect runtime on the user's machine (loopback :8765),
+      # reached from the container through `host.docker.internal` (declared
+      # in `extra_hosts` below so Linux resolves it too). The key comes from
+      # the shell/.env and is never written here; empty means "not configured".
+      SOLERCIA_CONNECT_BASE_URL: http://host.docker.internal:8765
+      SOLERCIA_CONNECT_API_KEY: ${SOLERCIA_CONNECT_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
