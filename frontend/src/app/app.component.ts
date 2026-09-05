@@ -20,6 +20,7 @@ import { SolLayoutShellComponent } from '@widgets/layout-shell';
 import { SidebarItem } from '@widgets/sidebar';
 import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import { ToastHostComponent } from '@shared/lib/toast';
 import { OrgSwitcherComponent } from '@features/organizations/org-switcher.component';
 
 /**
@@ -40,6 +41,7 @@ import { OrgSwitcherComponent } from '@features/organizations/org-switcher.compo
     NotificationPanelComponent,
     SolIconComponent,
     OrgSwitcherComponent,
+    ToastHostComponent,
   ],
   template: `
     <sol-layout-shell
@@ -143,6 +145,9 @@ import { OrgSwitcherComponent } from '@features/organizations/org-switcher.compo
         class="fixed inset-0 z-20 cursor-default"
       ></button>
     }
+
+    <!-- Transient feedback (toasts) for the whole app; pages only call ToastStore. -->
+    <sol-toast-host />
   `,
 })
 export class AppComponent {
