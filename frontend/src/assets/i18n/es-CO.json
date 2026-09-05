@@ -436,20 +436,30 @@
     "connect": "Conectar cuenta",
     "connectAria": "Conectar una cuenta de {{ provider }}",
     "create": {
+      "accountHint": "La cuenta con la que inicias sesión en Microsoft 365.",
+      "accountInvalid": "Ingresa un correo válido, por ejemplo nombre@entidad.gov.co.",
+      "accountLabel": "Correo institucional",
+      "accountPlaceholder": "nombre@entidad.gov.co",
+      "accountRequired": "Ingresa tu correo institucional para continuar.",
+      "browserFallbackHelp": "Se abrirá un navegador de Solercia Connect en tu equipo para que ingreses tu usuario, contraseña y segundo factor. Command nunca ve tus credenciales.",
+      "browserFallbackLabel": "Inicio de sesión con navegador",
       "cancel": "Cancelar",
-      "mcpBaseUrlLabel": "URL base del servidor MCP",
-      "mcpBaseUrlPlaceholder": "https://mcp.ejemplo.com",
-      "mcpBaseUrlRequired": "Ingresa la URL base del servidor MCP.",
-      "mcpTokenLabel": "Token (opcional)",
-      "mcpTokenPlaceholder": "Token bearer estático",
-      "open": "Nuevo conector",
-      "providerLabel": "Proveedor",
-      "providerPlaceholder": "Selecciona un proveedor",
-      "providerRequired": "Selecciona un proveedor para continuar.",
-      "submit": "Crear conector",
-      "submitting": "Creando…",
-      "success": "Conector creado.",
-      "title": "Nuevo conector"
+      "errors": {
+        "forbidden": "Solo un administrador o gerente puede crear conexiones.",
+        "notConfigured": "El servidor no tiene configurada la clave de Solercia Connect (SOLERCIA_CONNECT_API_KEY).",
+        "unavailable": "Solercia Connect no está corriendo en tu equipo. Inícialo y vuelve a intentar."
+      },
+      "open": "Conectar Solercia Connect",
+      "submit": "Conectar",
+      "submitting": "Conectando…",
+      "success": "Conexión creada. Inicia sesión para activarla.",
+      "targetLabel": "Qué conectar",
+      "targets": {
+        "onedrive": "OneDrive (archivos)",
+        "outlook": "Outlook (correo y calendario)",
+        "teams": "Teams (transcripciones)"
+      },
+      "title": "Conectar Solercia Connect"
     },
     "credentials": {
       "cancel": "Cancelar",
@@ -473,19 +483,25 @@
     },
     "delete": {
       "action": "Eliminar",
-      "ariaLabel": "Eliminar el conector {{ provider }}",
-      "error": "No se pudo eliminar el conector. Inténtalo de nuevo.",
-      "success": "Conector eliminado."
+      "ariaLabel": "Eliminar la conexión {{ provider }}",
+      "cancel": "Cancelar",
+      "confirm": "Eliminar conexión",
+      "confirmBody": "Se eliminará la conexión y su cuenta vinculada. Tus tareas ya creadas no se borran.",
+      "confirmTitle": "¿Eliminar {{ provider }}?",
+      "deleting": "Eliminando…",
+      "error": "No se pudo eliminar la conexión. Inténtalo de nuevo.",
+      "success": "Conexión eliminada."
     },
     "empty": {
-      "subtitle": "Crea un conector para integrar Outlook, Gmail, Jira, GLPI o un servidor MCP.",
-      "title": "Aún no hay conexiones configuradas."
+      "subtitle": "Conecta tu buzón de Microsoft 365 a través de Solercia Connect para traer correos y transcripciones.",
+      "title": "Aún no tienes conexiones"
     },
     "errors": {
       "connectStart": "No fue posible iniciar la conexión. Inténtalo de nuevo.",
-      "create": "No se pudo crear el conector. Verifica los datos.",
+      "create": "No se pudo crear la conexión. Verifica los datos.",
       "load": "No se pudieron cargar las conexiones. Inténtalo más tarde.",
       "network": "No fue posible conectar con el servidor. Inténtalo de nuevo.",
+      "retry": "Reintentar",
       "session": "Tu sesión expiró. Inicia sesión nuevamente."
     },
     "jiraImport": {
@@ -514,13 +530,97 @@
       "oauth": "OAuth"
     },
     "loading": "Cargando conexiones…",
+    "solerciaConnect": {
+      "actions": {
+        "cancelPolling": "Cancelar seguimiento",
+        "copied": "Remediación copiada al portapapeles.",
+        "copy": "Copiar remediación",
+        "copyError": "No fue posible copiar. Selecciona el texto y cópialo manualmente.",
+        "delete": "Eliminar",
+        "followSession": "Seguir esa sesión",
+        "hideDetail": "Ocultar detalle",
+        "login": "Iniciar sesión",
+        "refresh": "Refrescar sesión",
+        "retry": "Reintentar",
+        "sync": "Sincronizar ahora",
+        "test": "Probar conexión",
+        "viewDetail": "Ver detalle"
+      },
+      "fields": {
+        "account": "Cuenta",
+        "checked": "Verificado",
+        "route": "Ruta",
+        "target": "Destino"
+      },
+      "relative": {
+        "days": "hace {{ count }} d",
+        "hours": "hace {{ count }} h",
+        "minutes": "hace {{ count }} min",
+        "now": "hace un momento"
+      },
+      "remediationTitle": "Cómo resolverlo",
+      "routes": {
+        "browser": "Sesión de navegador",
+        "official": "Microsoft Graph",
+        "unknown": "Sin verificar"
+      },
+      "session": {
+        "busy": "Ya hay un inicio de sesión en curso en Connect.",
+        "cancelHint": "Solo dejarás de ver el progreso aquí; el navegador de Connect sigue abierto.",
+        "cancelled": "Dejaste de seguir el inicio de sesión. El navegador de Connect sigue abierto en tu equipo.",
+        "connected": "Sesión de Microsoft 365 activa para {{ account }}.",
+        "expired": "El tiempo para iniciar sesión terminó. Vuelve a intentarlo.",
+        "failed": {
+          "browser_account_mismatch": "El navegador inició sesión con otra cuenta. Cierra esa sesión en el navegador de Connect e inténtalo con {{ account }}.",
+          "browser_login_required": "No se completó el inicio de sesión. Vuelve a intentarlo.",
+          "browser_mfa_required": "Falta el segundo factor. Vuelve a intentarlo y completa la verificación."
+        },
+        "failedDefault": "No se completó el inicio de sesión. Vuelve a intentarlo.",
+        "inProgress": "Se abrió el navegador de Solercia Connect en tu equipo. Ingresa tu usuario, contraseña y segundo factor allí; esta tarjeta se actualiza sola.",
+        "notFound": "Connect ya no tiene registro de esa sesión. Vuelve a intentarlo.",
+        "pollError": "Se perdió el seguimiento del inicio de sesión. Prueba la conexión para ver su estado.",
+        "progressAria": "Tiempo restante para iniciar sesión",
+        "remaining": "Tiempo restante para iniciar sesión: {{ time }}",
+        "startError": "No fue posible abrir el navegador de Solercia Connect."
+      },
+      "since": {
+        "d1": "Hoy",
+        "d30": "30 días",
+        "d7": "7 días"
+      },
+      "sinceLabel": "Periodo a traer",
+      "states": {
+        "checking": "Verificando…",
+        "connected": "Conectada",
+        "error": "Error",
+        "interactive_disabled": "Navegador deshabilitado en Connect",
+        "misconfigured": "Connect mal configurado",
+        "needs_login": "Requiere iniciar sesión",
+        "runtime_unauthorized": "Clave de Connect rechazada",
+        "runtime_unavailable": "Connect no responde"
+      },
+      "status": {
+        "error": "No fue posible consultar el estado de la conexión."
+      },
+      "step2": "Paso 2 de 2: inicia sesión para activar la conexión.",
+      "sync": {
+        "detailTitle": "Detalle de la sincronización",
+        "error": "No fue posible sincronizar.",
+        "needsLogin": "La cuenta requiere iniciar sesión de nuevo antes de sincronizar.",
+        "partial": "La sincronización terminó con avisos: {{ first }}",
+        "success": "Se trajeron {{ new }} correos nuevos ({{ duplicated }} ya existían). Tareas creadas: {{ tasks }}.",
+        "summary": "{{ new }} nuevos · {{ duplicated }} ya existían · {{ tasks }} tareas creadas"
+      },
+      "waitLogin": "Espera a que termine el inicio de sesión"
+    },
     "status": {
       "active": "Activo",
       "error": "Con error",
+      "expired": "Sesión vencida",
       "inactive": "Inactivo",
       "revoked": "Revocada"
     },
-    "subtitle": "Administra los conectores de la organización: Outlook, Gmail, Jira, GLPI, MCP y el proveedor de demostración.",
+    "subtitle": "Conecta tu buzón de Microsoft 365 a través de Solercia Connect y trae tus correos como insumos y tareas.",
     "title": "Conexiones"
   },
   "executive": {
@@ -715,6 +815,7 @@
       "trigger": "Abre el calendario"
     },
     "drawer": {
+      "close": "Cierra el panel",
       "closeAria": "Cierra el panel"
     },
     "nav": {
@@ -791,6 +892,10 @@
     "tree": {
       "collapseAria": "Colapsar {{ label }}",
       "expandAria": "Expandir {{ label }}"
+    },
+    "toast": {
+      "close": "Cerrar aviso",
+      "region": "Avisos"
     }
   },
   "taskCard": {
