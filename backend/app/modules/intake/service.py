@@ -13,6 +13,7 @@ account's ingestion) is added in Fase 4 — this file stays storage-only here.
 """
 
 import dataclasses
+import logging
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -49,12 +50,17 @@ from app.modules.projects.service import ProjectService
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import TaskCreate
 from app.modules.tasks.service import TaskService
+from app.modules.tasks.sources import KNOWN_TASK_SOURCES
 from app.shared.enums import IntakeItemStatus, IntakeItemType, IntakeRunStatus, Methodology
 from app.shared.exceptions import AppException
+
+logger = logging.getLogger("solercia.intake")
 
 # Truncation guard for the created Task's description — MailMessage.snippet
 # is unbounded Text, TaskCreate.description caps at 4000 (schemas.py).
 _TASK_DESCRIPTION_MAX_CHARS = 2000
+
+_ANCHOR_CONFLICT_CODE = "task_external_anchor_conflict"
 
 # One IntakeItemType per read capability of the 14 (intake-items spec,
 # "mapeo 1:1 con las 5 capacidades de puerto del 14"). `external_resources`
@@ -87,26 +93,79 @@ def _jsonable(value: Any) -> Any:
 
 
 async def _fetch_for_capability(
-    port: object, capability: Capability, ctx: AccessContext, limit: int
+    port: object,
+    capability: Capability,
+    ctx: AccessContext,
+    limit: int,
+    *,
+    since: datetime | None = None,
 ) -> Sequence[Any]:
     """Dispatch to the correctly-named method of ``port``'s Protocol.
 
     Each read Protocol (``MailReaderPort``/``CalendarReaderPort``/...) names
     its single method differently — this is the ONE place that knows the
-    mapping, so ``pull`` itself stays capability-agnostic.
+    mapping, so ``pull`` itself stays capability-agnostic. ``since`` is the
+    Protocols' shared optional window; ``None`` keeps each port's default.
     """
 
     if capability == Capability.mail:
-        return await port.list_messages(ctx, limit=limit)  # type: ignore[attr-defined]
+        return await port.list_messages(ctx, since=since, limit=limit)  # type: ignore[attr-defined]
     if capability == Capability.calendar:
-        return await port.list_events(ctx, limit=limit)  # type: ignore[attr-defined]
+        return await port.list_events(ctx, since=since, limit=limit)  # type: ignore[attr-defined]
     if capability == Capability.external_tasks:
-        return await port.list_tasks(ctx, limit=limit)  # type: ignore[attr-defined]
+        return await port.list_tasks(ctx, since=since, limit=limit)  # type: ignore[attr-defined]
     if capability == Capability.meeting_notes:
-        return await port.list_notes(ctx, limit=limit)  # type: ignore[attr-defined]
+        return await port.list_notes(ctx, since=since, limit=limit)  # type: ignore[attr-defined]
     if capability == Capability.tickets:
-        return await port.list_tickets(ctx, limit=limit)  # type: ignore[attr-defined]
+        return await port.list_tickets(ctx, since=since, limit=limit)  # type: ignore[attr-defined]
     raise AssertionError(f"Capacidad sin mapeo de intake: {capability}")  # pragma: no cover
+
+
+def _external_origin(item: IntakeItem) -> tuple[str, str] | None:
+    """The ``(source, external_key)`` anchor a converted insumo hands to
+    ``TaskService.create_task`` — provenance that makes a second conversion of
+    the same message a detectable conflict instead of a duplicate task.
+
+    Only a provider the task vocabulary knows (``KNOWN_TASK_SOURCES``) is
+    anchored: an unknown one would make ``validate_task_source`` reject
+    EVERY conversion of that connector, which is worse than an unanchored
+    task. Empty ids are never anchored either.
+    """
+
+    source = (item.source_provider or "").strip()
+    key = (item.external_id or "").strip()
+    if not source or not key or source not in KNOWN_TASK_SOURCES:
+        return None
+    return source, key
+
+
+def _failure_code(failure: Exception) -> str:
+    code = getattr(failure, "code", None)
+    return code if isinstance(code, str) and code else "unexpected_error"
+
+
+def _failure_detail(failure: Exception) -> str:
+    detail = getattr(failure, "detail", None)
+    if isinstance(detail, str) and detail.strip():
+        return detail
+    text = str(failure).strip()
+    return text or failure.__class__.__name__
+
+
+@dataclasses.dataclass(frozen=True)
+class IntakeRunOutcome:
+    """One ``IntakeRun`` plus WHY it failed, for callers that must tell "the
+    person has to log in again" from "the provider is down" — the run row
+    itself only records ``status=error`` (no migration for a reason column).
+
+    ``anchor_conflicts`` counts insumos left in triage because a task with
+    their external provenance already existed.
+    """
+
+    run: IntakeRunRead
+    error_code: str | None = None
+    error_detail: str | None = None
+    anchor_conflicts: int = 0
 
 
 def _dto_to_item(
@@ -198,24 +257,51 @@ class IntakeService:
         self.classifier = RuleBasedClassifier()
 
     async def pull(
-        self, organization_id: uuid.UUID, *, actor_id: uuid.UUID | None = None
+        self,
+        organization_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+        connector_id: uuid.UUID | None = None,
+        since: datetime | None = None,
     ) -> list[IntakeRunRead]:
         """Ingest every connected account of the organization's connectors.
 
         One ``IntakeRun`` per (connector, account) pair — a connector with
         zero connected accounts is skipped entirely (nothing to read yet).
+        ``connector_id`` restricts the pull to ONE connector of the
+        organization (a foreign or unknown id simply reads nothing);
+        ``since`` bounds every read window. Both default to the historical
+        behaviour: every connector, each port's own default window.
         """
 
+        outcomes = await self.pull_outcomes(
+            organization_id, actor_id=actor_id, connector_id=connector_id, since=since
+        )
+        return [outcome.run for outcome in outcomes]
+
+    async def pull_outcomes(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+        connector_id: uuid.UUID | None = None,
+        since: datetime | None = None,
+    ) -> list[IntakeRunOutcome]:
+        """:meth:`pull`, keeping the failure behind each ``status=error`` run
+        (see :class:`IntakeRunOutcome`) for callers that map it further."""
+
         connectors = await self.connectors.list_connectors(organization_id)
-        runs: list[IntakeRun] = []
+        outcomes: list[IntakeRunOutcome] = []
         for connector in connectors:
+            if connector_id is not None and connector.id != connector_id:
+                continue
             accounts = await self.accounts.list_accounts(connector.id, organization_id)
             for account in accounts:
-                run = await self._pull_account(
-                    organization_id, connector, account.id, actor_id=actor_id
+                outcome = await self._pull_account(
+                    organization_id, connector, account.id, actor_id=actor_id, since=since
                 )
-                runs.append(run)
-        return [IntakeRunRead.model_validate(run) for run in runs]
+                outcomes.append(outcome)
+        return outcomes
 
     async def _pull_account(
         self,
@@ -224,7 +310,8 @@ class IntakeService:
         connected_account_id: uuid.UUID,
         *,
         actor_id: uuid.UUID | None,
-    ) -> IntakeRun:
+        since: datetime | None = None,
+    ) -> IntakeRunOutcome:
         """Ingest ONE connected account, isolated from every other account's
         outcome (intake-items spec, "Error en una cuenta no bloquea las
         demás")."""
@@ -237,16 +324,25 @@ class IntakeService:
             actor_id=actor_id,
         )
 
+        failure: Exception | None = None
+        anchor_conflicts = 0
         try:
-            await self._ingest_account_items(
-                organization_id, connector, connected_account_id, run
+            anchor_conflicts = await self._ingest_account_items(
+                organization_id, connector, connected_account_id, run, since=since
             )
             run.status = IntakeRunStatus.completed
-        except Exception:  # noqa: BLE001 - isolate this account, never re-raise
+        except Exception as exc:  # noqa: BLE001 - isolate this account, never re-raise
             run.status = IntakeRunStatus.error
+            failure = exc
 
         run.finished_at = datetime.now(UTC)
-        return await self.items.close_run(run)
+        closed = await self.items.close_run(run)
+        return IntakeRunOutcome(
+            run=IntakeRunRead.model_validate(closed),
+            error_code=_failure_code(failure) if failure is not None else None,
+            error_detail=_failure_detail(failure) if failure is not None else None,
+            anchor_conflicts=anchor_conflicts,
+        )
 
     async def _ingest_account_items(
         self,
@@ -254,7 +350,13 @@ class IntakeService:
         connector: Connector,
         connected_account_id: uuid.UUID,
         run: IntakeRun,
-    ) -> None:
+        *,
+        since: datetime | None = None,
+    ) -> int:
+        """Read, store and classify one account's items; returns how many new
+        items were left in triage because their external anchor already
+        belonged to a task."""
+
         adapter = get_adapter(connector.provider)
         if adapter is None:
             raise AppException(
@@ -274,7 +376,7 @@ class IntakeService:
                 continue
 
             dtos = await _fetch_for_capability(
-                port, capability, ctx, settings.INTAKE_PULL_MAX_ITEMS
+                port, capability, ctx, settings.INTAKE_PULL_MAX_ITEMS, since=since
             )
             # GLPI-style service-level credentials (api_token) are not a
             # personal mailbox/calendar — items from such a connector are
@@ -306,10 +408,13 @@ class IntakeService:
         # (tasks.md T4.3) — never on re-pulled duplicates (intake-classifier
         # spec, "Ejecución del clasificador tras cada ingesta" evaluates only
         # the items stored by the CURRENT execution).
+        anchor_conflicts = 0
         for item in new_items:
-            await self.classify_and_convert(organization_id, item)
+            if await self.classify_and_convert(organization_id, item):
+                anchor_conflicts += 1
             if item.status == IntakeItemStatus.converted:
                 run.items_converted += 1
+        return anchor_conflicts
 
     async def _build_access_context(
         self, organization_id: uuid.UUID, connector: Connector, connected_account_id: uuid.UUID
@@ -511,7 +616,7 @@ class IntakeService:
 
     async def classify_and_convert(
         self, organization_id: uuid.UUID, item: IntakeItem
-    ) -> None:
+    ) -> bool:
         """Evaluate ``item`` against the org's active rules and, if a rule
         matches with ``convert_to_task=true``, create a real ``Task``
         (intake-classifier spec, "Conversión a tarea cuando una regla casa").
@@ -522,6 +627,12 @@ class IntakeService:
         the transaction boundary. ``convert_manual`` (Fase 5) is a
         DIFFERENT call site that commits per item (``save_item``'s
         default); see its own docstring.
+
+        Returns ``True`` when the conversion was SKIPPED because a task with
+        the item's external provenance already exists
+        (``task_external_anchor_conflict``): the item stays ``pending`` in
+        triage and the run goes on — one duplicate must never abort the
+        ingestion of everything else.
         """
 
         active_rules = await self.rules.list_active_rules_ordered(organization_id)
@@ -531,14 +642,14 @@ class IntakeService:
             # intake-classifier spec, "Ítems sin regla coincidente van a
             # triage manual" — stays pending, no matched_rule_id.
             await self.items.save_item(item, commit=False)
-            return
+            return False
 
         if not matched_rule.convert_to_task:
             # intake-classifier spec, "Regla con convert_to_task=false no
             # crea tarea" — `ignored`, NEVER reaches the triage queue.
             item.status = IntakeItemStatus.ignored
             await self.items.save_item(item, commit=False)
-            return
+            return False
 
         if matched_rule.assignee_id is not None:
             task_repo = TaskRepository(self.db)
@@ -554,29 +665,43 @@ class IntakeService:
                 # via this FK without a new migration).
                 item.matched_rule_id = matched_rule.id
                 await self.items.save_item(item, commit=False)
-                return
+                return False
 
         project_id = matched_rule.target_project_id or await self._ensure_default_project(
             organization_id
         )
         description = _build_task_description(item)
         task_service = TaskService(self.db)
-        task = await task_service.create_task(
-            organization_id,
-            project_id,
-            TaskCreate(
-                title=item.title,
-                description=description,
-                priority=matched_rule.task_priority,
-                assignee_id=matched_rule.assignee_id,
-            ),
-        )
+        try:
+            task = await task_service.create_task(
+                organization_id,
+                project_id,
+                TaskCreate(
+                    title=item.title,
+                    description=description,
+                    priority=matched_rule.task_priority,
+                    assignee_id=matched_rule.assignee_id,
+                ),
+                external_origin=_external_origin(item),
+            )
+        except AppException as failure:
+            if failure.code != _ANCHOR_CONFLICT_CODE:
+                raise
+            logger.warning(
+                "Insumo con procedencia ya anclada a una tarea; queda en triage: "
+                "connector_id=%s external_id=%s",
+                item.connector_id,
+                item.external_id,
+            )
+            await self.items.save_item(item, commit=False)
+            return True
 
         item.status = IntakeItemStatus.converted
         item.created_task_id = task.id
         item.matched_rule_id = matched_rule.id
         item.classified_at = datetime.now(UTC)
         await self.items.save_item(item, commit=False)
+        return False
 
     async def _ensure_default_project(self, organization_id: uuid.UUID) -> uuid.UUID:
         """Resolve the org's default project, creating it (lazily, ONCE)
@@ -645,6 +770,9 @@ class IntakeService:
         project_id = await self._ensure_default_project(organization_id)
         description = _build_task_description(item)
         task_service = TaskService(self.db)
+        # The anchor conflict (409 `task_external_anchor_conflict`) propagates
+        # here on purpose: there is no run to keep going, and the person who
+        # clicked "convertir" needs to learn that a task already exists.
         task = await task_service.create_task(
             organization_id,
             project_id,
@@ -655,6 +783,7 @@ class IntakeService:
                 assignee_id=data.assignee_id,
             ),
             actor_id=actor_id,
+            external_origin=_external_origin(item),
         )
 
         item.status = IntakeItemStatus.converted
