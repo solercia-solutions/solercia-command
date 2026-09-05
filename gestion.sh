@@ -226,6 +226,15 @@ cmd_status() {
   if [ "$code" = "200" ]; then echo -e "  ${GREEN}●${NC} front :$FRONT_PORT — HTTP 200${fp:+ (PID $fp)}"; else echo -e "  ${RED}○${NC} front :$FRONT_PORT — sin respuesta"; fi
   local tp; tp=$(pid_of tunel)
   if is_pid_alive "$tp"; then echo -e "  ${GREEN}●${NC} túnel devtunnel (PID $tp)"; show_tunnel_urls; else echo -e "  ${RED}○${NC} túnel devtunnel"; fi
+  # Solercia Connect es otro producto y corre en el HOST (nunca en este compose);
+  # la pantalla de Conexiones depende de él, así que aquí solo se consulta su salud.
+  local ch; ch=$(curl -s --max-time 3 "http://127.0.0.1:8765/v1/health" 2>/dev/null || true)
+  if [ -n "$ch" ]; then
+    local il; il=$(printf '%s' "$ch" | sed -n 's/.*"interactive_login":\([a-z]*\).*/\1/p')
+    echo -e "  ${GREEN}●${NC} Solercia Connect :8765 — listo (login interactivo por HTTP: ${il:-desconocido})"
+  else
+    echo -e "  ${YELLOW}○${NC} Solercia Connect :8765 — sin respuesta (levántalo desde solercia-connect: make service)"
+  fi
 }
 
 cmd_logs() {
