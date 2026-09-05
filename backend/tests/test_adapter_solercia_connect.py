@@ -449,6 +449,93 @@ class TestConnectReadOnly:
         assert [body["allow_browser_fallback"] for body in bodies] == [False, True, True, False]
 
 
+class TestConnectTargetCapabilities:
+    """A target that does not serve a capability answers locally with no
+    records — Connect is never asked (it would 422 and abort the whole run)."""
+
+    @staticmethod
+    def _recording_adapter() -> tuple[Any, list[tuple[str, str]]]:
+        seen: list[tuple[str, str]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append((request.method, json.loads(request.content)["capability"]))
+            return httpx.Response(200, json=_envelope([]))
+
+        return _adapter(handler), seen
+
+    @pytest.mark.asyncio
+    async def test_outlook_has_no_transcripts_so_meeting_notes_are_empty_without_a_call(
+        self,
+    ) -> None:
+        from app.integrations.ports import Capability
+
+        built, seen = self._recording_adapter()
+        try:
+            notes = await built.port_for(Capability.meeting_notes).list_notes(
+                _context(target="outlook")
+            )
+        finally:
+            built._restore()
+
+        assert notes == []
+        assert seen == []
+
+    @pytest.mark.asyncio
+    async def test_teams_does_serve_transcripts_so_connect_is_called(self) -> None:
+        from app.integrations.ports import Capability
+
+        built, seen = self._recording_adapter()
+        try:
+            await built.port_for(Capability.meeting_notes).list_notes(_context(target="teams"))
+        finally:
+            built._restore()
+
+        assert seen == [("POST", "meeting.transcript.get")]
+
+    @pytest.mark.asyncio
+    async def test_targets_without_mail_or_calendar_answer_empty_locally(self) -> None:
+        from app.integrations.ports import Capability
+
+        built, seen = self._recording_adapter()
+        try:
+            teams_mail = await built.port_for(Capability.mail).list_messages(
+                _context(target="teams")
+            )
+            onedrive_events = await built.port_for(Capability.calendar).list_events(
+                _context(target="onedrive")
+            )
+            gmail_events = await built.port_for(Capability.calendar).list_events(
+                _context(target="gmail")
+            )
+            google_mail = await built.port_for(Capability.mail).list_messages(
+                _context(target="google_calendar")
+            )
+        finally:
+            built._restore()
+
+        assert (teams_mail, onedrive_events, gmail_events, google_mail) == ([], [], [], [])
+        assert seen == []
+
+    @pytest.mark.asyncio
+    async def test_a_full_outlook_read_touches_only_mail_and_calendar(self) -> None:
+        """What an intake pull does: every declared capability, one target."""
+        from app.integrations.ports import Capability
+
+        built, seen = self._recording_adapter()
+        try:
+            await built.port_for(Capability.mail).list_messages(_context())
+            await built.port_for(Capability.calendar).list_events(_context())
+            await built.port_for(Capability.meeting_notes).list_notes(_context())
+        finally:
+            built._restore()
+
+        assert [capability for _, capability in seen] == [
+            "mail.inbox.list",
+            "mail.sent.list",
+            "calendar.events.list",
+        ]
+
+
 class TestConnectMailFolders:
     """Outlook reads inbox AND sent items; every other target keeps sent only."""
 
@@ -526,7 +613,7 @@ class TestConnectMailFolders:
 
         built = _adapter(handler)
         try:
-            await built.port_for(Capability.mail).list_messages(_context(target="teams"))
+            await built.port_for(Capability.mail).list_messages(_context(target="gmail"))
         finally:
             built._restore()
 

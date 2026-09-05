@@ -61,6 +61,18 @@ _CAPABILITY_TO_CONNECT = {
     Capability.meeting_notes: "meeting.transcript.get",
 }
 
+# Which of this adapter's capabilities each target actually serves — mirrors
+# Connect's ``/v1/providers``. The adapter declares the union so intake knows
+# what it MAY read; a target that lacks one answers "nothing" locally, because
+# asking Connect for it is a 422 on its side and an aborted run on ours.
+_TARGET_CAPABILITIES: dict[str, frozenset[Capability]] = {
+    "outlook": frozenset({Capability.mail, Capability.calendar}),
+    "teams": frozenset({Capability.meeting_notes}),
+    "onedrive": frozenset(),
+    "gmail": frozenset({Capability.mail}),
+    "google_calendar": frozenset({Capability.calendar}),
+}
+
 _MAIL_SENT = "mail.sent.list"
 _MAIL_INBOX = "mail.inbox.list"
 # Outlook is the one target where a person's pending work lives in BOTH
@@ -146,6 +158,24 @@ def _canonical(account: str) -> str:
     return account.strip().casefold()
 
 
+def _target_serves(payload: dict[str, Any], capability: Capability) -> bool:
+    """``True`` when the connector's target can answer ``capability`` at all.
+
+    A miss is the ordinary state of a mixed read (an Outlook connector has no
+    transcripts), so it is logged at debug level and never reported as a
+    failure of the account.
+    """
+    target = payload["target"]
+    if capability in _TARGET_CAPABILITIES.get(target, frozenset()):
+        return True
+    logger.debug(
+        "Solercia Connect target %r does not serve %s; answering with no records",
+        target,
+        capability.value,
+    )
+    return False
+
+
 class _ConnectReader:
     """Shared read path for every capability this adapter serves."""
 
@@ -161,6 +191,8 @@ class _ConnectReader:
         limit: int,
     ) -> list[dict[str, Any]]:
         payload = _decode_access_context(ctx)
+        if not _target_serves(payload, capability):
+            return []
         return await self._read_records(
             payload, _CAPABILITY_TO_CONNECT[capability], since=since, limit=limit
         )
@@ -172,9 +204,12 @@ class _ConnectReader:
 
         Returns one record list per folder, in folder order, so the port can
         tell a single-folder target (records handed through untouched) from a
-        multi-folder one (merged, de-duplicated and re-ordered).
+        multi-folder one (merged, de-duplicated and re-ordered). A target
+        without mail returns no folders at all.
         """
         payload = _decode_access_context(ctx)
+        if not _target_serves(payload, Capability.mail):
+            return []
         folders = _MAIL_FOLDERS_BY_TARGET.get(payload["target"], _MAIL_FOLDERS_DEFAULT)
         return [
             await self._read_records(payload, folder, since=since, limit=limit)
@@ -263,6 +298,8 @@ class SolerciaConnectMailPort:
         self, ctx: AccessContext, *, since: datetime | None = None, limit: int = 50
     ) -> list[MailMessage]:
         folders = await self._reader.read_mail(ctx, since=since, limit=limit)
+        if not folders:
+            return []
         if len(folders) == 1:
             return [map_mail_message(record) for record in folders[0]]
 
