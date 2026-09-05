@@ -7,6 +7,12 @@ import {
   Connector,
   ConnectorCreatePayload,
   JiraImportResult,
+  SolerciaConnectRegisterPayload,
+  SolerciaConnectRegisterResult,
+  SolerciaConnectSession,
+  SolerciaConnectSessionStart,
+  SolerciaConnectStatus,
+  SolerciaConnectSyncResult,
 } from './connector.model';
 
 @Injectable({ providedIn: 'root' })
@@ -90,5 +96,65 @@ export class ConnectorsService {
       redirect_to: redirectTo,
     });
     return `${apiBase}/connectors/${connectorId}/authorize?${params.toString()}`;
+  }
+
+  // -- Solercia Connect --------------------------------------------------------
+
+  /**
+   * Registra (o re-registra, es idempotente por organización) la conexión de
+   * Solercia Connect para UNA cuenta Microsoft 365. La llave del runtime la
+   * pone el servidor; el navegador nunca la ve.
+   */
+  createSolerciaConnect(
+    payload: SolerciaConnectRegisterPayload,
+  ): Observable<{ data: SolerciaConnectRegisterResult }> {
+    return this.http.post<{ data: SolerciaConnectRegisterResult }>(
+      `${apiBase}/connectors/solercia-connect`,
+      payload,
+    );
+  }
+
+  /**
+   * Pregunta a Connect si la sesión guardada de la cuenta sirve. `data.state`
+   * ES la respuesta: una falla del lado de Connect no viene como error HTTP.
+   * No llamar mientras un inicio de sesión esté `running`.
+   */
+  solerciaConnectStatus(
+    connectorId: string,
+  ): Observable<{ data: SolerciaConnectStatus }> {
+    return this.http.get<{ data: SolerciaConnectStatus }>(
+      `${apiBase}/connectors/${connectorId}/solercia-connect/status`,
+    );
+  }
+
+  /** Abre el navegador supervisado en el equipo de la persona (202 + session_id). */
+  startSolerciaConnectLogin(
+    connectorId: string,
+  ): Observable<{ data: SolerciaConnectSessionStart }> {
+    return this.http.post<{ data: SolerciaConnectSessionStart }>(
+      `${apiBase}/connectors/${connectorId}/solercia-connect/connect`,
+      {},
+    );
+  }
+
+  /** Sondea una sesión de inicio de sesión supervisado. */
+  solerciaConnectSession(
+    connectorId: string,
+    sessionId: string,
+  ): Observable<{ data: SolerciaConnectSession }> {
+    return this.http.get<{ data: SolerciaConnectSession }>(
+      `${apiBase}/connectors/${connectorId}/solercia-connect/sessions/${encodeURIComponent(sessionId)}`,
+    );
+  }
+
+  /** Trae el correo de los últimos `sinceDays` días a insumos/tareas. */
+  syncSolerciaConnect(
+    connectorId: string,
+    sinceDays: number,
+  ): Observable<{ data: SolerciaConnectSyncResult }> {
+    return this.http.post<{ data: SolerciaConnectSyncResult }>(
+      `${apiBase}/connectors/${connectorId}/solercia-connect/sync`,
+      { since_days: sinceDays },
+    );
   }
 }
