@@ -109,7 +109,7 @@ start_front() {
   use_node
   if [ ! -d "$FRONT_DIR/node_modules" ]; then
     echo -e "${BLUE}[FRONT]${NC} node_modules no existe; instalando dependencias (primera vez)..."
-    ( cd "$FRONT_DIR" && npm ci )
+    ( cd "$FRONT_DIR" && npm ci --ignore-scripts )
   fi
   echo -e "${BLUE}[FRONT]${NC} Iniciando ng serve en :$FRONT_PORT (dual-stack para el túnel y el celular)..."
   ( cd "$FRONT_DIR" && nohup npx ng serve --host :: --port $FRONT_PORT \

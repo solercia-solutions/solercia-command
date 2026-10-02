@@ -7,7 +7,7 @@ WORKDIR /app
 # references it as file:./vendor/solercia-ui-0.3.0.tgz.
 COPY package*.json ./
 COPY vendor ./vendor
-RUN npm install
+RUN npm install --ignore-scripts
 
 # Copy the rest of the application source.
 COPY . .

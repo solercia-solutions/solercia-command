@@ -68,7 +68,7 @@ logs-backend: ## Sigue los logs del backend
 ## ── Calidad del frontend ────────────────────────────────────────────────────
 
 install: ## Instala las dependencias del frontend
-	@cd "$(FRONT_DIR)" && npm ci
+	@cd "$(FRONT_DIR)" && npm ci --ignore-scripts
 
 build: ## Compila el frontend en modo producción
 	@cd "$(FRONT_DIR)" && npm run build

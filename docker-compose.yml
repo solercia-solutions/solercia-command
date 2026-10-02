@@ -62,7 +62,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "4242:4200"
+      - "4242:4242"
     depends_on:
       - backend
 
