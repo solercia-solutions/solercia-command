@@ -4,8 +4,11 @@
 export * from '@solercia/ui';
 
 // Bloque presentacional de error (código, título, mensaje y código de seguimiento copiable),
-// reutilizable en páginas de error y dentro de paneles. Es el único componente app-local.
+// reutilizable en páginas de error y dentro de paneles.
 export * from './error-state';
+
+// Logo de marca del header: pinta el logo efectivo del tema (claro u oscuro) sin caja fantasma.
+export * from './brand-logo';
 
 // Sin más componentes app-local: `sol-drawer` vivía aquí mientras la librería no lo
 // exponía (0.3.0). Desde 0.5.0 `SolDrawerComponent` llega por el re-export de

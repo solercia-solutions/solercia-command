@@ -938,6 +938,9 @@
       "message": "La página que buscas no existe o ha sido movida.",
       "backPanel": "Volver al panel",
       "backLogin": "Ir a iniciar sesión"
+    },
+    "shell": {
+      "userFallbackName": "Usuario"
     }
   },
   "performance": {
@@ -1226,6 +1229,7 @@
       "closeAria": "Cierra el panel"
     },
     "nav": {
+      "back": "Volver",
       "more": "Más"
     },
     "notificationPanel": {
@@ -1510,6 +1514,41 @@
       "backlogPoints": "puntos en el backlog",
       "insufficientVelocity": "velocidad insuficiente para proyectar",
       "projectedSprints": "sprints estimados para vaciar el backlog"
+    }
+  },
+  "widgets": {
+    "breadcrumb": {
+      "navLabel": "Ruta de navegación"
+    },
+    "helpDrawer": {
+      "close": "Cerrar",
+      "empty": {
+        "description": "Cuando haya manuales o videos para esta sección aparecerán aquí.",
+        "title": "Aún no hay material de ayuda"
+      },
+      "errorMessage": "No fue posible cargar la ayuda. Intenta de nuevo.",
+      "loading": "Cargando la ayuda…",
+      "openInNewTab": "Abrir en una pestaña nueva",
+      "retry": "Reintentar",
+      "support": "Escribir a soporte",
+      "title": "Ayuda y soporte"
+    },
+    "sidebar": {
+      "collapse": "Colapsar menú",
+      "empty": "No tienes opciones de menú asignadas.",
+      "error": "No fue posible cargar el menú.",
+      "expand": "Expandir menú",
+      "loading": "Cargando el menú…",
+      "navLabel": "Navegación principal",
+      "noResults": "Ninguna opción del menú está disponible para tu perfil.",
+      "retry": "Reintentar"
+    },
+    "userMenu": {
+      "help": "Ayuda y soporte",
+      "logout": "Cerrar sesión",
+      "supportTimeNote": "Reloj del navegador · {{ zone }}",
+      "supportTimeTitle": "Fecha y hora para soporte",
+      "trigger": "Menú de usuario"
     }
   },
   "workspace": {
