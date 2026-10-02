@@ -12,6 +12,8 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { filterVisibleItems } from '@entities/menu';
 import { observeMobileViewport } from '@shared/lib/utils/breakpoint.util';
+import { ThemeService } from '@shared/tokens';
+import { readSidebarBehavior } from '@features/theme/sidebar-behavior';
 import { SolBreadcrumbComponent, type BreadcrumbItem } from '@widgets/breadcrumb';
 import { SolHeaderComponent } from '@widgets/header';
 import {
@@ -193,6 +195,7 @@ const SIDEBAR_COLLAPSED_KEY = 'sp-sidebar-collapsed';
 })
 export class SolLayoutShellComponent {
   private readonly router = inject(Router);
+  private readonly themeService = inject(ThemeService);
 
   /** List of sidebar navigation items. */
   readonly sidebarItems = input<SidebarItem[]>([]);
@@ -209,8 +212,14 @@ export class SolLayoutShellComponent {
   /** Mensaje del estado vacío del menú; la página sabe por qué está vacío, el layout no. */
   readonly sidebarEmptyMessage = input<string | null>(null);
 
-  /** Cierre automático del sidebar al elegir una opción (apagado por defecto). */
-  readonly sidebarAutoClose = input<boolean>(false);
+  /**
+   * Cierre automático del sidebar al elegir una opción, según el tema de la organización
+   * (`meta.sidebar.autoCloseOnNavigate`; apagado si el tema no lo declara). Se lee del tema vivo,
+   * así aplicar un tema desde el Theme Studio se refleja sin recargar.
+   */
+  readonly sidebarAutoClose = computed(
+    () => readSidebarBehavior(this.themeService.activeTheme()).autoCloseOnNavigate,
+  );
 
   /**
    * Tramos de las migas de pan, ya resueltos por la página desde el árbol del menú y la URL
