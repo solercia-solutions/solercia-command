@@ -96,46 +96,54 @@ async def lifespan(app: FastAPI):
     exists (see ADR 0003 and design.md Decision 1 of change 01-fundacion-tdd).
     """
 
-    # Fail fast on a misconfigured Fernet key — before any DB/scheduler work
-    # so a bad INTEGRATIONS_FERNET_KEY never limps into "serving traffic
-    # with a broken crypto layer" (only surfaced today on the first OAuth
-    # callback that tries to encrypt a token).
-    integrations_crypto.validate_key(settings.INTEGRATIONS_FERNET_KEY)
-    await _wait_for_db()
-    await seed_default()
-    # The alert scheduler must never block app startup: a failure here is logged
-    # and the API keeps serving (alerts can still be triggered on-demand).
-    scheduler = None
+    scheduler_attempted = False
+    lifespan_failed = False
     try:
-        scheduler = start_scheduler()
-    except Exception:  # noqa: BLE001
-        logger.exception("Failed to start the alert scheduler; continuing without it.")
-    # The reminders job is registered onto the SAME scheduler instance
-    # (design.md, "segundo job propio en el MISMO AsyncIOScheduler"). Isolated
-    # try/except: a failure here never rolls back the already-started alert
-    # scheduler (dependency direction: main -> reminders, never alerts -> reminders).
-    if scheduler is not None:
+        # Settings validates the closed profile set before importing resources.
+        # Encryption validation remains mandatory in every profile.
+        integrations_crypto.validate_key(settings.INTEGRATIONS_FERNET_KEY)
+        await _wait_for_db()
+        if settings.STARTUP_PROFILE == "default":
+            await seed_default()
+            scheduler = None
+            # Best effort, including cleanup if creation/start fails partway.
+            scheduler_attempted = True
+            try:
+                scheduler = start_scheduler()
+            except Exception:  # noqa: BLE001
+                logger.exception("No se pudo iniciar el programador de alertas; se continúa sin él.")
+            # All jobs share the same scheduler; each registration is isolated.
+            if scheduler is not None:
+                try:
+                    register_reminders_job(scheduler)
+                except Exception:  # noqa: BLE001
+                    logger.exception("No se pudo registrar el trabajo de recordatorios; se continúa sin él.")
+                if has_active_durable_channel():
+                    try:
+                        register_delivery_jobs(scheduler)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("No se pudieron registrar los trabajos de entrega; se continúa sin ellos.")
+        yield
+    except BaseException:
+        # Observe, never replace, the original failure (including cancellation).
+        lifespan_failed = True
+        raise
+    finally:
         try:
-            register_reminders_job(scheduler)
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to register the reminders job; continuing without it.")
-    # The delivery jobs are registered onto the SAME scheduler instance, gated
-    # by whether any durable channel is active (design.md D4, "sin flag
-    # nuevo" — today identical to EMAIL_ENABLED, the only durable channel).
-    # Isolated try/except: a failure here never rolls back the
-    # alert/reminders jobs already registered (dependency direction:
-    # main -> email, never alerts -> email).
-    if scheduler is not None and has_active_durable_channel():
-        try:
-            register_delivery_jobs(scheduler)
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to register the delivery jobs; continuing without them.")
-    yield
-    try:
-        stop_scheduler()
-    except Exception:  # noqa: BLE001
-        logger.warning("Failed to stop the alert scheduler cleanly.", exc_info=True)
-    await engine.dispose()
+            if scheduler_attempted:
+                try:
+                    stop_scheduler()
+                except Exception:  # noqa: BLE001
+                    logger.warning("No se pudo detener correctamente el programador de alertas.", exc_info=True)
+        finally:
+            try:
+                await engine.dispose()
+            except (Exception, asyncio.CancelledError):
+                if not lifespan_failed:
+                    raise
+                # Preserve the pending exception and its traceback; never log
+                # exception details, which may contain connection credentials.
+                logger.warning("No se pudo liberar el motor de base de datos tras un fallo previo.")
 
 
 app = FastAPI(

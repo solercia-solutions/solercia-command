@@ -48,14 +48,18 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Explicit supervisor opt-in: suppress ALL startup seeding and scheduler
+    # work, without bypassing encryption, database readiness or authentication.
+    STARTUP_PROFILE: Literal["default", "local_restricted"] = "default"
+
     # Demo seed gate (change 42-purga-datos-demo) — off by default so a fresh
     # deploy never creates ana@/carlos@/diana@ or their demo projects/tasks/
     # sprint. `db_init.py`'s `_ensure_demo_members`/`_seed_demo_workitems`
     # read this attribute AT CALL TIME (never a module-level constant
     # captured at import), so flipping it and restarting is enough to seed
     # or keep purged the demo data. The structural seed (organization
-    # "Solercia", RBAC catalog, `admin@solercia.com`) always runs regardless
-    # of this flag.
+    # "Solercia", RBAC catalog, `admin@solercia.com`) runs regardless of
+    # this flag unless STARTUP_PROFILE="local_restricted" suppresses all seeding.
     SEED_DEMO_DATA: bool = False
 
     # Project hierarchy — maximum nesting depth (root = depth 1), configurable
