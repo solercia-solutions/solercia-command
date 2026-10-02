@@ -21,6 +21,7 @@ from app.shared.pagination import PaginationParams, paginate
 # descendente por defecto".
 SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
     "created_at": TaskHistory.created_at,
+    "changed_at": TaskHistory.created_at,
     "field": TaskHistory.field,
 }
 

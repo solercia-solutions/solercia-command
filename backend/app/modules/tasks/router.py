@@ -251,12 +251,13 @@ async def move_task_column(
 async def delete_task(
     task_id: uuid.UUID,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Soft-delete a task."""
 
     service = TaskService(db)
-    await service.delete_task(membership.organization_id, task_id)
+    await service.delete_task(membership.organization_id, task_id, actor_id=actor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

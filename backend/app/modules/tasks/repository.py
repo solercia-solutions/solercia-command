@@ -33,6 +33,25 @@ SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
 }
 
 
+class TransactionalTaskCreationRepository:
+    """Implement TaskCreationPort using the caller's existing session.
+
+    Accept only an aggregate whose tenant/project relationships the caller
+    already validated (see tasks.ports). No lookups or transaction ownership.
+    This adapter is not yet wired into the legacy creation workflow.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def create(self, task: Task) -> Task:
+        """Flush and refresh without committing; propagate failures unchanged."""
+        self.db.add(task)
+        await self.db.flush()
+        await self.db.refresh(task)
+        return task
+
+
 class TaskRepository:
     """Async repository encapsulating task persistence."""
 
@@ -252,7 +271,12 @@ class TaskRepository:
         return result.scalar_one()
 
     async def create(self, task: Task) -> Task:
-        """Persist a new task and return the refreshed instance."""
+        """Temporary legacy compatibility facade: commit, then refresh once.
+
+        This is a documented exception to caller-owned transaction completion,
+        not a completed migration. Existing callers retain their exact behavior;
+        do not delegate to the new adapter and introduce a pre-commit refresh.
+        """
 
         self.db.add(task)
         await self.db.commit()

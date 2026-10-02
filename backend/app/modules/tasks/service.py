@@ -396,6 +396,21 @@ class TaskService:
         "priority",
     )
 
+    # PATCH-only allowlist: all TaskUpdate fields plus the two derived values.
+    # Keep reorder's historical six-field contract above unchanged.
+    _UPDATE_HISTORY_TRACKED_FIELDS = _HISTORY_TRACKED_FIELDS + (
+        "title",
+        "description",
+        "task_type",
+        "due_date",
+        "start_date",
+        "order",
+        "risk_flag",
+        "risk_reason",
+        "board_column_id",
+        "completed_at",
+    )
+
     async def update_task(
         self,
         organization_id: uuid.UUID,
@@ -418,7 +433,7 @@ class TaskService:
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        snapshot = {field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS}
+        snapshot = {field: getattr(task, field) for field in self._UPDATE_HISTORY_TRACKED_FIELDS}
 
         changes = data.model_dump(exclude_unset=True)
 
@@ -533,6 +548,12 @@ class TaskService:
 
         if value is None:
             return None
+        if isinstance(value, datetime):
+            # Normalize only the audit representation, never the stored value.
+            # Legacy naive values retain their unknown timezone explicitly.
+            if value.utcoffset() is not None:
+                value = value.astimezone(UTC)
+            return value.isoformat()
         if hasattr(value, "value"):  # Enum members (e.g. Priority)
             return str(value.value)
         return str(value)
@@ -572,10 +593,15 @@ class TaskService:
                 status_code=422,
             )
 
+        snapshot = {
+            field: getattr(task, field)
+            for field in ("status", "board_column_id", "completed_at")
+        }
         task = await BoardService(self.repo.db).move_to_column(
             task, target, actor_id=actor_id, enforce_wip=True, commit=False
         )
         task.completed_at = self._resolve_completed_at(strategy, task.status, task.completed_at)
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
         task = await self.repo.save(task)
 
         name_map = await self._assignee_name_map(organization_id)
@@ -621,12 +647,21 @@ class TaskService:
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
-    async def delete_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> None:
-        """Soft-delete a task."""
+    async def delete_task(
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> None:
+        """Soft-delete a task, staging lifecycle history before the legacy save."""
 
         task = await self._require_task(organization_id, task_id)
+        snapshot = {field: getattr(task, field) for field in ("is_active", "deleted_at")}
         task.is_active = False
         task.deleted_at = datetime.now(UTC)
+        task.updated_by = actor_id
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
         await self.repo.save(task)
 
     # -- helpers -----------------------------------------------------------

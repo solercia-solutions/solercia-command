@@ -26,11 +26,13 @@ class AppException(Exception):
         status_code: int = status.HTTP_400_BAD_REQUEST,
         *,
         meta: dict | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.detail = detail
         self.code = code
         self.status_code = status_code
         self.meta = meta
+        self.headers = headers
         super().__init__(detail)
 
 
@@ -48,7 +50,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         }
         if exc.meta is not None:
             content["meta"] = jsonable_encoder(exc.meta)
-        return JSONResponse(status_code=exc.status_code, content=content)
+        return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http_exception(
@@ -62,6 +64,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "code": "http_error",
                 "status": exc.status_code,
             },
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
