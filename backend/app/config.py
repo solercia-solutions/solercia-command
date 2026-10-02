@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # Transient authenticated checklist preview; not public-upload readiness.
     TASK_IMPORT_PREVIEW_ENABLED: bool = False
 
+    # Personal daily read endpoint rollout; opt in only after runtime validation.
+    DAILY_DASHBOARD_ENABLED: bool = False
+
     # Explicit supervisor opt-in: suppress ALL startup seeding and scheduler
     # work, without bypassing encryption, database readiness or authentication.
     STARTUP_PROFILE: Literal["default", "local_restricted"] = "default"

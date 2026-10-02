@@ -44,6 +44,43 @@ export interface ExecutiveDashboard {
   totals: ExecTotals;
 }
 
+export type DailyDatePolicy = 'stored_calendar_date' | 'instant';
+
+export interface DailyItem {
+  id: string;
+  project_id: string;
+  task_key: string | null;
+  title: string;
+  status: string;
+  /** Calendar date already interpreted by the API; never convert to an instant. */
+  due_date: string | null;
+  updated_at: string | null;
+  blocked_count: number;
+}
+
+export interface DailyGroup {
+  count: number;
+  items: DailyItem[];
+}
+
+export interface DailyDashboard {
+  timezone: string;
+  date_policy: DailyDatePolicy;
+  generated_at: string;
+  today_date: string;
+  tomorrow_date: string;
+  today: DailyGroup;
+  tomorrow: DailyGroup;
+  overdue: DailyGroup;
+  blocked: DailyGroup;
+  coverage_warnings: string[];
+  provider_freshness: 'unknown';
+}
+
+export interface DailyResponse {
+  data: DailyDashboard;
+}
+
 export interface ExecutiveResponse {
   data: ExecutiveDashboard;
 }
