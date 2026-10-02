@@ -82,14 +82,17 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
       defecto al arrancar, reglas `sol-*` de estilos, fuentes y favicon por tema, tema por defecto
       completo, retiro de `assets/config/theme-config.json`. Verifica: build y lint. Commit `0d8dd69`.
       Navegador pendiente (se verifica junto con U03).
-- [ ] U03 Shell: página shell y widgets del porte, menú adaptado a `GET /auth/me/menus`.
-      Verifica: build, lint y navegador en 1440×900 y 390×844, claro y oscuro.
+- [x] U03 Shell: página shell y widgets del porte, menú adaptado a `GET /auth/me/menus`.
+      Verifica: build y lint. Commits `04d71f6`, `6d9a265`, `f61f423`, `af58565`.
+      Navegador en 1440×900 y 390×844, claro y oscuro: pendiente (U07a).
 - [x] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
       páginas de error e interceptor de errores. Verifica: build y lint. Commits `545adc7`,
       `0485645`, `81db97d`, `3c2c062`. Navegador pendiente (se verifica junto con U03).
 - [ ] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego en verde.
 - [ ] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
       `sol.themeStudio.*`. Verifica: build, lint y navegador.
+- [ ] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
+      backend y frontend en puertos propios), sin tocar la base real. Corrige lo que aparezca.
 - [ ] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
 
 ## Criterios de aceptación
@@ -136,9 +139,27 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   alertas duran 5 s y no pausan con el cursor; 401 solo ofrece volver al inicio; el backend no envía
   `X-Request-Id`, así que el código de seguimiento no aparece.
 
+- 2026-10-02 U03 (`04d71f6`, `6d9a265`, `f61f423`, `af58565`): build exit 0 con 2 advertencias
+  (presupuesto inicial 1.09 MB; nueva: estilos de `sidebar.component.ts` 5.57 kB contra el
+  presupuesto de 4 kB, PANDORA usa 6 kB); lint exit 0 sin problemas. Sin verificación en navegador.
+  El shell es la ruta padre de las vistas autenticadas; fuera quedan `login`, `auth/callback`, las
+  páginas de error y el comodín. Lo propio de Command vive en `pages/shell/ui/shell-page.component.ts`:
+  selector de organización, campana con sondeo de 60 s, importación de tareas, cierre de sesión y
+  enlaces de respaldo. Riesgo evaluado: media, diferida a la rebanada.
+  Diferencias frente a PANDORA: sidebar expandido por defecto y sin auto-cierre; menú de usuario sin
+  «Perfil» ni «Apariencia»; las páginas pierden el contenedor centrado de 80rem; el logo ya no
+  enlaza a `/projects`; el login queda sin header.
+  **Abierto para decisión del usuario:** canal de «Ayuda y soporte» (`SUPPORT_URL` es `null` y el
+  panel abre vacío); auto-cierre del sidebar.
+  Hallazgos de UX sin aplicar: en móvil el error del menú no se ve ni se reintenta; en modo riel no
+  se muestran vacío ni error; la rama activa no se expande al recargar.
+  Llaves huérfanas sin borrar: `nav.brandAria`, `nav.logout`, `nav.mobileNavAria`,
+  `nav.primaryNavAria`, `nav.sidebarCollapse`, `nav.sidebarExpand`, `nav.sidebarToggle`,
+  `nav.themeToDark`, `nav.themeToLight`.
+
 ## Siguiente paso
 
-U03.
+U05.
 
 ## Espejo
 

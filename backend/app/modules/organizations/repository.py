@@ -1,4 +1,7 @@
-"""Data access for organizations: theme, CRUD, membership and "mine"."""
+"""Data access for organizations: CRUD, membership and "mine".
+
+The theme and its version history live in ``theme_repository.py``.
+"""
 
 import uuid
 from collections.abc import Sequence
@@ -149,18 +152,3 @@ class OrganizationRepository:
             )
         )
         return result.scalar_one()
-
-    async def set_theme(
-        self,
-        organization: Organization,
-        theme: dict | None,
-        *,
-        actor_id: uuid.UUID | None,
-    ) -> Organization:
-        """Persist ``theme`` (or ``None`` to reset) sealing ``updated_by``."""
-
-        organization.theme = theme
-        organization.updated_by = actor_id
-        await self.db.commit()
-        await self.db.refresh(organization)
-        return organization

@@ -1,16 +1,18 @@
 """Per-organization theme routes (feat/org-theme).
 
 ``GET`` is open to any authenticated member — the UI needs the theme at
-session bootstrap. ``PUT``/``DELETE`` require the RBAC ``ADMIN`` role
-(``require_admin``), same gate as the admin pages that host the editor.
-The tenant is ALWAYS the organization of the caller's JWT membership; there
-is deliberately no ``/{organization_id}/theme`` variant, so cross-tenant
+session bootstrap. ``PUT``/``DELETE`` and the version history require the RBAC
+``ADMIN`` role (``require_admin``), same gate as the admin pages that host the
+editor. The tenant is ALWAYS the organization of the caller's JWT membership;
+there is deliberately no ``/{organization_id}/theme`` variant, so cross-tenant
 access is impossible by construction. Responses use the ``{data}`` envelope.
+The history is read-only over HTTP: its entries are only ever added, as a side
+effect of applying or resetting the theme.
 """
 
 import uuid
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -33,15 +35,28 @@ from app.modules.organizations.service import (
     OrganizationService,
     OrganizationThemeService,
 )
+from app.modules.organizations.theme_repository import SessionThemeTransaction
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 
+#: Largest id a ``BIGINT`` version key can hold (query/path validation bound).
+_MAX_VERSION_ID = 2**63 - 1
+
+
+def get_theme_service(
+    db: AsyncSession = Depends(get_db),
+) -> OrganizationThemeService:
+    """Bind the theme use cases to the request session."""
+
+    return OrganizationThemeService(SessionThemeTransaction(db))
+
+
 @router.get("/me/theme")
 async def get_my_organization_theme(
     membership: OrganizationMember = Depends(get_current_membership),
-    db: AsyncSession = Depends(get_db),
+    service: OrganizationThemeService = Depends(get_theme_service),
 ) -> dict:
     """Return the ThemeFile of the caller's organization (``null`` = default).
 
@@ -49,7 +64,6 @@ async def get_my_organization_theme(
     session hydration, before any role is known.
     """
 
-    service = OrganizationThemeService(db)
     theme = await service.get_theme(membership.organization_id)
     return {"data": theme}
 
@@ -57,24 +71,39 @@ async def get_my_organization_theme(
 @router.put("/me/theme")
 async def put_my_organization_theme(
     payload: dict = Body(...),
+    source_version_id: int | None = Query(default=None, ge=1, le=_MAX_VERSION_ID),
     admin: User = Depends(require_admin),
     membership: OrganizationMember = Depends(get_current_membership),
     actor_id: uuid.UUID | None = Depends(get_actor_id),
-    db: AsyncSession = Depends(get_db),
+    service: OrganizationThemeService = Depends(get_theme_service),
 ) -> dict:
     """Store the ThemeFile for the caller's organization (RBAC ``ADMIN`` only).
 
     The body must be a JSON object (the ThemeFile) — any other JSON value
     (list, string, number) is rejected with **422** by validation. The stored
-    object is returned as-is and ``organizations.updated_by`` is sealed with
-    the actor. Non-admins get **403** (``forbidden``).
+    object is returned as-is in ``data`` and ``organizations.updated_by`` is
+    sealed with the actor. Non-admins get **403** (``forbidden``).
+
+    Every apply is recorded in the theme history in the same transaction;
+    ``meta.version`` describes the new entry. When restoring, pass the
+    restored version as ``source_version_id``: it must belong to this
+    organization, otherwise **422** (``theme_source_version_invalid``). A
+    theme stored before the history existed is recorded first as the initial
+    capture.
     """
 
-    service = OrganizationThemeService(db)
-    saved = await service.set_theme(
-        membership.organization_id, payload, actor_id=actor_id
+    applied = await service.set_theme(
+        membership.organization_id,
+        payload,
+        actor_id=actor_id,
+        actor_name=admin.full_name,
+        source_version_id=source_version_id,
     )
-    return {"data": saved, "message": "Tema de la organización actualizado."}
+    return {
+        "data": applied.theme,
+        "message": "Tema de la organización actualizado.",
+        "meta": {"version": applied.version},
+    }
 
 
 @router.delete("/me/theme")
@@ -82,17 +111,52 @@ async def delete_my_organization_theme(
     admin: User = Depends(require_admin),
     membership: OrganizationMember = Depends(get_current_membership),
     actor_id: uuid.UUID | None = Depends(get_actor_id),
-    db: AsyncSession = Depends(get_db),
+    service: OrganizationThemeService = Depends(get_theme_service),
 ) -> dict:
     """Reset the organization's theme to the default (RBAC ``ADMIN`` only).
 
     Sets the stored ThemeFile back to ``null`` so every client falls back to
-    the bundled default theme. Non-admins get **403** (``forbidden``).
+    the bundled default theme. The theme history is kept, so any recorded
+    version can still be restored. Non-admins get **403** (``forbidden``).
     """
 
-    service = OrganizationThemeService(db)
     await service.reset_theme(membership.organization_id, actor_id=actor_id)
     return {"data": None, "message": "Tema de la organización restablecido."}
+
+
+@router.get("/me/theme/versions")
+async def list_my_organization_theme_versions(
+    before: int | None = Query(default=None, ge=1, le=_MAX_VERSION_ID),
+    admin: User = Depends(require_admin),
+    membership: OrganizationMember = Depends(get_current_membership),
+    service: OrganizationThemeService = Depends(get_theme_service),
+) -> dict:
+    """List the theme history of the caller's organization (RBAC ``ADMIN`` only).
+
+    Pages of 20, newest first. ``data.next`` is the cursor to send as
+    ``before`` for the next page, or ``null`` when there are no older
+    versions. The ThemeFile of each entry is served by the detail route.
+    """
+
+    page = await service.list_versions(membership.organization_id, before=before)
+    return {"data": page}
+
+
+@router.get("/me/theme/versions/{version_id}")
+async def get_my_organization_theme_version(
+    version_id: int = Path(ge=1, le=_MAX_VERSION_ID),
+    admin: User = Depends(require_admin),
+    membership: OrganizationMember = Depends(get_current_membership),
+    service: OrganizationThemeService = Depends(get_theme_service),
+) -> dict:
+    """Return one history entry with its ThemeFile (RBAC ``ADMIN`` only).
+
+    **404** (``theme_version_not_found``) for an unknown id and for a version
+    of another organization alike.
+    """
+
+    version = await service.get_version(membership.organization_id, version_id)
+    return {"data": version}
 
 
 # ---------------------------------------------------------------------------

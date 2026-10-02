@@ -104,3 +104,36 @@ class MemberRead(BaseModel):
     full_name: str
     role: MemberRole
     created_at: datetime
+
+
+class ThemeVersionRead(BaseModel):
+    """Metadata of one entry of the organization's theme history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_name: str | None
+    user_id: uuid.UUID | None
+    applied_at: datetime
+    initial_capture: bool
+    source_version_id: int | None
+
+
+class ThemeVersionDetail(ThemeVersionRead):
+    """A history entry with the ThemeFile that was applied."""
+
+    theme: dict
+
+
+class ThemeVersionPage(BaseModel):
+    """One page of the history, newest first; ``next`` is the next cursor."""
+
+    versions: list[ThemeVersionRead]
+    next: int | None
+
+
+class ThemeApplied(BaseModel):
+    """Outcome of applying a theme: the stored ThemeFile and its new version."""
+
+    theme: dict
+    version: ThemeVersionRead

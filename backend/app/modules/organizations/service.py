@@ -1,6 +1,8 @@
 """Business logic for organizations: theme, CRUD, membership, "mis empresas"."""
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,41 +18,86 @@ from app.modules.organizations.schemas import (
     OrganizationMembership,
     OrganizationRead,
     OrganizationUpdate,
+    ThemeApplied,
+    ThemeVersionDetail,
+    ThemeVersionPage,
+    ThemeVersionRead,
+)
+from app.modules.organizations.theme_ports import (
+    OrganizationTheme,
+    OrganizationThemeTransaction,
 )
 from app.modules.users.models import User
 from app.modules.users.repository import UserRepository
 from app.shared.enums import MemberRole
 from app.shared.exceptions import AppException
 
+#: Size of one page of the theme history (contract of the Theme Studio).
+THEME_VERSIONS_PAGE_SIZE = 20
+
 
 class OrganizationThemeService:
-    """Read/update the ThemeFile stored on the caller's organization.
+    """Read/update the ThemeFile of the caller's organization and its history.
 
     The tenant is ALWAYS the organization resolved from the JWT membership —
     never a URL parameter — so a caller can only ever touch their own theme.
     The ThemeFile itself is stored opaquely: the frontend validates the full
     schema with @solercia/ui's ``isRenderableTheme`` before applying it.
+
+    Every applied theme is recorded as a version. The history is insert-only:
+    restoring is applying an old ThemeFile again (a NEW version that points to
+    its source), and resetting clears the current theme without touching it.
+    Each write use case completes its transaction exactly once.
     """
 
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
-        self.repository = OrganizationRepository(db)
+    def __init__(self, transaction: OrganizationThemeTransaction) -> None:
+        self._transaction = transaction
+        self._themes = transaction.themes
 
-    async def _get_organization(self, organization_id: uuid.UUID):
-        organization = await self.repository.get_by_id(organization_id)
-        if organization is None:
-            raise AppException(
-                "La organización no existe o está inactiva.",
-                code="organization_not_found",
-                status_code=404,
-            )
-        return organization
+    @asynccontextmanager
+    async def _completing(self) -> AsyncIterator[None]:
+        """Commit when the block succeeds; roll everything back otherwise."""
+
+        try:
+            yield
+            await self._transaction.commit()
+        except BaseException:
+            # Includes failed flush/commit and cancellation: never keep a theme
+            # without its version, nor a version without its theme.
+            await self._transaction.rollback()
+            raise
+
+    async def _lock_theme(self, organization_id: uuid.UUID) -> OrganizationTheme:
+        current = await self._themes.lock_theme(organization_id)
+        if current is None:
+            raise _organization_not_found()
+        return current
+
+    async def _capture_initial_theme(
+        self, organization_id: uuid.UUID, current: OrganizationTheme
+    ) -> None:
+        """Record a theme that predates the history, before it is replaced.
+
+        Whoever stored it is unknown, so the capture carries no user.
+        """
+
+        if current.theme is None or await self._themes.has_versions(organization_id):
+            return
+        await self._themes.add_version(
+            organization_id,
+            current.theme,
+            user_id=None,
+            user_name=None,
+            initial_capture=True,
+        )
 
     async def get_theme(self, organization_id: uuid.UUID) -> dict | None:
         """Return the stored ThemeFile, or ``None`` when the org uses the default."""
 
-        organization = await self._get_organization(organization_id)
-        return organization.theme
+        current = await self._themes.find_theme(organization_id)
+        if current is None:
+            raise _organization_not_found()
+        return current.theme
 
     async def set_theme(
         self,
@@ -58,22 +105,98 @@ class OrganizationThemeService:
         theme: dict,
         *,
         actor_id: uuid.UUID | None,
-    ) -> dict:
-        """Persist the ThemeFile for the organization and return it."""
+        actor_name: str | None = None,
+        source_version_id: int | None = None,
+    ) -> ThemeApplied:
+        """Store the ThemeFile and record its version, atomically.
 
-        organization = await self._get_organization(organization_id)
-        updated = await self.repository.set_theme(
-            organization, theme, actor_id=actor_id
-        )
-        return updated.theme
+        ``source_version_id`` is the restored version the change is based on;
+        it must belong to the same organization. An unknown id and a version
+        of another organization get the same answer.
+        """
+
+        async with self._completing():
+            current = await self._lock_theme(organization_id)
+            if source_version_id is not None and (
+                await self._themes.find_version(organization_id, source_version_id)
+                is None
+            ):
+                raise AppException(
+                    "La versión de origen no existe en esta organización.",
+                    code="theme_source_version_invalid",
+                    status_code=422,
+                )
+            await self._capture_initial_theme(organization_id, current)
+            await self._themes.replace_theme(
+                organization_id, theme, actor_id=actor_id
+            )
+            version = await self._themes.add_version(
+                organization_id,
+                theme,
+                user_id=actor_id,
+                user_name=actor_name,
+                source_version_id=source_version_id,
+            )
+            # Built before completion: nothing can fail after the commit.
+            applied = ThemeApplied(
+                theme=theme, version=ThemeVersionRead.model_validate(version)
+            )
+        return applied
 
     async def reset_theme(
         self, organization_id: uuid.UUID, *, actor_id: uuid.UUID | None
     ) -> None:
-        """Clear the stored ThemeFile (back to the bundled default theme)."""
+        """Clear the stored ThemeFile (back to the bundled default theme).
 
-        organization = await self._get_organization(organization_id)
-        await self.repository.set_theme(organization, None, actor_id=actor_id)
+        The history is kept. A theme that was never recorded is captured
+        first, so resetting never loses the only copy of a theme.
+        """
+
+        async with self._completing():
+            current = await self._lock_theme(organization_id)
+            await self._capture_initial_theme(organization_id, current)
+            await self._themes.replace_theme(organization_id, None, actor_id=actor_id)
+
+    async def list_versions(
+        self, organization_id: uuid.UUID, *, before: int | None
+    ) -> ThemeVersionPage:
+        """Return one page of the history, newest first.
+
+        ``before`` is the ``next`` cursor of the previous page (``None`` for
+        the first one). ``next`` is ``None`` when there are no older versions.
+        """
+
+        rows = await self._themes.list_versions(
+            organization_id, before=before, limit=THEME_VERSIONS_PAGE_SIZE + 1
+        )
+        page = rows[:THEME_VERSIONS_PAGE_SIZE]
+        has_more = len(rows) > THEME_VERSIONS_PAGE_SIZE
+        return ThemeVersionPage(
+            versions=[ThemeVersionRead.model_validate(row) for row in page],
+            next=page[-1].id if has_more else None,
+        )
+
+    async def get_version(
+        self, organization_id: uuid.UUID, version_id: int
+    ) -> ThemeVersionDetail:
+        """Return a version with its ThemeFile (404 if it is not of this org)."""
+
+        version = await self._themes.find_version(organization_id, version_id)
+        if version is None:
+            raise AppException(
+                "La versión del tema no existe.",
+                code="theme_version_not_found",
+                status_code=404,
+            )
+        return ThemeVersionDetail.model_validate(version)
+
+
+def _organization_not_found() -> AppException:
+    return AppException(
+        "La organización no existe o está inactiva.",
+        code="organization_not_found",
+        status_code=404,
+    )
 
 
 class OrganizationService:
