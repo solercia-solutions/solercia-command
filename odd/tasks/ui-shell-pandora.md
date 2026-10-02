@@ -91,8 +91,9 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 - [x] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego
       en verde. Commit `1608b75`. Migración `0028` probada solo en contenedor desechable; NO aplicada
       a la base real (requiere autorización expresa).
-- [ ] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
-      `sol.themeStudio.*`. Verifica: build, lint y navegador.
+- [x] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
+      `sol.themeStudio.*`. Verifica: build y lint. Commits `4fe21e2`, `5bbb3f9`.
+      Navegador pendiente (U07a).
 - [ ] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
       backend y frontend en puertos propios), sin tocar la base real. Corrige lo que aparezca.
 - [ ] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
@@ -178,9 +179,24 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   **Abierto para decisión del usuario:** tras restablecer (`DELETE`) el tema vigente es nulo y la
   versión más reciente del historial ya no coincide con él.
 
+- 2026-10-02 U06 (`4fe21e2`, `5bbb3f9`): build exit 0 con 1 advertencia (presupuesto inicial
+  1.09 MB; la de estilos del sidebar desapareció al alinear `anyComponentStyle` con PANDORA); lint
+  exit 0 sin problemas. Sin verificación en navegador. `/settings/appearance` abre el Theme Studio
+  con la configuración de PANDORA; el pie usa el nombre de la organización activa. Se retiraron
+  `appearance-page.component.ts`, `theme-builder.ts` y `TenantThemeService.preview()/applySaved()`.
+  El auto-cierre del sidebar lo gobierna `meta.sidebar.autoCloseOnNavigate` (apagado por defecto).
+  Riesgo evaluado: media, diferida a la rebanada.
+  **Abierto para decisión del usuario:** la ruta no tiene guard de administrador (la pantalla
+  anterior tampoco): un no administrador ve el editor y recibe 403 al aplicar o abrir el historial;
+  «Restablecer» quedó sin interfaz; valor por defecto del auto-cierre.
+  Hallazgos de UX sin aplicar: textos de la librería en «usted» en `history.*` e `import.*`;
+  «entidad» en vez de «organización»; sin aviso de cambios sin guardar; pie de página, inicio de
+  sesión e indicador de carga se editan pero Command no los consume.
+  Llaves huérfanas sin borrar: todo el bloque `appearance.*`.
+
 ## Siguiente paso
 
-U06.
+U07a.
 
 ## Espejo
 

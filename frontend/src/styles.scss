@@ -451,6 +451,21 @@ html[style*="--sol-loader-image"] .sol-loader__spinner {
   }
 }
 
+/* ------------------------------------------------------------------------
+   Selector de organización en el header móvil. Bajo el corte de 768px el
+   header no tiene ancho para el logo, el botón de tema, el selector, la
+   campana y el menú de usuario a la vez: con el nombre visible, las
+   acciones tapan el logo. El disparador se reduce a su avatar: conserva su
+   rótulo accesible, y el nombre y el rol se leen al abrir el panel.
+   Especificidad (0,2,1) contra la regla emulada de la librería (0,2,0):
+   gana sin !important.
+   ------------------------------------------------------------------------ */
+@media (max-width: 767px) {
+  sol-org-switcher .sol-scope-switcher__trigger .sol-scope-switcher__labels {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
