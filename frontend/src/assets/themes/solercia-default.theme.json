@@ -120,6 +120,7 @@
         "color": {
           "primary": "{color.indigo.600}",
           "secondary": "{color.violet.600}",
+          "secondaryContrast": "{color.white}",
           "accent": "{color.amber.500}",
           "success": "{color.emerald.500}",
           "warning": "{color.amber.600}",
