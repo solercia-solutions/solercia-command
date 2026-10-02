@@ -17,6 +17,21 @@ _CONTENT_FILTERED = "El proveedor de IA rechazó generar una respuesta para esta
 _CONFIG_INVALID = "La configuración del proveedor de IA no es válida. Verifica las `LLM_*`."
 
 
+class LlmAuthorizationRequired(AppException):
+    """No trusted authorization context exists in the current request contract.
+
+    Temporary deny-all barrier for real AI calls, not a legal classification.
+    No caller-provided detail is accepted, so payload/provider text stays out.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "No se realizó la llamada de IA: falta autorización verificable para esta operación.",
+            code="llm_authorization_required",
+            status_code=403,
+        )
+
+
 class LlmUnavailable(AppException):
     def __init__(self, detail: str = _UNAVAILABLE) -> None:
         super().__init__(detail, code="llm_unavailable", status_code=503)

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.ai.errors import (
     LlmAuthError,
+    LlmAuthorizationRequired,
     LlmConfigInvalid,
     LlmContentFiltered,
     LlmInvalidOutput,
@@ -106,6 +107,11 @@ class AnthropicAdapter:
         return kwargs
 
     async def complete(self, request: LlmRequest) -> LlmResponse:
+        # No trusted tenant/purpose/authorization context exists in LlmRequest.
+        # Deny before SDK construction, payload preparation or SDK retries.
+        # Before future enablement, sanitize provider refusal details below.
+        raise LlmAuthorizationRequired()
+
         started_at = time.perf_counter()
         anthropic_module, client = self._build_client()
         try:

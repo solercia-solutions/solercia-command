@@ -52,6 +52,83 @@ def _install_openai_probe(monkeypatch: pytest.MonkeyPatch, handler) -> None:
     monkeypatch.setattr(assistant_service, "get_llm_port", _factory)
 
 
+# Isolated service tests below use no session/client/tenant fixtures.
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("stage", ["construction", "probe"])
+async def test_isolated_authorization_denial_is_not_probed(stage):
+    from app.ai.errors import LlmAuthorizationRequired
+
+    class DeniedPort:
+        async def probe(self):
+            raise LlmAuthorizationRequired()
+
+    def factory():
+        if stage == "construction":
+            raise LlmAuthorizationRequired()
+        return DeniedPort()
+
+    data = await assistant_service.AssistantHealthService(port_factory=factory).describe(probe=True)
+    assert data.reachability == "not_probed"
+    assert data.reachability_reason == LlmAuthorizationRequired().detail
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_isolated_passive_health_never_builds_provider():
+    from unittest.mock import Mock
+
+    factory = Mock(side_effect=AssertionError("passive inspection must not build a provider"))
+    data = await assistant_service.AssistantHealthService(port_factory=factory).describe(probe=False)
+    assert data.reachability == "not_probed"
+    assert data.reachability_reason is None
+    factory.assert_not_called()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_isolated_real_probe_denied_without_http(monkeypatch, caplog):
+    from app.ai.errors import LlmAuthorizationRequired
+
+    base_url = "https://user:synthetic-password@approved.invalid/synthetic-path"
+    monkeypatch.setattr(settings, "LLM_BASE_URL", base_url)
+    monkeypatch.setattr(settings, "LLM_BASE_URL_ALLOWLIST", [base_url])
+    monkeypatch.setattr(settings, "LLM_MODEL", "test-model")
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setattr(settings, "LLM_API_KEY", "synthetic-key")
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(500, text="synthetic-provider-secret")
+
+    _install_openai_probe(monkeypatch, handler)
+    data = await assistant_service.AssistantHealthService().describe(probe=True)
+    assert data.reachability == "not_probed"
+    assert data.reachability_reason == LlmAuthorizationRequired().detail
+    assert calls == []
+    assert "synthetic-" not in data.model_dump_json() + caplog.text
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_isolated_fake_probe_and_config_validation_unchanged():
+    from app.ai.errors import LlmConfigInvalid
+
+    fake = get_fake_adapter()
+    before = len(fake.calls)
+    data = await assistant_service.AssistantHealthService(port_factory=lambda: fake).describe(
+        probe=True
+    )
+    assert data.reachability == "ok"
+    assert len(fake.calls) == before
+
+    def invalid_factory():
+        raise LlmConfigInvalid()
+
+    data = await assistant_service.AssistantHealthService(
+        port_factory=invalid_factory
+    ).describe(probe=True)
+    assert data.reachability == "unreachable"
+    assert data.reachability_reason == LlmConfigInvalid().detail
+
+
 # ---------------------------------------------------------------------------
 # assistant-health R1 — RBAC
 # ---------------------------------------------------------------------------
@@ -195,7 +272,7 @@ async def test_base_url_host_without_port_has_no_none_suffix(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_probe_true_reports_ok(
+async def test_probe_true_reports_authorization_not_probed(
     client: AsyncClient,
     session: AsyncSession,
     tenant,
@@ -216,12 +293,12 @@ async def test_probe_true_reports_ok(
     response = await client.get("/assistant/health", params={"probe": "true"}, headers=_auth(token))
 
     assert response.status_code == 200
-    assert response.json()["data"]["reachability"] == "ok"
+    assert response.json()["data"]["reachability"] == "not_probed"
 
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_probe_true_reports_unreachable_with_a_readable_reason(
+async def test_probe_true_denies_before_connection_with_a_readable_reason(
     client: AsyncClient,
     session: AsyncSession,
     tenant,
@@ -242,7 +319,7 @@ async def test_probe_true_reports_unreachable_with_a_readable_reason(
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["reachability"] == "unreachable"
+    assert data["reachability"] == "not_probed"
     assert isinstance(data["reachability_reason"], str)
     assert data["reachability_reason"]
 

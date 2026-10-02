@@ -18,6 +18,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.ai.errors import (
     LlmAuthError,
+    LlmAuthorizationRequired,
     LlmConfigInvalid,
     LlmContentFiltered,
     LlmInvalidOutput,
@@ -159,6 +160,11 @@ class OpenAiCompatibleAdapter:
         return body
 
     async def complete(self, request: LlmRequest) -> LlmResponse:
+        # LlmRequest has no trusted tenant/purpose/authorization context yet.
+        # Keys, allowlists, localhost and prompt claims cannot authorize dispatch.
+        # Before future enablement, sanitize provider error logs below as well.
+        raise LlmAuthorizationRequired()
+
         started_at = time.perf_counter()
         body = self._build_body(request)
         response = await self._post_with_retries(body, timeout=request.timeout_seconds)
@@ -289,7 +295,8 @@ class OpenAiCompatibleAdapter:
             raise LlmSchemaMismatch() from exc
 
     async def probe(self) -> LlmProbe:
-        """`GET {base_url}/models` — NEVER generates text (D4)."""
+        """Network probes also lack a trusted authorization context."""
+        raise LlmAuthorizationRequired()
 
         try:
             async with httpx.AsyncClient(

@@ -9,6 +9,7 @@ protects access, there is no per-tenant state to leak).
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
+from app.ai.errors import LlmAuthorizationRequired
 from app.ai.ports import LlmPort, Reachability
 from app.ai.registry import get_llm_port
 from app.config import settings
@@ -46,6 +47,12 @@ class AssistantHealthService:
             build_port = self._port_factory or get_llm_port
             try:
                 port = build_port()
+                probed = await port.probe()
+            except LlmAuthorizationRequired:
+                # A denied operation says nothing about provider reachability.
+                # Use a fresh static reason, never provider-supplied text.
+                reachability = "not_probed"
+                reachability_reason = LlmAuthorizationRequired().detail
             except AppException as exc:
                 # The provider is misconfigured (e.g. `LLM_BASE_URL`
                 # outside the allowlist, empty model/key) — reported as a
@@ -53,7 +60,6 @@ class AssistantHealthService:
                 reachability = "unreachable"
                 reachability_reason = exc.detail
             else:
-                probed = await port.probe()
                 reachability = probed.reachability
                 reachability_reason = probed.reason
 
