@@ -1563,7 +1563,7 @@
     "userMenu": {
       "help": "Ayuda y soporte",
       "logout": "Cerrar sesión",
-      "supportTimeNote": "Reloj del navegador · {{ zone }}",
+      "supportTimeNote": "Reloj del navegador · {{ zone }} ({{ offset }})",
       "supportTimeTitle": "Fecha y hora para soporte",
       "trigger": "Menú de usuario"
     }

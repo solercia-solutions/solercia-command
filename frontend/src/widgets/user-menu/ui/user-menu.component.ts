@@ -358,10 +358,24 @@ export class SolUserMenuComponent {
   protected readonly logoutLabel = this.i18n.t('widgets.userMenu.logout');
   protected readonly supportTimeTitle = this.i18n.t('widgets.userMenu.supportTimeTitle');
   protected readonly supportTimeNote = computed(() =>
-    this.i18n.translate('widgets.userMenu.supportTimeNote', { zone: this.supportTimeZone() ?? '' }),
+    this.i18n.translate('widgets.userMenu.supportTimeNote', {
+      zone: this.supportTimeZone() ?? '',
+      offset: this.supportTimeOffset(),
+    }),
   );
 
   protected readonly supportInstant = signal(new Date());
+  /** Desfase de la zona frente a UTC en el instante mostrado (p. ej. `UTC−05:00`). */
+  protected readonly supportTimeOffset = computed(() => {
+    const timeZone = this.supportTimeZone();
+    if (!timeZone) return '';
+    const name =
+      new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+        .formatToParts(this.supportInstant())
+        .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT';
+    // `GMT-05:00` → `UTC−05:00`; sin desfase Intl entrega solo `GMT`.
+    return name === 'GMT' ? 'UTC+00:00' : name.replace('GMT', 'UTC').replace('-', '−');
+  });
   protected readonly supportTime = computed(() => {
     const timeZone = this.supportTimeZone();
     if (!timeZone) return '';
