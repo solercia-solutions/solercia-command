@@ -21,10 +21,12 @@ import {
   SolBadgeComponent,
   SolIconButtonComponent,
   SolModalComponent,
+  SolConfirmDialogComponent,
   SolDataTableComponent,
   DataTableColumn,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import { AlertService } from '@shared/lib/alerts';
 import { RolesService } from '@entities/role/roles.service';
 import { Role } from '@entities/role/role.model';
 import { MenusService } from '@entities/menu/menus.service';
@@ -46,6 +48,7 @@ import {
     SolBadgeComponent,
     SolIconButtonComponent,
     SolModalComponent,
+    SolConfirmDialogComponent,
     SolDataTableComponent,
   ],
   template: `
@@ -244,36 +247,16 @@ import {
       </sol-modal>
     }
 
-    @if (deleting()) {
-      <sol-modal [open]="true" size="sm" [title]="text.delete.title()" (closed)="cancelDelete()">
-        <p class="text-sm text-muted">
-          {{ text.delete.confirmLead() }}
-          <span class="font-medium text-text">{{ deleting()?.name }}</span
-          >{{ text.delete.confirmTail() }}
-        </p>
-        @if (formError()) {
-          <div
-            role="alert"
-            class="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {{ formError() }}
-          </div>
-        }
-        <div class="mt-5 flex items-center justify-end gap-2">
-          <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            {{ text.actions.cancel() }}
-          </sol-button>
-          <sol-button
-            type="button"
-            variant="danger"
-            [disabled]="saving()"
-            (click)="confirmDelete()"
-          >
-            {{ saving() ? text.actions.deleting() : text.actions.delete() }}
-          </sol-button>
-        </div>
-      </sol-modal>
-    }
+    <sol-confirm-dialog
+      [open]="deleting() !== null"
+      variant="danger"
+      [title]="text.delete.title()"
+      [message]="deleteMessage()"
+      [confirmLabel]="text.actions.delete()"
+      [cancelLabel]="text.actions.cancel()"
+      (confirm)="confirmDelete()"
+      (cancel)="cancelDelete()"
+    />
   `,
 })
 export class RolesPageComponent implements OnInit {
@@ -281,6 +264,7 @@ export class RolesPageComponent implements OnInit {
   private readonly service = inject(RolesService);
   private readonly menusService = inject(MenusService);
   private readonly i18n = inject(I18nService);
+  private readonly alert = inject(AlertService);
 
   /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
   protected readonly text = {
@@ -297,7 +281,6 @@ export class RolesPageComponent implements OnInit {
       save: this.i18n.t('admin.roles.actions.save'),
       saving: this.i18n.t('admin.roles.actions.saving'),
       delete: this.i18n.t('admin.roles.actions.delete'),
-      deleting: this.i18n.t('admin.roles.actions.deleting'),
     },
     status: {
       active: this.i18n.t('admin.roles.status.active'),
@@ -364,6 +347,12 @@ export class RolesPageComponent implements OnInit {
   protected readonly deleting = signal<Role | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
+
+  /** Mensaje del diálogo de confirmación: «¿Confirmas que deseas eliminar {nombre}? …». */
+  protected readonly deleteMessage = computed(
+    () =>
+      `${this.text.delete.confirmLead()} ${this.deleting()?.name ?? ''}${this.text.delete.confirmTail()}`,
+  );
 
   // Menu association modal.
   protected readonly menusFor = signal<Role | null>(null);
@@ -523,7 +512,6 @@ export class RolesPageComponent implements OnInit {
   // --- Delete ---------------------------------------------------------------
 
   protected askDelete(item: Role): void {
-    this.formError.set(null);
     this.deleting.set(item);
   }
 
@@ -531,22 +519,22 @@ export class RolesPageComponent implements OnInit {
     this.deleting.set(null);
   }
 
+  /** El diálogo se cierra al confirmar; si la eliminación falla, el motivo llega por alerta. */
   protected confirmDelete(): void {
     const item = this.deleting();
-    if (!item) {
+    if (!item || this.saving()) {
       return;
     }
+    this.deleting.set(null);
     this.saving.set(true);
-    this.formError.set(null);
     this.service.remove(item.id).subscribe({
       next: () => {
         this.saving.set(false);
-        this.deleting.set(null);
         this.load();
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
-        this.formError.set(this.messageFor(err));
+        this.alert.showError(this.messageFor(err));
       },
     });
   }

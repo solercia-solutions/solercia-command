@@ -15,12 +15,12 @@ import {
   SolButtonComponent,
   SolCardComponent,
   SolChipComponent,
+  SolConfirmDialogComponent,
   SolDrawerComponent,
   SolEmptyStateComponent,
   SolFileUploadComponent,
   SolIconComponent,
   SolInputComponent,
-  SolModalComponent,
   SolSkeletonComponent,
   SolToggleComponent,
 } from '@shared/ui';
@@ -70,12 +70,12 @@ const SOLERCIA_CONNECT = 'solercia_connect';
     SolButtonComponent,
     SolCardComponent,
     SolChipComponent,
+    SolConfirmDialogComponent,
     SolDrawerComponent,
     SolEmptyStateComponent,
     SolFileUploadComponent,
     SolIconComponent,
     SolInputComponent,
-    SolModalComponent,
     SolSkeletonComponent,
     SolToggleComponent,
     SolerciaConnectCardComponent,
@@ -490,35 +490,17 @@ const SOLERCIA_CONNECT = 'solercia_connect';
       </div>
     </sol-drawer>
 
-    <!-- Modal: confirmar eliminación (nunca confirm() nativo) -->
-    @if (deleting(); as target) {
-      <sol-modal [open]="true" size="sm" [title]="deleteTitle()" (closed)="cancelDelete()">
-        <p class="text-sm text-muted">{{ text.deleteBody() }}</p>
-        @if (deleteError(); as message) {
-          <div
-            role="alert"
-            class="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {{ message }}
-          </div>
-        }
-        <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <sol-button type="button" variant="ghost" size="touch" (clicked)="cancelDelete()">
-            {{ text.deleteCancel() }}
-          </sol-button>
-          <sol-button
-            type="button"
-            variant="danger"
-            size="touch"
-            [loading]="deleteSubmitting()"
-            [attr.aria-label]="deleteAria(target)"
-            (clicked)="confirmDelete()"
-          >
-            {{ deleteSubmitting() ? text.deleteDeleting() : text.deleteConfirm() }}
-          </sol-button>
-        </div>
-      </sol-modal>
-    }
+    <!-- Diálogo: confirmar eliminación (nunca confirm() nativo) -->
+    <sol-confirm-dialog
+      [open]="deleting() !== null"
+      variant="danger"
+      [title]="deleteTitle()"
+      [message]="text.deleteBody()"
+      [confirmLabel]="text.deleteConfirm()"
+      [cancelLabel]="text.deleteCancel()"
+      (confirm)="confirmDelete()"
+      (cancel)="cancelDelete()"
+    />
   `,
 })
 export class ConnectionsComponent implements OnInit {
@@ -556,7 +538,6 @@ export class ConnectionsComponent implements OnInit {
     deleteBody: this.i18n.t('connectors.delete.confirmBody'),
     deleteCancel: this.i18n.t('connectors.delete.cancel'),
     deleteConfirm: this.i18n.t('connectors.delete.confirm'),
-    deleteDeleting: this.i18n.t('connectors.delete.deleting'),
     credentialsOpen: this.i18n.t('connectors.credentials.open'),
     credentialsRequired: this.i18n.t('connectors.credentials.required'),
     credentialsSubmit: this.i18n.t('connectors.credentials.submit'),
@@ -614,7 +595,6 @@ export class ConnectionsComponent implements OnInit {
   // -- eliminar (cualquier proveedor) ----------------------------------------------
   protected readonly deleting = signal<Connector | null>(null);
   protected readonly deleteSubmitting = signal(false);
-  protected readonly deleteError = signal<string | null>(null);
 
   protected readonly deleteTitle = computed(() => {
     this.i18n.activeLang();
@@ -850,34 +830,30 @@ export class ConnectionsComponent implements OnInit {
   // -- eliminar ------------------------------------------------------------------
 
   protected askDelete(connector: Connector): void {
-    this.deleteError.set(null);
     this.deleting.set(connector);
   }
 
   protected cancelDelete(): void {
-    if (this.deleteSubmitting()) {
-      return;
-    }
     this.deleting.set(null);
   }
 
+  /** El diálogo se cierra al confirmar; el resultado (éxito o motivo del fallo) llega por alerta. */
   protected confirmDelete(): void {
     const target = this.deleting();
     if (!target || this.deleteSubmitting()) {
       return;
     }
+    this.deleting.set(null);
     this.deleteSubmitting.set(true);
-    this.deleteError.set(null);
     this.connectorsService.delete(target.id).subscribe({
       next: () => {
         this.deleteSubmitting.set(false);
-        this.deleting.set(null);
         this.alert.showSuccess(this.i18n.translate('connectors.delete.success'));
         this.load();
       },
       error: (err: HttpErrorResponse) => {
         this.deleteSubmitting.set(false);
-        this.deleteError.set(this.apiErrorMessage(err, 'connectors.delete.error'));
+        this.alert.showError(this.apiErrorMessage(err, 'connectors.delete.error'));
       },
     });
   }

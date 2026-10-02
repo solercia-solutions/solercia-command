@@ -21,10 +21,12 @@ import {
   SolBadgeComponent,
   SolIconButtonComponent,
   SolModalComponent,
+  SolConfirmDialogComponent,
   SolDataTableComponent,
   DataTableColumn,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import { AlertService } from '@shared/lib/alerts';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
 import { Dependency } from '@entities/dependency/dependency.model';
 
@@ -40,6 +42,7 @@ import { Dependency } from '@entities/dependency/dependency.model';
     SolBadgeComponent,
     SolIconButtonComponent,
     SolModalComponent,
+    SolConfirmDialogComponent,
     SolDataTableComponent,
   ],
   template: `
@@ -172,46 +175,23 @@ import { Dependency } from '@entities/dependency/dependency.model';
       </sol-modal>
     }
 
-    @if (deleting()) {
-      <sol-modal [open]="true"
-        size="sm"
-        [title]="text.deleteTitle()"
-        (closed)="cancelDelete()"
-      >
-        <p class="text-sm text-muted">
-          {{ text.deleteConfirmPrefix() }}
-          <span class="font-medium text-text">{{ deleting()?.name }}</span
-          >{{ text.deleteConfirmSuffix() }}
-        </p>
-        @if (formError()) {
-          <div
-            role="alert"
-            class="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {{ formError() }}
-          </div>
-        }
-        <div class="mt-5 flex items-center justify-end gap-2">
-          <sol-button type="button" variant="ghost" (click)="cancelDelete()">
-            {{ text.cancel() }}
-          </sol-button>
-          <sol-button
-            type="button"
-            variant="danger"
-            [disabled]="saving()"
-            (click)="confirmDelete()"
-          >
-            {{ saving() ? text.deleting() : text.delete() }}
-          </sol-button>
-        </div>
-      </sol-modal>
-    }
+    <sol-confirm-dialog
+      [open]="deleting() !== null"
+      variant="danger"
+      [title]="text.deleteTitle()"
+      [message]="deleteMessage()"
+      [confirmLabel]="text.delete()"
+      [cancelLabel]="text.cancel()"
+      (confirm)="confirmDelete()"
+      (cancel)="cancelDelete()"
+    />
   `,
 })
 export class DependenciesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(DependenciesService);
   private readonly i18n = inject(I18nService);
+  private readonly alert = inject(AlertService);
 
   /** Textos de la vista resueltos por i18n (reactivos al cambio de idioma). */
   protected readonly text = {
@@ -234,7 +214,6 @@ export class DependenciesPageComponent implements OnInit {
     save: this.i18n.t('admin.dependencies.actions.save'),
     saving: this.i18n.t('admin.dependencies.actions.saving'),
     delete: this.i18n.t('admin.dependencies.actions.delete'),
-    deleting: this.i18n.t('admin.dependencies.actions.deleting'),
     formCreateTitle: this.i18n.t('admin.dependencies.form.createTitle'),
     formEditTitle: this.i18n.t('admin.dependencies.form.editTitle'),
     nameLabel: this.i18n.t('admin.dependencies.form.nameLabel'),
@@ -274,6 +253,12 @@ export class DependenciesPageComponent implements OnInit {
   protected readonly deleting = signal<Dependency | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
+
+  /** Mensaje del diálogo de confirmación: «¿Confirmas que deseas eliminar {nombre}? …». */
+  protected readonly deleteMessage = computed(
+    () =>
+      `${this.text.deleteConfirmPrefix()} ${this.deleting()?.name ?? ''}${this.text.deleteConfirmSuffix()}`,
+  );
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
@@ -347,7 +332,6 @@ export class DependenciesPageComponent implements OnInit {
   }
 
   protected askDelete(item: Dependency): void {
-    this.formError.set(null);
     this.deleting.set(item);
   }
 
@@ -355,22 +339,22 @@ export class DependenciesPageComponent implements OnInit {
     this.deleting.set(null);
   }
 
+  /** El diálogo se cierra al confirmar; si la eliminación falla, el motivo llega por alerta. */
   protected confirmDelete(): void {
     const item = this.deleting();
-    if (!item) {
+    if (!item || this.saving()) {
       return;
     }
+    this.deleting.set(null);
     this.saving.set(true);
-    this.formError.set(null);
     this.service.remove(item.id).subscribe({
       next: () => {
         this.saving.set(false);
-        this.deleting.set(null);
         this.load();
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
-        this.formError.set(this.messageFor(err));
+        this.alert.showError(this.messageFor(err));
       },
     });
   }
