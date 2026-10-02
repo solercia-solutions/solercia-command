@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 import {
   BurndownResponse,
   CreateSprintPayload,
@@ -38,6 +39,10 @@ export interface TaskQuery {
 /**
  * Thin HTTP client for the project workspace resources: members, tasks and
  * sprints. All endpoints are tenant-scoped server-side via the bearer token.
+ *
+ * Every call opts out of the global error handler: the workspace, the task
+ * panel and the teams page already show their own inline error (or roll the
+ * optimistic change back).
  */
 @Injectable({ providedIn: 'root' })
 export class WorkspaceService {
@@ -48,6 +53,7 @@ export class WorkspaceService {
   members(projectId: string): Observable<MemberListResponse> {
     return this.http.get<MemberListResponse>(
       `${apiBase}/projects/${projectId}/members`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -75,7 +81,7 @@ export class WorkspaceService {
     }
     return this.http.get<TaskListResponse>(
       `${apiBase}/projects/${projectId}/tasks`,
-      { params },
+      { params, context: skipGlobalErrorHandling() },
     );
   }
 
@@ -86,11 +92,14 @@ export class WorkspaceService {
     return this.http.post<TaskItemResponse>(
       `${apiBase}/projects/${projectId}/tasks`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   getTask(taskId: string): Observable<TaskItemResponse> {
-    return this.http.get<TaskItemResponse>(`${apiBase}/tasks/${taskId}`);
+    return this.http.get<TaskItemResponse>(`${apiBase}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   updateTask(
@@ -100,18 +109,23 @@ export class WorkspaceService {
     return this.http.patch<TaskItemResponse>(
       `${apiBase}/tasks/${taskId}`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   deleteTask(taskId: string): Observable<void> {
-    return this.http.delete<void>(`${apiBase}/tasks/${taskId}`);
+    return this.http.delete<void>(`${apiBase}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /** Moves a task to a sprint (or Backlog) and reindexes the destination
    * container's order in one transaction (change 31-backlog-drag-drop:
    * drag & drop drop handler and the "Mover a…" keyboard menu). */
   reorderTasks(payload: TaskReorderPayload): Observable<TaskItemResponse> {
-    return this.http.post<TaskItemResponse>(`${apiBase}/tasks/reorder`, payload);
+    return this.http.post<TaskItemResponse>(`${apiBase}/tasks/reorder`, payload, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /* ---- Sprints ----------------------------------------------------------- */
@@ -123,6 +137,7 @@ export class WorkspaceService {
   sprints(projectId: string): Observable<SprintListResponse> {
     return this.http.get<SprintListResponse>(
       `${apiBase}/projects/${projectId}/sprints`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -133,6 +148,7 @@ export class WorkspaceService {
     return this.http.post<SprintItemResponse>(
       `${apiBase}/projects/${projectId}/sprints`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -143,6 +159,7 @@ export class WorkspaceService {
     return this.http.patch<SprintItemResponse>(
       `${apiBase}/sprints/${sprintId}`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -151,6 +168,7 @@ export class WorkspaceService {
     return this.http.post<SprintItemResponse>(
       `${apiBase}/sprints/${sprintId}/start`,
       {},
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -160,6 +178,7 @@ export class WorkspaceService {
   ): Observable<SprintSuggestedNameResponse> {
     return this.http.get<SprintSuggestedNameResponse>(
       `${apiBase}/projects/${projectId}/sprints/suggested-name`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -170,6 +189,7 @@ export class WorkspaceService {
   ): Observable<BurndownResponse> {
     return this.http.get<BurndownResponse>(
       `${apiBase}/projects/${projectId}/sprints/${sprintId}/burndown`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -184,6 +204,7 @@ export class WorkspaceService {
     return this.http.post<SprintCloseResponse>(
       `${apiBase}/sprints/${sprintId}/close`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -191,6 +212,7 @@ export class WorkspaceService {
   velocity(projectId: string): Observable<VelocityResponse> {
     return this.http.get<VelocityResponse>(
       `${apiBase}/projects/${projectId}/velocity`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 }

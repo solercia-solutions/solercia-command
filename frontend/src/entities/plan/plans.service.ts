@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 import {
   ActivityConflictCount,
   ActivityFilters,
@@ -27,6 +28,9 @@ import {
  * `POST/DELETE .../tasks`) are admin/manager only in the backend; the view
  * gates them with the caller's role in the active organization. Activity
  * links (`POST/DELETE .../links`) stay unexposed: they come from the sources.
+ *
+ * Every call opts out of the global error handler: the plans page and its
+ * forms already show their own inline error (`readApiError`).
  */
 @Injectable({ providedIn: 'root' })
 export class PlansService {
@@ -38,12 +42,15 @@ export class PlansService {
   > {
     return this.http.get<PlanListResponse<Plan>>(`${apiBase}/plans`, {
       params: toParams(filters),
+      context: skipGlobalErrorHandling(),
     });
   }
 
   /** GET /plans/:id — plan plus activity count per group. */
   get(id: string): Observable<PlanItemResponse<PlanDetail>> {
-    return this.http.get<PlanItemResponse<PlanDetail>>(`${apiBase}/plans/${id}`);
+    return this.http.get<PlanItemResponse<PlanDetail>>(`${apiBase}/plans/${id}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /**
@@ -53,6 +60,7 @@ export class PlansService {
   activities(filters: ActivityFilters = {}): Observable<PlanListResponse<PlanActivity>> {
     return this.http.get<PlanListResponse<PlanActivity>>(`${apiBase}/plans/activities`, {
       params: toParams(filters),
+      context: skipGlobalErrorHandling(),
     });
   }
 
@@ -60,7 +68,7 @@ export class PlansService {
   activity(id: string, period?: ReportPeriod): Observable<PlanItemResponse<PlanActivityDetail>> {
     return this.http.get<PlanItemResponse<PlanActivityDetail>>(
       `${apiBase}/plans/activities/${id}`,
-      { params: toParams({ period }) },
+      { params: toParams({ period }), context: skipGlobalErrorHandling() },
     );
   }
 
@@ -68,6 +76,7 @@ export class PlansService {
   activityTasks(id: string): Observable<PlanListResponse<ActivityTask>> {
     return this.http.get<PlanListResponse<ActivityTask>>(
       `${apiBase}/plans/activities/${id}/tasks`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -75,6 +84,7 @@ export class PlansService {
   conflictCounts(): Observable<PlanListResponse<ActivityConflictCount>> {
     return this.http.get<PlanListResponse<ActivityConflictCount>>(
       `${apiBase}/plans/activities/conflict-counts`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -87,6 +97,7 @@ export class PlansService {
     return this.http.put<PlanItemResponse<PlanActivityReport>>(
       `${apiBase}/plans/activities/${id}/reports/${period}`,
       body,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -95,12 +106,15 @@ export class PlansService {
     return this.http.post<PlanItemResponse<ActivityTask>>(
       `${apiBase}/plans/activities/${id}/tasks`,
       body,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   /** DELETE /plans/activities/:id/tasks/:taskId (admin/manager). */
   unlinkTask(id: string, taskId: string): Observable<void> {
-    return this.http.delete<void>(`${apiBase}/plans/activities/${id}/tasks/${taskId}`);
+    return this.http.delete<void>(`${apiBase}/plans/activities/${id}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /**
@@ -110,6 +124,7 @@ export class PlansService {
   searchTasks(q: string, size = 10): Observable<PlanListResponse<TaskSearchResult>> {
     return this.http.get<PlanListResponse<TaskSearchResult>>(`${apiBase}/search`, {
       params: toParams({ q, types: 'task', size }),
+      context: skipGlobalErrorHandling(),
     });
   }
 }

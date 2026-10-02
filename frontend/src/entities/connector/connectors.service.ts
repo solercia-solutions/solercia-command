@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 import {
   ConnectedAccount,
   Connector,
@@ -15,30 +16,44 @@ import {
   SolerciaConnectSyncResult,
 } from './connector.model';
 
+/**
+ * Todas las llamadas se excluyen del manejador global de errores: la página de
+ * conexiones y la tarjeta de Solercia Connect ya muestran su propio error (y el
+ * sondeo de estado y de sesión corre en segundo plano).
+ */
 @Injectable({ providedIn: 'root' })
 export class ConnectorsService {
   private readonly http = inject(HttpClient);
 
   list(): Observable<{ data: Connector[] }> {
-    return this.http.get<{ data: Connector[] }>(`${apiBase}/connectors`);
+    return this.http.get<{ data: Connector[] }>(`${apiBase}/connectors`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   create(payload: ConnectorCreatePayload): Observable<{ data: Connector }> {
-    return this.http.post<{ data: Connector }>(`${apiBase}/connectors`, payload);
+    return this.http.post<{ data: Connector }>(`${apiBase}/connectors`, payload, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   delete(connectorId: string): Observable<void> {
-    return this.http.delete<void>(`${apiBase}/connectors/${connectorId}`);
+    return this.http.delete<void>(`${apiBase}/connectors/${connectorId}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   accounts(connectorId: string): Observable<{ data: ConnectedAccount[] }> {
     return this.http.get<{ data: ConnectedAccount[] }>(
       `${apiBase}/connectors/${connectorId}/accounts`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   revokeAccount(accountId: string): Observable<void> {
-    return this.http.delete<void>(`${apiBase}/connected-accounts/${accountId}`);
+    return this.http.delete<void>(`${apiBase}/connected-accounts/${accountId}`, {
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /** Registro directo de credenciales api_token (GLPI/Jira). */
@@ -49,6 +64,7 @@ export class ConnectorsService {
     return this.http.post<{ data: ConnectedAccount }>(
       `${apiBase}/connectors/${connectorId}/credentials`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -62,6 +78,7 @@ export class ConnectorsService {
     return this.http.post<{ data: JiraImportResult }>(
       `${apiBase}/connectors/${connectorId}/jira/import-file`,
       form,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -77,6 +94,7 @@ export class ConnectorsService {
     return this.http.post<{ data: { ticket: string } }>(
       `${apiBase}/connectors/${connectorId}/authorize-ticket`,
       {},
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -111,6 +129,7 @@ export class ConnectorsService {
     return this.http.post<{ data: SolerciaConnectRegisterResult }>(
       `${apiBase}/connectors/solercia-connect`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -124,6 +143,7 @@ export class ConnectorsService {
   ): Observable<{ data: SolerciaConnectStatus }> {
     return this.http.get<{ data: SolerciaConnectStatus }>(
       `${apiBase}/connectors/${connectorId}/solercia-connect/status`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -134,6 +154,7 @@ export class ConnectorsService {
     return this.http.post<{ data: SolerciaConnectSessionStart }>(
       `${apiBase}/connectors/${connectorId}/solercia-connect/connect`,
       {},
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -144,6 +165,7 @@ export class ConnectorsService {
   ): Observable<{ data: SolerciaConnectSession }> {
     return this.http.get<{ data: SolerciaConnectSession }>(
       `${apiBase}/connectors/${connectorId}/solercia-connect/sessions/${encodeURIComponent(sessionId)}`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -155,6 +177,7 @@ export class ConnectorsService {
     return this.http.post<{ data: SolerciaConnectSyncResult }>(
       `${apiBase}/connectors/${connectorId}/solercia-connect/sync`,
       { since_days: sinceDays },
+      { context: skipGlobalErrorHandling() },
     );
   }
 }

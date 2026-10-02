@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 import {
   MemberCreatePayload,
   MemberRole,
@@ -14,7 +15,12 @@ import {
   OrganizationUpdatePayload,
 } from './organization.model';
 
-/** Thin HTTP client for CRUD + membership on /organizations (organizations-admin). */
+/**
+ * Thin HTTP client for CRUD + membership on /organizations (organizations-admin).
+ *
+ * Every call opts out of the global error handler: the admin page, the
+ * organization switcher and the plans page already show their own inline error.
+ */
 @Injectable({ providedIn: 'root' })
 export class OrganizationsService {
   private readonly http = inject(HttpClient);
@@ -24,6 +30,7 @@ export class OrganizationsService {
   mine(): Observable<OrganizationListResponse<OrganizationMembership>> {
     return this.http.get<OrganizationListResponse<OrganizationMembership>>(
       `${this.base}/mine`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -34,12 +41,14 @@ export class OrganizationsService {
     return this.http.post<OrganizationItemResponse<Organization>>(
       this.base,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   get(id: string): Observable<OrganizationItemResponse<Organization>> {
     return this.http.get<OrganizationItemResponse<Organization>>(
       `${this.base}/${id}`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -50,12 +59,14 @@ export class OrganizationsService {
     return this.http.patch<OrganizationItemResponse<Organization>>(
       `${this.base}/${id}`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
   remove(id: string): Observable<OrganizationItemResponse<null>> {
     return this.http.delete<OrganizationItemResponse<null>>(
       `${this.base}/${id}`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -64,6 +75,7 @@ export class OrganizationsService {
   ): Observable<OrganizationListResponse<OrganizationMember>> {
     return this.http.get<OrganizationListResponse<OrganizationMember>>(
       `${this.base}/${id}/members`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -74,6 +86,7 @@ export class OrganizationsService {
     return this.http.post<OrganizationItemResponse<OrganizationMember>>(
       `${this.base}/${id}/members`,
       payload,
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -85,6 +98,7 @@ export class OrganizationsService {
     return this.http.patch<OrganizationItemResponse<OrganizationMember>>(
       `${this.base}/${id}/members/${memberId}`,
       { role },
+      { context: skipGlobalErrorHandling() },
     );
   }
 
@@ -94,6 +108,7 @@ export class OrganizationsService {
   ): Observable<OrganizationItemResponse<null>> {
     return this.http.delete<OrganizationItemResponse<null>>(
       `${this.base}/${id}/members/${memberId}`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 }

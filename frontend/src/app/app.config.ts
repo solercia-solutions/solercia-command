@@ -17,6 +17,7 @@ import {
 import { routes } from './app.routes';
 import { authInterceptor } from '@features/auth/auth.interceptor';
 import { OrgThemeSource } from '@features/theme/org-theme.source';
+import { errorInterceptor } from '@shared/api/error.interceptor';
 import { provideI18n, I18nService } from '@shared/i18n';
 import { AlertService } from '@shared/lib/alerts';
 import { reloadOnMissingChunk } from '@shared/lib/utils/reload-on-missing-chunk.util';
@@ -45,7 +46,9 @@ export const appConfig: ApplicationConfig = {
         );
       }),
     ),
-    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+    // Orden: authInterceptor resuelve el 401 (refresco + reintento); errorInterceptor va
+    // después y decide sobre 403, >= 500 y fallos de red de las peticiones no excluidas.
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor, errorInterceptor])),
     // Runtime de theming de @solercia/ui: es la ÚNICA fuente de verdad del tema.
     // Emite los 95 tokens --sol-* sobre :root y gestiona el toggle claro/oscuro
     // (clave localStorage `sol-dark-mode`, clase `.dark` en <html>/<body>).

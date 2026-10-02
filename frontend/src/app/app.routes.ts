@@ -17,6 +17,33 @@ export const routes: Routes = [
         (m) => m.AuthCallbackComponent,
       ),
   },
+  // Error pages, siblings of 'login' and outside authGuard on purpose: a 401
+  // must not require a session to be seen. One component parameterised by
+  // `data.code` — see error-page.component.ts.
+  {
+    path: 'no-autorizado',
+    loadComponent: () =>
+      import('@pages/errors/error-page.component').then(
+        (m) => m.ErrorPageComponent,
+      ),
+    data: { code: 401 },
+  },
+  {
+    path: 'prohibido',
+    loadComponent: () =>
+      import('@pages/errors/error-page.component').then(
+        (m) => m.ErrorPageComponent,
+      ),
+    data: { code: 403 },
+  },
+  {
+    path: 'error-servidor',
+    loadComponent: () =>
+      import('@pages/errors/error-page.component').then(
+        (m) => m.ErrorPageComponent,
+      ),
+    data: { code: 500 },
+  },
   {
     path: 'tasks/import',
     canActivate: [authGuard],
@@ -107,5 +134,11 @@ export const routes: Routes = [
         (m) => m.TaskDetailPageComponent,
       ),
   },
-  { path: '**', redirectTo: 'projects' },
+  {
+    path: '**',
+    loadComponent: () =>
+      import('@pages/not-found/not-found-page.component').then(
+        (m) => m.NotFoundPageComponent,
+      ),
+  },
 ];

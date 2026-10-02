@@ -3,7 +3,11 @@
 // al nombre del paquete. Por ahora es un re-export puro.
 export * from '@solercia/ui';
 
-// Sin componentes app-local: `sol-drawer` vivía aquí mientras la librería no lo
+// Bloque presentacional de error (código, título, mensaje y código de seguimiento copiable),
+// reutilizable en páginas de error y dentro de paneles. Es el único componente app-local.
+export * from './error-state';
+
+// Sin más componentes app-local: `sol-drawer` vivía aquí mientras la librería no lo
 // exponía (0.3.0). Desde 0.5.0 `SolDrawerComponent` llega por el re-export de
 // arriba, así que el local se eliminó — mantener ambos dejaba el mismo símbolo
 // exportado dos veces por este barril y el nombre quedaba ambiguo.

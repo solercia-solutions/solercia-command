@@ -932,6 +932,14 @@
       "viewer": "Observador"
     }
   },
+  "pages": {
+    "notFound": {
+      "title": "Página no encontrada",
+      "message": "La página que buscas no existe o ha sido movida.",
+      "backPanel": "Volver al panel",
+      "backLogin": "Ir a iniciar sesión"
+    }
+  },
   "performance": {
     "aria": {
       "onTimePercent": "{{ n }} por ciento a tiempo",
@@ -1297,7 +1305,35 @@
       "region": "Avisos"
     },
     "errorState": {
-      "outdatedVersion": "Hay una versión más reciente de la aplicación. Recarga la página para continuar."
+      "traceId": "Código de seguimiento",
+      "copy": "Copiar código de seguimiento",
+      "copied": "Código de seguimiento copiado.",
+      "copyError": "No fue posible copiar. Selecciona el texto manualmente.",
+      "outdatedVersion": "Hay una versión más reciente de la aplicación. Recarga la página para continuar.",
+      "network": "No fue posible conectar con el servidor. Verifica tu conexión e intenta de nuevo.",
+      "backHome": "Volver al inicio",
+      "codes": {
+        "401": {
+          "title": "Sesión requerida",
+          "message": "Debes iniciar sesión para continuar."
+        },
+        "403": {
+          "title": "Acceso no autorizado",
+          "message": "No tienes permiso para realizar esta acción."
+        },
+        "404": {
+          "title": "Recurso no encontrado",
+          "message": "El recurso solicitado no existe."
+        },
+        "500": {
+          "title": "Error del servidor",
+          "message": "Ocurrió un error inesperado. Intenta de nuevo más tarde."
+        },
+        "generic": {
+          "title": "Ocurrió un error",
+          "message": "No fue posible completar la acción. Intenta de nuevo."
+        }
+      }
     }
   },
   "taskCard": {

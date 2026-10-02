@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, forkJoin, tap } from 'rxjs';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 import {
   AppNotification,
   NotificationListResponse,
@@ -9,6 +10,11 @@ import {
   UnreadCountResponse,
 } from './notification.model';
 
+/**
+ * Every call opts out of the global error handler: the panel lives in the
+ * header over any page (an error page would discard whatever is open behind
+ * it), shows its own error state, and the unread count polls in the background.
+ */
 @Injectable({ providedIn: 'root' })
 export class NotificationsService {
   private readonly http = inject(HttpClient);
@@ -20,20 +26,29 @@ export class NotificationsService {
   list(status?: NotificationStatus): Observable<NotificationListResponse> {
     const params: Record<string, string> = {};
     if (status) params['status'] = status;
-    return this.http.get<NotificationListResponse>(`${apiBase}/notifications`, { params });
+    return this.http.get<NotificationListResponse>(`${apiBase}/notifications`, {
+      params,
+      context: skipGlobalErrorHandling(),
+    });
   }
 
   /** Fetches the current unread count and updates the signal. Fire-and-forget. */
   refreshUnreadCount(): void {
     this.http
-      .get<UnreadCountResponse>(`${apiBase}/notifications/unread-count`)
+      .get<UnreadCountResponse>(`${apiBase}/notifications/unread-count`, {
+        context: skipGlobalErrorHandling(),
+      })
       .subscribe({ next: (res) => this.unreadCount.set(res.data.count), error: () => {} });
   }
 
   /** PATCH /notifications/{id} — updates status, then refreshes the badge count. */
   updateStatus(id: string, status: NotificationStatus): Observable<unknown> {
     return this.http
-      .patch<unknown>(`${apiBase}/notifications/${id}`, { status })
+      .patch<unknown>(
+        `${apiBase}/notifications/${id}`,
+        { status },
+        { context: skipGlobalErrorHandling() },
+      )
       .pipe(tap(() => this.refreshUnreadCount()));
   }
 
@@ -43,7 +58,11 @@ export class NotificationsService {
    */
   markAllRead(notifications: AppNotification[]): Observable<unknown[]> {
     const requests = notifications.map((n) =>
-      this.http.patch<unknown>(`${apiBase}/notifications/${n.id}`, { status: 'read' }),
+      this.http.patch<unknown>(
+        `${apiBase}/notifications/${n.id}`,
+        { status: 'read' },
+        { context: skipGlobalErrorHandling() },
+      ),
     );
     return forkJoin(requests).pipe(tap(() => this.refreshUnreadCount()));
   }
@@ -55,6 +74,7 @@ export class NotificationsService {
   resolveTaskKey(taskId: string): Observable<{ data: { task_key?: string | null } }> {
     return this.http.get<{ data: { task_key?: string | null } }>(
       `${apiBase}/tasks/${taskId}`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
 
 /** A node of the navigation menu tree the current user can access. */
 export interface MenuNode {
@@ -39,18 +40,22 @@ export class MenuService {
       return;
     }
     this.loading = true;
-    this.http.get<unknown>(`${apiBase}/auth/me/menus`).subscribe({
-      next: (res) => {
-        this.loading = false;
-        this._menus.set(normalizeMenus(res));
-        this._loaded.set(true);
-      },
-      error: () => {
-        this.loading = false;
-        this._menus.set([]);
-        this._loaded.set(false);
-      },
-    });
+    // Background hydration: opts out of the global error handler (the shell
+    // falls back to its static links on error).
+    this.http
+      .get<unknown>(`${apiBase}/auth/me/menus`, { context: skipGlobalErrorHandling() })
+      .subscribe({
+        next: (res) => {
+          this.loading = false;
+          this._menus.set(normalizeMenus(res));
+          this._loaded.set(true);
+        },
+        error: () => {
+          this.loading = false;
+          this._menus.set([]);
+          this._loaded.set(false);
+        },
+      });
   }
 
   /** Clear the tree (on logout). */
