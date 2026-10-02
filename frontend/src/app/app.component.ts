@@ -228,6 +228,12 @@ export class AppComponent {
         icon: 'bar-chart',
         route: '/performance',
       },
+      {
+        id: 'plans',
+        label: this.i18n.translate('nav.links.plans'),
+        icon: 'clipboard',
+        route: '/plans',
+      },
     ];
   });
 

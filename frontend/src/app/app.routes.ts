@@ -80,6 +80,12 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'plans',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@pages/plans/plans.component').then((m) => m.PlansComponent),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard],
     loadChildren: () =>

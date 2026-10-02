@@ -25,6 +25,7 @@ const NAV_ICON_ALIASES: Readonly<Record<string, SolIconName>> = {
   plug: 'arrows-right-left',
   'ellipsis-horizontal': 'ellipsis-vertical',
   palette: 'sparkles',
+  'clipboard-list': 'clipboard',
 };
 
 /**

@@ -845,6 +845,7 @@
       "executive": "Vista de jefe",
       "hierarchy": "Árbol de proyectos",
       "performance": "Rendimiento",
+      "plans": "Planes",
       "projects": "Proyectos"
     },
     "logout": "Cerrar sesión",
@@ -903,6 +904,196 @@
     "subtitle": "Desempeño por colaborador: trabajo entregado, cumplimiento y carga actual.",
     "title": "Rendimiento",
     "updatedAt": "Actualizado:"
+  },
+  "plans": {
+    "activity": {
+      "mine": "Mía",
+      "noGroup": "Sin grupo",
+      "noResponsible": "Sin responsable registrado",
+      "openAria": "Abre el detalle de la actividad {{ key }}",
+      "scheduled": "Programada en:",
+      "taskCounts": "{{ primary }} principales · {{ contributes }} aportan",
+      "tasks": "Tareas"
+    },
+    "card": {
+      "activities": "{{ n }} actividades",
+      "activityOne": "1 actividad",
+      "withReport": "Promedio de {{ n }} de {{ total }} actividades con reporte",
+      "withTasks": "Promedio de {{ n }} de {{ total }} actividades con tareas"
+    },
+    "conflicts": {
+      "one": "1 vínculo en conflicto",
+      "many": "{{ n }} vínculos en conflicto"
+    },
+    "detail": {
+      "shown": "{{ n }} de {{ total }} actividades"
+    },
+    "empty": {
+      "description": "Los planes institucionales (PSPI, PTR, PAI y PTEP) se cargan importando sus documentos fuente. Cuando el administrador importe los de tu organización, aparecerán aquí con su avance.",
+      "title": "Tu organización aún no tiene planes cargados"
+    },
+    "errors": {
+      "activitiesFailed": "No se pudieron cargar las actividades de los planes. Inténtalo de nuevo.",
+      "activityFailed": "No se pudo cargar el detalle de la actividad. Inténtalo de nuevo.",
+      "loadFailed": "No se pudieron cargar los planes. Inténtalo de nuevo.",
+      "network": "No fue posible conectar con el servidor. Inténtalo de nuevo."
+    },
+    "fields": {
+      "deliverable": "Entregable",
+      "dueDate": "Fecha límite",
+      "evidence": "Evidencia esperada",
+      "iso": "Controles ISO 27001",
+      "periods": "Periodos programados",
+      "responsible": "Responsable"
+    },
+    "filters": {
+      "clear": "Limpiar filtros",
+      "onlyMine": "Solo mías",
+      "onlyMineHint": "Muestra solo las actividades marcadas como propias de tu dependencia",
+      "period": "Periodo del avance reportado",
+      "search": "Busca por clave, nombre o responsable",
+      "type": "Tipo de plan",
+      "typeAll": "Todos"
+    },
+    "links": {
+      "conflict": "Referencia en conflicto en la fuente",
+      "incoming": "Recibe aporte de",
+      "sourceText": "Texto en la fuente",
+      "title": "Vínculos con otras actividades",
+      "types": {
+        "contributes_to": "Aporta a",
+        "derives_from": "Se deriva de",
+        "duplicates": "Duplica a"
+      },
+      "unknownActivity": "Actividad de otro plan no cargado"
+    },
+    "linker": {
+      "open": "Vincular tarea",
+      "close": "Cerrar",
+      "role": "Rol de la tarea",
+      "roleHint": {
+        "primary": "Principal: su estado cuenta para el avance calculado de la actividad.",
+        "contributes": "Aporta: queda como referencia, no cuenta para el avance calculado."
+      },
+      "search": "Buscar tarea en todos los proyectos",
+      "searchPlaceholder": "Clave (SDM-7) o título de la tarea",
+      "typeMore": "Escribe al menos 2 caracteres para buscar.",
+      "noResults": "Ninguna tarea coincide con la búsqueda.",
+      "alreadyLinked": "Ya vinculada",
+      "link": "Vincular",
+      "linking": "Vinculando…",
+      "linked": "Tarea vinculada a la actividad.",
+      "unlinked": "Tarea desvinculada de la actividad.",
+      "emptyHint": "Usa «Vincular tarea» para agregar la primera.",
+      "unlink": "Quitar",
+      "unlinkAria": "Quita el vínculo de la tarea {{ key }}",
+      "confirmUnlink": "¿Quitar el vínculo?",
+      "unlinkYes": "Sí, quitar",
+      "cancel": "Cancelar",
+      "errors": {
+        "searchFailed": "No se pudo buscar tareas. Inténtalo de nuevo.",
+        "linkFailed": "No se pudo vincular la tarea. Inténtalo de nuevo.",
+        "unlinkFailed": "No se pudo quitar el vínculo. Inténtalo de nuevo.",
+        "forbidden": "Solo un administrador o gestor de la organización puede cambiar los vínculos."
+      }
+    },
+    "loading": "Cargando planes…",
+    "periods": {
+      "ANUAL": { "label": "Anual", "short": "anual" },
+      "I": { "label": "I · ene–abr", "short": "I" },
+      "II": { "label": "II · may–ago", "short": "II" },
+      "III": { "label": "III · sep–dic", "short": "III" }
+    },
+    "progress": {
+      "calculated": "Avance calculado",
+      "calculatedShort": "Calculado",
+      "noReport": "Sin reporte",
+      "noTasks": "Sin tareas vinculadas",
+      "reported": "Avance reportado ({{ period }})",
+      "reportedShort": "Reportado ({{ period }})"
+    },
+    "readOnlyNote": "Vista de consulta. El avance calculado sale del estado de las tareas principales vinculadas; el reportado, del reporte del responsable en el periodo.",
+    "report": {
+      "evidence": "Evidencias",
+      "met": "Cumplida",
+      "no": "No",
+      "noData": "sin dato",
+      "onTime": "A tiempo",
+      "title": "Reporte del periodo {{ period }}",
+      "yes": "Sí"
+    },
+    "reportForm": {
+      "progress": "Avance reportado (0 a 100)",
+      "quick": "Valores rápidos",
+      "useCalculated": "Usar calculado",
+      "previous": "Reportado en el periodo {{ period }}",
+      "previousNone": "Periodo anterior",
+      "summary": "Resumen cualitativo",
+      "summaryPlaceholder": "Qué se avanzó en el periodo y qué falta",
+      "evidence": "Evidencias (una por línea)",
+      "evidencePlaceholder": "Ruta, enlace o nombre del documento de soporte",
+      "tri": {
+        "yes": "Sí",
+        "no": "No",
+        "unknown": "Sin dato"
+      },
+      "source": {
+        "report": "Valor del reporte guardado para este periodo.",
+        "previous": "Sugerido: el valor reportado en el periodo anterior. Ajústalo antes de guardar.",
+        "calculated": "Sugerido: el avance calculado desde las tareas. Ajústalo antes de guardar.",
+        "none": "Sin reporte previo ni tareas vinculadas: escribe el avance o déjalo vacío."
+      },
+      "fixToSave": "Corrige el avance para poder guardar.",
+      "noChanges": "Sin cambios frente al reporte guardado.",
+      "willReplace": "Al guardar se reemplaza el reporte de este periodo.",
+      "willCreate": "Aún no hay reporte de este periodo: al guardar se crea.",
+      "save": "Guardar reporte",
+      "saving": "Guardando…",
+      "saved": "Reporte del periodo {{ period }} guardado.",
+      "errors": {
+        "notNumber": "Escribe un número, por ejemplo 45 o 45,5.",
+        "range": "El avance debe estar entre 0 y 100.",
+        "forbidden": "Solo un administrador o gestor de la organización puede reportar el avance.",
+        "saveFailed": "No se pudo guardar el reporte. Tus datos siguen en el formulario; inténtalo de nuevo."
+      }
+    },
+    "retry": "Reintentar",
+    "states": {
+      "activitiesUnavailable": "Las actividades no están disponibles en este momento.",
+      "noPlansForType": "No hay planes de este tipo.",
+      "noResults": "Ninguna actividad coincide con los filtros.",
+      "planWithoutActivities": "Este plan todavía no tiene actividades cargadas."
+    },
+    "status": {
+      "active": "Vigente",
+      "archived": "Archivado"
+    },
+    "subtitle": "Avance de los planes institucionales: lo calculado desde las tareas y lo reportado por cada responsable, sin mezclarlos.",
+    "taskStatus": {
+      "backlog": "Backlog",
+      "cancelled": "Cancelada",
+      "done": "Completada",
+      "in_progress": "En curso",
+      "in_review": "En revisión",
+      "to_do": "Por hacer"
+    },
+    "tasksSection": {
+      "counts": "Cuenta para el avance",
+      "empty": "Esta actividad aún no tiene tareas vinculadas, por eso su avance calculado aparece como «Sin tareas vinculadas».",
+      "roles": {
+        "contributes": "Aporta",
+        "primary": "Principal"
+      },
+      "title": "Tareas vinculadas"
+    },
+    "title": "Planes",
+    "types": {
+      "pai": "PAI",
+      "pspi": "PSPI",
+      "ptep": "PTEP",
+      "ptr": "PTR"
+    },
+    "writeNote": "El avance calculado sale del estado de las tareas principales vinculadas; el reportado, del reporte del periodo. Como administrador o gestor puedes reportar el avance y vincular tareas desde el detalle de cada actividad."
   },
   "projects": {
     "actions": {
