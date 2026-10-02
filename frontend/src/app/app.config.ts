@@ -1,8 +1,11 @@
 import {
   ApplicationConfig,
+  inject,
   provideZoneChangeDetection,
 } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { registerLocaleData } from '@angular/common';
+import localeEsCo from '@angular/common/locales/es-CO';
+import { provideRouter, withNavigationErrorHandler } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import {
   provideTheme,
@@ -15,12 +18,32 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@features/auth/auth.interceptor';
 import { OrgThemeSource } from '@features/theme/org-theme.source';
 import { provideI18n, I18nService } from '@shared/i18n';
+import { ToastStore } from '@shared/lib/toast';
+import { reloadOnMissingChunk } from '@shared/lib/utils/reload-on-missing-chunk.util';
 import solerciaDefaultTheme from '../assets/themes/solercia-default.theme.json';
+
+// Los pipes de fecha/moneda usan 'es-CO' explícito; sin este registro
+// Angular lanza NG0701 y el bloque que usa el pipe no se renderiza.
+registerLocaleData(localeEsCo);
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes),
+    // Tras un rebuild, una pestaña abierta con el build anterior pide chunks que ya no
+    // existen (404) y el router abortaba la navegación en silencio: aquí se recarga la
+    // página sobre la URL destino, una sola vez por URL. Si esa misma URL vuelve a
+    // fallar (despliegue incompleto), no se recarga otra vez y se avisa, para no repetir
+    // la pantalla en blanco sin mensaje. Ver reload-on-missing-chunk.util.
+    provideRouter(
+      routes,
+      withNavigationErrorHandler((error) => {
+        if (reloadOnMissingChunk(error) !== 'blocked') return;
+        inject(ToastStore).warning(
+          inject(I18nService).translate('shared.errorState.outdatedVersion'),
+          { durationMs: 0 },
+        );
+      }),
+    ),
     provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
     // Runtime de theming de @solercia/ui: es la ÚNICA fuente de verdad del tema.
     // Emite los 95 tokens --sol-* sobre :root y gestiona el toggle claro/oscuro
@@ -28,7 +51,10 @@ export const appConfig: ApplicationConfig = {
     provideTheme(),
     // Identidad visual de gestion_proyectos (marca índigo) como tema por
     // defecto: sustituye al tema "Vértice" empaquetado en la librería.
-    { provide: SOL_DEFAULT_THEME, useValue: solerciaDefaultTheme as unknown as ThemeFile },
+    // Nota: main.ts vuelve a resolver este MISMO asset por HTTP en el arranque
+    // y sobreescribe este provider con el resultado (último provider gana). Este
+    // valor empaquetado queda como red de seguridad si el fetch del asset falla.
+    { provide: SOL_DEFAULT_THEME, useValue: solerciaDefaultTheme as ThemeFile },
     // Puerto THEME_SOURCE: carga el ThemeFile de la organización del JWT
     // (GET /organizations/me/theme). El host lo consume vía push
     // (TenantThemeService → setTenantTheme) porque el pull de la librería

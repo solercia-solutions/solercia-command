@@ -1295,6 +1295,9 @@
     "toast": {
       "close": "Cerrar aviso",
       "region": "Avisos"
+    },
+    "errorState": {
+      "outdatedVersion": "Hay una versión más reciente de la aplicación. Recarga la página para continuar."
     }
   },
   "taskCard": {

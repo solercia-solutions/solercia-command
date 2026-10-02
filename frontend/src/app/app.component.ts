@@ -14,6 +14,12 @@ import { ThemeService } from '@solercia/ui';
 import { AuthService } from '@features/auth/auth.service';
 import { MenuService, MenuNode } from '@features/navigation/menu.service';
 import { TenantThemeService } from '@features/theme/tenant-theme.service';
+import {
+  STUDIO_LOADER_ANIMATIONS,
+  STUDIO_LOADER_PRESENTATIONS,
+  STUDIO_TABLE_STYLES,
+  type ThemeMetaExtras,
+} from '@features/theme/theme-meta-extras';
 import { NotificationsService } from '@entities/notification/notifications.service';
 import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
 import { SolLayoutShellComponent } from '@widgets/layout-shell';
@@ -22,6 +28,54 @@ import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ToastHostComponent } from '@shared/lib/toast';
 import { OrgSwitcherComponent } from '@features/organizations/org-switcher.component';
+
+/**
+ * Theme extras the shell applies on its own DOCUMENT (the library does not
+ * resolve them; `meta.favicon` and `meta.fonts` are handled by ThemeService):
+ *
+ *  - `meta.tableStyle` → `data-sol-table` on <html> (styles.scss paints sol-data-table)
+ *  - `meta.loader`     → `--sol-loader-image`, `--sol-loader-animation-name` and
+ *                        `data-sol-loader` on <html> (styles.scss: .sol-loader__spinner)
+ *
+ * Everything is validated against the model lists: a persisted theme is never
+ * applied blindly. Safe URL: http(s) or absolute path, without quotes,
+ * parentheses or spaces that would break the CSS `url(...)`.
+ */
+const SAFE_IMAGE_URL = /^(https?:\/\/|\/)[^\s"')]+$/;
+const LOADER_IMAGE_MAX_LENGTH = 500;
+
+function applyTableStyle(tableStyle: ThemeMetaExtras['tableStyle']): void {
+  const root = document.documentElement;
+  if (tableStyle && STUDIO_TABLE_STYLES.includes(tableStyle)) {
+    root.setAttribute('data-sol-table', tableStyle);
+  } else {
+    root.removeAttribute('data-sol-table');
+  }
+}
+
+function applyLoader(loader: ThemeMetaExtras['loader']): void {
+  const root = document.documentElement;
+  root.style.removeProperty('--sol-loader-image');
+  root.style.removeProperty('--sol-loader-animation-name');
+  if (!loader) {
+    root.removeAttribute('data-sol-loader');
+    return;
+  }
+  const image = loader.image?.trim() ?? '';
+  if (image && image.length <= LOADER_IMAGE_MAX_LENGTH && SAFE_IMAGE_URL.test(image)) {
+    root.style.setProperty('--sol-loader-image', `url("${image}")`);
+  }
+  if (STUDIO_LOADER_ANIMATIONS.includes(loader.animation)) {
+    root.style.setProperty(
+      '--sol-loader-animation-name',
+      loader.animation === 'none' ? 'none' : `sol-loader-${loader.animation}`,
+    );
+  }
+  root.setAttribute(
+    'data-sol-loader',
+    STUDIO_LOADER_PRESENTATIONS.includes(loader.presentation) ? loader.presentation : 'current',
+  );
+}
 
 /**
  * Application shell: layout-shell (header + collapsible sidebar + mobile
@@ -238,6 +292,16 @@ export class AppComponent {
   });
 
   constructor() {
+    // Theme extras the library does not resolve (table preset, page loader).
+    effect(() => {
+      const active = this.theme.activeTheme();
+      if (!active) return;
+
+      const extras = active.meta as typeof active.meta & ThemeMetaExtras;
+      applyTableStyle(extras.tableStyle);
+      applyLoader(extras.loader);
+    });
+
     // Hydrate the session (user + menus) whenever authentication turns on,
     // and clear state on logout. Guards prevent duplicate calls.
     effect(() => {

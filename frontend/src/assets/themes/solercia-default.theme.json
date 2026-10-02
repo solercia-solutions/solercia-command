@@ -1,6 +1,27 @@
 {
   "meta": {
-    "tenant": "solercia-pm"
+    "name": "Solercia Command",
+    "defaultMode": "light",
+    "tenant": "solercia-pm",
+    "logo": {
+      "url": "/assets/logos/solercia-command-logo.svg",
+      "urlDark": "/assets/logos/solercia-command-logo-dark.svg",
+      "altText": "Solercia Command",
+      "width": 180
+    },
+    "favicon": "/assets/logos/solercia-command-favicon.svg",
+    "fonts": [
+      {
+        "family": "Inter",
+        "provider": "google",
+        "weights": [400, 500, 600, 700]
+      },
+      {
+        "family": "Manrope",
+        "provider": "google",
+        "weights": [500, 600, 700, 800]
+      }
+    ]
   },
   "primitives": {
     "color": {

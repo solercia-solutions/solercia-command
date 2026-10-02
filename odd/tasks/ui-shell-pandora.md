@@ -77,7 +77,7 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 ## Tareas
 
 - [x] U00 Commits del trabajo pendiente en la rama base: 13 commits, `799396d`..`046f589`. Sin pruebas ejecutadas.
-- [ ] U01 Subir `@solercia/ui` a `^0.6.1` y ajustar los cambios de contrato. Verifica: build y lint.
+- [x] U01 Subir `@solercia/ui` a `^0.6.1` y ajustar los cambios de contrato. Verifica: build y lint. Commit `3fe0afa`.
 - [ ] U02 Configuración global como PANDORA: locale es-CO, recarga ante chunk faltante, tema por
       defecto al arrancar, reglas `sol-*` de estilos, fuentes y favicon por tema, tema por defecto
       completo, retiro de `assets/config/theme-config.json`. Verifica: build, lint y navegador.
@@ -102,11 +102,18 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 
 - 2026-10-02 U00: 13 commits locales verificados (`git log 1112731..HEAD`), sin atribución a
   herramientas, árbol limpio salvo `.pi/`.
+- 2026-10-02 U01 (`3fe0afa`): librería resuelta en 0.6.1 desde el registro npm. Build exit 0 con la
+  misma advertencia de presupuesto inicial (1.06 MB → 1.08 MB); lint exit 0 sin problemas, antes y
+  después. Sin cambios de código: ninguna colisión entre los 35 selectores propios y los 59 de la
+  librería. Riesgo evaluado: baja; sin revisión nativa (apagada).
+  Pendiente de verificar en navegador: `sol-data-table` ahora colapsa a tarjetas por ancho del
+  contenedor (5 usos en `pages/admin/*`). Diferido a U02: `meta.logo` falta en el tema por defecto.
 
 ## Siguiente paso
 
-U01.
+U02.
 
 ## Espejo
 
-Engram, tema `odd/ui-shell-pandora/tasks`: pendiente (ver progreso).
+Engram, tema `odd/ui-shell-pandora/tasks`: observación #5499 (guardada con `engram save`; el
+guardado por MCP falla por sesiones simultáneas). Resincronizar al cierre de cada tarea.
