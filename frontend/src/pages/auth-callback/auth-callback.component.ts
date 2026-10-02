@@ -18,7 +18,9 @@ import { SolCardComponent } from '@shared/ui';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SolCardComponent],
   template: `
-    <div class="flex min-h-[70vh] items-center justify-center">
+    <!-- Rendered outside the authenticated shell: the page owns its full-height
+         centering and its side padding. -->
+    <div class="flex min-h-dvh items-center justify-center px-4 py-6">
       <div class="w-full max-w-sm">
         <sol-card>
           <div class="flex flex-col items-center gap-3 py-4 text-center">

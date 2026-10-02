@@ -2,7 +2,6 @@ import { Routes } from '@angular/router';
 import { authGuard } from '@features/auth/auth.guard';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'projects' },
   {
     path: 'login',
     loadComponent: () =>
@@ -45,94 +44,95 @@ export const routes: Routes = [
     data: { code: 500 },
   },
   {
-    path: 'tasks/import',
-    canActivate: [authGuard],
+    // Authenticated layout (header, sidebar, session actions): parent of every
+    // view that requires a session. The guard runs on entering the shell and
+    // again on every child navigation, as it did when each route carried it.
+    path: '',
     loadComponent: () =>
-      import('@pages/task-import/task-import-preview.component').then(
-        (m) => m.TaskImportPreviewComponent,
-      ),
-  },
-  {
-    path: 'projects',
+      import('@pages/shell').then((m) => m.ShellPageComponent),
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/projects/projects.component').then(
-        (m) => m.ProjectsComponent,
-      ),
-  },
-  {
-    path: 'projects/:id',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import(
-        '@widgets/project-workspace/project-workspace.component'
-      ).then((m) => m.ProjectWorkspaceComponent),
-  },
-  {
-    path: 'hierarchy',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/hierarchy/hierarchy.component').then(
-        (m) => m.HierarchyComponent,
-      ),
-  },
-  {
-    path: 'executive',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/executive/executive.component').then(
-        (m) => m.ExecutiveComponent,
-      ),
-  },
-  {
-    path: 'performance',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/performance/performance.component').then(
-        (m) => m.PerformanceComponent,
-      ),
-  },
-  {
-    path: 'teams',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/teams/teams.component').then((m) => m.TeamsComponent),
-  },
-  {
-    path: 'connections',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/connections/connections.component').then(
-        (m) => m.ConnectionsComponent,
-      ),
-  },
-  {
-    path: 'plans',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/plans/plans.component').then((m) => m.PlansComponent),
-  },
-  {
-    path: 'admin',
-    canActivate: [authGuard],
-    loadChildren: () =>
-      import('@pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
-  },
-  {
-    path: 'settings/appearance',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/settings/appearance/appearance-page.component').then(
-        (m) => m.AppearancePageComponent,
-      ),
-  },
-  {
-    path: 'task/:key',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('@pages/task-detail/task-detail-page.component').then(
-        (m) => m.TaskDetailPageComponent,
-      ),
+    canActivateChild: [authGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'projects' },
+      {
+        path: 'tasks/import',
+        loadComponent: () =>
+          import('@pages/task-import/task-import-preview.component').then(
+            (m) => m.TaskImportPreviewComponent,
+          ),
+      },
+      {
+        path: 'projects',
+        loadComponent: () =>
+          import('@pages/projects/projects.component').then(
+            (m) => m.ProjectsComponent,
+          ),
+      },
+      {
+        path: 'projects/:id',
+        loadComponent: () =>
+          import(
+            '@widgets/project-workspace/project-workspace.component'
+          ).then((m) => m.ProjectWorkspaceComponent),
+      },
+      {
+        path: 'hierarchy',
+        loadComponent: () =>
+          import('@pages/hierarchy/hierarchy.component').then(
+            (m) => m.HierarchyComponent,
+          ),
+      },
+      {
+        path: 'executive',
+        loadComponent: () =>
+          import('@pages/executive/executive.component').then(
+            (m) => m.ExecutiveComponent,
+          ),
+      },
+      {
+        path: 'performance',
+        loadComponent: () =>
+          import('@pages/performance/performance.component').then(
+            (m) => m.PerformanceComponent,
+          ),
+      },
+      {
+        path: 'teams',
+        loadComponent: () =>
+          import('@pages/teams/teams.component').then((m) => m.TeamsComponent),
+      },
+      {
+        path: 'connections',
+        loadComponent: () =>
+          import('@pages/connections/connections.component').then(
+            (m) => m.ConnectionsComponent,
+          ),
+      },
+      {
+        path: 'plans',
+        loadComponent: () =>
+          import('@pages/plans/plans.component').then((m) => m.PlansComponent),
+      },
+      {
+        path: 'admin',
+        loadChildren: () =>
+          import('@pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+      },
+      {
+        path: 'settings/appearance',
+        loadComponent: () =>
+          import('@pages/settings/appearance/appearance-page.component').then(
+            (m) => m.AppearancePageComponent,
+          ),
+      },
+      {
+        path: 'task/:key',
+        loadComponent: () =>
+          import('@pages/task-detail/task-detail-page.component').then(
+            (m) => m.TaskDetailPageComponent,
+          ),
+      },
+    ],
   },
   {
     path: '**',

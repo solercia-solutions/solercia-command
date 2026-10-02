@@ -1,27 +1,18 @@
 import {
   Component,
   ChangeDetectionStrategy,
-  inject,
   input,
   output,
+  inject,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { ThemeService } from '@shared/ui';
-import { I18nService } from '@shared/i18n';
+import { ThemeService } from '@shared/tokens';
+import { SolBrandLogoComponent, SolIconComponent } from '@shared/ui';
 
-/**
- * Fixed top bar (ported from boki-front `widgets/header`).
- *
- * Left side: sidebar toggle (hamburger, desktop only), tenant logo from
- * `ThemeService` when the active theme provides one — otherwise the host
- * brand ("S" badge + "Solercia Command") — and an optional title. Right side:
- * a projected actions slot (theme toggle, notification bell, logout...).
- */
 @Component({
   selector: 'sol-header',
   standalone: true,
-  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SolBrandLogoComponent, SolIconComponent],
   template: `
     <header class="sol-header">
       <div class="sol-header__left">
@@ -29,44 +20,16 @@ import { I18nService } from '@shared/i18n';
           <button
             type="button"
             class="sol-header__menu-btn"
-            [attr.aria-label]="text.sidebarToggle()"
+            aria-label="Alternar menú lateral"
             (click)="sidebarToggle.emit()"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
+            <sol-icon name="menu" />
           </button>
         }
 
-        <a
-          class="sol-header__brand"
-          routerLink="/projects"
-          [attr.aria-label]="text.brandAria()"
-        >
-          @if (themeService.logo(); as logo) {
-            <img
-              class="sol-header__logo"
-              [src]="logo.url"
-              [alt]="logo.altText"
-              [style.width.px]="logo.width ?? 120"
-            />
-          } @else {
-            <span class="sol-header__brand-badge" aria-hidden="true">S</span>
-            <span class="sol-header__brand-name">Solercia Command</span>
-          }
-        </a>
+        @if (themeService.logo(); as logo) {
+          <sol-brand-logo class="sol-header__logo" [logo]="logo" />
+        }
 
         @if (title()) {
           <h1 class="sol-header__title">{{ title() }}</h1>
@@ -123,41 +86,11 @@ import { I18nService } from '@shared/i18n';
       color: var(--sol-color-primary, #6366f1);
     }
 
-    .sol-header__brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      min-width: 0;
-    }
-
-    .sol-header__brand-badge {
-      display: grid;
-      place-items: center;
-      width: 32px;
-      height: 32px;
-      border-radius: var(--sol-border-radius-lg, 12px);
-      background: var(--sol-color-primary, #4f46e5);
-      color: #ffffff;
-      font-size: var(--sol-font-size-sm, 0.875rem);
-      font-weight: 700;
-      box-shadow: var(--sol-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
-      flex-shrink: 0;
-    }
-
-    .sol-header__brand-name {
-      font-family: var(--sol-font-display, inherit);
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      color: var(--sol-color-text-primary, #111827);
-      white-space: nowrap;
-    }
-
     .sol-header__logo {
+      /* Solo el ALTO disponible: el ancho lo deriva sol-brand-logo de su
+         propia proporción (ver su hoja de estilos) — fijarlo aquí encima
+         reintroducía la caja fantasma que ese componente ya resuelve. */
       height: 32px;
-      width: auto;
-      object-fit: contain;
     }
 
     .sol-header__title {
@@ -192,7 +125,11 @@ import { I18nService } from '@shared/i18n';
 
       .sol-header__logo {
         height: 26px;
-        max-width: 96px;
+        /* Tope responsive que sol-brand-logo combina (el MENOR gana) con el
+           ancho elegido en el Theme Studio — ver --sol-brand-logo-max-width
+           en su hoja de estilos. Puesto en el host, no en el propio <img>/
+           <svg>, porque el encabezado móvil es quien decide este límite. */
+        --sol-brand-logo-max-width: 96px;
       }
 
       .sol-header__title {
@@ -203,7 +140,6 @@ import { I18nService } from '@shared/i18n';
 })
 export class SolHeaderComponent {
   protected readonly themeService = inject(ThemeService);
-  private readonly i18n = inject(I18nService);
 
   /** Title displayed in the header bar. */
   readonly title = input<string>('');
@@ -214,9 +150,6 @@ export class SolHeaderComponent {
   /** Emitted when the sidebar toggle button is clicked. */
   readonly sidebarToggle = output<void>();
 
-  /** Static UI text resolved via i18n (reactive to language change). */
-  protected readonly text = {
-    sidebarToggle: this.i18n.t('nav.sidebarToggle'),
-    brandAria: this.i18n.t('nav.brandAria'),
-  } as const;
+  /** Resolved logo URL from ThemeService. */
+  protected readonly logoUrl = this.themeService.logo;
 }
