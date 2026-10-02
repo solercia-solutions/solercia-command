@@ -1,5 +1,6 @@
 """Generic delivery dispatcher — drains ``pending`` rows across EVERY
-registered ``durable`` channel (change 12-notification-hub, design.md D3).
+registered ``durable`` channel except temporarily blocked email
+(change 12-notification-hub, design.md D3).
 
 Byte-for-byte refactor of ``app.email.outbox.dispatch_outbox`` (change 08):
 the SAME transactional discipline — claim (``pending -> sending``,
@@ -77,7 +78,10 @@ async def _claim_delivery_row(db: AsyncSession, delivery_id: uuid.UUID) -> bool:
 
 async def dispatch_deliveries(db: AsyncSession) -> int:
     """Claim and send every currently ``pending`` delivery row, across ALL
-    registered ``durable`` channels.
+    registered ``durable`` channels except email.
+
+    Email is unconditionally excluded before claim: this temporary safety
+    barrier preserves queued rows and attempts, not an approval workflow.
 
     Returns the number of rows processed (sent, left pending for retry, or
     terminally failed — every claimed row counts once).
@@ -85,7 +89,9 @@ async def dispatch_deliveries(db: AsyncSession) -> int:
 
     result = await db.execute(
         select(NotificationDelivery.id).where(
-            NotificationDelivery.status == DeliveryStatus.pending
+            NotificationDelivery.status == DeliveryStatus.pending,
+            # Filter at selection, before any claim or future batch limit.
+            NotificationDelivery.channel != "email",
         )
     )
     pending_ids = [row[0] for row in result.all()]
