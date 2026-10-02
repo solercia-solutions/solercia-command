@@ -20,6 +20,10 @@ from app.modules.boards.service import BoardService
 from app.modules.projects.models import Project
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import ProjectCreate, ProjectUpdate
+from app.modules.projects.system_project import (
+    guard_system_project_update,
+    reject_reserved_project_code,
+)
 from app.shared.enums import ProjectKind, ProjectStatus
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
@@ -162,6 +166,7 @@ class ProjectService:
         forces ``proyecto`` before reaching here.
         """
 
+        reject_reserved_project_code(data.code)
         if data.parent_project_id is not None:
             await self.validate_parent(organization_id, data.parent_project_id)
 
@@ -182,6 +187,7 @@ class ProjectService:
                 organization_id, _derive_code(data.name)
             )
 
+        reject_reserved_project_code(code)
         project = Project(
             name=data.name,
             description=data.description,
@@ -242,6 +248,9 @@ class ProjectService:
         project = await self.get_project(organization_id, project_id)
 
         changes = data.model_dump(exclude_unset=True)
+        guard_system_project_update(project.is_system, changes)
+        if "code" in changes:
+            reject_reserved_project_code(changes["code"])
 
         if "methodology" in changes:
             raise AppException(

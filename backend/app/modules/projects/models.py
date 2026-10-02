@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
     ForeignKey,
+    false,
     Index,
     Integer,
     Numeric,
@@ -36,6 +39,11 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
     __table_args__ = (
         # Each organization uses unique project codes (e.g. "SDM", "PLT").
         UniqueConstraint("organization_id", "code", name="uq_project_code_per_org"),
+        # Current shape only, not protection against unmarking or hard DELETE.
+        CheckConstraint(
+            "NOT is_system OR (code IS NOT NULL AND code = 'GENERALES' AND methodology = 'custom' AND status = 'active' AND is_active AND deleted_at IS NULL)",
+            name="ck_projects_system_shape",
+        ),
         # Trigram GIN indexes backing GET /search (change 10-busqueda-global,
         # design.md "Índices GIN"); accelerate ILIKE '%q%' + similarity().
         Index(
@@ -52,6 +60,9 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
         ),
     )
 
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     methodology: Mapped[Methodology] = mapped_column(

@@ -39,8 +39,10 @@ class OrganizationRepository:
     async def create_with_admin(
         self, organization: Organization, *, creator_id: uuid.UUID
     ) -> Organization:
-        """Persist ``organization`` and the creator's ``admin`` membership
-        in a SINGLE commit (design.md Decision 4 — bootstrap transaccional).
+        """Flush the new organization, then its admin; caller owns completion.
+
+        Bootstrap is the sole production caller. Both flushes must finish before
+        Generales takes its organization lock (sessions disable autoflush).
         """
 
         self.db.add(organization)
@@ -52,8 +54,7 @@ class OrganizationRepository:
                 role=MemberRole.admin,
             )
         )
-        await self.db.commit()
-        await self.db.refresh(organization)
+        await self.db.flush()
         return organization
 
     async def save(self, organization: Organization) -> Organization:

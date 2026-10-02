@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.methodology.base import MethodologyStrategy
 from app.modules.boards.models import Board, BoardColumn
 from app.modules.boards.repository import BoardRepository
+from app.modules.projects.repository import ProjectRepository
+from app.modules.projects.system_project import guard_system_board_configuration
 from app.modules.tasks.models import Task
 from app.shared.exceptions import AppException
 
@@ -315,6 +317,18 @@ class BoardService:
                 code="board_not_found",
                 status_code=404,
             )
+        # This seam is used only by the four public configuration operations.
+        # Resolve through the existing tenant-scoped adapter, never ORM SQL here.
+        project = await ProjectRepository(self.repo.db).get(
+            organization_id, board.project_id
+        )
+        if project is None:
+            raise AppException(
+                "El proyecto no existe o no tienes acceso a él.",
+                code="project_not_found",
+                status_code=404,
+            )
+        guard_system_board_configuration(project.is_system)
         return board
 
     async def ensure_board(

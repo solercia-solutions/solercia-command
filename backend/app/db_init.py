@@ -88,6 +88,7 @@ from app.modules.roles.models import (  # noqa: F401
     RoleMenu,
     UserRole,
 )
+from app.modules.roles.seed_catalog import MENU_SEED, ROLE_MENU_SEED, ROLE_SEED
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
@@ -116,51 +117,13 @@ _DEPENDENCY_SEED: list[tuple[str, str]] = [
     ("Operaciones", "OPS"),
 ]
 
-# RBAC roles: (code, display name).
-_ROLE_SEED: list[tuple[str, str]] = [
-    ("ADMIN", "Administrador"),
-    ("MANAGER", "Líder"),
-    ("MEMBER", "Colaborador"),
-]
-
-# App-level activities (menus): (name, icon, path, parent_name, order).
-# Parents appear before their children so the parent id is available.
-#
-# `_ensure_menus` (and `_ensure_role_menus`) run on every startup and only
-# INSERT rows that are still missing, so an already-seeded backend picks up
-# new entries (like "Jerarquía" below) automatically on its next restart —
-# no data migration needed for existing organizations.
-_MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
-    ("Proyectos", "folder-kanban", "/projects", None, 0),
-    ("Jerarquía", "list-tree", "/hierarchy", None, 1),
-    ("Vista de jefe", "bar-chart-3", "/executive", None, 2),
-    ("Rendimiento", "trending-up", "/performance", None, 3),
-    ("Administración", "settings", None, None, 4),
-    ("Equipos", "users", "/teams", None, 5),
-    ("Conexiones", "plug", "/connections", None, 6),
-    ("Usuarios", "users", "/admin/users", "Administración", 0),
-    ("Roles", "shield", "/admin/roles", "Administración", 1),
-    ("Actividades", "list", "/admin/menus", "Administración", 2),
-    ("Dependencias", "building-2", "/admin/dependencies", "Administración", 3),
-    # Editor del tema por organización (feat/org-theme). Solo lo ve ADMIN:
-    # `_ROLE_MENU_SEED["ADMIN"] = "*"` lo cubre y NO se agrega a las listas
-    # de MANAGER/MEMBER a propósito.
-    ("Apariencia", "palette", "/settings/appearance", "Administración", 4),
-]
-
-# Menu grants per role. "*" grants every menu.
-_ROLE_MENU_SEED: dict[str, str | list[str]] = {
-    "ADMIN": "*",
-    "MANAGER": [
-        "Proyectos",
-        "Jerarquía",
-        "Vista de jefe",
-        "Rendimiento",
-        "Equipos",
-        "Conexiones",
-    ],
-    "MEMBER": ["Proyectos", "Jerarquía"],
-}
+# RBAC catalog (roles, global menus, grants per role) lives in
+# `app.modules.roles.seed_catalog`, shared with the new-organization bootstrap.
+# `_ensure_menus`/`_ensure_role_menus` run on every startup and only INSERT the
+# rows still missing, so new menu entries need no data migration.
+_ROLE_SEED = ROLE_SEED
+_MENU_SEED = MENU_SEED
+_ROLE_MENU_SEED = ROLE_MENU_SEED
 
 # Projects created only when the organization has none yet, so the board and
 # the executive view are populated out of the box.

@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.organizations.bootstrap import bootstrap_organization
+from app.modules.organizations.bootstrap_uow import OrganizationBootstrapUow
 from app.modules.organizations.models import Organization, OrganizationMember
 from app.modules.organizations.repository import OrganizationRepository
 from app.modules.organizations.schemas import (
@@ -88,30 +90,11 @@ class OrganizationService:
         creator_id: uuid.UUID,
         actor_id: uuid.UUID | None,
     ) -> OrganizationRead:
-        """Create the organization and the creator's ``admin`` membership.
-
-        No global superadmin (design.md Decision 4): the creator only ever
-        gains access to the empresa they just created.
-        """
-
-        existing = await self.repo.get_by_slug(data.slug)
-        if existing is not None:
-            raise AppException(
-                "Ya existe una empresa con ese identificador (slug).",
-                code="organization_slug_taken",
-                status_code=409,
-            )
-
-        organization = Organization(
-            name=data.name,
-            slug=data.slug,
-            created_by=actor_id,
-            updated_by=actor_id,
+        """Compatibility facade: new tenant, creator admin and Generales atomically."""
+        return await bootstrap_organization(
+            OrganizationBootstrapUow(self.db), data,
+            creator_id=creator_id, actor_id=actor_id,
         )
-        organization = await self.repo.create_with_admin(
-            organization, creator_id=creator_id
-        )
-        return OrganizationRead.model_validate(organization)
 
     async def list_mine(self, user_id: uuid.UUID) -> list[OrganizationMembership]:
         """Return every organization the user belongs to, with their role."""
