@@ -84,8 +84,9 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
       Navegador pendiente (se verifica junto con U03).
 - [ ] U03 Shell: página shell y widgets del porte, menú adaptado a `GET /auth/me/menus`.
       Verifica: build, lint y navegador en 1440×900 y 390×844, claro y oscuro.
-- [ ] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
-      páginas de error e interceptor de errores. Verifica: build, lint y navegador.
+- [x] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
+      páginas de error e interceptor de errores. Verifica: build y lint. Commits `545adc7`,
+      `0485645`, `81db97d`, `3c2c062`. Navegador pendiente (se verifica junto con U03).
 - [ ] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego en verde.
 - [ ] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
       `sol.themeStudio.*`. Verifica: build, lint y navegador.
@@ -121,9 +122,23 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 - Cambio de orden: U04 va antes que U03 porque el panel de ayuda del shell depende del estado de
   error y este del servicio de alertas.
 
+- 2026-10-02 U04 (`545adc7`, `0485645`, `81db97d`, `3c2c062`): build exit 0 con la advertencia de
+  presupuesto inicial (1.12 MB); lint exit 0 sin problemas. Sin verificación en navegador.
+  24 llamadas de toasts migradas a `AlertService` y `shared/lib/toast/` eliminado. Seis
+  confirmaciones puras migradas a `SolConfirmDialogComponent` (dependencias, menús, organizaciones,
+  roles, usuarios, conexiones). Rutas `no-autorizado`, `prohibido`, `error-servidor` y comodín a la
+  página no encontrada (antes redirigía a `projects`). Riesgo evaluado: media, diferida a la rebanada.
+  **Abierto para decisión del usuario:** el interceptor de errores quedó inactivo para las 110
+  llamadas actuales (todas llevan el token de exclusión porque sus pantallas ya muestran el error
+  en línea); solo actúa sobre llamadas nuevas. Activarlo por pantalla exige quitar su token y su
+  error en línea.
+  Hallazgos de UX sin aplicar: las confirmaciones migradas pierden el estado «Eliminando…»; las
+  alertas duran 5 s y no pausan con el cursor; 401 solo ofrece volver al inicio; el backend no envía
+  `X-Request-Id`, así que el código de seguimiento no aparece.
+
 ## Siguiente paso
 
-U04, luego U03.
+U03.
 
 ## Espejo
 
