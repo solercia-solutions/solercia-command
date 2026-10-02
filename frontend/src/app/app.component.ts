@@ -190,11 +190,20 @@ export class AppComponent {
    * horizontal nav had).
    */
   protected readonly sidebarItems = computed<SidebarItem[]>(() => {
-    if (this.useMenuNav()) {
-      return menuNodesToSidebarItems(this.menu.menus());
-    }
     this.i18n.activeLang();
+    // Preview requires membership, not an invented task-write permission.
+    // Keep this fixed action available even when server menus are populated.
+    const importAction: SidebarItem = {
+      id: 'task-import-preview',
+      label: this.i18n.translate('taskImport.title'),
+      icon: 'view-columns',
+      route: '/tasks/import',
+    };
+    if (this.useMenuNav()) {
+      return [...menuNodesToSidebarItems(this.menu.menus()), importAction];
+    }
     return [
+      importAction,
       {
         id: 'projects',
         label: this.i18n.translate('nav.links.projects'),

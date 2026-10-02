@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Transient authenticated checklist preview; not public-upload readiness.
+    TASK_IMPORT_PREVIEW_ENABLED: bool = False
+
     # Explicit supervisor opt-in: suppress ALL startup seeding and scheduler
     # work, without bypassing encryption, database readiness or authentication.
     STARTUP_PROFILE: Literal["default", "local_restricted"] = "default"

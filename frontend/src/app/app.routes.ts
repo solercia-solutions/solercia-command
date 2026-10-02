@@ -18,6 +18,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'tasks/import',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('@pages/task-import/task-import-preview.component').then(
+        (m) => m.TaskImportPreviewComponent,
+      ),
+  },
+  {
     path: 'projects',
     canActivate: [authGuard],
     loadComponent: () =>

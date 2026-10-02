@@ -41,6 +41,7 @@ from app.modules.reminders.router import router as reminders_router
 from app.modules.roles.router import router as roles_admin_router
 from app.modules.search.router import router as search_router
 from app.modules.sprints.router import router as sprints_router
+from app.modules.task_import.router import router as task_import_router
 from app.modules.task_links.router import router as task_links_router
 from app.modules.tasks.router import router as tasks_router
 from app.modules.time_logs.router import router as time_logs_router
@@ -172,6 +173,7 @@ app.include_router(work_calendar_project_router, prefix=API_PREFIX)
 app.include_router(org_role_templates_router, prefix=API_PREFIX)
 app.include_router(boards_router, prefix=API_PREFIX)
 app.include_router(tasks_router, prefix=API_PREFIX)
+app.include_router(task_import_router, prefix=API_PREFIX)
 app.include_router(comments_router, prefix=API_PREFIX)
 app.include_router(attachments_router, prefix=API_PREFIX)
 app.include_router(sprints_router, prefix=API_PREFIX)
