@@ -94,8 +94,9 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 - [x] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
       `sol.themeStudio.*`. Verifica: build y lint. Commits `4fe21e2`, `5bbb3f9`.
       Navegador pendiente (U07a).
-- [ ] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
+- [x] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
       backend y frontend en puertos propios), sin tocar la base real. Corrige lo que aparezca.
+      Commits `69c9dd4`, `6d205e1`.
 - [ ] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
 
 ## Criterios de aceptación
@@ -194,9 +195,26 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   sesión e indicador de carga se editan pero Command no los consume.
   Llaves huérfanas sin borrar: todo el bloque `appearance.*`.
 
+- 2026-10-02 U07a (`69c9dd4`, `6d205e1`): recorrido en navegador sobre entorno desechable
+  (PostgreSQL `solercia-ui-tmp-pg-u07` en `127.0.0.1:55481`, Redis en `:55482`, backend `:58181`,
+  frontend `:54242`), todo detenido y sin restos; `alembic upgrade head` llegó a `0028` allí.
+  Visto y correcto en 1440×900 y 390×844: arranque sin errores ni 404, shell en claro y oscuro,
+  estados del menú, 15 rutas existentes sin desbordes, alertas, confirmación, páginas de error y
+  Theme Studio (aplicar, propagación, historial, restaurar, `tableStyle`, auto-cierre).
+  Corregido: el header tapaba 52 px del logo a 390 px (el selector de organización se reduce a su
+  avatar bajo 768 px); contraste del botón secundario en claro (2,6:1 → blanco).
+  Build exit 0 con 1 advertencia (1.09 MB); lint exit 0. Capturas fuera del repo.
+  Sin corregir: tras iniciar sesión el selector marca una organización y los datos son de otra
+  (`org-switcher.component.ts:82` cae a la primera por nombre; `backend/app/dependencies.py:177` a
+  la membresía más antigua; anterior a esta rama); el primer «Aplicar» normaliza el tema a los
+  presets del estudio (156 tokens); la librería rechaza importar `idartes.json` por
+  `primitives.breakpoint`; el logo de 180 px desborda la vista previa del estudio;
+  `GET /organizations/me/theme` se pide dos veces; 206 advertencias de traducción faltante de
+  `sol.themeStudio.*` en desarrollo.
+
 ## Siguiente paso
 
-U07a.
+U07.
 
 ## Espejo
 

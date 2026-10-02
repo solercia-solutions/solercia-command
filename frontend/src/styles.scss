@@ -457,11 +457,15 @@ html[style*="--sol-loader-image"] .sol-loader__spinner {
    campana y el menú de usuario a la vez: con el nombre visible, las
    acciones tapan el logo. El disparador se reduce a su avatar: conserva su
    rótulo accesible, y el nombre y el rol se leen al abrir el panel.
+   Con una sola organización la librería pinta la variante estática (sin
+   disparador ni panel), que desborda igual: también queda en su avatar, que
+   lleva el nombre como rótulo accesible.
    Especificidad (0,2,1) contra la regla emulada de la librería (0,2,0):
    gana sin !important.
    ------------------------------------------------------------------------ */
 @media (max-width: 767px) {
-  sol-org-switcher .sol-scope-switcher__trigger .sol-scope-switcher__labels {
+  sol-org-switcher .sol-scope-switcher__trigger .sol-scope-switcher__labels,
+  sol-org-switcher .sol-scope-switcher__static .sol-scope-switcher__labels {
     display: none;
   }
 }
