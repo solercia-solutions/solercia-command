@@ -97,7 +97,9 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 - [x] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
       backend y frontend en puertos propios), sin tocar la base real. Corrige lo que aparezca.
       Commits `69c9dd4`, `6d205e1`.
-- [ ] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
+- [x] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
+      Verifica: build y lint. Commits `a524de7`, `c875c10` y el del arnés y el informe en
+      `docs/paridad-ui-pandora/`.
 
 ## Criterios de aceptación
 
@@ -212,9 +214,30 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   `GET /organizations/me/theme` se pide dos veces; 206 advertencias de traducción faltante de
   `sol.themeStudio.*` en desarrollo.
 
+- 2026-10-02 U07 (`a524de7`, `c875c10` y el commit del arnés): los dos frontends servidos en local
+  (Command `:54311`, PANDORA `:54312` con proxy vacío), API interceptada en el navegador con datos
+  sintéticos, sin backend ni base de datos; procesos detenidos, puertos libres y `pandora_front`
+  sin cambios (`git status --short` vacío antes y después, HEAD `d4884a12`).
+  48 combinaciones de escena, viewport y modo: 40 comparadas en vivo, 6 que no aplican y 2 sin
+  referencia (error 403 en carga directa y modo oscuro). Método, tabla completa, diferencias con su
+  causa y clasificación: `docs/paridad-ui-pandora/README.md`; números en `resultados.json`.
+  0 % en logo, menú inferior, error 403 al llegar desde el shell, migas a 390 px y diálogo del
+  Theme Studio. Ruido entre dos corridas: 226 de 228 capturas idénticas.
+  Corregido: a 390 px con una sola organización el selector no se reducía a su avatar y tapaba el
+  logo (`styles.scss`); la nota del reloj de soporte no mostraba el desfase «(UTC−05:00)»
+  (`user-menu.component.ts`, `es-CO.json`).
+  Build exit 0 con 1 advertencia (1.09 MB); lint exit 0.
+  Sin corregir, documentado: los `<button>` heredan la tipografía por la hoja base de Tailwind 3 y
+  sus íconos quedan 1 px más arriba que en PANDORA; Command declara Inter 700 y PANDORA no, así que
+  la negrita 700 se ve más pesada en Command.
+  **Abierto para decisión del usuario (se suma a lo anterior):** entradas «Perfil» y «Apariencia»
+  del menú de usuario; estado inicial del sidebar (PANDORA colapsado, Command expandido).
+
 ## Siguiente paso
 
-U07.
+Decisiones abiertas del usuario (guard de administrador del Theme Studio, canal de ayuda, estado
+inicial y auto-cierre del sidebar, interfaz de restablecer, interceptor de errores, organización
+activa tras iniciar sesión, entradas del menú de usuario) y, con su autorización, push y PR.
 
 ## Espejo
 
