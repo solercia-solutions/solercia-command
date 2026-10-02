@@ -119,11 +119,11 @@ export const routes: Routes = [
           import('@pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
       },
       {
+        // Theme Studio of @solercia/ui. The path is the one the "Apariencia"
+        // menu entry of the backend catalog points to.
         path: 'settings/appearance',
         loadComponent: () =>
-          import('@pages/settings/appearance/appearance-page.component').then(
-            (m) => m.AppearancePageComponent,
-          ),
+          import('@pages/theme-studio').then((m) => m.ThemeStudioPageComponent),
       },
       {
         path: 'task/:key',

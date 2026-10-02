@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 import { ThemeService, isRenderableTheme, THEME_SOURCE } from '@shared/ui';
 import type { ThemeFile } from '@shared/ui';
 import { OrgThemeApi } from '@entities/organization/org-theme.api';
@@ -17,8 +17,8 @@ import { OrgThemeApi } from '@entities/organization/org-theme.api';
  * - `loaded` — a load attempt finished (the shell's hydration effect guards
  *   on it, same contract as `MenuService.loaded`).
  *
- * The appearance editor previews candidate themes with `preview()` (no
- * persistence) and MUST call `applySaved()` when leaving without saving.
+ * The Theme Studio persists through `save()` (see `OrgThemeStudioStore`), so
+ * an applied theme reaches the whole app without a reload.
  */
 @Injectable({ providedIn: 'root' })
 export class TenantThemeService {
@@ -70,22 +70,24 @@ export class TenantThemeService {
     this.theme.setTenantTheme(null);
   }
 
-  /** Apply a candidate theme WITHOUT persisting (live editor preview). */
-  preview(file: ThemeFile): void {
-    this.theme.setTenantTheme(file);
-  }
-
-  /** Re-apply the last persisted theme (leaving the editor without saving). */
-  applySaved(): void {
-    this.theme.setTenantTheme(this._saved());
-  }
-
-  /** Persist the theme for the whole organization and apply it. */
-  save(file: ThemeFile): Observable<unknown> {
-    return this.api.putTheme(file).pipe(
-      tap(() => {
-        this._saved.set(file);
-        this.theme.setTenantTheme(file);
+  /**
+   * Persist the theme for the whole organization and apply it. Emits the
+   * theme AS PERSISTED; `sourceVersionId` is the restored history version the
+   * change is based on. A persisted theme that does not render is emitted but
+   * never adopted, so the app keeps the theme it had.
+   */
+  save(
+    file: ThemeFile,
+    sourceVersionId: number | null = null,
+  ): Observable<ThemeFile> {
+    return this.api.putTheme(file, sourceVersionId).pipe(
+      map((res) => res.data),
+      tap((persisted) => {
+        if (!isRenderableTheme(persisted)) {
+          return;
+        }
+        this._saved.set(persisted);
+        this.theme.setTenantTheme(persisted);
       }),
     );
   }

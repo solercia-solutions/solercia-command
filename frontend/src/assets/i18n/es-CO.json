@@ -941,6 +941,10 @@
     },
     "shell": {
       "userFallbackName": "Usuario"
+    },
+    "themeStudio": {
+      "footerPlaceholder": "{{ year }} © Hecho con ❤ en {{ organization }} | Solercia Command",
+      "organizationFallback": "tu organización"
     }
   },
   "performance": {
@@ -1337,6 +1341,19 @@
           "title": "Ocurrió un error",
           "message": "No fue posible completar la acción. Intenta de nuevo."
         }
+      }
+    }
+  },
+  "sol": {
+    "themeStudio": {
+      "preview": {
+        "footerFallback": "© Hecho con ❤ en tu organización | Solercia Command"
+      },
+      "table": {
+        "hint": "Presets tipo Word para las tablas. Los colores derivan del tema, así que reaccionan al modo claro y oscuro."
+      },
+      "loader": {
+        "hint": "Reemplaza los indicadores de carga de la aplicación. Sin imagen se usa un anillo con el color del tema."
       }
     }
   },

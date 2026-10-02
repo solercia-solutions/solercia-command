@@ -88,7 +88,9 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 - [x] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
       páginas de error e interceptor de errores. Verifica: build y lint. Commits `545adc7`,
       `0485645`, `81db97d`, `3c2c062`. Navegador pendiente (se verifica junto con U03).
-- [ ] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego en verde.
+- [x] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego
+      en verde. Commit `1608b75`. Migración `0028` probada solo en contenedor desechable; NO aplicada
+      a la base real (requiere autorización expresa).
 - [ ] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
       `sol.themeStudio.*`. Verifica: build, lint y navegador.
 - [ ] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
@@ -157,9 +159,28 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   `nav.primaryNavAria`, `nav.sidebarCollapse`, `nav.sidebarExpand`, `nav.sidebarToggle`,
   `nav.themeToDark`, `nav.themeToLight`.
 
+- 2026-10-02 U05 (`1608b75`, 11 archivos, +1742 −62, más de la mitad pruebas): TDD observado.
+  Rojo: `pytest tests/test_org_theme_versions.py -v` → 21 failed; el archivo de servicio falló en
+  colección. Verde: 55 passed en 14.40 s sobre los archivos del cambio y los existentes del tema y
+  de organización activa. Base de pruebas: contenedor desechable `solercia-ui-tmp-pg-u05`
+  (`postgres:16`, tmpfs, `127.0.0.1:55471`), detenido y ya inexistente. Riesgo evaluado: alta por
+  migración y permisos; sin revisión nativa (apagada).
+  Contrato (base `/api/v1`, solo administrador, organización activa):
+  `PUT /organizations/me/theme?source_version_id=<int>` responde `{data: tema, meta: {version}}`;
+  `GET /organizations/me/theme/versions?before=<int>` responde `{data: {versions, next}}`, 20 por
+  página; `GET /organizations/me/theme/versions/{id}` responde `{data: {…, theme}}`. Campos de
+  versión: `id`, `user_name`, `user_id`, `applied_at`, `initial_capture`, `source_version_id`.
+  Decisiones: llave `BIGINT` de identidad con cursor `id < before`; bloqueo de fila de la
+  organización para serializar; captura inicial única por índice parcial; `DELETE` no borra
+  historial y captura el tema si nunca se había registrado.
+  Sin prueba de migración en el repo: el patrón existente ejecuta `DROP DATABASE` y no se corrió;
+  la migración se verificó con subida, bajada y nueva subida dentro del contenedor desechable.
+  **Abierto para decisión del usuario:** tras restablecer (`DELETE`) el tema vigente es nulo y la
+  versión más reciente del historial ya no coincide con él.
+
 ## Siguiente paso
 
-U05.
+U06.
 
 ## Espejo
 
