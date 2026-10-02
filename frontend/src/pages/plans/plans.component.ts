@@ -22,7 +22,7 @@ import {
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { readApiError } from '@shared/lib/api-error';
-import { ToastStore } from '@shared/lib/toast';
+import { AlertService } from '@shared/lib/alerts';
 import { PlansService } from '@entities/plan/plans.service';
 import { OrganizationsService } from '@entities/organization/organizations.service';
 import { OrganizationMembership } from '@entities/organization/organization.model';
@@ -575,7 +575,7 @@ export class PlansComponent implements OnInit {
   private readonly organizations = inject(OrganizationsService);
   private readonly activeOrg = inject(ActiveOrgStore);
   private readonly auth = inject(AuthService);
-  private readonly toast = inject(ToastStore);
+  private readonly alert = inject(AlertService);
 
   /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
   protected readonly text = {
@@ -870,14 +870,14 @@ export class PlansComponent implements OnInit {
 
   /** After a period report was saved: confirm and refresh both figures. */
   protected onReportSaved(): void {
-    this.toast.success(
+    this.alert.showSuccess(
       this.translate('plans.reportForm.saved', { period: this.periodShort(this.period()) }),
     );
     this.refreshAfterWrite();
   }
 
   protected onTasksChanged(kind: 'linked' | 'unlinked'): void {
-    this.toast.success(this.translate(`plans.linker.${kind}`));
+    this.alert.showSuccess(this.translate(`plans.linker.${kind}`));
     this.refreshAfterWrite();
   }
 

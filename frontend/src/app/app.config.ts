@@ -18,7 +18,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@features/auth/auth.interceptor';
 import { OrgThemeSource } from '@features/theme/org-theme.source';
 import { provideI18n, I18nService } from '@shared/i18n';
-import { ToastStore } from '@shared/lib/toast';
+import { AlertService } from '@shared/lib/alerts';
 import { reloadOnMissingChunk } from '@shared/lib/utils/reload-on-missing-chunk.util';
 import solerciaDefaultTheme from '../assets/themes/solercia-default.theme.json';
 
@@ -38,9 +38,10 @@ export const appConfig: ApplicationConfig = {
       routes,
       withNavigationErrorHandler((error) => {
         if (reloadOnMissingChunk(error) !== 'blocked') return;
-        inject(ToastStore).warning(
+        // Duración 0: el aviso se queda hasta que la persona lo cierre.
+        inject(AlertService).showWarning(
           inject(I18nService).translate('shared.errorState.outdatedVersion'),
-          { durationMs: 0 },
+          0,
         );
       }),
     ),

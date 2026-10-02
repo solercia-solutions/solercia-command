@@ -25,7 +25,7 @@ import {
   SolToggleComponent,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
-import { ToastStore } from '@shared/lib/toast';
+import { AlertService } from '@shared/lib/alerts';
 import { readApiError } from '@shared/lib/api-error';
 import { ConnectorsService } from '@entities/connector/connectors.service';
 import {
@@ -524,7 +524,7 @@ const SOLERCIA_CONNECT = 'solercia_connect';
 export class ConnectionsComponent implements OnInit {
   private readonly connectorsService = inject(ConnectorsService);
   private readonly i18n = inject(I18nService);
-  private readonly toast = inject(ToastStore);
+  private readonly alert = inject(AlertService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -780,7 +780,7 @@ export class ConnectionsComponent implements OnInit {
         window.location.assign(url);
       },
       error: (err: HttpErrorResponse) => {
-        this.toast.error(
+        this.alert.showError(
           err.status === 401
             ? this.i18n.translate('connectors.errors.session')
             : this.apiErrorMessage(err, 'connectors.errors.connectStart'),
@@ -838,11 +838,11 @@ export class ConnectionsComponent implements OnInit {
   protected revokeAccount(connector: Connector, account: ConnectedAccount): void {
     this.connectorsService.revokeAccount(account.id).subscribe({
       next: () => {
-        this.toast.success(this.i18n.translate('connectors.accounts.revoked'));
+        this.alert.showSuccess(this.i18n.translate('connectors.accounts.revoked'));
         this.loadAccounts(connector.id);
       },
       error: (err: HttpErrorResponse) => {
-        this.toast.error(this.apiErrorMessage(err, 'connectors.accounts.revokeError'));
+        this.alert.showError(this.apiErrorMessage(err, 'connectors.accounts.revokeError'));
       },
     });
   }
@@ -872,7 +872,7 @@ export class ConnectionsComponent implements OnInit {
       next: () => {
         this.deleteSubmitting.set(false);
         this.deleting.set(null);
-        this.toast.success(this.i18n.translate('connectors.delete.success'));
+        this.alert.showSuccess(this.i18n.translate('connectors.delete.success'));
         this.load();
       },
       error: (err: HttpErrorResponse) => {
@@ -949,7 +949,7 @@ export class ConnectionsComponent implements OnInit {
         this.creating.set(false);
         this.setCreateFormEnabled(true);
         this.createOpen.set(false);
-        this.toast.success(this.i18n.translate('connectors.create.success'));
+        this.alert.showSuccess(this.i18n.translate('connectors.create.success'));
         this.load();
       },
       error: (err: HttpErrorResponse) => {
@@ -1030,7 +1030,7 @@ export class ConnectionsComponent implements OnInit {
         this.glpiAppTokenControl.setValue('');
         this.glpiUserTokenControl.setValue('');
         this.jiraApiTokenControl.setValue('');
-        this.toast.success(this.i18n.translate('connectors.credentials.success'));
+        this.alert.showSuccess(this.i18n.translate('connectors.credentials.success'));
         this.loadAccounts(target.id);
       },
       error: (err: HttpErrorResponse) => {

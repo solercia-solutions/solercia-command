@@ -78,9 +78,10 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
 
 - [x] U00 Commits del trabajo pendiente en la rama base: 13 commits, `799396d`..`046f589`. Sin pruebas ejecutadas.
 - [x] U01 Subir `@solercia/ui` a `^0.6.1` y ajustar los cambios de contrato. Verifica: build y lint. Commit `3fe0afa`.
-- [ ] U02 Configuración global como PANDORA: locale es-CO, recarga ante chunk faltante, tema por
+- [x] U02 Configuración global como PANDORA: locale es-CO, recarga ante chunk faltante, tema por
       defecto al arrancar, reglas `sol-*` de estilos, fuentes y favicon por tema, tema por defecto
-      completo, retiro de `assets/config/theme-config.json`. Verifica: build, lint y navegador.
+      completo, retiro de `assets/config/theme-config.json`. Verifica: build y lint. Commit `0d8dd69`.
+      Navegador pendiente (se verifica junto con U03).
 - [ ] U03 Shell: página shell y widgets del porte, menú adaptado a `GET /auth/me/menus`.
       Verifica: build, lint y navegador en 1440×900 y 390×844, claro y oscuro.
 - [ ] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
@@ -109,9 +110,20 @@ La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido
   Pendiente de verificar en navegador: `sol-data-table` ahora colapsa a tarjetas por ancho del
   contenedor (5 usos en `pages/admin/*`). Diferido a U02: `meta.logo` falta en el tema por defecto.
 
+- 2026-10-02 U02 (`0d8dd69`, 14 archivos): build exit 0 con la advertencia de presupuesto inicial
+  (1.11 MB; el aumento son las reglas `@font-face` que ahora se incrustan en `styles.css`); lint
+  exit 0 sin problemas. Sin verificación en navegador: los servicios locales estaban apagados.
+  Logo y favicon propios creados en `src/assets/logos/` a partir de la marca del header.
+  Efectos conocidos: el texto base pasa de 16 px a 14 px como en PANDORA; la librería no aplica
+  `meta.favicon` ni `meta.defaultMode` del tema por defecto (solo de temas de organización), así
+  que el favicon sale del `<link rel="icon">` de `index.html`. `component.table.variant` quedó sin
+  fijar, igual que en el tema por defecto de PANDORA. Riesgo evaluado: baja.
+- Cambio de orden: U04 va antes que U03 porque el panel de ayuda del shell depende del estado de
+  error y este del servicio de alertas.
+
 ## Siguiente paso
 
-U02.
+U04, luego U03.
 
 ## Espejo
 

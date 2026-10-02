@@ -24,9 +24,9 @@ import { NotificationsService } from '@entities/notification/notifications.servi
 import { NotificationPanelComponent } from '@widgets/notification-panel/notification-panel.component';
 import { SolLayoutShellComponent } from '@widgets/layout-shell';
 import { SidebarItem } from '@widgets/sidebar';
+import { SolAlertCenterComponent } from '@widgets/alert-center';
 import { SolIconComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
-import { ToastHostComponent } from '@shared/lib/toast';
 import { OrgSwitcherComponent } from '@features/organizations/org-switcher.component';
 
 /**
@@ -95,7 +95,7 @@ function applyLoader(loader: ThemeMetaExtras['loader']): void {
     NotificationPanelComponent,
     SolIconComponent,
     OrgSwitcherComponent,
-    ToastHostComponent,
+    SolAlertCenterComponent,
   ],
   template: `
     <sol-layout-shell
@@ -200,8 +200,8 @@ function applyLoader(loader: ThemeMetaExtras['loader']): void {
       ></button>
     }
 
-    <!-- Transient feedback (toasts) for the whole app; pages only call ToastStore. -->
-    <sol-toast-host />
+    <!-- Transient feedback (alerts) for the whole app; pages only call AlertService. -->
+    <sol-alert-center />
   `,
 })
 export class AppComponent {

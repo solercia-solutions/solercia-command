@@ -23,7 +23,7 @@ import {
   SolTooltipComponent,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
-import { ToastStore } from '@shared/lib/toast';
+import { AlertService } from '@shared/lib/alerts';
 import { readApiError } from '@shared/lib/api-error';
 import { ConnectorsService } from '@entities/connector/connectors.service';
 import {
@@ -231,7 +231,7 @@ const STATE_BADGE: Record<SolerciaConnectState, 'success' | 'warning' | 'danger'
           </div>
         }
 
-        <!-- Sync detail (expanded from the warning toast) -->
+        <!-- Sync detail (expanded from the warning alert) -->
         @if (showSyncDetail()) {
           @if (lastSync(); as sync) {
             <div class="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3">
@@ -365,7 +365,7 @@ const STATE_BADGE: Record<SolerciaConnectState, 'success' | 'warning' | 'danger'
 export class SolerciaConnectCardComponent implements OnInit {
   private readonly connectorsService = inject(ConnectorsService);
   private readonly i18n = inject(I18nService);
-  private readonly toast = inject(ToastStore);
+  private readonly alert = inject(AlertService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly connector = input.required<Connector>();
@@ -600,25 +600,23 @@ export class SolerciaConnectCardComponent implements OnInit {
     if (api.status === 409 && api.code === 'solercia_connect_busy') {
       const running = api.meta?.['session_id'];
       const sessionId = typeof running === 'string' && running.length > 0 ? running : null;
-      this.toast.warning(
-        this.i18n.translate('connectors.solerciaConnect.session.busy'),
-        sessionId
-          ? {
-              durationMs: 0,
-              action: {
-                label: this.i18n.translate('connectors.solerciaConnect.actions.followSession'),
-                run: () => this.track(sessionId, DEFAULT_LOGIN_WINDOW_S),
-              },
-            }
-          : undefined,
-      );
+      const busy = this.i18n.translate('connectors.solerciaConnect.session.busy');
+      if (sessionId) {
+        // Duration 0: stays until dismissed, so the follow action remains reachable.
+        this.alert.showWarning(busy, 0, {
+          label: this.i18n.translate('connectors.solerciaConnect.actions.followSession'),
+          run: () => this.track(sessionId, DEFAULT_LOGIN_WINDOW_S),
+        });
+      } else {
+        this.alert.showWarning(busy);
+      }
       return;
     }
     if (api.status === 409 && api.code === 'solercia_connect_interactive_disabled') {
       this.patchStatus('interactive_disabled', api.detail, api.detail ? [api.detail] : []);
       return;
     }
-    this.toast.error(this.errorMessage(err, 'connectors.solerciaConnect.session.startError'));
+    this.alert.showError(this.errorMessage(err, 'connectors.solerciaConnect.session.startError'));
   }
 
   /** Follows one session: countdown every second, poll every 2 s, hard stop at expiry. */
@@ -652,7 +650,7 @@ export class SolerciaConnectCardComponent implements OnInit {
         next: (res) => this.onSessionUpdate(res.data),
         error: (err: unknown) => {
           this.stopTracking();
-          this.toast.error(this.errorMessage(err, 'connectors.solerciaConnect.session.pollError'));
+          this.alert.showError(this.errorMessage(err, 'connectors.solerciaConnect.session.pollError'));
         },
       });
   }
@@ -665,15 +663,15 @@ export class SolerciaConnectCardComponent implements OnInit {
     const account = this.settings()?.account ?? '';
     switch (session.state) {
       case 'connected':
-        this.toast.success(
+        this.alert.showSuccess(
           this.i18n.translate('connectors.solerciaConnect.session.connected', { account }),
         );
         break;
       case 'failed':
-        this.toast.error(this.failedMessage(session, account));
+        this.alert.showError(this.failedMessage(session, account));
         break;
       case 'not_found':
-        this.toast.error(this.i18n.translate('connectors.solerciaConnect.session.notFound'));
+        this.alert.showError(this.i18n.translate('connectors.solerciaConnect.session.notFound'));
         break;
     }
     this.refreshStatus();
@@ -693,14 +691,14 @@ export class SolerciaConnectCardComponent implements OnInit {
 
   private onExpired(): void {
     this.stopTracking();
-    this.toast.warning(this.i18n.translate('connectors.solerciaConnect.session.expired'));
+    this.alert.showWarning(this.i18n.translate('connectors.solerciaConnect.session.expired'));
     this.refreshStatus();
   }
 
   /** Stops polling only; the browser Connect opened stays open on the machine. */
   protected cancelTracking(): void {
     this.stopTracking();
-    this.toast.info(this.i18n.translate('connectors.solerciaConnect.session.cancelled'));
+    this.alert.showInfo(this.i18n.translate('connectors.solerciaConnect.session.cancelled'));
   }
 
   private stopTracking(): void {
@@ -731,10 +729,10 @@ export class SolerciaConnectCardComponent implements OnInit {
           const detail =
             api.detail ?? this.i18n.translate('connectors.solerciaConnect.sync.needsLogin');
           this.patchStatus('needs_login', detail);
-          this.toast.warning(detail);
+          this.alert.showWarning(detail);
           return;
         }
-        this.toast.error(this.errorMessage(err, 'connectors.solerciaConnect.sync.error'));
+        this.alert.showError(this.errorMessage(err, 'connectors.solerciaConnect.sync.error'));
       },
     });
   }
@@ -743,18 +741,17 @@ export class SolerciaConnectCardComponent implements OnInit {
     this.lastSync.set(result);
     const first: SolerciaConnectSyncError | undefined = result.errors[0];
     if (first) {
-      this.toast.warning(
+      this.alert.showWarning(
         this.i18n.translate('connectors.solerciaConnect.sync.partial', { first: first.detail }),
+        undefined,
         {
-          action: {
-            label: this.i18n.translate('connectors.solerciaConnect.actions.viewDetail'),
-            run: () => this.showSyncDetail.set(true),
-          },
+          label: this.i18n.translate('connectors.solerciaConnect.actions.viewDetail'),
+          run: () => this.showSyncDetail.set(true),
         },
       );
       return;
     }
-    this.toast.success(
+    this.alert.showSuccess(
       this.i18n.translate('connectors.solerciaConnect.sync.success', {
         new: result.items_new,
         duplicated: result.items_duplicated,
@@ -769,12 +766,12 @@ export class SolerciaConnectCardComponent implements OnInit {
     const payload = lines.join('\n');
     const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
     if (!clipboard) {
-      this.toast.error(this.i18n.translate('connectors.solerciaConnect.actions.copyError'));
+      this.alert.showError(this.i18n.translate('connectors.solerciaConnect.actions.copyError'));
       return;
     }
     clipboard.writeText(payload).then(
-      () => this.toast.success(this.i18n.translate('connectors.solerciaConnect.actions.copied')),
-      () => this.toast.error(this.i18n.translate('connectors.solerciaConnect.actions.copyError')),
+      () => this.alert.showSuccess(this.i18n.translate('connectors.solerciaConnect.actions.copied')),
+      () => this.alert.showError(this.i18n.translate('connectors.solerciaConnect.actions.copyError')),
     );
   }
 
