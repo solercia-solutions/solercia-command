@@ -1,7 +1,7 @@
 change: 39-conector-capacidades
 artifact_store: hybrid
 depends_on:
-  - 38-oauth-ms-google
+  - 47-solercia-connect-operativo
 phases:
   proposal: done
   spec: done
