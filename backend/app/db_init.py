@@ -81,6 +81,13 @@ from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,
 )
+from app.modules.plans.models import (  # noqa: F401
+    Plan,
+    PlanActivity,
+    PlanActivityLink,
+    PlanActivityReport,
+    TaskPlanActivity,
+)
 from app.modules.projects.models import Project  # noqa: F401
 from app.modules.reminders.models import Reminder, ReminderRule  # noqa: F401
 from app.modules.roles.models import (  # noqa: F401

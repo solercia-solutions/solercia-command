@@ -36,6 +36,7 @@ from app.modules.notifications.router import preferences_router as notifications
 from app.modules.notifications.router import router as notifications_router
 from app.modules.org_role_templates.router import router as org_role_templates_router
 from app.modules.organizations.router import router as organizations_router
+from app.modules.plans.router import router as plans_router
 from app.modules.projects.router import router as projects_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.roles.router import router as roles_admin_router
@@ -200,6 +201,7 @@ app.include_router(glpi_sync_router, prefix=API_PREFIX)
 app.include_router(jira_import_router, prefix=API_PREFIX)
 app.include_router(intake_router, prefix=API_PREFIX)
 app.include_router(assistant_router, prefix=API_PREFIX)
+app.include_router(plans_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:
