@@ -101,9 +101,9 @@ async def _create_connector_and_credentials(client: AsyncClient, token: str) -> 
 async def _create_jira_connector_with_credentials(
     client: AsyncClient, token: str, *, search_pages: list[dict]
 ) -> str:
-    register_adapter(JiraAdapter(transport=httpx.MockTransport(_mock_jira_handler(
-        search_pages=search_pages
-    ))))
+    register_adapter(
+        JiraAdapter(transport=httpx.MockTransport(_mock_jira_handler(search_pages=search_pages)))
+    )
     return await _create_connector_and_credentials(client, token)
 
 
