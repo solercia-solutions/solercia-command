@@ -1599,7 +1599,10 @@
     },
     "board": {
       "empty": "No hay tareas en este proyecto.",
-      "noColumns": "Esta metodología no define columnas de tablero."
+      "jumpAria": "Ir a la columna {{ name }}: {{ count }}",
+      "noColumns": "Esta metodología no define columnas de tablero.",
+      "summaryAria": "Tareas por columna del tablero",
+      "summaryHint": "El tablero tiene {{ count }} columnas: desliza hacia los lados o elige una para ir a ella."
     },
     "closeSprint": {
       "backlogDefault": "Backlog (por defecto)",
@@ -1652,7 +1655,24 @@
       "tasksLoad": "No se pudieron cargar las tareas. Inténtalo más tarde.",
       "velocityLoad": "No se pudo cargar la velocidad del equipo. Inténtalo más tarde."
     },
+    "filters": {
+      "activeOne": "1 filtro activo",
+      "activeOther": "{{ count }} filtros activos",
+      "assignee": "Responsable",
+      "assigneeAll": "Todas las personas",
+      "clear": "Limpiar filtros",
+      "priority": "Prioridad",
+      "priorityAll": "Todas las prioridades",
+      "regionAria": "Filtros de tareas",
+      "search": "Buscar",
+      "searchPlaceholder": "Título o descripción",
+      "status": "Estado",
+      "statusAll": "Todos los estados"
+    },
     "grid": {
+      "actions": "Acciones",
+      "empty": "No hay tareas para mostrar en la cuadrícula.",
+      "openTaskAria": "Abre el detalle de «{{ title }}»",
       "columns": {
         "assignee": "Responsable",
         "code": "Código",
@@ -1707,6 +1727,18 @@
       "velocityRefresh": "Actualizar",
       "velocityRefreshAria": "Actualiza la velocidad del equipo",
       "velocityTitle": "Velocidad del equipo"
+    },
+    "states": {
+      "empty": "Este proyecto aún no tiene tareas.",
+      "emptyHint": "Crea la primera para empezar a organizar el trabajo.",
+      "noMatch": "Ninguna tarea coincide con los filtros.",
+      "noMatchHint": "Ajusta los filtros o límpialos para ver todas las tareas.",
+      "retry": "Reintentar"
+    },
+    "summary": {
+      "countOne": "1 tarea",
+      "countOther": "{{ count }} tareas",
+      "countZero": "Sin tareas"
     },
     "tabs": {
       "backlog": "Backlog",

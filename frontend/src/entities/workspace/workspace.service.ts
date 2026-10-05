@@ -36,6 +36,10 @@ export interface TaskQuery {
   include_subtasks?: boolean;
   /** Calendar year of `created_at` (America/Bogota); omitted = every year. */
   year?: number;
+  /** Exact priority (`critical` | `high` | `medium` | `low`). */
+  priority?: string;
+  /** Free text over title/description (server-side). */
+  q?: string;
 }
 
 /** `GET /projects/{id}/tasks/years`: creation years with data, newest first. */
@@ -89,6 +93,12 @@ export class WorkspaceService {
     }
     if (query.year != null) {
       params = params.set('year', String(query.year));
+    }
+    if (query.priority) {
+      params = params.set('priority', query.priority);
+    }
+    if (query.q) {
+      params = params.set('q', query.q);
     }
     return this.http.get<TaskListResponse>(
       `${apiBase}/projects/${projectId}/tasks`,

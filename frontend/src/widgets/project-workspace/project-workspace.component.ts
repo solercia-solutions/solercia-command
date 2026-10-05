@@ -1,11 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
+  TemplateRef,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
@@ -16,20 +19,25 @@ import {
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-import { Subscription, forkJoin } from 'rxjs';
+import { Subscription, debounceTime, forkJoin, map } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
+  DataTableColumn,
   KanbanColumn,
   KanbanItemMoved,
+  SolBadgeComponent,
   SolButtonComponent,
   SolCardComponent,
+  SolDataTableComponent,
+  SolDataTableRow,
   SolDrawerComponent,
+  SolIconButtonComponent,
   SolIconComponent,
   SolModalComponent,
   SolKanbanBoardComponent,
-  SolSelectComponent,
   SolSelectOption,
+  SolSpinnerComponent,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
@@ -43,6 +51,10 @@ import {
 } from '@widgets/task-modal/task-modal.component';
 import { TaskDetailPanelComponent } from '@widgets/task-detail-panel/task-detail-panel.component';
 import { SprintGanttComponent } from '@widgets/sprint-gantt/sprint-gantt.component';
+import {
+  WorkspaceFilterControls,
+  WorkspaceFiltersComponent,
+} from './workspace-filters.component';
 import { TaskDetail } from '@entities/task/task-detail.model';
 import {
   BacklogAggregate,
@@ -51,6 +63,7 @@ import {
   Member,
   PRIORITY_CHIP_CLASS,
   PRIORITY_LABELS,
+  PRIORITY_OPTIONS,
   Sprint,
   SprintCloseResult,
   SprintListItem,
@@ -63,6 +76,17 @@ import {
 } from '@entities/workspace/workspace.model';
 
 type TabId = 'board' | 'backlog' | 'sprints' | 'timeline';
+type GridCellContext = { $implicit: unknown; row: SolDataTableRow };
+
+/** Orden natural de prioridad para la cuadrícula (crítica primero). */
+const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 } as const;
+/** Variante de `sol-badge` por prioridad (mismo criterio de color que el chip). */
+const PRIORITY_BADGE = {
+  critical: 'danger',
+  high: 'warning',
+  medium: 'info',
+  low: 'neutral',
+} as const;
 type ViewMode = 'board' | 'grid';
 
 /** View-model for one hierarchy group within a Backlog/sprint section
@@ -90,14 +114,18 @@ interface HierarchyRow {
     ReactiveFormsModule,
     NgTemplateOutlet,
     DragDropModule,
+    SolBadgeComponent,
     SolButtonComponent,
     SolCardComponent,
+    SolDataTableComponent,
     SolDrawerComponent,
+    SolIconButtonComponent,
     SolIconComponent,
     SolModalComponent,
     SolKanbanBoardComponent,
-    SolSelectComponent,
+    SolSpinnerComponent,
     SprintGanttComponent,
+    WorkspaceFiltersComponent,
     TaskModalComponent,
     TaskDetailPanelComponent,
     BurndownChartComponent,
@@ -114,10 +142,129 @@ interface HierarchyRow {
         --sol-overlay-blur: none;
       }
 
-      /* Selector «Año» (patrón «Periodo» de la telemetría de PANDORA). */
-      .pw-year {
-        flex: 0 1 200px;
-        min-width: 160px;
+      /* Encabezado al estilo PANDORA: título + acción en la misma fila. */
+      .pw-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--sol-space-md, 16px);
+      }
+
+      .pw-header__title {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sol-space-xs, 4px);
+        min-width: 0;
+      }
+
+      .pw-title {
+        margin: 0;
+        font-size: var(--sol-font-size-xl, 1.25rem);
+        color: var(--sol-color-text-primary);
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 767px) {
+        .pw-header__action {
+          width: 100%;
+        }
+
+        .pw-header__action ::ng-deep button {
+          width: 100%;
+          min-height: var(--sol-size-control-touch, 44px);
+        }
+      }
+
+      .pw-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--sol-space-sm, 8px);
+        padding: var(--sol-space-lg, 24px) var(--sol-space-md, 16px);
+        text-align: center;
+        font-size: var(--sol-font-size-sm, 0.875rem);
+        color: var(--sol-color-text-secondary);
+      }
+
+      /* Resumen de conteos por columna del tablero. */
+      .pw-board-summary {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sol-space-xs, 4px);
+      }
+
+      .pw-board-summary__hint {
+        margin: 0;
+        font-size: var(--sol-font-size-xs, 0.75rem);
+        color: var(--sol-color-text-secondary);
+      }
+
+      .pw-board-summary__list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sol-space-sm, 8px);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .pw-board-summary__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--sol-space-xs, 6px);
+        min-height: 2rem;
+        padding: 2px 10px;
+        border: 1px solid var(--sol-border-color-default);
+        border-radius: var(--sol-border-radius-full, 9999px);
+        background: var(--sol-color-surface, transparent);
+        color: var(--sol-color-text-primary);
+        font-size: var(--sol-font-size-sm, 0.875rem);
+        cursor: pointer;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+      }
+
+      .pw-board-summary__chip:hover {
+        border-color: var(--sol-color-primary);
+      }
+
+      .pw-board-summary__chip:focus-visible {
+        outline: 2px solid var(--sol-color-primary);
+        outline-offset: 2px;
+      }
+
+      .pw-board-summary__chip--empty {
+        color: var(--sol-color-text-secondary);
+      }
+
+      .pw-board-summary__count {
+        min-width: 1.5rem;
+        padding: 0 6px;
+        border-radius: var(--sol-border-radius-full, 9999px);
+        background: color-mix(in srgb, var(--sol-color-primary) 12%, transparent);
+        color: var(--sol-color-primary);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+      }
+
+      .pw-board-summary__chip--empty .pw-board-summary__count {
+        background: color-mix(in srgb, var(--sol-color-text-secondary) 12%, transparent);
+        color: var(--sol-color-text-secondary);
+      }
+
+      .pw-grid-title {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        max-width: 28rem;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pw-board-summary__chip {
+          transition: none;
+        }
       }
     `,
   ],
@@ -156,38 +303,42 @@ interface HierarchyRow {
             </svg>
             {{ text.backToProjects() }}
           </a>
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <h1 class="text-2xl font-semibold text-text">{{ proj.name }}</h1>
-              <span
-                class="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand"
-              >
-                {{ methodologyBadge() }}
-              </span>
+          <!-- Encabezado al estilo PANDORA: título, metodología y conteo a la
+               izquierda; la acción principal en la misma fila, a la derecha. -->
+          <div class="pw-header">
+            <div class="pw-header__title">
+              <div class="flex flex-wrap items-center gap-2">
+                <h1 class="pw-title sol-display">{{ proj.name }}</h1>
+                <sol-badge variant="info">{{ methodologyBadge() }}</sol-badge>
+              </div>
+              <p class="text-sm text-muted" aria-live="polite">
+                @if (!tasksLoading() && !tasksError()) {
+                  {{ taskCountText() }}
+                }
+              </p>
             </div>
-            <div class="flex flex-wrap items-end gap-3">
-              <sol-select
-                class="pw-year"
-                [label]="text.yearLabel()"
-                [options]="yearOptions()"
-                [showAllOption]="true"
-                [allOptionLabel]="text.yearAll()"
-                [formControl]="yearControl"
-              />
-              <sol-button
-                type="button"
-                variant="primary"
-                (click)="openCreate()"
-                [ariaLabel]="text.newTaskAria()"
-              >
-                + {{ text.newTask() }}
-              </sol-button>
-            </div>
+            <sol-button
+              class="pw-header__action"
+              type="button"
+              variant="primary"
+              (click)="openCreate()"
+              [ariaLabel]="text.newTaskAria()"
+            >
+              + {{ text.newTask() }}
+            </sol-button>
           </div>
-          @if (yearsUnavailable()) {
-            <p class="text-xs text-muted">{{ text.yearsUnavailable() }}</p>
-          }
         </div>
+
+        <sol-workspace-filters
+          [controls]="filterControls"
+          [yearOptions]="yearOptions()"
+          [statusOptions]="statusOptions()"
+          [assigneeOptions]="assigneeOptions()"
+          [priorityOptions]="priorityOptions"
+          [yearsUnavailable]="yearsUnavailable()"
+          [activeCount]="activeFilterCount()"
+          (cleared)="clearFilters()"
+        />
 
         <!-- Tabs -->
         <div class="flex gap-1 border-b border-border" role="tablist">
@@ -208,32 +359,52 @@ interface HierarchyRow {
           }
         </div>
 
+        <!-- Estados de la consulta de tareas: cargando, error (con
+             reintento), sin resultados por filtro, sin tareas en el año y
+             vacío legítimo. «Sin datos» nunca se muestra como «falló». -->
         @if (tasksLoading()) {
-          <p class="text-sm text-muted" role="status" aria-live="polite">
-            {{ text.yearLoadingTasks() }}
-          </p>
+          <div class="pw-state" role="status" aria-live="polite">
+            <sol-spinner size="md" />
+            <p>{{ text.yearLoadingTasks() }}</p>
+          </div>
         } @else if (tasksError()) {
           <div
             role="alert"
-            class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
           >
-            {{ tasksError() }}
+            <span>{{ tasksError() }}</span>
+            <sol-button type="button" variant="secondary" size="sm" (click)="loadTasks()">
+              {{ text.retry() }}
+            </sol-button>
           </div>
-        } @else if (selectedYear() !== null && allTasks().length === 0) {
+        } @else if (allTasks().length === 0) {
           <sol-card>
-            <div class="flex flex-col items-center gap-3 py-4">
-              <p class="text-center text-sm text-muted" role="status">
-                {{ emptyForYearText() }}
-              </p>
-              <sol-button type="button" variant="secondary" (click)="yearControl.setValue('')">
-                {{ text.yearShowAll() }}
-              </sol-button>
+            <div class="flex flex-col items-center gap-3 py-4 text-center">
+              @if (activeFilterCount() > 0) {
+                <p class="text-sm font-medium text-text" role="status">{{ text.noMatch() }}</p>
+                <p class="text-sm text-muted">{{ text.noMatchHint() }}</p>
+                <sol-button type="button" variant="secondary" (click)="clearFilters()">
+                  {{ text.clearFilters() }}
+                </sol-button>
+              } @else if (selectedYear() !== null) {
+                <p class="text-sm text-muted" role="status">{{ emptyForYearText() }}</p>
+                <sol-button type="button" variant="secondary" (click)="yearControl.setValue('')">
+                  {{ text.yearShowAll() }}
+                </sol-button>
+              } @else {
+                <p class="text-sm font-medium text-text" role="status">{{ text.empty() }}</p>
+                <p class="text-sm text-muted">{{ text.emptyHint() }}</p>
+                <sol-button type="button" variant="primary" (click)="openCreate()">
+                  + {{ text.newTask() }}
+                </sol-button>
+              }
             </div>
           </sol-card>
         }
 
-        <!-- BOARD / GRID -->
-        @if (activeTab() === 'board') {
+        <!-- BOARD / GRID: oculto mientras carga o si la consulta falló, para
+             que un tablero en cero nunca se lea como «no hay tareas». -->
+        @if (activeTab() === 'board' && !tasksLoading() && !tasksError()) {
           <!-- View mode toggle -->
           <div class="flex items-center gap-2" role="group" [attr.aria-label]="text.viewModeGroupAria()">
             <button
@@ -280,7 +451,29 @@ interface HierarchyRow {
                 </p>
               </sol-card>
             } @else {
+              <!-- Resumen de conteos por columna: deja ver de un vistazo las
+                   columnas que quedan fuera de la vista y lleva a cada una. -->
+              <nav class="pw-board-summary" [attr.aria-label]="text.boardSummaryAria()">
+                <p class="pw-board-summary__hint">{{ boardSummaryHint() }}</p>
+                <ul class="pw-board-summary__list">
+                  @for (column of kanbanColumns(); track column.id; let index = $index) {
+                    <li>
+                      <button
+                        type="button"
+                        class="pw-board-summary__chip"
+                        [class.pw-board-summary__chip--empty]="column.items.length === 0"
+                        [attr.aria-label]="boardJumpAria(column.title ?? column.id, column.items.length)"
+                        (click)="scrollToColumn(index)"
+                      >
+                        <span>{{ column.title }}</span>
+                        <span class="pw-board-summary__count">{{ column.items.length }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </nav>
               <sol-kanban-board
+                #kanbanBoard
                 [columns]="kanbanColumns()"
                 [cardTemplate]="taskCardTpl"
                 (itemMoved)="onKanbanItemMoved($event)"
@@ -291,89 +484,31 @@ interface HierarchyRow {
             <!-- Grid view (change 32-jerarquia-subtareas: fuera de la
                  composición jerárquica — usa topLevelTasks(), nunca
                  allTasks(), o se inundaría de subtareas) -->
-            @if (topLevelTasks().length === 0) {
-              <sol-card>
-                <p class="py-6 text-center text-sm text-muted">
-                  {{ text.boardEmpty() }}
-                </p>
-              </sol-card>
-            } @else {
-              <div class="overflow-x-auto rounded-xl border border-border bg-surface">
-                <table class="w-full border-collapse text-left text-sm text-text">
-                <thead>
-                  <tr class="border-b border-border bg-surface/60">
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colCode() }}</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colTitle() }}</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colStatus() }}</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colAssignee() }}</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colPriority() }}</th>
-                    <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colDueDate() }}</th>
-                    @if (estimationMode() !== 'none') {
-                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{{ text.colEstimation() }}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (task of topLevelTasks(); track task.id) {
-                    <tr
-                      class="border-b border-border/50 transition-colors hover:bg-brand/5 cursor-pointer"
-                      (click)="openTaskDrawer(task)"
-                    >
-                      <td class="px-4 py-3 text-xs font-mono text-muted">
-                        @if (task.task_key) {
-                          <button
-                            type="button"
-                            (click)="$event.stopPropagation(); openTaskDrawer(task)"
-                            class="font-semibold text-brand hover:underline"
-                            [attr.aria-label]="openDetailAria(task.task_key)"
-                          >{{ task.task_key }}</button>
-                        } @else {
-                          <span class="text-muted">—</span>
-                        }
-                      </td>
-                      <td class="px-4 py-3 text-sm text-text max-w-xs truncate">
-                        {{ task.title }}
-                      </td>
-                      <td class="px-4 py-3">
-                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-muted/10 text-muted">
-                          {{ statusDisplay(task.status) }}
-                        </span>
-                      </td>
-                      <td class="px-4 py-3 text-sm text-text">
-                        {{ task.assignee_name || '—' }}
-                      </td>
-                      <td class="px-4 py-3">
-                        <span
-                          class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                          [class]="priorityChipClass(task.priority)"
-                        >{{ priorityLabel(task.priority) }}</span>
-                      </td>
-                      <td class="px-4 py-3 text-sm text-muted">
-                        {{ dateLabel(task.due_date) }}
-                      </td>
-                      @if (estimationMode() !== 'none') {
-                        <td class="px-4 py-3 text-sm text-muted text-right tabular-nums">
-                          @if (estimationMode() === 'points' || estimationMode() === 'both') {
-                            @if (task.estimation_points != null) {
-                              <span>{{ task.estimation_points }} {{ text.pointsSuffix() }}</span>
-                            }
-                          }
-                          @if (estimationMode() === 'hours' || estimationMode() === 'both') {
-                            @if (task.estimation_hours != null) {
-                              <span class="ml-1">{{ task.estimation_hours }} {{ text.hoursSuffix() }}</span>
-                            }
-                          }
-                          @if (task.estimation_points == null && task.estimation_hours == null) {
-                            <span>—</span>
-                          }
-                        </td>
-                      }
-                    </tr>
-                  }
-                </tbody>
-                </table>
-              </div>
-            }
+            <!-- sol-data-table (patrón de listado de PANDORA): paginada,
+                 acciones al inicio y colapso a tarjetas bajo 760 px. La
+                 búsqueda vive en la barra de filtros (servidor, aplica a
+                 todas las vistas), por eso la tabla no repite su buscador. -->
+            <sol-data-table
+              [data]="gridRows()"
+              [columns]="gridColumns()"
+              [emptyMessage]="text.gridEmpty()"
+              [paginated]="true"
+              [showToolbar]="false"
+              [showActions]="true"
+              [actionsLabel]="text.gridActions()"
+              actionsPosition="start"
+              [collapseWidth]="760"
+              trackByKey="id"
+            >
+              <ng-template #rowActions let-row>
+                <sol-icon-button
+                  icon="eye"
+                  variant="outline"
+                  [ariaLabel]="openTaskAria($any(row).title)"
+                  (clicked)="openTaskFromRow($any(row))"
+                />
+              </ng-template>
+            </sol-data-table>
           }
         }
 
@@ -939,6 +1074,37 @@ interface HierarchyRow {
           </div>
         }
 
+        <!-- Celdas de la cuadrícula (sol-data-table). -->
+        <ng-template #gridKeyCell let-row="row">
+          @if ($any(row).task_key) {
+            <button
+              type="button"
+              class="font-mono text-xs font-semibold text-brand hover:underline"
+              [attr.aria-label]="openDetailAria($any(row).task_key)"
+              (click)="openTaskFromRow($any(row))"
+            >{{ $any(row).task_key }}</button>
+          } @else {
+            <span class="text-muted">—</span>
+          }
+        </ng-template>
+        <ng-template #gridTitleCell let-row="row">
+          <button
+            type="button"
+            class="pw-grid-title text-left text-sm text-text hover:text-brand hover:underline"
+            [attr.aria-label]="openTaskAria($any(row).title)"
+            (click)="openTaskFromRow($any(row))"
+          >{{ $any(row).title }}</button>
+        </ng-template>
+        <ng-template #gridStatusCell let-row="row">
+          <sol-badge [variant]="$any(row).status_variant">{{ $any(row).status_label }}</sol-badge>
+        </ng-template>
+        <ng-template #gridPriorityCell let-row="row">
+          <sol-badge [variant]="$any(row).priority_variant">{{ $any(row).priority_label }}</sol-badge>
+        </ng-template>
+        <ng-template #gridDueCell let-row="row">
+          <span class="text-sm text-muted">{{ $any(row).due_label }}</span>
+        </ng-template>
+
         <!-- Task card content: proyectado dentro de sol-kanban-board (tablero)
              y reutilizado tal cual en la lista de backlog. La librería
              sol-kanban-* NUNCA conoce Task (D2): este template es 100 %
@@ -1344,18 +1510,23 @@ export class ProjectWorkspaceComponent implements OnInit {
     backToProjects: this.i18n.t('workspace.backToProjects'),
     newTask: this.i18n.t('workspace.newTask'),
     newTaskAria: this.i18n.t('workspace.newTaskAria'),
-    yearLabel: this.i18n.t('workspace.year.label'),
-    yearAll: this.i18n.t('workspace.year.all'),
     yearShowAll: this.i18n.t('workspace.year.showAll'),
     yearLoadingTasks: this.i18n.t('workspace.year.loadingTasks'),
-    yearsUnavailable: this.i18n.t('workspace.year.yearsUnavailable'),
+    retry: this.i18n.t('workspace.states.retry'),
+    empty: this.i18n.t('workspace.states.empty'),
+    emptyHint: this.i18n.t('workspace.states.emptyHint'),
+    noMatch: this.i18n.t('workspace.states.noMatch'),
+    noMatchHint: this.i18n.t('workspace.states.noMatchHint'),
+    clearFilters: this.i18n.t('workspace.filters.clear'),
+    boardSummaryAria: this.i18n.t('workspace.board.summaryAria'),
+    gridEmpty: this.i18n.t('workspace.grid.empty'),
+    gridActions: this.i18n.t('workspace.grid.actions'),
     viewModeGroupAria: this.i18n.t('workspace.viewMode.groupAria'),
     viewBoard: this.i18n.t('workspace.viewMode.board'),
     viewBoardAria: this.i18n.t('workspace.viewMode.boardAria'),
     viewGrid: this.i18n.t('workspace.viewMode.grid'),
     viewGridAria: this.i18n.t('workspace.viewMode.gridAria'),
     boardNoColumns: this.i18n.t('workspace.board.noColumns'),
-    boardEmpty: this.i18n.t('workspace.board.empty'),
     colCode: this.i18n.t('workspace.grid.columns.code'),
     colTitle: this.i18n.t('workspace.grid.columns.title'),
     colStatus: this.i18n.t('workspace.grid.columns.status'),
@@ -1463,6 +1634,60 @@ export class ProjectWorkspaceComponent implements OnInit {
   protected readonly yearOptions = computed<SolSelectOption[]>(() =>
     this.availableYears().map((year) => ({ value: String(year), label: String(year) })),
   );
+  /** Año preseleccionado al abrir (el que «Limpiar filtros» restaura). */
+  private readonly defaultYear = signal<number | null>(null);
+
+  /* ---- Barra de filtros (S04) --------------------------------------------
+   * Todos viajan al backend (`status`, `assignee_id`, `priority`, `q`,
+   * `year`) y aplican a todas las pestañas, igual que el año. Las opciones
+   * son valores reales del sistema: columnas del tablero, miembros del
+   * proyecto y prioridades; solo la búsqueda es texto libre. */
+  protected readonly filterControls: WorkspaceFilterControls = {
+    year: this.yearControl,
+    status: new FormControl<string>('', { nonNullable: true }),
+    assignee_id: new FormControl<string>('', { nonNullable: true }),
+    priority: new FormControl<string>('', { nonNullable: true }),
+    q: new FormControl<string>('', { nonNullable: true }),
+  };
+  private readonly filterStatus = signal('');
+  private readonly filterAssignee = signal('');
+  private readonly filterPriority = signal('');
+  private readonly filterQ = signal('');
+
+  protected readonly activeFilterCount = computed(() => {
+    const yearChanged = this.selectedYear() !== this.defaultYear() ? 1 : 0;
+    return (
+      yearChanged +
+      [this.filterStatus(), this.filterAssignee(), this.filterPriority(), this.filterQ()].filter(
+        (value) => value !== '',
+      ).length
+    );
+  });
+
+  protected readonly statusOptions = computed<SolSelectOption[]>(() =>
+    this.allowedStatuses().map((status) => ({ value: status, label: statusDisplay(status) })),
+  );
+  protected readonly assigneeOptions = computed<SolSelectOption[]>(() =>
+    [...this.members()]
+      .sort((a, b) => a.full_name.localeCompare(b.full_name, 'es'))
+      .map((member) => ({ value: member.user_id, label: member.full_name })),
+  );
+  protected readonly priorityOptions: SolSelectOption[] = PRIORITY_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+
+  protected readonly taskCountText = computed(() => {
+    this.i18n.activeLang();
+    const count = this.topLevelTasks().length;
+    if (count === 0) {
+      return this.i18n.translate('workspace.summary.countZero');
+    }
+    return count === 1
+      ? this.i18n.translate('workspace.summary.countOne')
+      : this.i18n.translate('workspace.summary.countOther', { count });
+  });
+
   protected readonly emptyForYearText = computed(() => {
     this.i18n.activeLang();
     return this.i18n.translate('workspace.year.emptyForYear', {
@@ -1586,6 +1811,33 @@ export class ProjectWorkspaceComponent implements OnInit {
   });
 
   constructor() {
+    // Filtros de valor cerrado: consultan en cuanto cambian.
+    const instant: [FormControl<string>, (value: string) => void][] = [
+      [this.filterControls.status, (value) => this.filterStatus.set(value ?? '')],
+      [this.filterControls.assignee_id, (value) => this.filterAssignee.set(value ?? '')],
+      [this.filterControls.priority, (value) => this.filterPriority.set(value ?? '')],
+    ];
+    for (const [control, apply] of instant) {
+      control.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
+        apply(value);
+        this.loadTasks();
+      });
+    }
+    // Búsqueda: espera a que la persona deje de escribir.
+    this.filterControls.q.valueChanges
+      .pipe(
+        map((value) => (value ?? '').trim()),
+        debounceTime(350),
+        takeUntilDestroyed(),
+      )
+      .subscribe((value) => {
+        if (value === this.filterQ()) {
+          return;
+        }
+        this.filterQ.set(value);
+        this.loadTasks();
+      });
+
     // `sol-select` es un ControlValueAccessor sin salida propia: el cambio de
     // año se escucha por el control reactivo (mismo patrón que PANDORA).
     this.yearControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
@@ -1831,6 +2083,53 @@ export class ProjectWorkspaceComponent implements OnInit {
     }));
   });
 
+  /* ---- Cuadrícula (sol-data-table) --------------------------------------- */
+  private readonly kanbanBoardRef = viewChild('kanbanBoard', { read: ElementRef });
+  private readonly gridKeyCell = viewChild<TemplateRef<GridCellContext>>('gridKeyCell');
+  private readonly gridTitleCell = viewChild<TemplateRef<GridCellContext>>('gridTitleCell');
+  private readonly gridStatusCell = viewChild<TemplateRef<GridCellContext>>('gridStatusCell');
+  private readonly gridPriorityCell = viewChild<TemplateRef<GridCellContext>>('gridPriorityCell');
+  private readonly gridDueCell = viewChild<TemplateRef<GridCellContext>>('gridDueCell');
+
+  protected readonly gridColumns = computed<DataTableColumn[]>(() => {
+    this.i18n.activeLang();
+    const columns: DataTableColumn[] = [
+      { key: 'task_key', label: this.text.colCode(), sortable: true, width: '110px', cellTemplate: this.gridKeyCell() },
+      { key: 'title', label: this.text.colTitle(), sortable: true, cellTemplate: this.gridTitleCell() },
+      { key: 'status_label', label: this.text.colStatus(), sortable: true, badge: true, cellTemplate: this.gridStatusCell() },
+      { key: 'assignee_label', label: this.text.colAssignee(), sortable: true },
+      { key: 'priority_rank', label: this.text.colPriority(), sortable: true, cellTemplate: this.gridPriorityCell() },
+      { key: 'due_sort', label: this.text.colDueDate(), sortable: true, cellTemplate: this.gridDueCell() },
+    ];
+    if (this.estimationMode() !== 'none') {
+      columns.push({ key: 'estimation_label', label: this.text.colEstimation() });
+    }
+    return columns;
+  });
+
+  /** Filas planas para la tabla: etiquetas ya resueltas y claves de orden
+   * (`priority_rank`, `due_sort`) para que ordenar no sea alfabético. */
+  protected readonly gridRows = computed<SolDataTableRow[]>(() => {
+    this.i18n.activeLang();
+    const done = this.doneStatus();
+    const first = this.allowedStatuses()[0] ?? null;
+    const mode = this.estimationMode();
+    return this.topLevelTasks().map((task) => ({
+      id: task.id,
+      task_key: task.task_key ?? '',
+      title: task.title,
+      status_label: statusDisplay(task.status),
+      status_variant: task.status === done ? 'success' : task.status === first ? 'neutral' : 'info',
+      assignee_label: task.assignee_name || '—',
+      priority_rank: PRIORITY_RANK[task.priority as keyof typeof PRIORITY_RANK] ?? 9,
+      priority_label: this.priorityLabel(task.priority),
+      priority_variant: PRIORITY_BADGE[task.priority as keyof typeof PRIORITY_BADGE] ?? 'neutral',
+      due_sort: task.due_date ?? '9999-12-31',
+      due_label: this.dateLabel(task.due_date),
+      estimation_label: this.estimationLabel(task, mode),
+    }));
+  });
+
   /** Active sprints other than the one being closed (for the target selector). */
   protected readonly activeSprintsForClose = computed<Sprint[]>(() =>
     this.sprints().filter(
@@ -1866,6 +2165,69 @@ export class ProjectWorkspaceComponent implements OnInit {
   }
 
   /* ---- i18n dynamic labels (loop/param dependent) ------------------------ */
+
+  protected openTaskAria(title: string): string {
+    return this.i18n.translate('workspace.grid.openTaskAria', { title });
+  }
+
+  protected boardJumpAria(name: string, count: number): string {
+    return this.i18n.translate('workspace.board.jumpAria', {
+      name,
+      count: this.countLabel(count),
+    });
+  }
+
+  protected readonly boardSummaryHint = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('workspace.board.summaryHint', {
+      count: this.kanbanColumns().length,
+    });
+  });
+
+  private countLabel(count: number): string {
+    if (count === 0) {
+      return this.i18n.translate('workspace.summary.countZero');
+    }
+    return count === 1
+      ? this.i18n.translate('workspace.summary.countOne')
+      : this.i18n.translate('workspace.summary.countOther', { count });
+  }
+
+  /** Lleva el tablero a la columna elegida en el resumen, sin tocar el
+   * arrastrar y soltar de la librería. */
+  protected scrollToColumn(index: number): void {
+    const host = this.kanbanBoardRef()?.nativeElement as HTMLElement | undefined;
+    const column = host?.querySelectorAll('sol-kanban-column').item(index) as HTMLElement | null;
+    if (!column) {
+      return;
+    }
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    column.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'start',
+    });
+  }
+
+  protected openTaskFromRow(row: SolDataTableRow): void {
+    const task = this.allTasks().find((candidate) => candidate.id === row['id']);
+    if (task) {
+      this.openTaskDrawer(task);
+    }
+  }
+
+  private estimationLabel(task: Task, mode: EstimationMode): string {
+    const parts: string[] = [];
+    if ((mode === 'points' || mode === 'both') && task.estimation_points != null) {
+      parts.push(`${task.estimation_points} ${this.text.pointsSuffix()}`);
+    }
+    if ((mode === 'hours' || mode === 'both') && task.estimation_hours != null) {
+      parts.push(`${task.estimation_hours} ${this.text.hoursSuffix()}`);
+    }
+    return parts.length > 0 ? parts.join(' · ') : '—';
+  }
 
   protected openDetailAria(key: string): string {
     return this.i18n.translate('workspace.grid.openDetailAria', { key });
@@ -2025,6 +2387,7 @@ export class ProjectWorkspaceComponent implements OnInit {
         this.yearsUnavailable.set(false);
         const current = new Date().getFullYear();
         const preselected = years.includes(current) ? current : (years[0] ?? null);
+        this.defaultYear.set(preselected);
         this.selectedYear.set(preselected);
         this.yearControl.setValue(preselected === null ? '' : String(preselected), {
           emitEvent: false,
@@ -2034,6 +2397,7 @@ export class ProjectWorkspaceComponent implements OnInit {
       error: () => {
         this.availableYears.set([]);
         this.yearsUnavailable.set(true);
+        this.defaultYear.set(null);
         this.selectedYear.set(null);
         this.yearControl.setValue('', { emitEvent: false });
         this.loadTasks();
@@ -2041,7 +2405,25 @@ export class ProjectWorkspaceComponent implements OnInit {
     });
   }
 
-  private loadTasks(): void {
+  /** Restaura los filtros por defecto (año preseleccionado, sin más filtros)
+   * con una sola consulta. */
+  protected clearFilters(): void {
+    const year = this.defaultYear();
+    const controls = this.filterControls;
+    controls.year.setValue(year === null ? '' : String(year), { emitEvent: false });
+    controls.status.setValue('', { emitEvent: false });
+    controls.assignee_id.setValue('', { emitEvent: false });
+    controls.priority.setValue('', { emitEvent: false });
+    controls.q.setValue('', { emitEvent: false });
+    this.selectedYear.set(year);
+    this.filterStatus.set('');
+    this.filterAssignee.set('');
+    this.filterPriority.set('');
+    this.filterQ.set('');
+    this.loadTasks();
+  }
+
+  protected loadTasks(): void {
     this.tasksError.set(null);
     this.tasksLoading.set(true);
     // Un cambio de año mientras otra carga sigue en vuelo cancela la
@@ -2055,6 +2437,10 @@ export class ProjectWorkspaceComponent implements OnInit {
       .tasks(this.projectId(), {
         include_subtasks: true,
         ...(year !== null ? { year } : {}),
+        ...(this.filterStatus() ? { status: this.filterStatus() } : {}),
+        ...(this.filterAssignee() ? { assignee_id: this.filterAssignee() } : {}),
+        ...(this.filterPriority() ? { priority: this.filterPriority() } : {}),
+        ...(this.filterQ() ? { q: this.filterQ() } : {}),
       })
       .subscribe({
         next: (res) => {
