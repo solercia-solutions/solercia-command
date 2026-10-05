@@ -48,7 +48,8 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
       con periodos reales (patrón «Periodo» de la telemetría de PANDORA). Commit `8f7b954`.
 - [x] S04 `/projects/:id` (workspace): barra de filtros y grid a `sol-data-table` paginada (L).
       Commit `064204b`.
-- [ ] S05 `/projects`: encabezado `h1.sol-display`, filtros en `sol-card` (M).
+- [x] S05 `/projects`: encabezado `h1.sol-display`, filtros en `sol-card` (M). Backend `d320782`,
+      `353c760`, `0d2a1f5`; frontend `31fac20`.
 - [ ] S06 `/task/:key` y `sol-task-detail-panel`: patrón de perfil de PANDORA (M).
 - [ ] S07 `/plans`: `sol-drawer` + `sol-form-field`, menos Tailwind (L).
 - [ ] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S).
@@ -112,6 +113,48 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   (2) `sol-select` y `sol-input` de la librería no asocian la etiqueta al control (nombre accesible
   = valor/placeholder); (3) el vacío legítimo no se pudo ver con datos reales (solo lectura).
 
+- 2026-10-04 S05 backend: `GET /projects?year=` (2000–2100, 422 fuera) deja solo proyectos con
+  tareas activas creadas ese año en Bogotá (subtareas incluidas, como `/tasks/years`; EXISTS).
+  Cada proyecto trae `task_count` y `open_task_count` en UNA consulta agregada para la página
+  (la prueba de N+1 pasa de 3 a 4 SELECT constantes). Conteos sobre tareas raíz, la misma unidad
+  del encabezado del workspace (en navegador una tarjeta decía 16 y el workspace 5; corregido).
+  Abierta = no `cancelled` y no cerrada; cerrada = `completed_at` o estado igual a la última
+  columna del tablero (regla de `TaskService._resolve_completed_at` y `rollup_progress`): las
+  tareas de SDMujer en «Completada»/«Done» no tienen `completed_at`. `GET /projects/years`
+  declarado antes de `/{project_id}`. Helper compartido `task_year_bounds`.
+  RED: 9 fallidas, 1 pasada (401); luego 1 RED por conteo de subtareas y 1 por última columna.
+  GREEN: `test_project_year_filter.py` 12/12 más vecinos (`test_task_year_filter`,
+  `test_projects`, `test_project_kind_filter`, `test_board_aware_call_sites`,
+  `test_project_update`, `test_project_hierarchy_endpoints`) 70/70 en PostgreSQL desechable
+  :55432; `ruff check` limpio en los archivos tocados.
+- 2026-10-04 S05 frontend: `h1.sol-display` + conteo («20 proyectos con tareas en 2026», «1 de 22
+  proyectos» con filtros locales) y «Crear proyecto» en la misma fila. `projects-filters.component.ts`
+  (`sol-card`): Año (años reales + «Todos los años», preselecciona el actual o el más reciente),
+  Metodología (solo las presentes) y Buscar (nombre o código, sin tildes). Año al backend,
+  metodología y búsqueda en el cliente. Tarjetas: «N tareas en 2026 · M abiertas», sin «Sin
+  descripción», código del proyecto. `?year=` (o `all`) en la URL, en el enlace a cada proyecto y
+  en «Volver a proyectos»; el workspace lo preselecciona. «Limpiar filtros» vuelve al año natural
+  (un año llegado por URL distinto cuenta como filtro activo). Proyecto nuevo con año elegido →
+  se abre su workspace (sin tareas no saldría en la lista). Selector «Proyecto padre» carga la
+  lista completa sin año. Estados: spinner `role=status`, error con «Reintentar», sin
+  coincidencias con «Limpiar filtros», sin proyectos en el año con «Ver todos los años», vacío
+  legítimo con «Crear proyecto», aviso en línea si falla `/projects/years` (lista todos).
+  Vista tabla (`sol-view-toggle` + `sol-data-table`) no se hizo: anotada como mejora.
+- 2026-10-04 S05 verificación: `npm run build` exit 0 (bundle inicial 1,09 MB, igual) y
+  `npm run lint` exit 0. Navegador 1440×900 y 390×844, claro y oscuro, sin desplazamiento
+  horizontal: IDARTES 2026 = 20 de 22 (oculta «Pandora Contratacion» y «Generales», sin tareas
+  2026); 2025 = 8; PANDORA-IDARTES 2025 «5 tareas» igual al workspace con `?year=2025`; todos
+  los años 29 = 29. SDMujer 2026: Generales 67/52, PANDORA 34/27, SGSI 104/91 abiertas. Búsqueda
+  `zzzxq` → «Ningún proyecto coincide» y limpiar; 500 simulado en `/projects` → alerta y
+  «Reintentar» OK; 500 en `/projects/years` → aviso y todos los proyectos. Solo lectura.
+- Veredicto UX S05: viene a encontrar el proyecto en el que trabaja este año. Bien: año
+  preseleccionado con datos reales, opciones conocidas en vez de texto libre, conteos que
+  coinciden con el workspace, el año no se pierde al entrar y volver. Fricciones: (1) «Removida»
+  y «Diferida» cuentan como abiertas (las columnas no tienen categoría) → categoría de columna
+  (abierta/cerrada/descartada); (2) a 390 px la barra ocupa ~250 px → filtros plegables, igual
+  que S04; (3) etiquetas de `sol-select`/`sol-input` sin asociación accesible (librería).
+
 ## Siguiente paso
 
-S05. Pendiente de S04: filtros plegables en móvil y etiquetas accesibles en `@solercia/ui`.
+S06. Pendientes: categoría de columna para «abierta», filtros plegables en móvil, etiquetas
+accesibles en `@solercia/ui`, vista tabla opcional en `/projects`.
