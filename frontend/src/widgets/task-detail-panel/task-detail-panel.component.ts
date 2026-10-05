@@ -10,8 +10,9 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '@features/auth/auth.service';
@@ -22,15 +23,28 @@ import {
   TaskDetail,
   formatBytes,
 } from '@entities/task/task-detail.model';
-import { Member, Sprint, statusDisplay } from '@entities/workspace/workspace.model';
+import {
+  Member,
+  Sprint,
+  TASK_TYPE_LABELS,
+  TaskType,
+  statusDisplay,
+} from '@entities/workspace/workspace.model';
 import { WorkspaceService } from '@entities/workspace/workspace.service';
-import { EstimationMode, MethodologyInfo } from '@entities/project/project.model';
+import { EstimationMode, MethodologyInfo, Project } from '@entities/project/project.model';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
+  SolAvatarComponent,
   SolBadgeComponent,
-  SolSelectComponent,
-  SolRichEditorComponent,
+  SolButtonComponent,
+  SolCardComponent,
+  SolErrorStateComponent,
   SolInputComponent,
+  SolRichEditorComponent,
+  SolSelectComponent,
+  SolSpinnerComponent,
+  SolTabsComponent,
+  type SolTabItem,
   MentionUser,
   LinkableTask,
 } from '@shared/ui';
@@ -40,15 +54,35 @@ import {
   parseOriginalEstimate,
 } from '@shared/lib/estimation';
 
+type LoadState = 'loading' | 'ready' | 'notFound' | 'forbidden' | 'error';
+type TabId = 'detail' | 'subtasks' | 'comments' | 'attachments';
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+/** Variante de `sol-badge` por prioridad (mismo criterio que la cuadrícula del workspace). */
+const PRIORITY_TONE: Record<string, BadgeTone> = {
+  critical: 'danger',
+  high: 'warning',
+  medium: 'info',
+  low: 'neutral',
+};
+
+/** Orígenes conocidos de una tarea importada → llave i18n de su nombre legible. */
+const SOURCE_KEYS: Record<string, string> = {
+  checklist_xlsx: 'taskDetail.sources.checklist_xlsx',
+  jira: 'taskDetail.sources.jira',
+  api: 'taskDetail.sources.api',
+  file: 'taskDetail.sources.file',
+};
+
 /**
- * Panel de detalle de tarea reutilizable (widget presentacional + datos).
+ * Panel de detalle de tarea reutilizable, con el patrón de detalle de PANDORA
+ * (`pages/perfil`): cabecera en `sol-card` y contenido en `sol-tabs`.
  *
- * Extraído de `pages/task-detail` para poder hospedarlo en dos contextos sin
- * duplicar UI:
- * - La página `/task/:key` (modo `compact=false`: layout de dos columnas,
- *   enlace de regreso al proyecto).
- * - El `sol-drawer` del workspace (modo `compact=true`: una sola columna,
- *   enlace a la página completa, estilo Jira).
+ * Se hospeda en dos contextos sin duplicar UI:
+ * - La página `/task/:key` (`compact=false`: Detalle a dos columnas y enlace
+ *   de regreso al proyecto).
+ * - El `sol-drawer` del workspace (`compact=true`: una columna y enlace a la
+ *   página completa).
  *
  * Carga todo por `taskKey` vía `TaskDetailService` y permite editar lo
  * esencial (estado, prioridad, responsable, sprint, estimación, descripción),
@@ -61,388 +95,728 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
-    DatePipe,
     DecimalPipe,
     FormsModule,
+    SolAvatarComponent,
     SolBadgeComponent,
-    SolSelectComponent,
-    SolRichEditorComponent,
+    SolButtonComponent,
+    SolCardComponent,
+    SolErrorStateComponent,
     SolInputComponent,
+    SolRichEditorComponent,
+    SolSelectComponent,
+    SolSpinnerComponent,
+    SolTabsComponent,
   ],
   template: `
-  @if (loading()) {
-    <div class="flex justify-center py-20">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent"></div>
-    </div>
-  }
-  @if (error()) {
-    <div class="rounded-lg border border-danger/30 bg-danger/10 p-4 text-danger">
-      {{ error() }}
-    </div>
-  }
-  @if (!loading() && task()) {
-    <!-- Header -->
-    <div class="mb-4 flex items-center gap-3">
-      @if (!compact()) {
-        <a [routerLink]="['/projects', task()!.project_id]"
-           class="flex items-center gap-1 text-sm text-muted hover:text-text transition-colors"
-           [attr.aria-label]="text.backAria()">
-          ← {{ text.back() }}
-        </a>
-      }
-      @if (task()!.task_key) {
-        <span class="font-mono text-sm font-semibold text-brand">{{ task()!.task_key }}</span>
-      }
-      @if (compact() && task()!.task_key) {
-        <a [routerLink]="['/task', task()!.task_key]"
-           class="ml-auto text-xs text-brand hover:underline"
-           [attr.aria-label]="text.openFullPageAria()">
-          {{ text.openFullPage() }}
-        </a>
-      }
-    </div>
-
-    <h1 class="mb-6 font-bold text-text" [class]="compact() ? 'text-lg' : 'text-2xl'">
-      {{ task()!.title }}
-    </h1>
-
-    <div [class]="compact() ? 'flex flex-col gap-6' : 'grid gap-6 md:grid-cols-[1fr_320px]'">
-      <!-- Fields (sidebar on page, first block in drawer) -->
-      <aside class="space-y-4" [class]="compact() ? '' : 'md:order-2'">
-        <div class="rounded-lg border border-border bg-surface p-4 space-y-4">
-
-          <!-- Status -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldStatus() }}</label>
-            <sol-select
-              [options]="statusOptions()"
-              [ngModel]="task()!.status"
-              (ngModelChange)="updateField('status', $event)"
-              [placeholder]="text.fieldStatusPlaceholder()"
-            />
-          </div>
-
-          <!-- Priority -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldPriority() }}</label>
-            <sol-select
-              [options]="priorityOptions()"
-              [ngModel]="task()!.priority"
-              (ngModelChange)="updateField('priority', $event)"
-              [placeholder]="text.fieldPriorityPlaceholder()"
-            />
-          </div>
-
-          <!-- Assignee -->
-          <div>
-            <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldAssignee() }}</label>
-            <sol-select
-              [options]="assigneeOptions()"
-              [ngModel]="task()!.assignee_id ?? ''"
-              (ngModelChange)="updateField('assignee_id', $event || null)"
-              [placeholder]="text.fieldAssigneePlaceholder()"
-            />
-          </div>
-
-          <!-- Sprint (only when the host or the project methodology enables sprints) -->
-          @if (effectiveSprintsEnabled()) {
-            <div>
-              <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldSprint() }}</label>
-              <sol-select
-                [options]="sprintOptions()"
-                [ngModel]="task()!.sprint_id ?? ''"
-                (ngModelChange)="updateField('sprint_id', $event || null)"
-                [placeholder]="text.fieldSprintNone()"
-              />
-            </div>
-          }
-
-          <!-- Estimation: story points (whole numbers only) -->
-          @if (effectiveEstimationMode() === 'points' || effectiveEstimationMode() === 'both') {
-            <div>
-              <label for="tdp-points" class="mb-1 block text-xs font-medium text-muted">
-                {{ text.fieldStoryPoints() }}
-              </label>
-              <input
-                id="tdp-points"
-                type="number"
-                min="0"
-                step="1"
-                class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
-                [value]="task()!.estimation_points ?? ''"
-                (change)="updateNumberField('estimation_points', $event)"
-                [attr.aria-label]="text.fieldStoryPoints()"
-              />
-              @if (pointsError()) {
-                <p class="mt-1 text-xs text-danger">{{ text.fieldStoryPointsInteger() }}</p>
-              }
-            </div>
-          }
-
-          <!-- Original estimate (Jira style: "4w 2d 3h" → stored as hours) -->
-          @if (effectiveEstimationMode() === 'hours' || effectiveEstimationMode() === 'both') {
-            <div>
-              <label for="tdp-estimate" class="mb-1 block text-xs font-medium text-muted">
-                {{ text.fieldOriginalEstimate() }}
-              </label>
-              <input
-                id="tdp-estimate"
-                type="text"
-                class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
-                [value]="originalEstimateDisplay()"
-                (change)="updateOriginalEstimate($event)"
-                [placeholder]="text.fieldOriginalEstimatePlaceholder()"
-                [attr.aria-label]="text.fieldOriginalEstimate()"
-              />
-              @if (estimateError()) {
-                <p class="mt-1 text-xs text-danger">{{ text.fieldOriginalEstimateInvalid() }}</p>
-              }
-            </div>
-          }
-
-          <!-- Due date -->
-          @if (task()!.due_date) {
-            <div>
-              <label class="mb-1 block text-xs font-medium text-muted">{{ text.fieldDueDate() }}</label>
-              <p class="text-sm text-text">{{ task()!.due_date | date:'dd/MM/yyyy' }}</p>
-            </div>
-          }
-
-          <!-- Risk flag -->
-          @if (task()!.risk_flag) {
-            <div class="rounded border border-danger/30 bg-danger/10 p-3">
-              <p class="text-xs font-semibold text-danger">{{ text.fieldAtRisk() }}</p>
-              @if (task()!.risk_reason) {
-                <p class="mt-1 text-xs text-danger/80">{{ task()!.risk_reason }}</p>
-              }
-            </div>
-          }
-        </div>
-      </aside>
-
-      <!-- Main content -->
-      <div class="space-y-6" [class]="compact() ? '' : 'md:order-1'">
-
-        <!-- Description -->
-        <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.description() }}</h2>
-          <sol-rich-editor
-            [ngModel]="task()!.description ?? ''"
-            (ngModelChange)="updateField('description', $event)"
-            [mentionableUsers]="mentionableUsers()"
-            [linkableTasks]="linkableTasks()"
-          />
-        </div>
-
-        <!-- Subtasks -->
-        <div class="rounded-lg border border-border bg-surface p-4">
-          <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-muted uppercase tracking-wide">{{ text.subtasksTitle() }}</h2>
-            <button
-              class="text-xs text-brand hover:underline"
-              (click)="showSubtaskForm.set(true)"
-              [attr.aria-label]="text.subtaskAddAria()">
-              + {{ text.subtaskNew() }}
-            </button>
-          </div>
-
-          @if (task()!.subtask_progress !== null) {
-            <div class="mb-3">
-              <div class="mb-1 flex justify-between text-xs text-muted">
-                <span>{{ text.subtaskProgress() }}</span>
-                <span>{{ (task()!.subtask_progress! * 100) | number:'1.0-0' }}%</span>
-              </div>
-              <div class="h-1.5 rounded-full bg-muted/20">
-                <div class="h-full rounded-full bg-brand transition-all"
-                     [style.width]="(task()!.subtask_progress! * 100) + '%'"></div>
-              </div>
-            </div>
-          }
-
-          <ul class="space-y-2">
-            @for (sub of subtasks(); track sub.id) {
-              <li class="flex items-center gap-2 rounded p-2 hover:bg-muted/5">
-                <sol-badge [variant]="statusTone(sub.status)">{{ sub.status }}</sol-badge>
-                @if (sub.task_key) {
-                  <a [routerLink]="['/task', sub.task_key]"
-                     class="text-sm text-text hover:text-brand hover:underline flex-1">
-                    {{ sub.title }}
-                  </a>
-                } @else {
-                  <span class="text-sm text-text flex-1">{{ sub.title }}</span>
+  @switch (state()) {
+    @case ('loading') {
+      <div class="tdp__state" role="status" aria-live="polite">
+        <sol-spinner size="lg" />
+        <p>{{ text.loading() }}</p>
+      </div>
+    }
+    @case ('notFound') {
+      <div class="tdp__state">
+        <sol-error-state [code]="404" [title]="text.notFoundTitle()" [message]="notFoundMessage()">
+          <a routerLink="/projects" class="tdp__link-button">{{ text.goProjects() }}</a>
+        </sol-error-state>
+      </div>
+    }
+    @case ('forbidden') {
+      <div class="tdp__state">
+        <sol-error-state [code]="403" [title]="text.forbiddenTitle()" [message]="text.forbiddenMessage()">
+          <a routerLink="/projects" class="tdp__link-button">{{ text.goProjects() }}</a>
+        </sol-error-state>
+      </div>
+    }
+    @case ('error') {
+      <div class="tdp__alert" role="alert">
+        <span>{{ text.loadError() }}</span>
+        <sol-button type="button" variant="secondary" size="sm" (clicked)="retry()">
+          {{ text.retry() }}
+        </sol-button>
+      </div>
+    }
+    @case ('ready') {
+      @if (task(); as t) {
+        <div class="tdp" [class.tdp--compact]="compact()">
+          <!-- Cabecera: identidad de la tarea + acciones -->
+          <sol-card>
+            <div class="tdp__stack tdp__stack--sm">
+            <div class="tdp__header-top">
+              <div class="tdp__ids">
+                @if (t.task_key) {
+                  <span class="tdp__code">{{ t.task_key }}</span>
                 }
-              </li>
-            }
-          </ul>
-
-          @if (showSubtaskForm()) {
-            <div class="mt-3 space-y-2 border-t border-border pt-3">
-              <sol-input
-                [label]="text.subtaskTitleField()"
-                [ngModel]="newSubtaskTitle()"
-                (ngModelChange)="newSubtaskTitle.set($event)"
-                [placeholder]="text.subtaskTitleField()"
-              />
-              <div>
-                <label class="mb-1 block text-xs text-muted">{{ text.subtaskHours() }}</label>
-                <input
-                  type="number"
-                  class="w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-text focus:border-brand focus:outline-none"
-                  [value]="newSubtaskHours()"
-                  (input)="newSubtaskHours.set(+$any($event.target).value || null)"
-                  placeholder="0"
-                  min="0"
-                />
+                @if (sourceText(); as src) {
+                  <span class="tdp__source" [attr.title]="text.sourceLabel()">
+                    {{ text.sourceLabel() }}: {{ src }}
+                  </span>
+                }
               </div>
-              <div class="flex gap-2">
-                <button
-                  class="rounded bg-brand px-3 py-1.5 text-xs font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
-                  (click)="createSubtask()"
-                  [disabled]="savingSubtask() || !newSubtaskTitle().trim()"
-                  [attr.aria-label]="text.subtaskSaveAria()">
-                  {{ savingSubtask() ? text.subtaskSaving() : text.subtaskSave() }}
-                </button>
-                <button
-                  class="rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
-                  (click)="showSubtaskForm.set(false)"
-                  [attr.aria-label]="text.subtaskCancelAria()">
-                  {{ text.subtaskCancel() }}
-                </button>
+              <div class="tdp__actions">
+                @if (compact()) {
+                  @if (t.task_key) {
+                    <a [routerLink]="['/task', t.task_key]" class="tdp__link-button"
+                       [attr.aria-label]="text.openFullPageAria()">
+                      {{ text.openFullPage() }}
+                    </a>
+                  }
+                } @else {
+                  <a [routerLink]="['/projects', t.project_id]" class="tdp__link-button"
+                     [attr.aria-label]="text.backAria()">
+                    ← {{ text.backAria() }}
+                  </a>
+                }
               </div>
             </div>
+
+            @if (compact()) {
+              <h2 class="tdp__title tdp__title--compact">{{ t.title }}</h2>
+            } @else {
+              <h1 class="tdp__title sol-display">{{ t.title }}</h1>
+            }
+
+            <div class="tdp__badges">
+              <sol-badge [variant]="statusTone(t.status)">{{ statusLabel(t.status) }}</sol-badge>
+              <sol-badge [variant]="priorityTone(t.priority)">
+                {{ text.fieldPriority() }}: {{ priorityLabel(t.priority) }}
+              </sol-badge>
+              @if (typeLabel(t.task_type); as type) {
+                <sol-badge variant="neutral">{{ type }}</sol-badge>
+              }
+              @if (t.risk_flag) {
+                <sol-badge variant="danger">{{ text.fieldAtRisk() }}</sol-badge>
+              }
+            </div>
+
+            <dl class="tdp__meta">
+              <div class="tdp__meta-item">
+                <dt>{{ text.fieldAssignee() }}</dt>
+                <dd class="tdp__person">
+                  @if (t.assignee_name) {
+                    <sol-avatar [name]="t.assignee_name" size="sm" />
+                    <span>{{ t.assignee_name }}</span>
+                  } @else {
+                    <span class="tdp__muted">{{ text.fieldAssigneePlaceholder() }}</span>
+                  }
+                </dd>
+              </div>
+              @if (project(); as p) {
+                <div class="tdp__meta-item">
+                  <dt>{{ text.metaProject() }}</dt>
+                  <dd>
+                    <a [routerLink]="['/projects', p.id]" class="tdp__inline-link">
+                      {{ projectLabel(p) }}
+                    </a>
+                  </dd>
+                </div>
+              }
+              <div class="tdp__meta-item">
+                <dt>{{ text.metaDue() }}</dt>
+                <dd [class.tdp__muted]="!t.due_date">{{ dateText(t.due_date) }}</dd>
+              </div>
+              @if (t.start_date) {
+                <div class="tdp__meta-item">
+                  <dt>{{ text.metaStart() }}</dt>
+                  <dd>{{ dateText(t.start_date) }}</dd>
+                </div>
+              }
+              <div class="tdp__meta-item">
+                <dt>{{ text.metaCreated() }}</dt>
+                <dd>{{ dateText(t.created_at) }}</dd>
+              </div>
+              @if (t.completed_at) {
+                <div class="tdp__meta-item">
+                  <dt>{{ text.metaCompleted() }}</dt>
+                  <dd>{{ dateText(t.completed_at) }}</dd>
+                </div>
+              }
+            </dl>
+            </div>
+          </sol-card>
+
+          @if (actionError()) {
+            <div class="tdp__alert" role="alert">
+              <span>{{ actionError() }}</span>
+              <sol-button type="button" variant="ghost" size="sm" (clicked)="actionError.set(null)">
+                {{ text.dismiss() }}
+              </sol-button>
+            </div>
           }
-        </div>
 
-        <!-- Comments -->
-        <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.commentsTitle() }}</h2>
+          <sol-tabs [tabs]="tabs()" [activeTab]="activeTab()" (tabChange)="onTabChange($event)" />
 
-          <ul class="space-y-4 mb-4">
-            @for (comment of comments(); track comment.id) {
-              <li class="space-y-2">
-                <div class="flex items-start gap-3">
-                  <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand">
-                    {{ comment.author_id.slice(0, 2).toUpperCase() }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-xs text-muted">{{ comment.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
-                      @if (auth.user()?.id === comment.author_id) {
-                        <button class="text-xs text-muted hover:text-text"
-                                (click)="startEditComment(comment)"
-                                [attr.aria-label]="text.commentEditAria()">
-                          {{ text.commentEdit() }}
-                        </button>
-                        <button class="text-xs text-danger/70 hover:text-danger"
-                                (click)="deleteComment(comment.id)"
-                                [attr.aria-label]="text.commentDeleteAria()">
-                          {{ text.commentDelete() }}
-                        </button>
-                      }
-                    </div>
-
-                    @if (editingCommentId() === comment.id) {
-                      <sol-rich-editor
-                        [ngModel]="editBody()"
-                        (ngModelChange)="editBody.set($event)"
-                        [mentionableUsers]="mentionableUsers()"
-                        [linkableTasks]="linkableTasks()"
+          <div class="tdp__tab-content">
+            @switch (activeTab()) {
+              @case ('detail') {
+                <div class="tdp__detail">
+                  <!-- Campos editables -->
+                  <sol-card class="tdp__fields">
+                    <div class="tdp__stack">
+                    <sol-select
+                      [label]="text.fieldStatus()"
+                      [options]="statusOptions()"
+                      [ngModel]="t.status"
+                      (ngModelChange)="updateField('status', $event)"
+                      [placeholder]="text.fieldStatusPlaceholder()"
+                    />
+                    <sol-select
+                      [label]="text.fieldPriority()"
+                      [options]="priorityOptions()"
+                      [ngModel]="t.priority"
+                      (ngModelChange)="updateField('priority', $event)"
+                      [placeholder]="text.fieldPriorityPlaceholder()"
+                    />
+                    <sol-select
+                      [label]="text.fieldAssignee()"
+                      [options]="assigneeOptions()"
+                      [searchable]="assigneeOptions().length > 7"
+                      [ngModel]="t.assignee_id ?? ''"
+                      (ngModelChange)="updateField('assignee_id', $event || null)"
+                      [placeholder]="text.fieldAssigneePlaceholder()"
+                    />
+                    @if (effectiveSprintsEnabled()) {
+                      <sol-select
+                        [label]="text.fieldSprint()"
+                        [options]="sprintOptions()"
+                        [ngModel]="t.sprint_id ?? ''"
+                        (ngModelChange)="updateField('sprint_id', $event || null)"
+                        [placeholder]="text.fieldSprintNone()"
                       />
-                      <div class="mt-2 flex gap-2">
-                        <button
-                          class="rounded bg-brand px-3 py-1.5 text-xs font-medium text-brand-fg hover:opacity-90"
-                          (click)="saveEditComment()"
-                          [attr.aria-label]="text.commentSaveEditAria()">
-                          {{ text.commentSaveEdit() }}
-                        </button>
-                        <button
-                          class="rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text"
-                          (click)="cancelEditComment()"
-                          [attr.aria-label]="text.commentCancelEditAria()">
-                          {{ text.commentCancelEdit() }}
-                        </button>
+                    }
+                    @if (effectiveEstimationMode() === 'points' || effectiveEstimationMode() === 'both') {
+                      <!-- Guarda al salir del campo o con Enter, no en cada tecla. -->
+                      <sol-input
+                        type="number"
+                        [label]="text.fieldStoryPoints()"
+                        [ngModel]="pointsDraft()"
+                        (ngModelChange)="pointsDraft.set($event)"
+                        (focusout)="commitPoints()"
+                        (keydown.enter)="commitPoints()"
+                        [error]="pointsError() ? text.fieldStoryPointsInteger() : ''"
+                      />
+                    }
+                    @if (effectiveEstimationMode() === 'hours' || effectiveEstimationMode() === 'both') {
+                      <sol-input
+                        [label]="text.fieldOriginalEstimate()"
+                        [placeholder]="text.fieldOriginalEstimatePlaceholder()"
+                        [ngModel]="estimateDraft()"
+                        (ngModelChange)="estimateDraft.set($event)"
+                        (focusout)="commitEstimate()"
+                        (keydown.enter)="commitEstimate()"
+                        [error]="estimateError() ? text.fieldOriginalEstimateInvalid() : ''"
+                      />
+                    }
+                    @if (t.risk_flag && t.risk_reason) {
+                      <div class="tdp__risk" role="note">
+                        <strong>{{ text.fieldAtRisk() }}</strong>
+                        <p>{{ t.risk_reason }}</p>
                       </div>
-                    } @else {
-                      <div class="prose prose-sm max-w-none text-text" [innerHTML]="comment.body"></div>
                     }
+                    </div>
+                  </sol-card>
 
-                    <!-- Comment attachments -->
-                    @if ((commentAttachments()[comment.id] ?? []).length > 0) {
-                      <ul class="mt-2 space-y-1">
-                        @for (att of commentAttachments()[comment.id]; track att.id) {
-                          <li class="flex items-center gap-2 text-xs text-muted">
-                            <span class="flex-1 truncate">{{ att.original_name }}</span>
-                            <span>{{ formatBytes(att.size_bytes) }}</span>
-                            <button class="text-brand hover:underline"
-                                    (click)="downloadAttachment(att)"
-                                    [attr.aria-label]="text.commentDownloadAria()">
-                              {{ text.commentDownload() }}
-                            </button>
-                          </li>
+                  <!-- Descripción -->
+                  <sol-card class="tdp__description">
+                    <h3 class="tdp__section-title">{{ text.description() }}</h3>
+                    <sol-rich-editor
+                      [ngModel]="t.description ?? ''"
+                      (ngModelChange)="updateField('description', $event)"
+                      [mentionableUsers]="mentionableUsers()"
+                      [linkableTasks]="linkableTasks()"
+                    />
+                  </sol-card>
+                </div>
+              }
+
+              @case ('subtasks') {
+                <sol-card>
+                  <div class="tdp__stack">
+                  <div class="tdp__section-head">
+                    <h3 class="tdp__section-title">{{ text.subtasksTitle() }}</h3>
+                    @if (!showSubtaskForm()) {
+                      <sol-button type="button" variant="secondary" size="sm"
+                                  (clicked)="showSubtaskForm.set(true)">
+                        + {{ text.subtaskNew() }}
+                      </sol-button>
+                    }
+                  </div>
+
+                  @if (t.subtask_progress !== null) {
+                    <div class="tdp__progress">
+                      <div class="tdp__progress-label">
+                        <span>{{ text.subtaskProgress() }}</span>
+                        <span>{{ (t.subtask_progress! * 100) | number:'1.0-0' }}%</span>
+                      </div>
+                      <div class="tdp__progress-track" role="progressbar"
+                           [attr.aria-valuenow]="(t.subtask_progress! * 100) | number:'1.0-0'"
+                           aria-valuemin="0" aria-valuemax="100"
+                           [attr.aria-label]="text.subtaskProgress()">
+                        <div class="tdp__progress-bar" [style.width.%]="t.subtask_progress! * 100"></div>
+                      </div>
+                    </div>
+                  }
+
+                  @if (subtasks().length === 0 && !showSubtaskForm()) {
+                    <p class="tdp__empty">{{ text.subtasksEmpty() }}</p>
+                  }
+
+                  <ul class="tdp__list">
+                    @for (sub of subtasks(); track sub.id) {
+                      <li class="tdp__list-item">
+                        <sol-badge [variant]="statusTone(sub.status)">{{ statusLabel(sub.status) }}</sol-badge>
+                        @if (sub.task_key) {
+                          <span class="tdp__code">{{ sub.task_key }}</span>
+                          <a [routerLink]="['/task', sub.task_key]" class="tdp__inline-link tdp__grow">
+                            {{ sub.title }}
+                          </a>
+                        } @else {
+                          <span class="tdp__grow">{{ sub.title }}</span>
                         }
-                      </ul>
+                      </li>
                     }
+                  </ul>
 
-                    <!-- Upload to comment -->
-                    <label class="mt-1 inline-block cursor-pointer text-xs text-muted hover:text-text">
-                      {{ text.commentUpload() }}
+                  @if (showSubtaskForm()) {
+                    <div class="tdp__form">
+                      <sol-input
+                        [label]="text.subtaskTitleField()"
+                        [ngModel]="newSubtaskTitle()"
+                        (ngModelChange)="newSubtaskTitle.set($event)"
+                        [placeholder]="text.subtaskTitleField()"
+                      />
+                      <sol-input
+                        type="number"
+                        [label]="text.subtaskHours()"
+                        [ngModel]="newSubtaskHours()"
+                        (ngModelChange)="newSubtaskHours.set($event)"
+                        placeholder="0"
+                      />
+                      @if (!newSubtaskTitle().trim()) {
+                        <p class="tdp__hint">{{ text.subtaskTitleRequired() }}</p>
+                      }
+                      <div class="tdp__form-actions">
+                        <sol-button type="button" variant="ghost" size="sm"
+                                    (clicked)="showSubtaskForm.set(false)">
+                          {{ text.subtaskCancel() }}
+                        </sol-button>
+                        <sol-button type="button" variant="primary" size="sm"
+                                    [loading]="savingSubtask()"
+                                    [disabled]="!newSubtaskTitle().trim()"
+                                    (clicked)="createSubtask()">
+                          {{ text.subtaskSave() }}
+                        </sol-button>
+                      </div>
+                    </div>
+                  }
+                  </div>
+                </sol-card>
+              }
+
+              @case ('comments') {
+                <sol-card>
+                  <div class="tdp__stack">
+                  <h3 class="tdp__section-title">{{ text.commentsTitle() }}</h3>
+
+                  @if (comments().length === 0) {
+                    <p class="tdp__empty">{{ text.commentsEmpty() }}</p>
+                  }
+
+                  <ul class="tdp__comments">
+                    @for (comment of comments(); track comment.id) {
+                      <li class="tdp__comment">
+                        <sol-avatar [name]="authorName(comment.author_id)" size="sm" />
+                        <div class="tdp__comment-body">
+                          <div class="tdp__comment-head">
+                            <strong>{{ authorName(comment.author_id) }}</strong>
+                            <span class="tdp__muted">{{ dateTimeText(comment.created_at) }}</span>
+                            @if (auth.user()?.id === comment.author_id && editingCommentId() !== comment.id) {
+                              <span class="tdp__comment-actions">
+                                <button type="button" class="tdp__text-button"
+                                        (click)="startEditComment(comment)"
+                                        [attr.aria-label]="text.commentEditAria()">
+                                  {{ text.commentEdit() }}
+                                </button>
+                                <button type="button" class="tdp__text-button tdp__text-button--danger"
+                                        (click)="deleteComment(comment.id)"
+                                        [attr.aria-label]="text.commentDeleteAria()">
+                                  {{ text.commentDelete() }}
+                                </button>
+                              </span>
+                            }
+                          </div>
+
+                          @if (editingCommentId() === comment.id) {
+                            <sol-rich-editor
+                              [ngModel]="editBody()"
+                              (ngModelChange)="editBody.set($event)"
+                              [mentionableUsers]="mentionableUsers()"
+                              [linkableTasks]="linkableTasks()"
+                            />
+                            <div class="tdp__form-actions">
+                              <sol-button type="button" variant="ghost" size="sm" (clicked)="cancelEditComment()">
+                                {{ text.commentCancelEdit() }}
+                              </sol-button>
+                              <sol-button type="button" variant="primary" size="sm" (clicked)="saveEditComment()">
+                                {{ text.commentSaveEdit() }}
+                              </sol-button>
+                            </div>
+                          } @else {
+                            <div class="tdp__prose" [innerHTML]="comment.body"></div>
+                          }
+
+                          @if ((commentAttachments()[comment.id] ?? []).length > 0) {
+                            <ul class="tdp__files">
+                              @for (att of commentAttachments()[comment.id]; track att.id) {
+                                <li class="tdp__file">
+                                  <span class="tdp__grow tdp__truncate">{{ att.original_name }}</span>
+                                  <span class="tdp__muted">{{ formatBytes(att.size_bytes) }}</span>
+                                  <button type="button" class="tdp__text-button"
+                                          (click)="downloadAttachment(att)"
+                                          [attr.aria-label]="text.commentDownloadAria()">
+                                    {{ text.commentDownload() }}
+                                  </button>
+                                </li>
+                              }
+                            </ul>
+                          }
+
+                          <label class="tdp__text-button">
+                            {{ text.commentUpload() }}
+                            <input type="file" class="sr-only"
+                                   (change)="uploadCommentFile(comment.id, $event)"
+                                   [attr.aria-label]="text.commentUploadAria()" />
+                          </label>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+
+                  <div class="tdp__new-comment">
+                    <sol-rich-editor
+                      [ngModel]="commentBody()"
+                      (ngModelChange)="commentBody.set($event)"
+                      [mentionableUsers]="mentionableUsers()"
+                      [linkableTasks]="linkableTasks()"
+                    />
+                    <div class="tdp__form-actions">
+                      <sol-button type="button" variant="primary" size="sm"
+                                  [loading]="savingComment()"
+                                  [disabled]="!commentBody().trim()"
+                                  (clicked)="addComment()">
+                        {{ text.commentSubmit() }}
+                      </sol-button>
+                    </div>
+                  </div>
+                  </div>
+                </sol-card>
+              }
+
+              @case ('attachments') {
+                <sol-card>
+                  <div class="tdp__stack">
+                  <div class="tdp__section-head">
+                    <h3 class="tdp__section-title">{{ text.attachmentsTitle() }}</h3>
+                    <label class="tdp__link-button">
+                      + {{ text.attachmentUpload() }}
                       <input type="file" class="sr-only"
-                             (change)="uploadCommentFile(comment.id, $event)"
-                             [attr.aria-label]="text.commentUploadAria()" />
+                             (change)="uploadTaskFile($event)"
+                             [attr.aria-label]="text.attachmentUploadAria()" />
                     </label>
                   </div>
-                </div>
-              </li>
+                  @if (taskAttachments().length === 0) {
+                    <p class="tdp__empty">{{ text.attachmentsEmpty() }}</p>
+                  }
+                  <ul class="tdp__files">
+                    @for (att of taskAttachments(); track att.id) {
+                      <li class="tdp__file">
+                        <span class="tdp__grow tdp__truncate">{{ att.original_name }}</span>
+                        <span class="tdp__muted">{{ formatBytes(att.size_bytes) }}</span>
+                        <button type="button" class="tdp__text-button"
+                                (click)="downloadAttachment(att)"
+                                [attr.aria-label]="text.attachmentDownloadAria()">
+                          {{ text.attachmentDownload() }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  </div>
+                </sol-card>
+              }
             }
-          </ul>
-
-          <!-- New comment -->
-          <div class="border-t border-border pt-4">
-            <sol-rich-editor
-              [ngModel]="commentBody()"
-              (ngModelChange)="commentBody.set($event)"
-              [mentionableUsers]="mentionableUsers()"
-              [linkableTasks]="linkableTasks()"
-            />
-            <div class="mt-2 flex justify-end">
-              <button
-                class="rounded bg-brand px-4 py-1.5 text-sm font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
-                (click)="addComment()"
-                [disabled]="savingComment() || !commentBody().trim()"
-                [attr.aria-label]="text.commentSubmitAria()">
-                {{ savingComment() ? text.commentSending() : text.commentSubmit() }}
-              </button>
-            </div>
           </div>
         </div>
-
-        <!-- Task attachments -->
-        <div class="rounded-lg border border-border bg-surface p-4">
-          <h2 class="mb-3 text-sm font-semibold text-muted uppercase tracking-wide">{{ text.attachmentsTitle() }}</h2>
-          <ul class="space-y-2 mb-3">
-            @for (att of taskAttachments(); track att.id) {
-              <li class="flex items-center gap-2 text-sm">
-                <span class="flex-1 truncate text-text">{{ att.original_name }}</span>
-                <span class="text-xs text-muted">{{ formatBytes(att.size_bytes) }}</span>
-                <button class="text-xs text-brand hover:underline"
-                        (click)="downloadAttachment(att)"
-                        [attr.aria-label]="text.attachmentDownloadAria()">
-                  {{ text.attachmentDownload() }}
-                </button>
-              </li>
-            }
-          </ul>
-          <label class="inline-flex cursor-pointer items-center gap-1 rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-text">
-            + {{ text.attachmentUpload() }}
-            <input type="file" class="sr-only"
-                   (change)="uploadTaskFile($event)"
-                   [attr.aria-label]="text.attachmentUploadAria()" />
-          </label>
-        </div>
-
-      </div>
-    </div>
+      }
+    }
   }
+  `,
+  styles: `
+    :host { display: block; }
+
+    .tdp {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sol-space-md);
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    .tdp__state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--sol-space-sm);
+      padding: var(--sol-space-xl) var(--sol-space-md);
+      text-align: center;
+      color: var(--sol-color-text-muted);
+      font-size: var(--sol-font-size-sm);
+    }
+
+    .tdp__alert {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sol-space-sm);
+      padding: var(--sol-space-sm) var(--sol-space-md);
+      border: 1px solid color-mix(in srgb, var(--sol-color-danger) 40%, transparent);
+      border-radius: var(--sol-border-radius-md);
+      background: color-mix(in srgb, var(--sol-color-danger) 10%, transparent);
+      color: var(--sol-color-danger);
+      font-size: var(--sol-font-size-sm);
+    }
+
+    .tdp__stack.tdp__stack--sm { gap: var(--sol-space-sm); }
+
+    .tdp__ids, .tdp__actions, .tdp__badges {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--sol-space-sm);
+      min-width: 0;
+    }
+
+    .tdp__code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: var(--sol-font-size-sm);
+      font-weight: 600;
+      color: var(--sol-color-primary);
+    }
+
+    .tdp__source {
+      padding: 2px 10px;
+      border-radius: var(--sol-border-radius-full);
+      background: var(--sol-bg-sunken);
+      color: var(--sol-color-text-secondary);
+      font-size: var(--sol-font-size-xs);
+    }
+
+    .tdp__title {
+      margin: 0;
+      font-size: var(--sol-font-size-xl);
+      line-height: 1.3;
+      color: var(--sol-color-text-primary);
+      overflow-wrap: anywhere;
+    }
+
+    .tdp__title--compact { font-size: var(--sol-font-size-lg); font-weight: 600; }
+
+    .tdp__meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: var(--sol-space-sm) var(--sol-space-md);
+      margin: var(--sol-space-xs) 0 0;
+      padding-top: var(--sol-space-sm);
+      border-top: 1px solid var(--sol-border-color-default);
+    }
+
+    .tdp__meta-item { min-width: 0; }
+
+    .tdp__meta dt {
+      font-size: var(--sol-font-size-xs);
+      color: var(--sol-color-text-muted);
+    }
+
+    .tdp__meta dd {
+      margin: 2px 0 0;
+      font-size: var(--sol-font-size-sm);
+      color: var(--sol-color-text-primary);
+    }
+
+    .tdp__person {
+      display: flex;
+      align-items: center;
+      gap: var(--sol-space-xs);
+    }
+
+    .tdp__muted { color: var(--sol-color-text-muted); }
+
+    .tdp__tab-content { padding-top: var(--sol-space-xs); }
+
+    .tdp__detail {
+      display: grid;
+      gap: var(--sol-space-md);
+    }
+
+    @media (min-width: 900px) {
+      .tdp:not(.tdp--compact) .tdp__detail {
+        grid-template-columns: minmax(0, 1fr) 320px;
+      }
+      .tdp:not(.tdp--compact) .tdp__fields { order: 2; align-self: start; }
+      .tdp:not(.tdp--compact) .tdp__description { order: 1; }
+    }
+
+    .tdp__risk {
+      padding: var(--sol-space-sm);
+      border-radius: var(--sol-border-radius-md);
+      background: color-mix(in srgb, var(--sol-color-danger) 10%, transparent);
+      color: var(--sol-color-danger);
+      font-size: var(--sol-font-size-sm);
+    }
+
+    .tdp__risk p { margin: var(--sol-space-xs) 0 0; }
+
+    .tdp__stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sol-space-md);
+    }
+
+    .tdp__header-top, .tdp__section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sol-space-sm); }
+
+    .tdp__section-title {
+      margin: 0 0 var(--sol-space-sm);
+      font-size: var(--sol-font-size-sm);
+      font-weight: 600;
+      color: var(--sol-color-text-secondary);
+    }
+
+    .tdp__section-head .tdp__section-title { margin: 0; }
+
+    .tdp__empty {
+      margin: 0;
+      padding: var(--sol-space-md);
+      border-radius: var(--sol-border-radius-md);
+      background: var(--sol-bg-sunken);
+      color: var(--sol-color-text-secondary);
+      font-size: var(--sol-font-size-sm);
+    }
+
+    .tdp__progress-label { display: flex; justify-content: space-between; margin-bottom: var(--sol-space-xs); font-size: var(--sol-font-size-xs); color: var(--sol-color-text-muted); }
+    .tdp__progress-track { height: 6px; border-radius: var(--sol-border-radius-full); background: var(--sol-bg-sunken); overflow: hidden; }
+    .tdp__progress-bar { height: 100%; background: var(--sol-color-primary); }
+
+    .tdp__list, .tdp__files, .tdp__comments {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sol-space-xs);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .tdp__comments { gap: var(--sol-space-md); }
+
+    .tdp__list-item, .tdp__file {
+      display: flex;
+      align-items: center;
+      gap: var(--sol-space-sm);
+      min-height: 40px;
+      padding: var(--sol-space-xs) var(--sol-space-sm);
+      border-radius: var(--sol-border-radius-md);
+      font-size: var(--sol-font-size-sm);
+      color: var(--sol-color-text-primary);
+    }
+
+    .tdp__list-item:hover { background: var(--sol-bg-sunken); }
+
+    .tdp__grow { flex: 1 1 auto; min-width: 0; }
+    .tdp__truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .tdp__inline-link {
+      color: var(--sol-color-text-primary);
+      text-decoration: none;
+    }
+
+    .tdp__inline-link:hover, .tdp__inline-link:focus-visible {
+      color: var(--sol-color-primary);
+      text-decoration: underline;
+    }
+
+    .tdp__link-button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sol-space-xs);
+      min-height: 36px;
+      padding: 0 var(--sol-space-md);
+      border: 1px solid var(--sol-border-color-default);
+      border-radius: var(--sol-border-radius-md);
+      background: var(--sol-bg-surface);
+      color: var(--sol-color-text-primary);
+      font-size: var(--sol-font-size-sm);
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .tdp__link-button:hover { border-color: var(--sol-color-primary); color: var(--sol-color-primary); }
+
+    .tdp__text-button {
+      padding: 2px 4px;
+      border: 0;
+      background: transparent;
+      color: var(--sol-color-primary);
+      font-size: var(--sol-font-size-xs);
+      cursor: pointer;
+    }
+
+    .tdp__text-button:hover { text-decoration: underline; }
+    .tdp__text-button--danger { color: var(--sol-color-danger); }
+
+    .tdp__form, .tdp__new-comment {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sol-space-sm);
+      padding-top: var(--sol-space-md);
+      border-top: 1px solid var(--sol-border-color-default);
+    }
+
+    .tdp__form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--sol-space-sm);
+      margin-top: var(--sol-space-xs);
+    }
+
+    .tdp__hint { margin: 0; font-size: var(--sol-font-size-xs); color: var(--sol-color-text-muted); }
+
+    .tdp__comment { display: flex; align-items: flex-start; gap: var(--sol-space-sm); }
+
+    .tdp__comment-body {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sol-space-xs);
+    }
+
+    .tdp__comment-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--sol-space-sm);
+      font-size: var(--sol-font-size-xs);
+    }
+
+    .tdp__comment-actions { margin-left: auto; display: inline-flex; gap: var(--sol-space-xs); }
+
+    .tdp__prose {
+      font-size: var(--sol-font-size-sm);
+      color: var(--sol-color-text-primary);
+      overflow-wrap: anywhere;
+    }
   `,
 })
 export class TaskDetailPanelComponent {
@@ -479,39 +853,49 @@ export class TaskDetailPanelComponent {
 
   /** Textos estáticos de la vista resueltos por i18n (reactivos al idioma). */
   protected readonly text = {
-    back: this.i18n.t('taskDetail.back'),
     backAria: this.i18n.t('taskDetail.backAria'),
     openFullPage: this.i18n.t('taskDetail.openFullPage'),
     openFullPageAria: this.i18n.t('taskDetail.openFullPageAria'),
     description: this.i18n.t('taskDetail.description'),
+    loading: this.i18n.t('taskDetail.states.loading'),
+    notFoundTitle: this.i18n.t('taskDetail.states.notFoundTitle'),
+    forbiddenTitle: this.i18n.t('taskDetail.states.forbiddenTitle'),
+    forbiddenMessage: this.i18n.t('taskDetail.states.forbiddenMessage'),
+    goProjects: this.i18n.t('taskDetail.states.goProjects'),
+    loadError: this.i18n.t('taskDetail.errors.loadData'),
+    retry: this.i18n.t('taskDetail.states.retry'),
+    dismiss: this.i18n.t('taskDetail.states.dismiss'),
+    sourceLabel: this.i18n.t('taskDetail.sources.label'),
+    metaProject: this.i18n.t('taskDetail.meta.project'),
+    metaDue: this.i18n.t('taskDetail.meta.due'),
+    metaStart: this.i18n.t('taskDetail.meta.start'),
+    metaCreated: this.i18n.t('taskDetail.meta.created'),
+    metaCompleted: this.i18n.t('taskDetail.meta.completed'),
+    metaNoDate: this.i18n.t('taskDetail.meta.noDate'),
     subtasksTitle: this.i18n.t('taskDetail.subtasks.title'),
-    subtaskAddAria: this.i18n.t('taskDetail.subtasks.addAria'),
+    subtasksEmpty: this.i18n.t('taskDetail.subtasks.empty'),
     subtaskNew: this.i18n.t('taskDetail.subtasks.new'),
     subtaskProgress: this.i18n.t('taskDetail.subtasks.progress'),
     subtaskTitleField: this.i18n.t('taskDetail.subtasks.titleField'),
+    subtaskTitleRequired: this.i18n.t('taskDetail.subtasks.titleRequired'),
     subtaskHours: this.i18n.t('taskDetail.subtasks.hours'),
-    subtaskSaving: this.i18n.t('taskDetail.subtasks.saving'),
     subtaskSave: this.i18n.t('taskDetail.subtasks.save'),
-    subtaskSaveAria: this.i18n.t('taskDetail.subtasks.saveAria'),
     subtaskCancel: this.i18n.t('taskDetail.subtasks.cancel'),
-    subtaskCancelAria: this.i18n.t('taskDetail.subtasks.cancelAria'),
     commentsTitle: this.i18n.t('taskDetail.comments.title'),
+    commentsEmpty: this.i18n.t('taskDetail.comments.empty'),
     commentEdit: this.i18n.t('taskDetail.comments.edit'),
     commentEditAria: this.i18n.t('taskDetail.comments.editAria'),
     commentDelete: this.i18n.t('taskDetail.comments.delete'),
     commentDeleteAria: this.i18n.t('taskDetail.comments.deleteAria'),
     commentSaveEdit: this.i18n.t('taskDetail.comments.saveEdit'),
-    commentSaveEditAria: this.i18n.t('taskDetail.comments.saveEditAria'),
     commentCancelEdit: this.i18n.t('taskDetail.comments.cancelEdit'),
-    commentCancelEditAria: this.i18n.t('taskDetail.comments.cancelEditAria'),
     commentDownload: this.i18n.t('taskDetail.comments.download'),
     commentDownloadAria: this.i18n.t('taskDetail.comments.downloadAria'),
     commentUpload: this.i18n.t('taskDetail.comments.upload'),
     commentUploadAria: this.i18n.t('taskDetail.comments.uploadAria'),
-    commentSending: this.i18n.t('taskDetail.comments.sending'),
     commentSubmit: this.i18n.t('taskDetail.comments.submit'),
-    commentSubmitAria: this.i18n.t('taskDetail.comments.submitAria'),
     attachmentsTitle: this.i18n.t('taskDetail.attachments.title'),
+    attachmentsEmpty: this.i18n.t('taskDetail.attachments.empty'),
     attachmentDownload: this.i18n.t('taskDetail.attachments.download'),
     attachmentDownloadAria: this.i18n.t('taskDetail.attachments.downloadAria'),
     attachmentUpload: this.i18n.t('taskDetail.attachments.upload'),
@@ -519,57 +903,48 @@ export class TaskDetailPanelComponent {
     fieldStatus: this.i18n.t('taskDetail.fields.status'),
     fieldStatusPlaceholder: this.i18n.t('taskDetail.fields.statusPlaceholder'),
     fieldPriority: this.i18n.t('taskDetail.fields.priority'),
-    fieldPriorityPlaceholder: this.i18n.t(
-      'taskDetail.fields.priorityPlaceholder',
-    ),
+    fieldPriorityPlaceholder: this.i18n.t('taskDetail.fields.priorityPlaceholder'),
     fieldAssignee: this.i18n.t('taskDetail.fields.assignee'),
-    fieldAssigneePlaceholder: this.i18n.t(
-      'taskDetail.fields.assigneePlaceholder',
-    ),
+    fieldAssigneePlaceholder: this.i18n.t('taskDetail.fields.assigneePlaceholder'),
     fieldSprint: this.i18n.t('taskDetail.fields.sprint'),
     fieldSprintNone: this.i18n.t('taskDetail.fields.sprintNone'),
     fieldOriginalEstimate: this.i18n.t('taskDetail.fields.originalEstimate'),
-    fieldOriginalEstimatePlaceholder: this.i18n.t(
-      'taskDetail.fields.originalEstimatePlaceholder',
-    ),
-    fieldOriginalEstimateInvalid: this.i18n.t(
-      'taskDetail.fields.originalEstimateInvalid',
-    ),
+    fieldOriginalEstimatePlaceholder: this.i18n.t('taskDetail.fields.originalEstimatePlaceholder'),
+    fieldOriginalEstimateInvalid: this.i18n.t('taskDetail.fields.originalEstimateInvalid'),
     fieldStoryPoints: this.i18n.t('taskDetail.fields.storyPoints'),
-    fieldStoryPointsInteger: this.i18n.t(
-      'taskDetail.fields.storyPointsInteger',
-    ),
-    fieldDueDate: this.i18n.t('taskDetail.fields.dueDate'),
+    fieldStoryPointsInteger: this.i18n.t('taskDetail.fields.storyPointsInteger'),
     fieldAtRisk: this.i18n.t('taskDetail.fields.atRisk'),
   } as const;
 
   readonly task = signal<TaskDetail | null>(null);
+  readonly project = signal<Project | null>(null);
   readonly subtasks = signal<TaskDetail[]>([]);
   readonly comments = signal<Comment[]>([]);
   readonly taskAttachments = signal<Attachment[]>([]);
   readonly commentAttachments = signal<Record<string, Attachment[]>>({});
   readonly members = signal<Member[]>([]);
   readonly projectTasks = signal<TaskDetail[]>([]);
-  readonly loading = signal(true);
-  readonly error = signal<string | null>(null);
+  readonly state = signal<LoadState>('loading');
+  /** Último guardado fallido (campo, comentario, subtarea o adjunto). */
+  readonly actionError = signal<string | null>(null);
+  readonly activeTab = signal<TabId>('detail');
   readonly commentBody = signal('');
   readonly savingComment = signal(false);
   readonly showSubtaskForm = signal(false);
   readonly newSubtaskTitle = signal('');
-  readonly newSubtaskHours = signal<number | null>(null);
+  readonly newSubtaskHours = signal<string | number | null>(null);
   readonly savingSubtask = signal(false);
   readonly editingCommentId = signal<string | null>(null);
   readonly editBody = signal('');
+
+  /** Borradores de estimación: se guardan al salir del campo o con Enter. */
+  readonly pointsDraft = signal<string>('');
+  readonly estimateDraft = signal<string>('');
 
   /** El texto de estimación original no parsea ("4w 2d 3h" esperado). */
   readonly estimateError = signal(false);
   /** Los puntos de historia no son un entero no negativo. */
   readonly pointsError = signal(false);
-
-  /** Estimación en horas mostrada como texto Jira ("1w 2d 4h"). */
-  readonly originalEstimateDisplay = computed(() =>
-    formatOriginalEstimate(this.task()?.estimation_hours),
-  );
 
   /** Configuración de metodología del proyecto de la tarea (cargada aquí). */
   readonly methodologyInfo = signal<MethodologyInfo | null>(null);
@@ -580,15 +955,10 @@ export class TaskDetailPanelComponent {
    */
   readonly fallbackSprints = signal<Sprint[]>([]);
 
-  /**
-   * Selector de sprint visible si el host lo habilita o si la metodología
-   * del proyecto cargado tiene sprints (cubre el deep-link sin inputs).
-   */
   readonly effectiveSprintsEnabled = computed(
     () => this.sprintsEnabled() || !!this.methodologyInfo()?.sprints_enabled,
   );
 
-  /** Sprints efectivos: los del host si llegan; si no, los auto-cargados. */
   readonly effectiveSprints = computed(() =>
     this.sprints().length > 0 ? this.sprints() : this.fallbackSprints(),
   );
@@ -606,7 +976,6 @@ export class TaskDetailPanelComponent {
     return statuses.map(s => ({ value: s, label: s.replace(/_/g, ' ') }));
   });
 
-  /** Modo de estimación efectivo: input del host o el de la metodología. */
   readonly effectiveEstimationMode = computed<EstimationMode>(
     () =>
       this.estimationMode() ??
@@ -616,12 +985,10 @@ export class TaskDetailPanelComponent {
 
   readonly priorityOptions = computed(() => {
     this.i18n.activeLang();
-    return [
-      { value: 'critical', label: this.i18n.translate('taskDetail.priorities.critical') },
-      { value: 'high', label: this.i18n.translate('taskDetail.priorities.high') },
-      { value: 'medium', label: this.i18n.translate('taskDetail.priorities.medium') },
-      { value: 'low', label: this.i18n.translate('taskDetail.priorities.low') },
-    ];
+    return ['critical', 'high', 'medium', 'low'].map(value => ({
+      value,
+      label: this.i18n.translate(`taskDetail.priorities.${value}`),
+    }));
   });
 
   readonly mentionableUsers = computed<MentionUser[]>(() =>
@@ -636,11 +1003,51 @@ export class TaskDetailPanelComponent {
     this.members().map(m => ({ value: m.user_id, label: m.full_name })),
   );
 
-  /** Opciones del selector de sprint: primero "sin sprint" (backlog). */
   readonly sprintOptions = computed(() => [
     { value: '', label: this.text.fieldSprintNone() },
     ...this.effectiveSprints().map(s => ({ value: s.id, label: s.name })),
   ]);
+
+  /** Pestañas con conteo, para que se sepa qué hay sin abrirlas. */
+  readonly tabs = computed<SolTabItem[]>(() => {
+    this.i18n.activeLang();
+    const label = (key: string, count: number) =>
+      this.i18n.translate(`taskDetail.tabs.${key}`, { count });
+    return [
+      { id: 'detail', label: this.i18n.translate('taskDetail.tabs.detail') },
+      { id: 'subtasks', label: label('subtasks', this.subtasks().length) },
+      { id: 'comments', label: label('comments', this.comments().length) },
+      { id: 'attachments', label: label('attachments', this.taskAttachments().length) },
+    ];
+  });
+
+  /** Origen legible: «Checklist de tareas · T-205», «Jira · CP-13». */
+  readonly sourceText = computed<string | null>(() => {
+    this.i18n.activeLang();
+    const t = this.task();
+    if (!t?.source) return null;
+    const key = SOURCE_KEYS[t.source];
+    const name = key ? this.i18n.translate(key) : t.source;
+    const ref = t.external_key ? t.external_key.split(':').pop() : '';
+    return ref && ref !== t.task_key ? `${name} · ${ref}` : name;
+  });
+
+  readonly notFoundMessage = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('taskDetail.states.notFoundMessage', { key: this.taskKey() });
+  });
+
+  /** Última columna del flujo = cerrada (misma regla del listado de proyectos). */
+  private readonly doneStatus = computed(() => {
+    const allowed = this.methodologyInfo()?.allowed_statuses ?? [];
+    return allowed.length > 0 ? allowed[allowed.length - 1] : null;
+  });
+
+  private readonly memberNames = computed(() => {
+    const map = new Map<string, string>();
+    this.members().forEach(m => map.set(m.user_id, m.full_name));
+    return map;
+  });
 
   constructor() {
     // Recarga reactiva: la primera asignación de `taskKey` y cualquier cambio
@@ -653,19 +1060,28 @@ export class TaskDetailPanelComponent {
     });
   }
 
+  retry(): void {
+    this.loadAll(this.taskKey());
+  }
+
+  onTabChange(id: string): void {
+    this.activeTab.set(id as TabId);
+  }
+
   /**
    * Carga todo el detalle de la tarea `key`.
    *
    * Robustez ante navegación rápida entre tareas (mismo widget, distinto
    * `taskKey`): cada respuesta se descarta con `isStale(key)` si el key ya
    * cambió cuando llega, y toda subscripción se corta con
-   * `takeUntilDestroyed` al destruir el widget. Así una respuesta lenta de
-   * la tarea anterior nunca pisa los datos de la actual.
+   * `takeUntilDestroyed` al destruir el widget.
    */
   private loadAll(key: string): void {
-    this.loading.set(true);
-    this.error.set(null);
+    this.state.set('loading');
+    this.actionError.set(null);
+    this.activeTab.set('detail');
     this.task.set(null);
+    this.project.set(null);
     this.subtasks.set([]);
     this.comments.set([]);
     this.taskAttachments.set([]);
@@ -678,8 +1094,8 @@ export class TaskDetailPanelComponent {
       .subscribe({
         next: (res) => {
           if (this.isStale(key)) return;
-          this.task.set(res.data);
           const t = res.data;
+          this.setTask(t);
           forkJoin({
             subtasks: this.svc.getSubtasks(t.id),
             comments: this.svc.getComments(t.id),
@@ -697,10 +1113,10 @@ export class TaskDetailPanelComponent {
                 this.taskAttachments.set(data.attachments.data);
                 this.members.set(data.members.data);
                 this.projectTasks.set(data.projectTasks.data);
-                this.methodologyInfo.set(data.project.data.methodology_info);
-                this.loading.set(false);
+                this.project.set(data.project.data);
+                this.methodologyInfo.set(data.project.data.methodology_info ?? null);
+                this.state.set('ready');
                 this.loadFallbackSprints(key, t.project_id);
-                // Adjuntos por comentario
                 data.comments.data.forEach(c => {
                   this.svc.getCommentAttachments(c.id)
                     .pipe(takeUntilDestroyed(this.destroyRef))
@@ -710,33 +1126,39 @@ export class TaskDetailPanelComponent {
                     });
                 });
               },
-              error: (err) => {
+              error: (err: HttpErrorResponse) => {
                 if (this.isStale(key)) return;
-                this.error.set(this.i18n.translate('taskDetail.errors.loadData'));
-                this.loading.set(false);
+                this.state.set(this.stateForError(err));
                 console.error(err);
               },
             });
         },
-        error: (err) => {
+        error: (err: HttpErrorResponse) => {
           if (this.isStale(key)) return;
-          this.error.set(this.i18n.translate('taskDetail.errors.notFound'));
-          this.loading.set(false);
+          this.state.set(this.stateForError(err));
           console.error(err);
         },
       });
   }
 
-  /** `true` si la respuesta pertenece a un `taskKey` que ya no es el actual. */
+  /** 404/422 (clave inexistente o mal formada) → no encontrada; 403 → sin permiso. */
+  private stateForError(err: HttpErrorResponse): LoadState {
+    if (err.status === 404 || err.status === 422) return 'notFound';
+    if (err.status === 403) return 'forbidden';
+    return 'error';
+  }
+
   private isStale(key: string): boolean {
     return key !== this.taskKey();
   }
 
-  /**
-   * Auto-carga los sprints del proyecto cuando la metodología los habilita y
-   * el host no los proveyó (deep-link `/task/:key`). El drawer del workspace
-   * sí los pasa por input, así que allí no hay doble carga.
-   */
+  /** Guarda la tarea y sincroniza los borradores de estimación. */
+  private setTask(t: TaskDetail): void {
+    this.task.set(t);
+    this.pointsDraft.set(t.estimation_points == null ? '' : String(t.estimation_points));
+    this.estimateDraft.set(formatOriginalEstimate(t.estimation_hours));
+  }
+
   private loadFallbackSprints(key: string, projectId: string): void {
     if (!this.effectiveSprintsEnabled() || this.sprints().length > 0) return;
     this.workspaceService.sprints(projectId)
@@ -750,41 +1172,54 @@ export class TaskDetailPanelComponent {
       });
   }
 
+  private failAction(err: unknown): void {
+    console.error(err);
+    const detail = err instanceof HttpErrorResponse ? err.error?.detail : null;
+    this.actionError.set(
+      typeof detail === 'string' && detail
+        ? detail
+        : this.i18n.translate('taskDetail.states.saveError'),
+    );
+  }
+
   updateField(field: string, value: unknown): void {
     const t = this.task();
     if (!t) return;
+    if ((t as unknown as Record<string, unknown>)[field] === value) return;
     this.svc.updateTask(t.id, { [field]: value })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.task.set(res.data);
+          this.actionError.set(null);
+          this.setTask(res.data);
           this.taskChanged.emit(res.data);
         },
-        error: (err) => console.error('Error actualizando campo', field, err),
+        error: (err) => this.failAction(err),
       });
   }
 
-  /** Parsea un input numérico nativo: cadena vacía → null. */
-  updateNumberField(field: 'estimation_points' | 'estimation_hours', event: Event): void {
-    const raw = (event.target as HTMLInputElement).value.trim();
+  /** Puntos de historia: vacío → null; solo enteros no negativos. */
+  commitPoints(): void {
+    const raw = String(this.pointsDraft() ?? '').trim();
     const value = raw === '' ? null : Number(raw);
-    if (value !== null && Number.isNaN(value)) return;
-    if (field === 'estimation_points') {
-      // Puntos de historia: solo enteros no negativos (0, 1, 2, 3, 5...).
-      const invalid = value !== null && (!Number.isInteger(value) || value < 0);
-      this.pointsError.set(invalid);
-      if (invalid) return;
-    }
-    this.updateField(field, value);
+    const invalid = value !== null && (!Number.isInteger(value) || value < 0);
+    this.pointsError.set(invalid);
+    if (invalid) return;
+    if (value === (this.task()?.estimation_points ?? null)) return;
+    this.updateField('estimation_points', value);
   }
 
   /**
-   * Guarda la estimación original estilo Jira: parsea "4w 2d 3h" a horas
-   * decimales (1w = 5 días laborables, 1d = 8 horas). Vacío limpia la
-   * estimación; un texto que no parsea muestra error y no guarda.
+   * Estimación original estilo Jira: parsea "4w 2d 3h" a horas (1w = 5 días
+   * laborables, 1d = 8 horas). Vacío limpia; un texto que no parsea muestra
+   * el error y no guarda.
    */
-  updateOriginalEstimate(event: Event): void {
-    const raw = (event.target as HTMLInputElement).value.trim();
+  commitEstimate(): void {
+    const raw = String(this.estimateDraft() ?? '').trim();
+    if (raw === formatOriginalEstimate(this.task()?.estimation_hours)) {
+      this.estimateError.set(false);
+      return;
+    }
     if (raw === '') {
       this.estimateError.set(false);
       this.updateField('estimation_hours', null);
@@ -810,7 +1245,6 @@ export class TaskDetailPanelComponent {
           this.comments.update(cs => [...cs, res.data]);
           this.commentBody.set('');
           this.savingComment.set(false);
-          // Adjuntos del comentario recién creado
           this.svc.getCommentAttachments(res.data.id)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(r => {
@@ -819,7 +1253,7 @@ export class TaskDetailPanelComponent {
         },
         error: (err) => {
           this.savingComment.set(false);
-          console.error(err);
+          this.failAction(err);
         },
       });
   }
@@ -829,7 +1263,7 @@ export class TaskDetailPanelComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => this.comments.update(cs => cs.filter(c => c.id !== id)),
-        error: (err) => console.error(err),
+        error: (err) => this.failAction(err),
       });
   }
 
@@ -849,7 +1283,7 @@ export class TaskDetailPanelComponent {
           this.editingCommentId.set(null);
           this.editBody.set('');
         },
-        error: (err) => console.error(err),
+        error: (err) => this.failAction(err),
       });
   }
 
@@ -861,10 +1295,12 @@ export class TaskDetailPanelComponent {
   createSubtask(): void {
     const t = this.task();
     if (!t || !this.newSubtaskTitle().trim()) return;
+    const rawHours = this.newSubtaskHours();
+    const hours = rawHours === null || rawHours === '' ? null : Number(rawHours);
     this.savingSubtask.set(true);
     this.svc.createSubtask(t.project_id, {
       title: this.newSubtaskTitle(),
-      estimation_hours: this.newSubtaskHours(),
+      estimation_hours: hours !== null && Number.isFinite(hours) ? hours : null,
       parent_task_id: t.id,
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -882,14 +1318,14 @@ export class TaskDetailPanelComponent {
               .pipe(takeUntilDestroyed(this.destroyRef))
               .subscribe(r => {
                 if (this.isStale(key)) return;
-                this.task.set(r.data);
+                this.setTask(r.data);
                 this.taskChanged.emit(r.data);
               });
           }
         },
         error: (err) => {
           this.savingSubtask.set(false);
-          console.error(err);
+          this.failAction(err);
         },
       });
   }
@@ -897,13 +1333,16 @@ export class TaskDetailPanelComponent {
   downloadAttachment(att: Attachment): void {
     this.svc.downloadAttachment(att.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = att.original_name;
-        a.click();
-        URL.revokeObjectURL(url);
+      .subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = att.original_name;
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        error: (err) => this.failAction(err),
       });
   }
 
@@ -915,7 +1354,7 @@ export class TaskDetailPanelComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => this.taskAttachments.update(atts => [...atts, res.data]),
-        error: (err) => console.error(err),
+        error: (err) => this.failAction(err),
       });
   }
 
@@ -931,21 +1370,62 @@ export class TaskDetailPanelComponent {
             [commentId]: [...(map[commentId] ?? []), res.data],
           }));
         },
-        error: (err) => console.error(err),
+        error: (err) => this.failAction(err),
       });
   }
 
   protected readonly formatBytes = formatBytes;
 
-  statusTone(s: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-    const map: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-      done: 'success',
-      in_progress: 'info',
-      cancelled: 'neutral',
-      in_review: 'warning',
-      to_do: 'neutral',
-      backlog: 'neutral',
-    };
-    return map[s] ?? 'neutral';
+  protected statusLabel(status: string): string {
+    return statusDisplay(status);
+  }
+
+  /** Cerrada = última columna; primera = sin iniciar; el resto, en curso. */
+  protected statusTone(status: string): BadgeTone {
+    const allowed = this.methodologyInfo()?.allowed_statuses ?? [];
+    if (status === this.doneStatus()) return 'success';
+    if (status === 'cancelled') return 'neutral';
+    if (allowed.length > 0 && status === allowed[0]) return 'neutral';
+    return 'info';
+  }
+
+  protected priorityTone(priority: string): BadgeTone {
+    return PRIORITY_TONE[priority] ?? 'neutral';
+  }
+
+  protected priorityLabel(priority: string): string {
+    return this.i18n.translate(`taskDetail.priorities.${priority}`);
+  }
+
+  protected typeLabel(type: string | null | undefined): string {
+    return type ? (TASK_TYPE_LABELS[type as TaskType] ?? type) : '';
+  }
+
+  protected projectLabel(p: Project): string {
+    const code = (p as Project & { code?: string | null }).code;
+    return code ? `${code} · ${p.name}` : p.name;
+  }
+
+  protected authorName(userId: string): string {
+    return this.memberNames().get(userId) ?? this.i18n.translate('taskDetail.comments.authorUnknown');
+  }
+
+  /** Fecha en hora de Bogotá, con año: «4 oct 2026». */
+  protected dateText(value: string | null | undefined): string {
+    if (!value) return this.text.metaNoDate();
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return this.text.metaNoDate();
+    return date.toLocaleDateString('es-CO', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota',
+    });
+  }
+
+  protected dateTimeText(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('es-CO', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
+      timeZone: 'America/Bogota',
+    });
   }
 }

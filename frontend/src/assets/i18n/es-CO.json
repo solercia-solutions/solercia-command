@@ -1380,6 +1380,35 @@
           "message": "No fue posible completar la acción. Intenta de nuevo."
         }
       }
+    },
+    "richEditor": {
+      "toolbar": "Herramientas de formato",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "underline": "Subrayado",
+      "strike": "Tachado",
+      "heading": "Estilo de título",
+      "paragraph": "Párrafo",
+      "heading1": "Título 1",
+      "heading2": "Título 2",
+      "heading3": "Título 3",
+      "bulletList": "Lista con viñetas",
+      "numberedList": "Lista numerada",
+      "alignLeft": "Alinear a la izquierda",
+      "alignCenter": "Centrar",
+      "alignRight": "Alinear a la derecha",
+      "insertImage": "Insertar imagen",
+      "insertTable": "Insertar tabla",
+      "insertLink": "Insertar enlace",
+      "removeLink": "Quitar enlace",
+      "removeFormat": "Quitar formato",
+      "tablePicker": "Selecciona filas y columnas",
+      "linkPlaceholder": "Pega o escribe el enlace",
+      "linkConfirm": "Aplicar",
+      "editorAria": "Editor de texto enriquecido",
+      "imageTooLarge": "La imagen supera el tamaño máximo permitido",
+      "mentionList": "Mencionar usuario",
+      "taskList": "Enlazar tarea"
     }
   },
   "sol": {
@@ -1412,7 +1441,8 @@
       "downloadAria": "Descargar archivo adjunto",
       "title": "Archivos adjuntos",
       "upload": "Subir archivo",
-      "uploadAria": "Subir archivo adjunto"
+      "uploadAria": "Subir archivo adjunto",
+      "empty": "Esta tarea no tiene archivos adjuntos."
     },
     "back": "Volver",
     "backAria": "Volver al proyecto",
@@ -1432,7 +1462,9 @@
       "submitAria": "Agregar comentario",
       "title": "Comentarios",
       "upload": "Subir archivo",
-      "uploadAria": "Subir archivo al comentario"
+      "uploadAria": "Subir archivo al comentario",
+      "empty": "Aún no hay comentarios. Escribe el primero abajo.",
+      "authorUnknown": "Persona fuera del proyecto"
     },
     "description": "Descripción",
     "errors": {
@@ -1476,7 +1508,41 @@
       "saveAria": "Guardar subtarea",
       "saving": "Guardando...",
       "title": "Subtareas",
-      "titleField": "Título de la subtarea"
+      "titleField": "Título de la subtarea",
+      "empty": "Esta tarea no tiene subtareas. Usa «Nueva subtarea» para dividir el trabajo.",
+      "titleRequired": "Escribe el título para poder guardar."
+    },
+    "states": {
+      "loading": "Cargando la tarea…",
+      "notFoundTitle": "No encontramos esta tarea",
+      "notFoundMessage": "La clave {{ key }} no existe en la organización activa. Revisa la clave o cambia de organización en el encabezado.",
+      "forbiddenTitle": "No tienes acceso a esta tarea",
+      "forbiddenMessage": "La tarea pertenece a un proyecto del que no eres miembro. Pide acceso a quien administra el proyecto.",
+      "goProjects": "Ir a proyectos",
+      "retry": "Reintentar",
+      "dismiss": "Cerrar aviso",
+      "saveError": "No se pudo guardar el cambio. Inténtalo de nuevo."
+    },
+    "tabs": {
+      "detail": "Detalle",
+      "subtasks": "Subtareas ({{ count }})",
+      "comments": "Comentarios ({{ count }})",
+      "attachments": "Adjuntos ({{ count }})"
+    },
+    "meta": {
+      "project": "Proyecto",
+      "due": "Vence",
+      "start": "Inicio",
+      "created": "Creada",
+      "completed": "Completada",
+      "noDate": "Sin fecha"
+    },
+    "sources": {
+      "label": "Origen",
+      "checklist_xlsx": "Checklist de tareas",
+      "jira": "Jira",
+      "api": "Integración",
+      "file": "Archivo importado"
     }
   },
   "taskModal": {

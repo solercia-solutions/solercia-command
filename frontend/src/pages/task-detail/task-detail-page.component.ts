@@ -8,6 +8,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TaskDetailPanelComponent } from '@widgets/task-detail-panel/task-detail-panel.component';
 import { I18nService } from '@shared/i18n';
+import { SolErrorStateComponent } from '@shared/ui';
 
 /**
  * Página `/task/:key` — envoltorio delgado del widget `sol-task-detail-panel`
@@ -18,17 +19,18 @@ import { I18nService } from '@shared/i18n';
   selector: 'sol-task-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TaskDetailPanelComponent],
+  imports: [TaskDetailPanelComponent, SolErrorStateComponent],
   template: `
-<div class="min-h-screen bg-page px-4 py-6 md:px-8">
+<section class="tdp-page">
   @if (taskKey(); as key) {
     <sol-task-detail-panel [taskKey]="key" />
   } @else {
-    <div class="rounded-lg border border-danger/30 bg-danger/10 p-4 text-danger">
-      {{ missingKeyError() }}
-    </div>
+    <sol-error-state [code]="404" [title]="notFoundTitle()" [message]="missingKeyError()" />
   }
-</div>
+</section>
+  `,
+  styles: `
+    .tdp-page { display: block; padding-block: var(--sol-space-md, 16px); }
   `,
 })
 export class TaskDetailPageComponent {
@@ -39,6 +41,10 @@ export class TaskDetailPageComponent {
   private readonly params = toSignal(this.route.paramMap);
   protected readonly taskKey = computed(
     () => this.params()?.get('key') ?? null,
+  );
+
+  protected readonly notFoundTitle = this.i18n.t(
+    'taskDetail.states.notFoundTitle',
   );
 
   protected readonly missingKeyError = this.i18n.t(
