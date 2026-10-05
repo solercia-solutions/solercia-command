@@ -9,12 +9,17 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { SolButtonComponent } from '@shared/ui';
-import { SolCardComponent } from '@shared/ui';
-import { SolEmptyStateComponent } from '@shared/ui';
-import { SolIconComponent } from '@shared/ui';
-import { SolSelectComponent } from '@shared/ui';
-import { SolSpinnerComponent } from '@shared/ui';
+import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  SolBadgeComponent,
+  SolButtonComponent,
+  SolCardComponent,
+  SolEmptyStateComponent,
+  SolIconComponent,
+  SolProgressBarComponent,
+  SolSelectComponent,
+  SolSkeletonComponent,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { OrgRoleTemplatesService } from '@entities/org-role-template/org-role-templates.service';
 import {
@@ -42,6 +47,9 @@ interface FlatTemplateNode {
  * partir de una plantilla organizacional (org-role-templates) con la
  * persona líder elegida. La instanciación es idempotente/reconciliable en
  * el backend, así que repetirla no duplica proyectos.
+ *
+ * Patrón de PANDORA: encabezado `h1.sol-display`, avance del asistente en `sol-progress-bar`
+ * segmentada, plantillas como tarjetas seleccionables y estados con «Reintentar».
  */
 @Component({
   selector: 'sol-teams',
@@ -50,184 +58,244 @@ interface FlatTemplateNode {
   imports: [
     RouterLink,
     ReactiveFormsModule,
+    SolBadgeComponent,
     SolButtonComponent,
     SolCardComponent,
     SolEmptyStateComponent,
     SolIconComponent,
+    SolProgressBarComponent,
     SolSelectComponent,
-    SolSpinnerComponent,
+    SolSkeletonComponent,
+  ],
+  styleUrl: '../page-layout.scss',
+  styles: [
+    `
+      .tm-option {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--sol-space-sm, 8px);
+        width: 100%;
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--sol-color-text-primary);
+        font: inherit;
+        font-weight: 600;
+        text-align: left;
+        cursor: pointer;
+      }
+      .tm-option:focus-visible,
+      .tm-toggle:focus-visible {
+        outline: 2px solid var(--sol-color-primary);
+        outline-offset: 2px;
+      }
+      .tm-radio {
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 18px;
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+        border: 2px solid var(--sol-border-color-default, #d1d5db);
+        border-radius: 50%;
+      }
+      .tm-radio--on {
+        border-color: var(--sol-color-primary);
+      }
+      .tm-radio--on::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--sol-color-primary);
+      }
+      .tm-card--on {
+        display: block;
+        border-radius: var(--sol-border-radius-lg, 12px);
+        outline: 2px solid var(--sol-color-primary);
+      }
+      .tm-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--sol-space-xs, 4px);
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--sol-color-primary);
+        font: inherit;
+        font-size: var(--sol-font-size-sm, 0.875rem);
+        cursor: pointer;
+      }
+      .tm-tree {
+        margin: 0;
+        padding: 0 0 0 var(--sol-space-sm, 8px);
+        border-left: 1px solid var(--sol-border-color-default, #e5e7eb);
+        list-style: none;
+      }
+      .tm-tree li {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--sol-space-xs, 4px) var(--sol-space-sm, 8px);
+        padding: 2px 0;
+        font-size: var(--sol-font-size-sm, 0.875rem);
+        color: var(--sol-color-text-primary);
+      }
+      .tm-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sol-space-xs, 4px);
+        margin-top: var(--sol-space-xs, 4px);
+        font-weight: 400;
+      }
+      .tm-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .tm-success-icon {
+        color: var(--sol-color-success);
+      }
+      .tm-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sol-space-sm, 8px);
+      }
+      .pg-filter.tm-leader {
+        flex-basis: 420px;
+        max-width: 100%;
+      }
+      .tm-error {
+        margin: var(--sol-space-xs, 4px) 0 0;
+        font-size: var(--sol-font-size-xs, 0.75rem);
+        color: var(--sol-color-danger);
+      }
+    `,
   ],
   template: `
-    <section class="flex flex-col gap-6">
-      <div>
-        <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
-        <p class="text-sm text-muted">{{ text.subtitle() }}</p>
-      </div>
+    <section class="pg-page">
+      <header class="pg-header">
+        <div class="pg-header__text">
+          <h1 class="pg-title sol-display">{{ text.title() }}</h1>
+          <p class="pg-muted">{{ text.subtitle() }}</p>
+        </div>
+      </header>
 
       @if (result(); as generated) {
         <!-- Paso final: resumen del equipo generado. -->
         <sol-card>
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-3">
-              <span
-                class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-success/10 text-success"
-                aria-hidden="true"
-              >
-                <sol-icon name="check-circle" />
-              </span>
-              <div>
-                <h2 class="text-lg font-semibold text-text">
-                  {{ text.successTitle() }}
-                </h2>
-                <p class="text-sm text-muted">{{ successSubtitle() }}</p>
+          <div class="pg-section" role="status">
+            <div class="pg-row">
+              <sol-icon class="tm-success-icon" name="check-circle" aria-hidden="true" />
+              <div class="pg-header__text">
+                <h2 class="pg-subtitle">{{ text.successTitle() }}</h2>
+                <p class="pg-muted">{{ successSubtitle() }}</p>
               </div>
             </div>
-
-            <div>
-              <h3 class="mb-2 text-sm font-semibold text-text">
-                {{ text.successProjectsHeading() }}
-              </h3>
-              <ul class="flex flex-col gap-1">
-                @for (item of resultRows(); track item.id) {
-                  <li
-                    class="flex items-center gap-2 text-sm text-text"
-                    [style.padding-left.rem]="item.depth * 1.25"
-                  >
-                    <sol-icon name="layers" size="sm" class="text-muted" />
-                    <span>{{ item.name }}</span>
-                    <span
-                      class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand"
-                    >
-                      {{ methodologyLabel(item.methodology) }}
-                    </span>
-                  </li>
-                }
-              </ul>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
+            <h3 class="pg-subtitle">{{ text.successProjectsHeading() }}</h3>
+            <ul class="tm-tree">
+              @for (item of resultRows(); track item.id) {
+                <li [style.padding-left.rem]="item.depth * 1.25">
+                  <span>{{ item.name }}</span>
+                  <sol-badge variant="info" size="sm">{{ methodologyLabel(item.methodology) }}</sol-badge>
+                </li>
+              }
+            </ul>
+            <div class="tm-actions">
               <a routerLink="/hierarchy">
-                <sol-button type="button" variant="primary">
-                  {{ text.successGoHierarchy() }}
-                </sol-button>
+                <sol-button type="button" variant="primary">{{ text.successGoHierarchy() }}</sol-button>
               </a>
-              <sol-button type="button" variant="ghost" (click)="resetFlow()">
+              <sol-button type="button" variant="ghost" (clicked)="resetFlow()">
                 {{ text.successAgain() }}
               </sol-button>
             </div>
           </div>
         </sol-card>
+      } @else if (loading()) {
+        <div class="pg-section" role="status" aria-live="polite" [attr.aria-label]="text.loading()">
+          <div class="pg-grid"><sol-skeleton variant="card" [count]="2" /></div>
+        </div>
+      } @else if (loadError(); as message) {
+        <div class="pg-alert" role="alert">
+          <span>{{ message }}</span>
+          <sol-button type="button" variant="secondary" size="sm" (clicked)="loadTemplates()">
+            {{ text.retry() }}
+          </sol-button>
+        </div>
+      } @else if (templates().length === 0) {
+        <sol-empty-state
+          icon="users"
+          titleKey="teams.empty.title"
+          descriptionKey="teams.empty.subtitle"
+        />
       } @else {
-        <!-- Pasos del onboarding. -->
-        <ol class="flex flex-col gap-1 text-sm text-muted sm:flex-row sm:gap-6">
-          <li>1. {{ text.stepTemplate() }}</li>
-          <li>2. {{ text.stepLeader() }}</li>
-          <li>3. {{ text.stepReview() }}</li>
-        </ol>
+        <sol-card>
+          <div class="pg-section">
+            <sol-progress-bar
+              mode="segmented"
+              [steps]="3"
+              [current]="stepIndex()"
+              [showLabel]="true"
+            />
+            <p class="pg-muted">{{ stepHint() }}</p>
+          </div>
+        </sol-card>
 
-        @if (loading()) {
-          <div class="flex items-center gap-3 py-8">
-            <sol-spinner size="sm" />
-            <p class="text-sm text-muted">{{ text.loading() }}</p>
-          </div>
-        } @else if (loadError()) {
-          <div
-            role="alert"
-            class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
-          >
-            {{ loadError() }}
-          </div>
-        } @else if (templates().length === 0) {
-          <sol-empty-state
-            icon="users"
-            titleKey="teams.empty.title"
-            descriptionKey="teams.empty.subtitle"
-          />
-        } @else {
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="pg-section">
+          <h2 class="pg-subtitle">1. {{ text.stepTemplate() }}</h2>
+          <div class="pg-grid" role="radiogroup" [attr.aria-label]="text.stepTemplate()">
             @for (template of templates(); track template.id) {
-              <sol-card>
-                <div class="flex flex-col gap-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      class="flex items-center gap-2 text-left text-base font-semibold text-text
-                             focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                      [attr.aria-label]="selectAria(template.name)"
-                      (click)="selectTemplate(template)"
-                    >
-                      <span
-                        class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
-                        [class.border-brand]="selectedId() === template.id"
-                        [class.border-border]="selectedId() !== template.id"
-                        aria-hidden="true"
-                      >
-                        @if (selectedId() === template.id) {
-                          <span class="h-2 w-2 rounded-full bg-brand"></span>
-                        }
-                      </span>
-                      {{ template.name }}
-                    </button>
-                    <div class="flex shrink-0 items-center gap-1.5">
-                      @if (selectedId() === template.id) {
-                        <span
-                          class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand"
-                        >
-                          {{ text.selectedBadge() }}
-                        </span>
-                      }
-                      @if (template.is_system) {
-                        <span
-                          class="rounded-full bg-sunken px-2 py-0.5 text-xs text-muted"
-                        >
-                          {{ text.systemBadge() }}
-                        </span>
-                      }
-                    </div>
-                  </div>
-
+              <sol-card [class.tm-card--on]="selectedId() === template.id">
+                <div class="tm-body">
                   <button
                     type="button"
-                    class="inline-flex w-fit items-center gap-1 text-sm text-brand
-                           hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                    [attr.aria-label]="
-                      isExpanded(template.id)
-                        ? collapseAria(template.name)
-                        : expandAria(template.name)
-                    "
+                    class="tm-option"
+                    role="radio"
+                    [attr.aria-checked]="selectedId() === template.id"
+                    [attr.aria-label]="selectAria(template.name)"
+                    (click)="selectTemplate(template)"
+                  >
+                    <span class="tm-radio" [class.tm-radio--on]="selectedId() === template.id" aria-hidden="true"></span>
+                    <span class="pg-grow">
+                      {{ template.name }}
+                      <span class="tm-badges">
+                        @if (selectedId() === template.id) {
+                          <sol-badge variant="info" size="sm">{{ text.selectedBadge() }}</sol-badge>
+                        }
+                        @if (template.is_system) {
+                          <sol-badge variant="neutral" size="sm">{{ text.systemBadge() }}</sol-badge>
+                        }
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="tm-toggle"
+                    [attr.aria-label]="isExpanded(template.id) ? collapseAria(template.name) : expandAria(template.name)"
                     [attr.aria-expanded]="isExpanded(template.id)"
                     (click)="toggleTree(template)"
                   >
-                    <sol-icon
-                      [name]="isExpanded(template.id) ? 'chevron-down' : 'chevron-right'"
-                      size="sm"
-                    />
-                    {{
-                      isExpanded(template.id)
-                        ? text.hideTree()
-                        : text.showTree()
-                    }}
+                    <sol-icon [name]="isExpanded(template.id) ? 'chevron-down' : 'chevron-right'" size="sm" />
+                    {{ isExpanded(template.id) ? text.hideTree() : text.showTree() }}
                   </button>
-
                   @if (isExpanded(template.id)) {
                     @if (treeLoadingIds().has(template.id)) {
-                      <p class="text-sm text-muted">{{ text.treeLoading() }}</p>
+                      <p class="pg-small" role="status">{{ text.treeLoading() }}</p>
                     } @else if (treeErrors().has(template.id)) {
-                      <p class="text-sm text-danger">{{ text.treeError() }}</p>
+                      <div class="pg-alert" role="alert">
+                        <span>{{ text.treeError() }}</span>
+                        <sol-button type="button" variant="secondary" size="sm" (clicked)="retryTree(template.id)">
+                          {{ text.retry() }}
+                        </sol-button>
+                      </div>
                     } @else if (trees().get(template.id); as nodes) {
-                      <ul class="flex flex-col gap-1 border-l border-border pl-3">
+                      <ul class="tm-tree">
                         @for (node of nodes; track $index) {
-                          <li
-                            class="flex items-center gap-2 text-sm text-text"
-                            [style.padding-left.rem]="node.depth * 1.25"
-                          >
-                            <sol-icon name="layers" size="sm" class="text-muted" />
+                          <li [style.padding-left.rem]="node.depth * 1.25">
                             <span>{{ node.name }}</span>
-                            <span
-                              class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand"
-                            >
-                              {{ methodologyLabel(node.methodology) }}
-                            </span>
+                            <sol-badge variant="info" size="sm">{{ methodologyLabel(node.methodology) }}</sol-badge>
                           </li>
                         }
                       </ul>
@@ -237,49 +305,47 @@ interface FlatTemplateNode {
               </sol-card>
             }
           </div>
+        </div>
 
+        <div class="pg-section">
+          <h2 class="pg-subtitle">2. {{ text.stepLeader() }}</h2>
           <sol-card>
-            <div class="flex flex-col gap-4">
-              <div>
+            <div class="pg-section">
+              <div class="pg-filters">
                 <sol-select
+                  class="pg-filter tm-leader"
                   [label]="text.leaderLabel()"
                   [placeholder]="text.leaderPlaceholder()"
                   [options]="memberOptions()"
                   [searchable]="true"
+                  [error]="showLeadRequired() ? text.leaderRequired() : ''"
                   [formControl]="leadControl"
-                ></sol-select>
-                @if (membersError()) {
-                  <p class="mt-1 text-xs text-danger">{{ membersError() }}</p>
-                }
-                @if (showLeadRequired()) {
-                  <p class="mt-1 text-xs text-danger">
-                    {{ text.leaderRequired() }}
-                  </p>
-                }
+                />
               </div>
-
-              @if (generateError()) {
-                <div
-                  role="alert"
-                  class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-                >
-                  {{ generateError() }}
-                </div>
+              @if (membersError(); as message) {
+                <p class="tm-error" role="alert">{{ message }}</p>
               }
-
-              <div>
-                <sol-button
-                  type="button"
-                  variant="primary"
-                  [disabled]="generating() || !selectedId()"
-                  (click)="generate()"
-                >
-                  {{ generating() ? text.generating() : text.generate() }}
-                </sol-button>
-              </div>
             </div>
           </sol-card>
-        }
+        </div>
+
+        <div class="pg-section">
+          <h2 class="pg-subtitle">3. {{ text.stepReview() }}</h2>
+          @if (generateError(); as message) {
+            <div class="pg-alert" role="alert"><span>{{ message }}</span></div>
+          }
+          <div class="tm-actions">
+            <sol-button
+              type="button"
+              variant="primary"
+              [loading]="generating()"
+              [disabled]="generating() || !selectedId()"
+              (clicked)="generate()"
+            >
+              {{ generating() ? text.generating() : text.generate() }}
+            </sol-button>
+          </div>
+        </div>
       }
     </section>
   `,
@@ -314,6 +380,7 @@ export class TeamsComponent implements OnInit {
     successProjectsHeading: this.i18n.t('teams.success.projectsHeading'),
     successGoHierarchy: this.i18n.t('teams.success.goHierarchy'),
     successAgain: this.i18n.t('teams.success.again'),
+    retry: this.i18n.t('teams.retry'),
   } as const;
 
   protected readonly templates = signal<OrgRoleTemplate[]>([]);
@@ -345,6 +412,16 @@ export class TeamsComponent implements OnInit {
     validators: [Validators.required],
   });
   protected readonly leadRequiredVisible = signal(false);
+  private readonly leadValue = toSignal(this.leadControl.valueChanges, { initialValue: '' });
+
+  /** Paso actual del asistente (base 0): plantilla → líder → generar. */
+  protected readonly stepIndex = computed(() =>
+    !this.selectedId() ? 0 : !this.leadValue() ? 1 : 2,
+  );
+
+  protected readonly stepHint = computed(() =>
+    this.i18n.translate(`teams.stepHint.${this.stepIndex()}`),
+  );
 
   protected readonly generating = signal(false);
   protected readonly generateError = signal<string | null>(null);
@@ -471,13 +548,22 @@ export class TeamsComponent implements OnInit {
     return this.i18n.translate('teams.errors.instantiate');
   }
 
-  private loadTemplates(): void {
+  protected retryTree(templateId: string): void {
+    this.loadTree(templateId);
+  }
+
+  protected loadTemplates(): void {
     this.loading.set(true);
     this.loadError.set(null);
 
     this.templatesService.list().subscribe({
       next: (res) => {
-        this.templates.set(res.data ?? []);
+        const templates = res.data ?? [];
+        this.templates.set(templates);
+        // Valor por defecto: con una sola plantilla no hay nada que decidir.
+        if (templates.length === 1 && !this.selectedId()) {
+          this.selectedId.set(templates[0].id);
+        }
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {

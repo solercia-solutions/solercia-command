@@ -1678,7 +1678,7 @@
     "titleRequired": "El título es obligatorio.",
     "typeLabel": "Tipo"
   },
-  "teams": {
+"teams": {
     "empty": {
       "subtitle": "Cuando existan plantillas disponibles aparecerán en esta página.",
       "title": "No hay plantillas de equipo disponibles."
@@ -1723,7 +1723,13 @@
       "showTree": "Ver estructura",
       "treeLoading": "Cargando estructura…"
     },
-    "title": "Equipos"
+    "title": "Equipos",
+    "retry": "Reintentar",
+    "stepHint": {
+      "0": "Empieza por la plantilla: define qué proyectos se crean.",
+      "1": "Plantilla lista. Ahora elige quién lidera el equipo.",
+      "2": "Todo listo. Genera el equipo; repetirlo no duplica proyectos."
+    }
   },
   "velocityChart": {
     "chartAria": "Gráfico de velocidad por sprint: puntos completados por sprint cerrado",
