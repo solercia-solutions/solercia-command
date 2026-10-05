@@ -57,7 +57,9 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
 - [x] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S). Commits
       `33844c2` (dependencias + estilos e i18n comunes), `e072a7b` (usuarios), `1850a03` (roles),
       `57682f2` (actividades), `d639c74` (empresas).
-- [ ] S09 `/teams`, `/performance`, `/executive`, `/connections`, `/tasks/import`, `/hierarchy`.
+- [x] S09 `/executive`, `/performance`, `/teams`, `/connections`, `/tasks/import`, `/hierarchy`.
+      Commits `1b64909` (executive + `pages/page-layout.scss`), `a155076` (performance), `ef3ab01`
+      (teams), `82e2655` (connections), `241f9bb` (task-import), `1e490b0` (hierarchy).
 
 Referencia de patrones PANDORA (solo lectura, `IDARTES/pandora_proxy/pandora_front`):
 listado `pages/administrador/usuarios/gestion-usuarios/ui/gestion-usuarios-page.component.ts`;
@@ -263,9 +265,46 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   el texto visible lo cubre); (4) el rol de un miembro sigue en `<select>` nativo y su retiro se
   confirma en línea, no con `sol-confirm-dialog`.
 
+- 2026-10-04 S09: estilos comunes `pages/page-layout.scss` (`pg-*`, tokens `--sol-*`): encabezado
+  `h1.sol-display` + subtítulo, indicadores, estados y filtros. `/executive`: indicadores en
+  `sol-card` y `sol-tabs` Personas · Riesgos (n) · Proyectos (n) · Mi resumen; carga en `sol-chart`
+  de barras (solo personas con tareas, «25 personas sin tareas activas»), tarjetas por persona con
+  `sol-avatar` y 3 tareas + «y N más»; riesgos y avance en `sol-data-table` (avance con
+  `sol-progress-bar`, menor avance primero, enlace al proyecto). «Mi resumen» conserva su lógica
+  (elección explícita de interpretación) con `sol-select`. `/performance`: totales en `sol-card`,
+  una fila por persona en `sol-data-table` ordenable, «% a tiempo» con `sol-progress-bar`, filtro
+  «Mostrar» con conteos reales (vencidas 6, activas, con entregas). `/teams`: «Paso N de 3» con
+  `sol-progress-bar` segmentada y guía, plantillas como tarjetas `role=radio`, líder con error en
+  el campo, preselección si hay una sola plantilla. `/connections`: encabezado y estados comunes;
+  la vista previa de Jira pasa del `<table>` a `sol-data-table` (colapsa en el drawer); tarjeta de
+  Solercia Connect sin cambios. `/tasks/import`: encabezado, `sol-card`, conteos como indicadores,
+  error con «Reintentar»; el editor del borrador conserva sus selects nativos. `/hierarchy`:
+  encabezado con conteo de raíces, esqueleto, error con «Reintentar», vacío con «Ir a proyectos».
+  Año: `GET /dashboard/executive` y `/dashboard/performance` no aceptan `year` (solo
+  `threshold_days` y `sprint_id`): no se agregó el selector.
+- 2026-10-04 S09 verificación: `npm run build` y `npm run lint` exit 0 tras cada página; bundle
+  inicial 1,08 MB (igual). Navegador 1440×900 y 390×844, claro y oscuro, IDARTES y SDMujer, sin
+  desplazamiento horizontal en ninguna. Executive IDARTES 22/1756/17/17, SDMujer 3/205/89/89; 500
+  simulado en executive, performance, plantillas de equipos y `/projects` (árbol) → alerta y
+  «Reintentar» OK. Performance «Con tareas vencidas (6)» → 6 filas y limpiar. Teams: elegir
+  plantilla → «Paso 2 de 3»; generar sin líder → error en el campo, sin petición. Vista previa de
+  Jira y de `/tasks/import` con respuestas falsas por `route` (nunca llegaron al backend). En
+  `/connections` solo se miró la página. Ninguna petición no GET salió (contadas por página).
+  Capturas `.playwright-mcp/s09-*.png`.
+- Veredicto UX S09: vienen a ver el estado del equipo (executive/performance), generar un equipo,
+  revisar conexiones o un archivo. Bien: una pregunta por pestaña, opciones con conteos reales,
+  paso a paso visible, estados distinguibles. Fricciones: (1) a 390 px los cuatro indicadores
+  ocupan ~250 px antes del contenido (indicadores compactos en móvil); (2) los indicadores
+  «Vencidas/En riesgo» no llevan a la pestaña Riesgos; (3) el árbol (`sol-project-tree`) trunca
+  nombres a 390 px por la sangría del widget; (4) `sol-file-upload` muestra imagen rota con CSV
+  en el drawer de Jira (librería); (5) el editor del borrador de `/tasks/import` sigue con
+  selects nativos; (6) el API de executive no expone `task_key` en riesgos (enlace solo con
+  clave; se muestra la clave externa).
+
 ## Siguiente paso
 
-S09. Pendientes: aviso de cambios sin guardar en los drawers de `/admin/*`, `loading` en
+Pendientes (S09 cerrada): año en `/dashboard/executive` y `/dashboard/performance` si se
+quiere filtrar por año, `task_key` en los riesgos de executive, fricciones del veredicto S09, aviso de cambios sin guardar en los drawers de `/admin/*`, `loading` en
 `sol-confirm-dialog` (librería), planes de la tarea en el detalle (S06), endpoint de tareas por plan, categoría de columna para «abierta», filtros plegables en móvil, etiquetas
 accesibles en `@solercia/ui`, vista tabla opcional en `/projects`; en el detalle, confirmación al
 borrar comentarios, guardado de la descripción al salir y pestaña «Historial» si se decide.
