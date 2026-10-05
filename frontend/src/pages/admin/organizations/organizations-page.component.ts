@@ -17,14 +17,15 @@ import {
 import {
   SolButtonComponent,
   SolInputComponent,
-  SolPageHeaderComponent,
   SolBadgeComponent,
   SolIconButtonComponent,
-  SolModalComponent,
+  SolDrawerComponent,
   SolConfirmDialogComponent,
   SolSelectComponent,
   SolSelectOption,
   SolDataTableComponent,
+  SolEmptyStateComponent,
+  SolSpinnerComponent,
   DataTableColumn,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
@@ -47,6 +48,9 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
  * miembros) cuando el rol del usuario en ESA fila no es `admin`, pero el
  * backend SIEMPRE re-valida con `require_org_admin` — la UI es cosmética,
  * nunca el control de acceso real (design.md, Fase 11.2).
+ *
+ * Patrón de listado de PANDORA: encabezado `h1.sol-display`, tabla paginada con buscador y
+ * acciones al inicio; crear/editar y miembros en `sol-drawer` lateral.
  */
 @Component({
   selector: 'sol-admin-organizations',
@@ -56,73 +60,91 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
     ReactiveFormsModule,
     SolButtonComponent,
     SolInputComponent,
-    SolPageHeaderComponent,
     SolBadgeComponent,
     SolIconButtonComponent,
-    SolModalComponent,
+    SolDrawerComponent,
     SolConfirmDialogComponent,
     SolSelectComponent,
     SolDataTableComponent,
+    SolEmptyStateComponent,
+    SolSpinnerComponent,
   ],
+  styleUrl: '../admin-page.scss',
   template: `
-    <section class="flex flex-col gap-6">
-      <sol-page-header
-        [title]="text.title()"
-        [subtitle]="text.subtitle()"
-      >
+    <section class="adm-page">
+      <header class="adm-header">
+        <div class="adm-header__text">
+          <h1 class="adm-title sol-display">{{ text.title() }}</h1>
+          <p class="adm-muted">{{ text.subtitle() }}</p>
+        </div>
         <sol-button
           type="button"
           variant="primary"
-          (click)="openCreate()"
           [ariaLabel]="text.actions.createAria()"
+          (clicked)="openCreate()"
         >
           {{ text.actions.create() }}
         </sol-button>
-      </sol-page-header>
+      </header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">{{ text.loading() }}</p>
-      } @else if (loadError()) {
-        <div
-          role="alert"
-          class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
-          {{ loadError() }}
+        <div class="adm-state" role="status" aria-live="polite">
+          <sol-spinner size="lg" />
+          <p>{{ text.loading() }}</p>
+        </div>
+      } @else if (loadError(); as message) {
+        <div class="adm-alert" role="alert">
+          <span>{{ message }}</span>
+          <sol-button type="button" variant="secondary" size="sm" (clicked)="load()">
+            {{ text.retry() }}
+          </sol-button>
         </div>
       } @else if (memberships().length === 0) {
-        <div class="rounded-xl border border-border bg-surface p-8 text-center">
-          <p class="text-base font-medium text-text">{{ text.empty.title() }}</p>
-          <p class="mt-1 text-sm text-muted">{{ text.empty.subtitle() }}</p>
-        </div>
+        <sol-empty-state
+          icon="building"
+          titleKey="admin.organizations.empty.title"
+          descriptionKey="admin.organizations.empty.subtitle"
+        />
       } @else {
+        @if (deletingId()) {
+          <p class="adm-busy" role="status">{{ text.actions.deleting() }}</p>
+        }
+        <!-- Sin filtros: cada persona ve pocas empresas; el buscador basta. -->
         <sol-data-table
           [data]="tableData()"
           [columns]="columns()"
-          [showToolbar]="false"
-          [paginated]="false"
+          [searchPlaceholder]="text.search()"
+          [emptyMessage]="text.noSearchMatches()"
+          [paginated]="true"
+          [showActions]="true"
           [actionsLabel]="text.table.actions()"
+          actionsPosition="start"
+          [collapseWidth]="760"
+          trackByKey="organization.id"
         >
           <ng-template #rowActions let-row>
-            <div class="flex items-center justify-end gap-2">
+            <sol-icon-button
+              icon="users"
+              variant="outline"
+              [ariaLabel]="text.actions.membersAria()"
+              (clicked)="openMembers($any(row))"
+            />
+            @if ($any(row).role === 'admin') {
               <sol-icon-button
-                icon="users"
-                [ariaLabel]="text.actions.membersAria()"
-                (clicked)="openMembers($any(row))"
+                icon="edit"
+                variant="outline"
+                [ariaLabel]="text.actions.editAria()"
+                [disabled]="deletingId() === $any(row).organization.id"
+                (clicked)="openEdit($any(row))"
               />
-              @if ($any(row).role === 'admin') {
-                <sol-icon-button
-                  icon="edit"
-                  [ariaLabel]="text.actions.editAria()"
-                  (clicked)="openEdit($any(row))"
-                />
-                <sol-icon-button
-                  icon="trash"
-                  variant="danger"
-                  [ariaLabel]="text.actions.deleteAria()"
-                  (clicked)="askDelete($any(row))"
-                />
-              }
-            </div>
+              <sol-icon-button
+                icon="trash"
+                variant="danger"
+                [ariaLabel]="text.actions.deleteAria()"
+                [disabled]="deletingId() === $any(row).organization.id"
+                (clicked)="askDelete($any(row))"
+              />
+            }
           </ng-template>
         </sol-data-table>
       }
@@ -139,59 +161,48 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
       }
     </ng-template>
 
-    @if (showForm()) {
-      <sol-modal [open]="true"
-        [title]="editing() ? text.form.editTitle() : text.form.createTitle()"
-        (closed)="closeForm()"
-      >
-        <form
-          [formGroup]="form"
-          (ngSubmit)="onSubmit()"
-          class="flex flex-col gap-4"
-          novalidate
+    <sol-drawer
+      [open]="showForm()"
+      [title]="editing() ? text.form.editTitle() : text.form.createTitle()"
+      side="end"
+      size="md"
+      (closed)="closeForm()"
+    >
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="adm-form" novalidate>
+        <sol-input
+          [label]="text.form.name()"
+          [placeholder]="text.form.namePlaceholder()"
+          [error]="showError('name') ? text.form.errors.nameRequired() : ''"
+          formControlName="name"
+        />
+        <sol-input
+          [label]="text.form.slug()"
+          [placeholder]="text.form.slugPlaceholder()"
+          [error]="showError('slug') ? text.form.errors.slugRequired() : ''"
+          formControlName="slug"
+        />
+
+        @if (formError(); as message) {
+          <div class="adm-alert" role="alert">{{ message }}</div>
+        }
+        <button type="submit" class="adm-submit" tabindex="-1" aria-hidden="true"></button>
+      </form>
+
+      <div drawerFooter class="adm-footer">
+        <sol-button type="button" variant="secondary" (clicked)="closeForm()">
+          {{ text.actions.cancel() }}
+        </sol-button>
+        <sol-button
+          type="button"
+          variant="primary"
+          [disabled]="saving()"
+          [loading]="saving()"
+          (clicked)="onSubmit()"
         >
-          <div>
-            <sol-input
-              [label]="text.form.name()"
-              [placeholder]="text.form.namePlaceholder()"
-              formControlName="name"
-            ></sol-input>
-            @if (showError('name')) {
-              <p class="mt-1 text-xs text-danger">{{ text.form.errors.nameRequired() }}</p>
-            }
-          </div>
-
-          <div>
-            <sol-input
-              [label]="text.form.slug()"
-              [placeholder]="text.form.slugPlaceholder()"
-              formControlName="slug"
-            ></sol-input>
-            @if (showError('slug')) {
-              <p class="mt-1 text-xs text-danger">{{ text.form.errors.slugRequired() }}</p>
-            }
-          </div>
-
-          @if (formError()) {
-            <div
-              role="alert"
-              class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {{ formError() }}
-            </div>
-          }
-
-          <div class="flex items-center justify-end gap-2">
-            <sol-button type="button" variant="ghost" (click)="closeForm()">
-              {{ text.actions.cancel() }}
-            </sol-button>
-            <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? text.actions.saving() : text.actions.save() }}
-            </sol-button>
-          </div>
-        </form>
-      </sol-modal>
-    }
+          {{ saving() ? text.actions.saving() : text.actions.save() }}
+        </sol-button>
+      </div>
+    </sol-drawer>
 
     <sol-confirm-dialog
       [open]="deleting() !== null"
@@ -204,8 +215,14 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
       (cancel)="cancelDelete()"
     />
 
-    @if (membersFor()) {
-      <sol-modal [open]="true" size="lg" [title]="membersTitle()" (closed)="closeMembers()">
+    <sol-drawer
+      [open]="membersFor() !== null"
+      [title]="membersTitle()"
+      side="end"
+      size="lg"
+      (closed)="closeMembers()"
+    >
+      @if (membersFor()) {
         @if (membersFor()!.role === 'admin') {
           <form
             [formGroup]="addMemberForm"
@@ -217,11 +234,9 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
                 [label]="text.members.add.email()"
                 type="email"
                 [placeholder]="text.members.add.emailPlaceholder()"
+                [error]="addMemberEmailError() ?? ''"
                 formControlName="email"
-              ></sol-input>
-              @if (addMemberEmailError()) {
-                <p class="mt-1 text-xs text-danger">{{ addMemberEmailError() }}</p>
-              }
+              />
             </div>
             <div class="sm:w-40">
               <sol-select
@@ -237,7 +252,10 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
         }
 
         @if (membersLoading()) {
-          <p class="text-sm text-muted">{{ text.members.loading() }}</p>
+          <div class="adm-state" role="status" aria-live="polite">
+            <sol-spinner />
+            <p>{{ text.members.loading() }}</p>
+          </div>
         } @else if (members().length === 0) {
           <p class="text-sm text-muted">{{ text.members.empty() }}</p>
         } @else {
@@ -252,6 +270,7 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
                   @if (membersFor()!.role === 'admin') {
                     <select
                       [value]="member.role"
+                      [attr.aria-label]="text.members.add.role()"
                       (change)="onRoleChange(member, $any($event.target).value)"
                       class="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-text
                              focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
@@ -307,13 +326,14 @@ const MEMBER_ROLES: MemberRole[] = ['admin', 'manager', 'member', 'viewer'];
           </div>
         }
 
-        <div class="mt-5 flex items-center justify-end">
-          <sol-button type="button" variant="ghost" (click)="closeMembers()">
-            {{ text.members.close() }}
-          </sol-button>
-        </div>
-      </sol-modal>
-    }
+      }
+
+      <div drawerFooter class="adm-footer">
+        <sol-button type="button" variant="secondary" (clicked)="closeMembers()">
+          {{ text.members.close() }}
+        </sol-button>
+      </div>
+    </sol-drawer>
   `,
 })
 export class OrganizationsPageComponent implements OnInit {
@@ -338,15 +358,15 @@ export class OrganizationsPageComponent implements OnInit {
       save: this.i18n.t('admin.organizations.actions.save'),
       saving: this.i18n.t('admin.organizations.actions.saving'),
       delete: this.i18n.t('admin.organizations.actions.delete'),
+      deleting: this.i18n.t('admin.organizations.actions.deleting'),
     },
     status: {
       active: this.i18n.t('admin.organizations.status.active'),
       inactive: this.i18n.t('admin.organizations.status.inactive'),
     },
-    empty: {
-      title: this.i18n.t('admin.organizations.empty.title'),
-      subtitle: this.i18n.t('admin.organizations.empty.subtitle'),
-    },
+    retry: this.i18n.t('admin.common.retry'),
+    search: this.i18n.t('admin.common.searchPlaceholder'),
+    noSearchMatches: this.i18n.t('admin.common.noSearchMatches'),
     table: {
       name: this.i18n.t('admin.organizations.table.name'),
       slug: this.i18n.t('admin.organizations.table.slug'),
@@ -421,12 +441,13 @@ export class OrganizationsPageComponent implements OnInit {
     );
 
   protected readonly columns = computed<DataTableColumn[]>(() => [
-    { key: 'organization.name', label: this.text.table.name() },
-    { key: 'organization.slug', label: this.text.table.slug() },
+    { key: 'organization.name', label: this.text.table.name(), sortable: true },
+    { key: 'organization.slug', label: this.text.table.slug(), sortable: true },
     { key: 'role', label: this.text.table.role(), cellTemplate: this.roleTpl() },
     {
       key: 'organization.is_active',
       label: this.text.table.status(),
+      badge: true,
       cellTemplate: this.statusTpl(),
     },
   ]);
@@ -440,6 +461,8 @@ export class OrganizationsPageComponent implements OnInit {
   protected readonly showForm = signal(false);
   protected readonly editing = signal<OrganizationMembership | null>(null);
   protected readonly deleting = signal<OrganizationMembership | null>(null);
+  /** Fila en eliminación: deshabilita sus acciones y muestra «Eliminando…». */
+  protected readonly deletingId = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
 
@@ -533,6 +556,9 @@ export class OrganizationsPageComponent implements OnInit {
   }
 
   protected onSubmit(): void {
+    if (this.saving()) {
+      return;
+    }
     this.formError.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -572,24 +598,24 @@ export class OrganizationsPageComponent implements OnInit {
   /** El diálogo se cierra al confirmar; si la eliminación falla, el motivo llega por alerta. */
   protected confirmDelete(): void {
     const item = this.deleting();
-    if (!item || this.saving()) {
+    if (!item || this.deletingId()) {
       return;
     }
     this.deleting.set(null);
-    this.saving.set(true);
+    this.deletingId.set(item.organization.id);
     this.service.remove(item.organization.id).subscribe({
       next: () => {
-        this.saving.set(false);
+        this.deletingId.set(null);
         this.load();
       },
       error: (err: HttpErrorResponse) => {
-        this.saving.set(false);
+        this.deletingId.set(null);
         this.alert.showError(this.messageFor(err));
       },
     });
   }
 
-  private load(): void {
+  protected load(): void {
     this.loading.set(true);
     this.loadError.set(null);
     this.service.mine().subscribe({
