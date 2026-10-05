@@ -53,10 +53,12 @@ async def list_projects(
 ) -> dict:
     """List the projects of the caller's organization.
 
-    Every item carries ``task_count`` (active tasks, subtasks included) and
+    Every item carries ``task_count`` (active top-level tasks, the unit the
+    workspace counts) and
     ``open_task_count`` (not completed — ``completed_at`` null — and not
     ``cancelled``). With ``?year=`` only projects having active tasks created
-    that calendar year in ``America/Bogota`` are listed and both counts are
+    that calendar year in ``America/Bogota`` (subtasks included, like
+    ``/tasks/years``) are listed and both counts are
     restricted to that year; see ``GET /projects/years`` for the years with
     data.
 

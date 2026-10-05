@@ -90,8 +90,8 @@ class ProjectRepository:
     ) -> dict[uuid.UUID, tuple[int, int]]:
         """Return ``{project_id: (task_count, open_task_count)}`` in ONE query.
 
-        Counts active tasks (subtasks included, like ``/tasks/years``),
-        optionally bounded to ``created_at`` in ``[created_from,
+        Counts active TOP-LEVEL tasks (``parent_task_id IS NULL``), the same
+        unit the workspace header counts, optionally bounded to ``created_at`` in ``[created_from,
         created_before)``. "Open" means not completed (``completed_at IS
         NULL``, the timestamp ``TaskService`` stamps on final statuses and the
         Jira import sets on resolved issues) and not ``cancelled``. Projects
@@ -113,6 +113,7 @@ class ProjectRepository:
                 Project.organization_id == organization_id,
                 Task.project_id.in_(project_ids),
                 Task.is_active.is_(True),
+                Task.parent_task_id.is_(None),
             )
             .group_by(Task.project_id)
         )

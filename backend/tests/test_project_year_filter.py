@@ -146,6 +146,48 @@ async def test_task_and_open_counts_follow_the_year(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
+async def test_counts_exclude_subtasks_but_subtasks_still_mark_the_year(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+) -> None:
+    """Counts match the workspace header (top-level tasks only); a subtask of
+    the year still makes the project belong to it (same as ``/tasks/years``)."""
+
+    _, token = user
+    project = await _create_project(client, token, "Subtareas")
+    parent = await _create_task_at(
+        client, session, token, project, datetime(2025, 2, 1, 15, tzinfo=UTC)
+    )
+    await _create_task_at(
+        client,
+        session,
+        token,
+        project,
+        datetime(2025, 2, 2, 15, tzinfo=UTC),
+        parent_task_id=uuid.UUID(parent),
+    )
+    await _create_task_at(
+        client,
+        session,
+        token,
+        project,
+        datetime(2024, 2, 2, 15, tzinfo=UTC),
+        parent_task_id=uuid.UUID(parent),
+    )
+
+    r2025 = await client.get("/projects", params={"year": 2025}, headers=_auth(token))
+    r2024 = await client.get("/projects", params={"year": 2024}, headers=_auth(token))
+
+    row_2025 = _by_id(r2025.json())[project]
+    assert (row_2025["task_count"], row_2025["open_task_count"]) == (1, 1)
+    row_2024 = _by_id(r2024.json())[project]
+    assert (row_2024["task_count"], row_2024["open_task_count"]) == (0, 0)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
 async def test_project_without_tasks_reports_zero_counts(
     client: AsyncClient, tenant: Organization, user: tuple[User, str]
 ) -> None:
