@@ -50,7 +50,7 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
       Commit `064204b`.
 - [x] S05 `/projects`: encabezado `h1.sol-display`, filtros en `sol-card` (M). Backend `d320782`,
       `353c760`, `0d2a1f5`; frontend `31fac20`.
-- [ ] S06 `/task/:key` y `sol-task-detail-panel`: patrón de perfil de PANDORA (M).
+- [x] S06 `/task/:key` y `sol-task-detail-panel`: patrón de perfil de PANDORA (M). Commit `a95bfc5`.
 - [ ] S07 `/plans`: `sol-drawer` + `sol-form-field`, menos Tailwind (L).
 - [ ] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S).
 - [ ] S09 `/teams`, `/performance`, `/executive`, `/connections`, `/tasks/import`, `/hierarchy`.
@@ -154,7 +154,38 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   (abierta/cerrada/descartada); (2) a 390 px la barra ocupa ~250 px → filtros plegables, igual
   que S04; (3) etiquetas de `sol-select`/`sol-input` sin asociación accesible (librería).
 
+- 2026-10-04 S06: el panel (página `/task/:key` y drawer del workspace) sigue el patrón de
+  `pages/perfil`: cabecera en `sol-card` (clave, origen legible, `h1.sol-display`, badges de
+  estado/prioridad/tipo/riesgo, responsable con `sol-avatar`, proyecto «código · nombre», vence,
+  inicio, creada y completada en hora de Bogotá) y acciones a la derecha («Volver al proyecto» o
+  «Abrir página completa»). `sol-tabs` Detalle · Subtareas (n) · Comentarios (n) · Adjuntos (n):
+  solo lo que el panel ya tenía; «Historial» no se agregó (el panel no lo usaba, aunque existe
+  `GET /tasks/{id}/history`). Campos con `sol-select`/`sol-input` con etiqueta; puntos y
+  estimación guardan al salir del campo o con Enter (antes, en `change` del input nativo).
+  Origen: `checklist_xlsx` → «Checklist de tareas · T-205» (se quita el prefijo
+  `CHECKLIST_TAREAS:`), Jira → «Jira» (la referencia se omite si es igual a la clave). Comentarios
+  con nombre y avatar del autor. Estilos con tokens `--sol-*` en el componente (presupuesto de
+  6 kB respetado). `updateField` no envía PATCH si el valor no cambió. `shared.richEditor.*`
+  agregadas (textos de PANDORA): la consola queda sin avisos.
+  Estados: spinner `role=status`; 404/422 → `sol-error-state` 404 «No encontramos esta tarea» con
+  «Ir a proyectos»; 403 → «No tienes acceso a esta tarea»; otro error → alerta con «Reintentar»;
+  fallo al guardar → alerta con el `detail` del backend o mensaje genérico; vacíos por pestaña.
+- 2026-10-04 S06 verificación: `npm run build` exit 0 (bundle inicial 1,08 MB, igual; sin aviso
+  de presupuesto del componente) y `npm run lint` exit 0. Navegador 1440×900 y 390×844, claro y
+  oscuro, sin desplazamiento horizontal: SDMujer GENERALES-67 (T-205) y IDARTES CP-13 (Jira). Con
+  IDARTES activo, GENERALES-67 da el 404 real. 403 y 500 simulados con `route` en `by-key`;
+  «Reintentar» recarga. Drawer del workspace (Cuadrícula → GENERALES-67) igual que la página.
+  Validación de puntos (1.5) y estimación («abc») sin enviar. Toda petición no GET quedó
+  interceptada: cero escrituras. Capturas `.playwright-mcp/s06-*.png`.
+- Veredicto UX S06: viene a entender la tarea y cambiar su estado. Bien: identidad, responsable y
+  vencimiento sin desplazarse; conteos en pestañas; errores distinguibles. Fricciones: (1) a
+  390 px la última pestaña queda cortada (desplazamiento interno de `sol-tabs`); (2) borrar un
+  comentario no pide confirmación (sin cambio de función, falta `sol-confirm-dialog`); (3) la
+  descripción guarda en cada cambio del editor (comportamiento previo, conviene guardar al salir
+  o con botón); (4) etiquetas de `sol-input` en mayúsculas y de `sol-select` no, en la librería.
+
 ## Siguiente paso
 
-S06. Pendientes: categoría de columna para «abierta», filtros plegables en móvil, etiquetas
-accesibles en `@solercia/ui`, vista tabla opcional en `/projects`.
+S07. Pendientes: categoría de columna para «abierta», filtros plegables en móvil, etiquetas
+accesibles en `@solercia/ui`, vista tabla opcional en `/projects`; en el detalle, confirmación al
+borrar comentarios, guardado de la descripción al salir y pestaña «Historial» si se decide.
