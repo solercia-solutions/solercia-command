@@ -92,16 +92,48 @@ class ProjectRepository:
 
         Counts active TOP-LEVEL tasks (``parent_task_id IS NULL``), the same
         unit the workspace header counts, optionally bounded to ``created_at`` in ``[created_from,
-        created_before)``. "Open" means not completed (``completed_at IS
-        NULL``, the timestamp ``TaskService`` stamps on final statuses and the
-        Jira import sets on resolved issues) and not ``cancelled``. Projects
+        created_before)``. "Open" means not ``cancelled`` and not done, where
+        done is ``completed_at`` set (stamped by ``TaskService`` on the final
+        status and by the Jira import on resolved issues) OR ``status`` equal
+        to the project's LAST board column — the same "last allowed status =
+        done" rule as ``TaskService._resolve_completed_at`` and
+        :meth:`rollup_progress`, needed for imported rows that reached the
+        final column without ``completed_at`` (e.g. the SDMujer checklist). Projects
         without matching tasks are absent from the result (callers default to
         zero). Scoped to the organization through ``Project``.
         """
 
         if not project_ids:
             return {}
-        is_open = and_(Task.completed_at.is_(None), Task.status != "cancelled")
+        last_status = (
+            select(
+                Board.project_id.label("project_id"),
+                BoardColumn.status_key.label("status_key"),
+            )
+            .distinct(Board.project_id)
+            .select_from(Board)
+            .join(BoardColumn, BoardColumn.board_id == Board.id)
+            .where(
+                Board.project_id.in_(project_ids),
+                Board.is_active.is_(True),
+                BoardColumn.is_active.is_(True),
+            )
+            .order_by(
+                Board.project_id,
+                BoardColumn.order.desc(),
+                BoardColumn.created_at.desc(),
+            )
+            .subquery("last_status")
+        )
+        in_last_column = and_(
+            last_status.c.status_key.is_not(None),
+            Task.status == last_status.c.status_key,
+        )
+        is_open = and_(
+            Task.completed_at.is_(None),
+            Task.status != "cancelled",
+            ~in_last_column,
+        )
         stmt = (
             select(
                 Task.project_id,
@@ -109,6 +141,7 @@ class ProjectRepository:
                 func.count(Task.id).filter(is_open).label("open"),
             )
             .join(Project, Project.id == Task.project_id)
+            .outerjoin(last_status, last_status.c.project_id == Task.project_id)
             .where(
                 Project.organization_id == organization_id,
                 Task.project_id.in_(project_ids),

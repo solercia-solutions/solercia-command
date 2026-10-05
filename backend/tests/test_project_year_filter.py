@@ -146,6 +146,33 @@ async def test_task_and_open_counts_follow_the_year(
 
 @pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
+async def test_task_in_last_board_column_is_not_open_even_without_completed_at(
+    client: AsyncClient,
+    session: AsyncSession,
+    tenant: Organization,
+    user: tuple[User, str],
+) -> None:
+    """Imported rows can sit in the final column without ``completed_at``: the
+    last board column is "done" (same rule as ``TaskService`` and the roll-up)."""
+
+    _, token = user
+    project = await _create_project(client, token, "Importado")
+    detail = await client.get(f"/projects/{project}", headers=_auth(token))
+    done_status = detail.json()["data"]["methodology_info"]["allowed_statuses"][-1]
+    in_2026 = datetime(2026, 4, 1, 15, tzinfo=UTC)
+    await _create_task_at(client, session, token, project, in_2026)
+    await _create_task_at(
+        client, session, token, project, in_2026, status=done_status, completed_at=None
+    )
+
+    response = await client.get("/projects", params={"year": 2026}, headers=_auth(token))
+
+    row = _by_id(response.json())[project]
+    assert (row["task_count"], row["open_task_count"]) == (2, 1)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
 async def test_counts_exclude_subtasks_but_subtasks_still_mark_the_year(
     client: AsyncClient,
     session: AsyncSession,

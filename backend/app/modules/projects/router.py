@@ -55,8 +55,9 @@ async def list_projects(
 
     Every item carries ``task_count`` (active top-level tasks, the unit the
     workspace counts) and
-    ``open_task_count`` (not completed — ``completed_at`` null — and not
-    ``cancelled``). With ``?year=`` only projects having active tasks created
+    ``open_task_count`` (not ``cancelled`` and not done: done is
+    ``completed_at`` set or the task sitting in the project's last board
+    column). With ``?year=`` only projects having active tasks created
     that calendar year in ``America/Bogota`` (subtasks included, like
     ``/tasks/years``) are listed and both counts are
     restricted to that year; see ``GET /projects/years`` for the years with
