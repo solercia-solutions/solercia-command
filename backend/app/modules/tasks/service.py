@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,11 @@ if TYPE_CHECKING:
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
 _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
+
+# Calendar zone for the task ``year`` filter and ``/tasks/years``: the
+# organizations served today operate in Colombia (same zone as the email
+# digest and the checklist import). Half-open range [1-ene, 1-ene+1).
+TASK_YEAR_TIMEZONE = "America/Bogota"
 
 
 class TaskService:
@@ -78,6 +84,7 @@ class TaskService:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        year: int | None = None,
         source: str | None = None,
         external_key: str | None = None,
         task_type: str | None = None,
@@ -110,6 +117,7 @@ class TaskService:
         """
 
         self._validate_due_range(due_from, due_to)
+        created_from, created_before = self._year_bounds(year)
         project = await self._require_project(organization_id, project_id)
         tasks, total = await self.repo.list_for_project(
             organization_id,
@@ -122,6 +130,8 @@ class TaskService:
             due_from=due_from,
             due_to=due_to,
             q=q,
+            created_from=created_from,
+            created_before=created_before,
             source=source,
             external_key=external_key,
             task_type=task_type,
@@ -151,6 +161,25 @@ class TaskService:
             for parent in context_parents
         ]
         return reads, total
+
+    async def list_task_years(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> list[int]:
+        """Return the creation years (Bogotá calendar) with active tasks, newest first."""
+
+        await self._require_project(organization_id, project_id)
+        return await self.repo.list_created_years(
+            organization_id, project_id, timezone=TASK_YEAR_TIMEZONE
+        )
+
+    @staticmethod
+    def _year_bounds(year: int | None) -> tuple[datetime | None, datetime | None]:
+        """Translate a calendar ``year`` into the half-open aware range in Bogotá."""
+
+        if year is None:
+            return None, None
+        zone = ZoneInfo(TASK_YEAR_TIMEZONE)
+        return datetime(year, 1, 1, tzinfo=zone), datetime(year + 1, 1, 1, tzinfo=zone)
 
     @staticmethod
     def _validate_due_range(due_from: date | None, due_to: date | None) -> None:

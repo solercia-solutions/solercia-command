@@ -56,6 +56,15 @@ async def list_tasks(
         default=None, description="Fin del rango de vencimiento (inclusive)."
     ),
     q: str | None = Query(default=None, description="Texto libre sobre título/descripción."),
+    year: int | None = Query(
+        default=None,
+        ge=2000,
+        le=2100,
+        description=(
+            "Año de creación (created_at) en hora de Bogotá: rango semiabierto "
+            "[1-ene-año, 1-ene-año+1). Fuera de 2000–2100 responde 422."
+        ),
+    ),
     source: str | None = Query(
         default=None,
         description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').",
@@ -92,7 +101,9 @@ async def list_tasks(
     with every other filter (change 10-busqueda-global, R7). ``task_type``
     filters by exact equality; ``parent_task_id`` returns the direct children
     of that task (which are never top-level, so it lifts the top-level-only
-    restriction).
+    restriction). ``year`` keeps tasks whose ``created_at`` falls in that
+    calendar year in ``America/Bogota`` (half-open range; see
+    ``GET /projects/{id}/tasks/years`` for the years that have data).
 
     ``include_subtasks`` (change 32-jerarquia-subtareas) also lifts the
     top-level-only restriction, returning subtasks flat alongside top-level
@@ -117,6 +128,7 @@ async def list_tasks(
         due_from=due_from,
         due_to=due_to,
         q=q,
+        year=year,
         source=source,
         external_key=external_key,
         task_type=task_type,
@@ -125,6 +137,25 @@ async def list_tasks(
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}
+
+
+@router.get("/projects/{project_id}/tasks/years")
+async def list_task_years(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the creation years that have active tasks in a project, newest first.
+
+    Years are computed from ``created_at`` in ``America/Bogota`` (the same
+    calendar the ``year`` filter of ``GET /projects/{id}/tasks`` uses), so the
+    UI only offers years with data. Includes subtasks. Scoped to the caller's
+    organization: a project of another organization answers ``404``.
+    """
+
+    service = TaskService(db)
+    years = await service.list_task_years(membership.organization_id, project_id)
+    return {"data": years, "meta": {"total": len(years)}}
 
 
 @router.post("/projects/{project_id}/tasks", status_code=status.HTTP_201_CREATED)

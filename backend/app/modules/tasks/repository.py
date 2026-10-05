@@ -6,7 +6,7 @@ every read joins ``Task`` to ``Project`` and filters by ``organization_id``.
 
 import uuid
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +73,8 @@ class TaskRepository:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        created_from: datetime | None = None,
+        created_before: datetime | None = None,
         source: str | None = None,
         external_key: str | None = None,
         subtasks_only: bool = False,
@@ -90,7 +92,8 @@ class TaskRepository:
         semantics, deduplicated via ``.distinct()``); ``due_from``/``due_to``
         filter on the DATE portion of ``due_date`` (a task with no
         ``due_date`` never matches a range filter, change 10-busqueda-global
-        design.md "Decisión 5").
+        design.md "Decisión 5"). ``created_from``/``created_before`` bound
+        ``created_at`` as a half-open range ``[from, before)`` (aware datetimes).
         """
 
         stmt = (
@@ -136,6 +139,10 @@ class TaskRepository:
         if q is not None:
             pattern = f"%{q}%"
             stmt = stmt.where(Task.title.ilike(pattern) | Task.description.ilike(pattern))
+        if created_from is not None:
+            stmt = stmt.where(Task.created_at >= created_from)
+        if created_before is not None:
+            stmt = stmt.where(Task.created_at < created_before)
         if source is not None:
             stmt = stmt.where(Task.source == source)
         if external_key is not None:
@@ -148,6 +155,34 @@ class TaskRepository:
         result = await self.db.execute(stmt)
         rows = result.scalars().all()
         return rows, len(rows)
+
+    async def list_created_years(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        *,
+        timezone: str,
+    ) -> list[int]:
+        """Return the distinct ``created_at`` years of active tasks, newest first.
+
+        The year is taken in ``timezone`` (PostgreSQL ``timezone()``), scoped
+        to the organization through ``Project`` like every other read here.
+        """
+
+        year = func.extract("year", func.timezone(timezone, Task.created_at))
+        stmt = (
+            select(year.label("year"))
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+            .distinct()
+            .order_by(year.desc())
+        )
+        result = await self.db.execute(stmt)
+        return [int(value) for value in result.scalars().all()]
 
     async def get_by_ids(
         self,
