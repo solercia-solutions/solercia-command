@@ -54,7 +54,9 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
 - [x] S07 `/plans`: filtros en `sol-card`, actividades en `sol-data-table` con la correlación
       plan↔tarea visible, formularios con `sol-form-field` (L). Backend `2e80cbe`; frontend en el
       commit de esta tarea.
-- [ ] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S).
+- [x] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S). Commits
+      `33844c2` (dependencias + estilos e i18n comunes), `e072a7b` (usuarios), `1850a03` (roles),
+      `57682f2` (actividades), `d639c74` (empresas).
 - [ ] S09 `/teams`, `/performance`, `/executive`, `/connections`, `/tasks/import`, `/hierarchy`.
 
 Referencia de patrones PANDORA (solo lectura, `IDARTES/pandora_proxy/pandora_front`):
@@ -224,8 +226,46 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   En `/task/:key` (S06) no se agregó el plan de la tarea: `GET /plans/activities?task_id=` existe,
   queda pendiente mostrarlo en el detalle.
 
+- 2026-10-04 S08: las cinco páginas de `/admin/*` siguen `gestion-usuarios-page` de PANDORA:
+  `h1.sol-display` + subtítulo y botón de crear en la misma fila; `sol-data-table` paginada con
+  buscador, `actionsPosition="start"`, `collapseWidth` 760, `trackByKey` (`id`, `menu.id`,
+  `organization.id`), estado como `badge` y acciones `sol-icon-button` con `aria-label`. Filtros
+  en la ranura `tableActions` de la barra: Estado en dependencias, roles y actividades; Estado,
+  Rol y Dependencia (con «Sin dependencia») en usuarios, con valores reales; empresas sin filtros
+  (pocas por persona, basta el buscador). «Limpiar filtros» solo con filtros activos. Usuarios
+  deriva `dependency_name`/`role_names` para que buscar y ordenar usen el texto visible.
+  Actividades no ordena columnas (conserva el árbol). Crear/editar, asociación de actividades del
+  rol y miembros de la empresa pasan de `sol-modal` a `sol-drawer side="end"` con pie de acciones;
+  campos con `sol-input`/`sol-select` y su `[error]` (como `usuario-form-modal`); selects nativos
+  de dependencia y padre → `sol-select`; payloads y lógica sin cambios (Enter sigue enviando).
+  `sol-confirm-dialog` no tiene `loading` en la librería: «Eliminando…» vuelve como estado
+  `role=status` sobre la tabla y la fila queda con acciones deshabilitadas. Estados: spinner
+  `role=status`, `sol-empty-state`, sin coincidencias por filtro o búsqueda (mensajes distintos) y
+  error con «Reintentar». Estilos compartidos `pages/admin/admin-page.scss` (tokens `--sol-*`);
+  llaves nuevas `admin.common.*`.
+- 2026-10-04 S08 verificación: `npm run build` exit 0 (bundle inicial 1,08 MB, igual) y
+  `npm run lint` exit 0. Navegador 1440×900 y 390×844, claro y oscuro, en las 5 páginas, sin
+  desplazamiento horizontal. Usuarios: estado «Inactivo» → «Ningún registro coincide con los
+  filtros» y limpiar; búsqueda `zzzxq` → «Ningún registro coincide con la búsqueda»; drawer de
+  crear con Guardar vacío muestra los 4 errores por campo; editar precarga «Admin», «Solercia»,
+  correo; confirmación de eliminar abierta y cancelada. Roles: 500 simulado en `/admin/roles` →
+  alerta y «Reintentar» → 3 filas; drawers de editar y actividades. Actividades: editar con padre
+  «Administración». Empresas: drawer de miembros (IDARTES) y de editar. Dependencias: vacío
+  legítimo y drawer a 390 px oscuro con validación. Ninguna petición no GET salió (contadas en el
+  navegador; además `route` respondía un fake). Hallazgo: en la barra la ranura mide su contenido
+  y los filtros se apilaban; quedan con ancho fijo. Capturas `.playwright-mcp/s08-*.png`.
+- Veredicto UX S08: viene a encontrar una persona, rol o actividad y cambiarla. Bien: filtros con
+  opciones reales y preseleccionados en «Todos», vacío/filtro/error distinguibles, formulario
+  lateral sin perder la tabla de vista. Fricciones: (1) cerrar el drawer con Esc o el fondo
+  descarta lo escrito sin aviso (igual que el modal anterior) → aviso de cambios sin guardar;
+  (2) a 390 px los filtros de usuarios ocupan ~140 px antes de la tabla (filtros plegables,
+  igual que S04–S07); (3) el `aria-label` de `sol-button` no llega al botón interno (librería;
+  el texto visible lo cubre); (4) el rol de un miembro sigue en `<select>` nativo y su retiro se
+  confirma en línea, no con `sol-confirm-dialog`.
+
 ## Siguiente paso
 
-S08. Pendientes: planes de la tarea en el detalle (S06), endpoint de tareas por plan, categoría de columna para «abierta», filtros plegables en móvil, etiquetas
+S09. Pendientes: aviso de cambios sin guardar en los drawers de `/admin/*`, `loading` en
+`sol-confirm-dialog` (librería), planes de la tarea en el detalle (S06), endpoint de tareas por plan, categoría de columna para «abierta», filtros plegables en móvil, etiquetas
 accesibles en `@solercia/ui`, vista tabla opcional en `/projects`; en el detalle, confirmación al
 borrar comentarios, guardado de la descripción al salir y pestaña «Historial» si se decide.
