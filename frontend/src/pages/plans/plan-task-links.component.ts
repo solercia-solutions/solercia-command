@@ -12,12 +12,17 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
-import { SolBadgeComponent, SolButtonComponent, SolSkeletonComponent } from '@shared/ui';
+import {
+  SolBadgeComponent,
+  SolButtonComponent,
+  SolFormFieldComponent,
+  SolSkeletonComponent,
+} from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { readApiError } from '@shared/lib/api-error';
 import { PlansService } from '@entities/plan/plans.service';
 import { ActivityTask, TaskLinkRole, TaskSearchResult } from '@entities/plan/plan.model';
-import { defaultLinkRole } from './plans-view';
+import { defaultLinkRole, externalCode } from './plans-view';
 
 const MIN_QUERY = 2;
 
@@ -31,7 +36,34 @@ const MIN_QUERY = 2;
   selector: 'sol-plan-task-links',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, SolBadgeComponent, SolButtonComponent, SolSkeletonComponent],
+  imports: [
+    RouterLink,
+    SolBadgeComponent,
+    SolButtonComponent,
+    SolFormFieldComponent,
+    SolSkeletonComponent,
+  ],
+  styles: [
+    `
+      /* Buscador con tokens --sol-* (patrón de formulario de PANDORA dentro del drawer). */
+      .ptl-control {
+        width: 100%;
+        min-height: var(--sol-size-control-touch, 44px);
+        padding: var(--sol-space-sm, 8px) var(--sol-space-md, 12px);
+        border: 1px solid var(--sol-border-color-default);
+        border-radius: var(--sol-border-radius-md, 8px);
+        background: var(--sol-bg-surface);
+        color: var(--sol-color-text-primary);
+        font: inherit;
+        font-size: var(--sol-font-size-sm, 0.875rem);
+      }
+
+      .ptl-control:focus-visible {
+        outline: 2px solid var(--sol-color-primary);
+        outline-offset: 1px;
+      }
+    `,
+  ],
   template: `
     <section class="flex flex-col gap-2">
       <div class="flex items-center justify-between gap-2">
@@ -45,9 +77,8 @@ const MIN_QUERY = 2;
 
       @if (pickerOpen()) {
         <div class="flex flex-col gap-3 rounded-lg border border-brand/40 p-3">
-          <div class="flex flex-col gap-1.5">
-            <span class="text-xs font-medium text-muted" [id]="uid + '-role'">{{ t('plans.linker.role') }}</span>
-            <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-labelledby]="uid + '-role'">
+          <sol-form-field [label]="t('plans.linker.role')" [hint]="t('plans.linker.roleHint.' + role())">
+            <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-label]="t('plans.linker.role')">
               @for (option of roles; track option) {
                 <button
                   type="button"
@@ -61,21 +92,20 @@ const MIN_QUERY = 2;
                 </button>
               }
             </div>
-            <p class="text-xs text-muted">{{ t('plans.linker.roleHint.' + role()) }}</p>
-          </div>
+          </sol-form-field>
 
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-muted" [attr.for]="uid + '-q'">{{ t('plans.linker.search') }}</label>
+          <sol-form-field [label]="t('plans.linker.search')">
             <input
               [id]="uid + '-q'"
               type="search"
               autocomplete="off"
-              class="min-h-11 rounded-lg border border-border bg-surface px-3 text-sm text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              class="ptl-control"
+              [attr.aria-label]="t('plans.linker.search')"
               [placeholder]="t('plans.linker.searchPlaceholder')"
               [value]="query()"
               (input)="onQuery($any($event.target).value)"
             />
-          </div>
+          </sol-form-field>
 
           <div aria-live="polite">
             @if (query().trim().length < minQuery) {
@@ -149,7 +179,12 @@ const MIN_QUERY = 2;
             <li class="flex flex-col gap-1 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
               <div class="min-w-0">
                 @if (task.task_key) {
-                  <a class="font-mono text-xs text-brand underline-offset-2 hover:underline" [routerLink]="['/task', task.task_key]">{{ task.task_key }}</a>
+                  <a class="font-mono text-xs text-brand underline-offset-2 hover:underline" [routerLink]="['/task', task.task_key]">
+                    @if (codeOf(task); as code) {
+                      {{ code }} ·
+                    }
+                    {{ task.task_key }}
+                  </a>
                 }
                 <p class="line-clamp-2 text-text">{{ task.title || '—' }}</p>
                 <p class="text-xs text-muted">{{ task.project_name }} · {{ statusLabel(task.status) }}</p>
@@ -243,8 +278,14 @@ export class PlanTaskLinksComponent implements OnInit {
     return value === key ? fallback : value;
   }
 
+  /** Checklist code («T-07») or origin key of an imported task, if any. */
+  protected codeOf(task: ActivityTask): string | null {
+    return externalCode(task);
+  }
+
+  /** Only enum codes (`in_progress`) have a label; board names («En curso») show as they are. */
   protected statusLabel(status: string): string {
-    return this.labelOr(`plans.taskStatus.${status}`, status);
+    return /^[a-z_]+$/.test(status) ? this.labelOr(`plans.taskStatus.${status}`, status) : status;
   }
 
   protected chipClass(active: boolean): string {

@@ -975,6 +975,38 @@
     "updatedAt": "Actualizado:"
   },
   "plans": {
+    "correlation": {
+      "noTasks": "Sin tareas enlazadas",
+      "loading": "Cargando tareas…",
+      "failed": "No se pudieron cargar las tareas.",
+      "filter": {
+        "all": "Todas las actividades",
+        "linked": "Con tareas enlazadas",
+        "unlinked": "Sin tareas enlazadas",
+        "conflict": "Con vínculos en conflicto"
+      },
+      "linkedActivities": "{{ n }} de {{ total }} actividades con tareas enlazadas",
+      "linksOne": "1 tarea enlazada",
+      "linksOther": "{{ n }} tareas enlazadas",
+      "unlinkedOne": "1 actividad sin tareas",
+      "unlinkedOther": "{{ n }} actividades sin tareas",
+      "conflictActivitiesOne": "1 actividad con vínculos en conflicto",
+      "conflictActivitiesOther": "{{ n }} actividades con vínculos en conflicto",
+      "roleCounts": "Principales: {{ primary }} · Aportan: {{ contributes }}",
+      "more": "Ver {{ n }} más en el detalle",
+      "openTaskAria": "Abre la tarea {{ code }}, {{ title }} ({{ role }})"
+    },
+    "count": {
+      "one": "1 plan",
+      "other": "{{ n }} planes",
+      "yearOne": "1 plan con vigencia {{ year }}",
+      "yearOther": "{{ n }} planes con vigencia {{ year }}"
+    },
+    "table": {
+      "actions": "Ver",
+      "activity": "Actividad",
+      "tasks": "Tareas enlazadas"
+    },
     "activity": {
       "mine": "Mía",
       "noGroup": "Sin grupo",
@@ -988,7 +1020,8 @@
       "activities": "{{ n }} actividades",
       "activityOne": "1 actividad",
       "withReport": "Promedio de {{ n }} de {{ total }} actividades con reporte",
-      "withTasks": "Promedio de {{ n }} de {{ total }} actividades con tareas"
+      "withTasks": "Promedio de {{ n }} de {{ total }} actividades con tareas",
+      "year": "Vigencia {{ year }}"
     },
     "conflicts": {
       "one": "1 vínculo en conflicto",
@@ -1022,7 +1055,16 @@
       "period": "Periodo del avance reportado",
       "search": "Busca por clave, nombre o responsable",
       "type": "Tipo de plan",
-      "typeAll": "Todos"
+      "typeAll": "Todos",
+      "regionAria": "Filtros de planes",
+      "year": "Vigencia",
+      "yearAll": "Todas las vigencias",
+      "typeAllPlans": "Todos los tipos",
+      "link": "Enlace con tareas",
+      "searchLabel": "Buscar",
+      "searchPlaceholder": "Actividad, responsable o tarea (T-07, SGSI-12)",
+      "activeOne": "1 filtro activo",
+      "activeOther": "{{ count }} filtros activos"
     },
     "links": {
       "conflict": "Referencia en conflicto en la fuente",
@@ -1131,7 +1173,8 @@
       "activitiesUnavailable": "Las actividades no están disponibles en este momento.",
       "noPlansForType": "No hay planes de este tipo.",
       "noResults": "Ninguna actividad coincide con los filtros.",
-      "planWithoutActivities": "Este plan todavía no tiene actividades cargadas."
+      "planWithoutActivities": "Este plan todavía no tiene actividades cargadas.",
+      "noPlansForFilters": "Ningún plan coincide con la vigencia y el tipo elegidos."
     },
     "status": {
       "active": "Vigente",

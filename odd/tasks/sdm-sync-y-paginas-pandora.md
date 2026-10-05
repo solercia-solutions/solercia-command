@@ -51,7 +51,9 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
 - [x] S05 `/projects`: encabezado `h1.sol-display`, filtros en `sol-card` (M). Backend `d320782`,
       `353c760`, `0d2a1f5`; frontend `31fac20`.
 - [x] S06 `/task/:key` y `sol-task-detail-panel`: patrón de perfil de PANDORA (M). Commit `a95bfc5`.
-- [ ] S07 `/plans`: `sol-drawer` + `sol-form-field`, menos Tailwind (L).
+- [x] S07 `/plans`: filtros en `sol-card`, actividades en `sol-data-table` con la correlación
+      plan↔tarea visible, formularios con `sol-form-field` (L). Backend `2e80cbe`; frontend en el
+      commit de esta tarea.
 - [ ] S08 `/admin/*`: acciones al inicio, paginación, toolbar, `sol-drawer` (5 × S).
 - [ ] S09 `/teams`, `/performance`, `/executive`, `/connections`, `/tasks/import`, `/hierarchy`.
 
@@ -184,8 +186,46 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   descripción guarda en cada cambio del editor (comportamiento previo, conviene guardar al salir
   o con botón); (4) etiquetas de `sol-input` en mayúsculas y de `sol-select` no, en la librería.
 
+- 2026-10-04 S07 backend (TDD, PostgreSQL desechable :55432): `GET /plans/activities/{id}/tasks`
+  agrega `source` y `external_key` en la misma consulta (para mostrar el código T-NN del checklist).
+  RED: `KeyError: 'source'`; GREEN: `test_plans_*` 96 passed, 5 skipped; `ruff check` limpio
+  (`ruff format` de `repository.py` ya fallaba antes del cambio). Uvicorn :8081 reiniciado.
+- 2026-10-04 S07 frontend: `h1.sol-display` + conteo («3 planes con vigencia 2026»). Barra
+  `plans-filters.component.ts` (`sol-card`): Vigencia (`period_year` real, preselecciona el año
+  actual con planes), Tipo, Periodo del avance reportado, Enlace con tareas (todas / con tareas /
+  sin tareas / con vínculos en conflicto), Buscar (actividad, responsable o código de tarea T-NN o
+  clave) y «Solo mías» (`sol-toggle`); «N filtros activos» + «Limpiar filtros». Tarjetas de plan
+  con `sol-progress-bar`, «N de M actividades con tareas enlazadas» y badge de actividades sin
+  tareas. Plan por defecto: el visible con más enlaces (antes, el primero: PAI sin tareas).
+  Actividades en `sol-data-table` paginada (acciones al inicio, colapso < 760 px; host con
+  `display:block`, en línea medía 0 y colapsaba siempre): Actividad, Responsable, Calculado
+  (barra), Reportado (periodo) y Tareas enlazadas: principales/aportan, estado agregado en badges
+  y enlace a cada tarea «T-33 · SGSI-12 · título» → `/task/:key` (4 en línea, el resto en el
+  detalle). Resumen del plan: tareas enlazadas, actividades sin tareas y con vínculos en
+  conflicto (`conflict-counts`, ya existía). Tareas por actividad: `GET .../tasks` del plan
+  seleccionado, 4 en paralelo, en caché; una escritura refresca su fila. Drawer: tareas
+  vinculadas primero, luego reporte y vínculos; formularios de reporte y enlace con
+  `sol-form-field` (lógica sin cambios; la etiqueta de la librería no se asocia, los controles
+  llevan `aria-label`). Estilos con tokens `--sol-*`; estados vacíos legítimos/filtro/error.
+- 2026-10-04 S07 verificación: `npm run build` exit 0 (bundle inicial 1,08 MB; +0,96 kB frente a
+  la base por las llaves i18n nuevas) y `npm run lint` exit 0. Navegador 1440×900 y 390×844,
+  claro y oscuro, sin desplazamiento horizontal: SDMujer PSPI-2026 25 de 25 actividades con
+  tareas, 42 tareas enlazadas, 1 con conflicto, avance calculado 16 % (el API da 4 de 25 al
+  100 %; el 12 % era de antes de la resincronización S01). PTR: 22 sin tareas y 3 con conflicto
+  por filtro; búsqueda «T-33» → 1 de 25; `zzzxq` → «Ninguna actividad coincide» y limpiar. 500
+  simulado en `/plans` → alerta y «Reintentar» OK. IDARTES → vacío legítimo. Toda petición no GET
+  interceptada; ninguna escritura. Capturas `.playwright-mcp/s07-*.png`.
+- Veredicto UX S07: viene a ver qué tareas sostienen cada actividad del plan y cuánto avanza.
+  Bien: la correlación es visible sin abrir nada, vigencia y plan con más enlaces preseleccionados,
+  filtros con opciones reales, estados distinguibles. Fricciones: (1) a 390 px la barra ocupa
+  ~430 px (filtros plegables pendientes, igual que S04/S05); (2) el estado agregado colorea por
+  nombre de columna (falta categoría de columna); (3) 25 `GET` de tareas al abrir un plan → un
+  endpoint por plan si crece; (4) etiquetas de `sol-form-field` sin asociación (librería).
+  En `/task/:key` (S06) no se agregó el plan de la tarea: `GET /plans/activities?task_id=` existe,
+  queda pendiente mostrarlo en el detalle.
+
 ## Siguiente paso
 
-S07. Pendientes: categoría de columna para «abierta», filtros plegables en móvil, etiquetas
+S08. Pendientes: planes de la tarea en el detalle (S06), endpoint de tareas por plan, categoría de columna para «abierta», filtros plegables en móvil, etiquetas
 accesibles en `@solercia/ui`, vista tabla opcional en `/projects`; en el detalle, confirmación al
 borrar comentarios, guardado de la descripción al salir y pestaña «Historial» si se decide.

@@ -120,6 +120,10 @@ export interface ActivityTask {
   status: string;
   role: TaskLinkRole | string;
   note: string | null;
+  /** Origin of an imported task (`checklist_xlsx`, `jira`); null if native. */
+  source?: string | null;
+  /** Business key at the origin (`CHECKLIST_TAREAS:T-07`); null if native. */
+  external_key?: string | null;
   counts_toward_progress: boolean;
 }
 

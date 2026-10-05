@@ -1,4 +1,10 @@
-import type { ApiDecimal, Plan, PlanActivity, ReportPeriod } from '@entities/plan/plan.model';
+import type {
+  ActivityTask,
+  ApiDecimal,
+  Plan,
+  PlanActivity,
+  ReportPeriod,
+} from '@entities/plan/plan.model';
 
 /**
  * Pure view helpers of the «Planes» page (45c). No Angular, no I/O: every
@@ -57,6 +63,10 @@ export interface PlanSummary {
   calculatedAverage: number | null;
   withReport: number;
   reportedAverage: number | null;
+  /** Activities with at least one linked task (primary or contributes). */
+  linkedActivities: number;
+  /** Task links of the plan (one task linked to two activities counts twice). */
+  taskLinks: number;
 }
 
 function average(values: number[]): number | null {
@@ -79,7 +89,14 @@ export function summarizePlan(activities: PlanActivity[]): PlanSummary {
     calculatedAverage: average(calculated),
     withReport: reported.length,
     reportedAverage: average(reported),
+    linkedActivities: activities.filter((activity) => linkedTaskCount(activity) > 0).length,
+    taskLinks: activities.reduce((sum, activity) => sum + linkedTaskCount(activity), 0),
   };
+}
+
+/** Tasks linked to an activity, whatever their role. */
+export function linkedTaskCount(activity: PlanActivity): number {
+  return (activity.primary_task_count ?? 0) + (activity.contributing_task_count ?? 0);
 }
 
 /** Activities of one group inside a plan, in API order. */
@@ -119,28 +136,138 @@ export function normalize(text: string | null | undefined): string {
     .trim();
 }
 
+/** Correlation filter: every activity, with tasks, without tasks or with conflicts. */
+export type LinkFilter = 'all' | 'linked' | 'unlinked' | 'conflict';
+
+export const LINK_FILTERS: readonly LinkFilter[] = ['all', 'linked', 'unlinked', 'conflict'];
+
 export interface ActivityFilterState {
   onlyMine: boolean;
   query: string;
+  link?: LinkFilter;
+  /** activity id → number of `conflict` links. */
+  conflicts?: Map<string, number>;
+  /** activity id → searchable codes of its linked tasks (key, T-NN). */
+  taskCodes?: Map<string, string[]>;
 }
 
-/** «Solo mías» + search by key, code, name or responsible. */
+/**
+ * «Solo mías», correlation with tasks, and search by key, code, name,
+ * responsible or the code of a linked task («T-07», «SGSI-12»).
+ */
 export function filterActivities(
   activities: PlanActivity[],
   filter: ActivityFilterState,
 ): PlanActivity[] {
   const needle = normalize(filter.query);
+  const link = filter.link ?? 'all';
   return activities.filter((activity) => {
     if (filter.onlyMine && !activity.is_mine) {
+      return false;
+    }
+    if (link === 'linked' && linkedTaskCount(activity) === 0) {
+      return false;
+    }
+    if (link === 'unlinked' && linkedTaskCount(activity) > 0) {
+      return false;
+    }
+    if (link === 'conflict' && !(filter.conflicts?.get(activity.id) ?? 0)) {
       return false;
     }
     if (!needle) {
       return true;
     }
-    return [activity.activity_key, activity.code, activity.name, activity.responsible].some(
-      (field) => normalize(field).includes(needle),
-    );
+    return [
+      activity.activity_key,
+      activity.code,
+      activity.name,
+      activity.responsible,
+      ...(filter.taskCodes?.get(activity.id) ?? []),
+    ].some((field) => normalize(field).includes(needle));
   });
+}
+
+// --- Vigencia (plan year) -------------------------------------------------
+
+/** Distinct `period_year` of the plans, newest first. */
+export function planYears(plans: Plan[]): number[] {
+  return [...new Set(plans.map((plan) => plan.period_year))].sort((a, b) => b - a);
+}
+
+/** Smart default: the current year when it has plans, else the newest one. */
+export function defaultPlanYear(years: number[], today: Date): number | null {
+  const current = today.getFullYear();
+  return years.includes(current) ? current : (years[0] ?? null);
+}
+
+// --- Linked tasks (correlation) --------------------------------------------
+
+/**
+ * Business code the entity knows for an imported task: the checklist ID
+ * («CHECKLIST_TAREAS:T-07» → «T-07») or the Jira key when it differs from the
+ * Command key. `null` for native tasks.
+ */
+export function externalCode(task: Pick<ActivityTask, 'source' | 'external_key' | 'task_key'>): string | null {
+  const raw = task.external_key?.trim();
+  if (!raw) {
+    return null;
+  }
+  const code = raw.includes(':') ? raw.slice(raw.lastIndexOf(':') + 1).trim() : raw;
+  return code && code !== task.task_key ? code : null;
+}
+
+export type StatusTone = 'success' | 'info' | 'neutral' | 'danger';
+
+const DONE_WORDS = ['completad', 'done', 'listo', 'finalizad', 'cerrad', 'terminad', 'hecho'];
+const NOT_STARTED_WORDS = ['sin iniciar', 'to do', 'to_do', 'por hacer', 'pendiente', 'backlog', 'abierta'];
+const DISCARDED_WORDS = ['cancel', 'removid', 'descartad', 'anulad'];
+
+/**
+ * Display tone of a task status. Board columns carry no category yet (S05),
+ * so the tone is read from the status name; it only colors the badge, it
+ * never feeds the calculated progress (that one comes from the backend).
+ */
+export function statusTone(status: string | null | undefined): StatusTone {
+  const value = normalize(status);
+  if (DISCARDED_WORDS.some((word) => value.includes(word))) {
+    return 'danger';
+  }
+  if (DONE_WORDS.some((word) => value.includes(word))) {
+    return 'success';
+  }
+  if (NOT_STARTED_WORDS.some((word) => value.includes(word))) {
+    return 'neutral';
+  }
+  return 'info';
+}
+
+export interface StatusCount {
+  /** Status as the first task shows it («Completada»). */
+  status: string;
+  count: number;
+  tone: StatusTone;
+}
+
+const TONE_ORDER: Record<StatusTone, number> = { info: 0, neutral: 1, success: 2, danger: 3 };
+
+/**
+ * Aggregated state of the linked tasks: one entry per status (case- and
+ * accent-insensitive, «COMPLETADA» = «Completada»), in progress first.
+ */
+export function summarizeTaskStatuses(tasks: Pick<ActivityTask, 'status'>[]): StatusCount[] {
+  const byStatus = new Map<string, StatusCount>();
+  for (const task of tasks) {
+    const key = normalize(task.status);
+    const entry = byStatus.get(key);
+    if (entry) {
+      entry.count += 1;
+    } else {
+      byStatus.set(key, { status: task.status, count: 1, tone: statusTone(task.status) });
+    }
+  }
+  return [...byStatus.values()].sort(
+    (a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone] || b.count - a.count,
+  );
 }
 
 /** Plan types present in the loaded plans, in canonical order. */

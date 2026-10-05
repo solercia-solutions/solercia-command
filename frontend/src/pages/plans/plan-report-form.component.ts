@@ -11,7 +11,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { SolButtonComponent } from '@shared/ui';
+import { SolButtonComponent, SolFormFieldComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { readApiError } from '@shared/lib/api-error';
 import { PlansService } from '@entities/plan/plans.service';
@@ -40,23 +40,81 @@ const QUICK_VALUES = [0, 25, 50, 75, 100] as const;
   selector: 'sol-plan-report-form',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SolButtonComponent],
+  imports: [SolButtonComponent, SolFormFieldComponent],
+  styles: [
+    `
+      /* Campos con tokens --sol-* (patrón de formulario de PANDORA dentro del drawer). */
+      .prf-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sol-space-md, 16px);
+        padding: var(--sol-space-md, 12px);
+        border: 1px solid var(--sol-border-color-default);
+        border-radius: var(--sol-border-radius-md, 8px);
+      }
+
+      .prf-control {
+        min-height: var(--sol-size-control-touch, 44px);
+        padding: var(--sol-space-sm, 8px) var(--sol-space-md, 12px);
+        border: 1px solid var(--sol-border-color-default);
+        border-radius: var(--sol-border-radius-md, 8px);
+        background: var(--sol-bg-surface);
+        color: var(--sol-color-text-primary);
+        font: inherit;
+        font-size: var(--sol-font-size-sm, 0.875rem);
+      }
+
+      .prf-control:focus-visible {
+        outline: 2px solid var(--sol-color-primary);
+        outline-offset: 1px;
+      }
+
+      .prf-control--invalid {
+        border-color: var(--sol-color-danger);
+      }
+
+      .prf-control--number {
+        width: 6rem;
+        text-align: right;
+      }
+
+      .prf-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--sol-space-sm, 8px);
+      }
+
+      .prf-hint {
+        margin: 0;
+        font-size: var(--sol-font-size-xs, 0.75rem);
+        color: var(--sol-color-text-secondary);
+      }
+
+      .prf-hint--error {
+        color: var(--sol-color-danger);
+      }
+
+      .prf-two {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--sol-space-md, 12px);
+      }
+    `,
+  ],
   template: `
-    <form class="flex flex-col gap-4 rounded-lg border border-border p-3" (submit)="save($event)" novalidate>
-      <!-- Avance reportado -->
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted" [attr.for]="inputId">
-          {{ t('plans.reportForm.progress') }}
-        </label>
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex items-center gap-1">
+    <form class="prf-form" (submit)="save($event)" novalidate>
+      <!-- Avance reportado (sol-form-field no asocia su etiqueta: el control lleva aria-label). -->
+      <sol-form-field [label]="t('plans.reportForm.progress')">
+        <div class="prf-row">
+          <div class="prf-row">
             <input
               [id]="inputId"
               type="text"
               inputmode="decimal"
-              class="min-h-11 w-24 rounded-lg border bg-surface px-3 text-right text-sm text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-              [class.border-danger]="progressError() !== null"
-              [class.border-border]="progressError() === null"
+              class="prf-control prf-control--number"
+              [class.prf-control--invalid]="progressError() !== null"
+              [attr.aria-label]="t('plans.reportForm.progress')"
               [value]="progress()"
               [attr.aria-invalid]="progressError() !== null"
               [attr.aria-describedby]="hintId"
@@ -78,7 +136,7 @@ const QUICK_VALUES = [0, 25, 50, 75, 100] as const;
             }
           </div>
         </div>
-        <p [id]="hintId" class="text-xs" [class.text-danger]="progressError() !== null" [class.text-muted]="progressError() === null" aria-live="polite">
+        <p [id]="hintId" class="prf-hint" [class.prf-hint--error]="progressError() !== null" aria-live="polite">
           {{ progressError() ?? sourceHint() }}
         </p>
 
@@ -106,14 +164,13 @@ const QUICK_VALUES = [0, 25, 50, 75, 100] as const;
             }
           </div>
         </div>
-      </div>
+      </sol-form-field>
 
       <!-- Cumplida / A tiempo -->
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="prf-two">
         @for (field of triFields; track field.key) {
-          <div class="flex flex-col gap-1.5">
-            <span class="text-xs font-medium text-muted" [id]="inputId + '-' + field.key">{{ t(field.label) }}</span>
-            <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-labelledby]="inputId + '-' + field.key">
+          <sol-form-field [label]="t(field.label)">
+            <div class="prf-row" role="radiogroup" [attr.aria-label]="t(field.label)">
               @for (option of triOptions; track option) {
                 <button
                   type="button"
@@ -127,37 +184,33 @@ const QUICK_VALUES = [0, 25, 50, 75, 100] as const;
                 </button>
               }
             </div>
-          </div>
+          </sol-form-field>
         }
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted" [attr.for]="inputId + '-summary'">
-          {{ t('plans.reportForm.summary') }}
-        </label>
+      <sol-form-field [label]="t('plans.reportForm.summary')">
         <textarea
           [id]="inputId + '-summary'"
           rows="3"
-          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+          class="prf-control"
+          [attr.aria-label]="t('plans.reportForm.summary')"
           [placeholder]="t('plans.reportForm.summaryPlaceholder')"
           [value]="summary()"
           (input)="summary.set($any($event.target).value)"
         ></textarea>
-      </div>
+      </sol-form-field>
 
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-muted" [attr.for]="inputId + '-evidence'">
-          {{ t('plans.reportForm.evidence') }}
-        </label>
+      <sol-form-field [label]="t('plans.reportForm.evidence')">
         <textarea
           [id]="inputId + '-evidence'"
           rows="2"
-          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+          class="prf-control"
+          [attr.aria-label]="t('plans.reportForm.evidence')"
           [placeholder]="t('plans.reportForm.evidencePlaceholder')"
           [value]="evidence()"
           (input)="evidence.set($any($event.target).value)"
         ></textarea>
-      </div>
+      </sol-form-field>
 
       @if (error(); as message) {
         <p role="alert" class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
