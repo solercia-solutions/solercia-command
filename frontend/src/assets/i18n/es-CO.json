@@ -846,12 +846,13 @@
     "subtitle": "Conecta tu buzón de Microsoft 365 a través de Solercia Connect y trae tus correos como insumos y tareas.",
     "title": "Conexiones"
   },
-  "executive": {
+"executive": {
     "byAssignee": {
       "activeCount": "{{ count }} activas",
       "empty": "Nadie tiene tareas en progreso.",
       "noInProgress": "Sin tareas en progreso.",
-      "title": "En qué anda cada uno"
+      "title": "En qué anda cada uno",
+      "more": "y {{ count }} más en curso"
     },
     "errors": {
       "load": "No se pudo cargar el panorama ejecutivo. Inténtalo más tarde.",
@@ -862,13 +863,16 @@
       "doneOfTotal": "{{ done }} de {{ total }} listas",
       "empty": "Aún no hay proyectos con tareas.",
       "percentAria": "Avance {{ percent }} por ciento",
-      "title": "Avance por proyecto"
+      "title": "Avance por proyecto",
+      "emptyHint": "Crea un proyecto y sus tareas para ver aquí su avance.",
+      "projectAria": "Avance de {{ name }}: {{ percent }} por ciento"
     },
     "risks": {
       "dueOn": "Vence {{ date }}",
       "empty": "No hay tareas en riesgo. ¡Buen trabajo!",
       "noAssignee": "Sin responsable",
-      "title": "Riesgos"
+      "title": "Riesgos",
+      "emptyHint": "Ninguna tarea abierta vence en los próximos días ni está marcada en riesgo."
     },
     "subtitle": "Panorama del equipo: en qué anda cada uno, riesgos y avance.",
     "title": "Vista de jefe",
@@ -881,7 +885,30 @@
     "workload": {
       "barAria": "{{ name }}: {{ count }} tareas activas",
       "empty": "No hay carga activa registrada.",
-      "title": "Carga del equipo"
+      "title": "Carga del equipo",
+      "chartAria": "Gráfica de barras con las tareas activas por persona",
+      "series": "Tareas activas",
+      "idle": "{{ count }} personas de la organización no tienen tareas activas."
+    },
+    "retry": "Reintentar",
+    "search": "Buscar…",
+    "noMatches": "Ningún registro coincide con la búsqueda.",
+    "tabs": {
+      "people": "Personas",
+      "risks": "Riesgos ({{ count }})",
+      "projects": "Proyectos ({{ count }})"
+    },
+    "columns": {
+      "task": "Tarea",
+      "assignee": "Responsable",
+      "due": "Vence",
+      "priority": "Prioridad",
+      "status": "Estado",
+      "project": "Proyecto",
+      "methodology": "Metodología",
+      "progress": "Avance",
+      "done": "Listas",
+      "inProgress": "En curso"
     }
   },
   "hierarchy": {
