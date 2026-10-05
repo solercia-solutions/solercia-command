@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { SolButtonComponent } from '@solercia/ui';
+import { SolButtonComponent, SolCardComponent } from '@shared/ui';
 import { AuthService } from '@features/auth/auth.service';
 import { ActiveOrgStore } from '@features/organizations/active-org.store';
 import { I18nService } from '@shared/i18n';
@@ -30,50 +30,69 @@ const ISSUE_CODES = new Set([
 @Component({
   selector: 'sp-task-import-preview',
   standalone: true,
-  imports: [SolButtonComponent, FormsModule],
+  imports: [SolButtonComponent, SolCardComponent, FormsModule],
+  styleUrl: '../page-layout.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="mx-auto max-w-5xl space-y-4 p-4 sm:p-6" [attr.aria-busy]="loading() || reviewLoading()">
-      <h1 class="text-2xl font-semibold text-text">{{ t('title') }}</h1>
-      <p class="text-muted">{{ t('scope') }}</p>
-      <div class="space-y-3 rounded-lg border border-border bg-surface p-4">
-        <p class="font-medium text-text">{{ t('profile') }}</p>
-        <p class="text-sm text-muted">{{ t('requirements') }}</p>
-        <label for="preview-file" class="block font-medium text-text">{{ t('file') }}</label>
+    <section class="pg-page" [attr.aria-busy]="loading() || reviewLoading()">
+      <header class="pg-header">
+        <div class="pg-header__text">
+          <h1 class="pg-title sol-display">{{ t('title') }}</h1>
+          <p class="pg-muted">{{ t('scope') }}</p>
+        </div>
+      </header>
+      <sol-card>
+      <div class="pg-section">
+        <p class="pg-subtitle">{{ t('profile') }}</p>
+        <p class="pg-muted">{{ t('requirements') }}</p>
+        <label for="preview-file" class="ti-label">{{ t('file') }}</label>
         <input #fileInput id="preview-file" type="file" accept=".csv,.xlsx"
           aria-describedby="preview-help preview-selection" (change)="selectFile($event)"
-          class="block min-h-11 w-full rounded border border-border p-2 text-text focus-visible:ring-2 focus-visible:ring-ring" />
-        <p id="preview-help" class="text-sm text-muted">{{ t('help') }}</p>
-        <p id="preview-selection" class="break-words text-sm text-text">
+          class="control ti-file" />
+        <p id="preview-help" class="pg-small">{{ t('help') }}</p>
+        <p id="preview-selection" class="pg-muted ti-break">
           @if (file(); as selected) { {{ selected.name }} · {{ selected.size }} {{ t('bytes') }} }
           @else { {{ t('initial') }} }
         </p>
-        @if (!auth.isAuthenticated()) { <p role="alert">{{ t('errors.auth') }}</p> }
-        <sol-button size="touch" [disabled]="!canSubmit()" [loading]="loading()" (clicked)="submit()">
-          {{ t('review') }}
-        </sol-button>
+        @if (!auth.isAuthenticated()) { <p role="alert" class="pg-alert">{{ t('errors.auth') }}</p> }
+        <div>
+          <sol-button size="touch" [disabled]="!canSubmit()" [loading]="loading()" (clicked)="submit()">
+            {{ t('review') }}
+          </sol-button>
+        </div>
       </div>
-      @if (loading()) { <p role="status">{{ t('loading') }}</p> }
-      @if (error(); as errorKey) { <p role="alert" class="rounded-lg border border-danger p-4 text-danger">{{ t('errors.' + errorKey) }}</p> }
+      </sol-card>
+      @if (loading()) { <p class="pg-muted" role="status">{{ t('loading') }}</p> }
+      @if (error(); as errorKey) {
+        <div role="alert" class="pg-alert">
+          <span>{{ t('errors.' + errorKey) }}</span>
+          @if (canSubmit()) {
+            <sol-button type="button" variant="secondary" size="sm" (clicked)="submit()">{{ t('retry') }}</sol-button>
+          }
+        </div>
+      }
       @if (preview(); as result) {
-        <div class="space-y-4 rounded-lg border border-border bg-surface p-4">
-          <h2 class="text-lg font-semibold text-text" role="status">{{ t(result.complete ? 'success' : 'incomplete') }}</h2>
-          <p class="text-sm text-muted">{{ t('projection') }}</p>
+        <sol-card>
+        <div class="pg-section">
+          <h2 class="pg-subtitle" role="status">{{ t(result.complete ? 'success' : 'incomplete') }}</h2>
+          <p class="pg-muted">{{ t('projection') }}</p>
           @if (result.counts; as counts) {
-            <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div><dt>{{ t('candidate') }}</dt><dd class="font-semibold">{{ counts.candidate }}</dd></div>
-              <div><dt>{{ t('rejected') }}</dt><dd class="font-semibold">{{ counts.rejected }}</dd></div>
-              <div><dt>{{ t('blank_skipped') }}</dt><dd class="font-semibold">{{ counts.blank_skipped }}</dd></div>
-              <div><dt>{{ t('total') }}</dt><dd class="font-semibold">{{ counts.total }}</dd></div>
+            <dl class="pg-kpis ti-counts">
+              <div class="ti-count"><dt class="pg-kpi__label">{{ t('candidate') }}</dt><dd class="pg-kpi__value">{{ counts.candidate }}</dd></div>
+              <div class="ti-count"><dt class="pg-kpi__label">{{ t('rejected') }}</dt><dd class="pg-kpi__value" [class.pg-kpi__value--warning]="counts.rejected > 0">{{ counts.rejected }}</dd></div>
+              <div class="ti-count"><dt class="pg-kpi__label">{{ t('blank_skipped') }}</dt><dd class="pg-kpi__value">{{ counts.blank_skipped }}</dd></div>
+              <div class="ti-count"><dt class="pg-kpi__label">{{ t('total') }}</dt><dd class="pg-kpi__value">{{ counts.total }}</dd></div>
             </dl>
-          } @else { <p>{{ t('noCounts') }}</p> }
+          } @else { <p class="pg-muted">{{ t('noCounts') }}</p> }
           @for (issue of result.issues.slice(0, 25); track $index) { <p class="text-sm">{{ issueText(issue) }}</p> }
           @if (result.issues.length > 25) { <p class="text-sm">{{ result.issues.length }} {{ t('draft.issueSummary') }}</p> }
           @if (result.complete && result.rows.length === 0) { <p>{{ t('empty') }}</p> }
           @if (result.complete && result.rows.length) {
-            <button type="button" class="control" (click)="editing.set(!editing())">
-              {{ t(editing() ? 'draft.back' : 'draft.open') }}
-            </button>
+            <div>
+              <sol-button type="button" [variant]="editing() ? 'secondary' : 'primary'" (clicked)="editing.set(!editing())">
+                {{ t(editing() ? 'draft.back' : 'draft.open') }}
+              </sol-button>
+            </div>
             <p class="text-sm text-muted">{{ t('draft.memory') }}</p>
           }
           @if (editing()) {
@@ -134,14 +153,14 @@ const ISSUE_CODES = new Set([
               }
             </section>
           }
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="control" [disabled]="rowPage() === 1" (click)="rowPage.set(rowPage() - 1)">{{ t('draft.previous') }}</button>
-            <span role="status">{{ t('draft.page') }} {{ rowPage() }} / {{ rowPages() }} · {{ result.rows.length }} {{ t('draft.sourceRows') }}</span>
-            <button type="button" class="control" [disabled]="rowPage() >= rowPages()" (click)="rowPage.set(rowPage() + 1)">{{ t('draft.next') }}</button>
+          <div class="pg-row ti-pager">
+            <sol-button type="button" variant="secondary" size="sm" [disabled]="rowPage() === 1" (clicked)="rowPage.set(rowPage() - 1)">{{ t('draft.previous') }}</sol-button>
+            <span class="pg-muted" role="status">{{ t('draft.page') }} {{ rowPage() }} / {{ rowPages() }} · {{ result.rows.length }} {{ t('draft.sourceRows') }}</span>
+            <sol-button type="button" variant="secondary" size="sm" [disabled]="rowPage() >= rowPages()" (clicked)="rowPage.set(rowPage() + 1)">{{ t('draft.next') }}</sol-button>
           </div>
           @for (row of visibleRows(); track rowId(row.key)) {
-            <details class="rounded border border-border p-3">
-              <summary class="min-h-11 cursor-pointer break-words text-text focus-visible:ring-2 focus-visible:ring-ring">
+            <details class="ti-row">
+              <summary class="ti-summary">
                 {{ t('row') }} {{ row.number }} · {{ t(row.disposition) }}
                 @if (row.issues.length) { · {{ t('issuesLabel') }}: {{ row.issues.length }} }
                 @if (editing() && draftFor(row); as draft) {
@@ -202,6 +221,7 @@ const ISSUE_CODES = new Set([
             </details>
           }
         </div>
+        </sol-card>
       }
     </section>
   `,
@@ -210,6 +230,16 @@ const ISSUE_CODES = new Set([
     .control:focus-visible { outline: 2px solid var(--sol-color-primary); outline-offset: 2px; }
     .control:disabled { opacity: .5; cursor: not-allowed; }
     select.control option { background: var(--sol-bg-surface); color: var(--sol-color-text-primary); }
+    .ti-label { font-weight: 600; font-size: var(--sol-font-size-sm, .875rem); color: var(--sol-color-text-primary); }
+    .ti-file { display: block; width: 100%; }
+    .ti-break { overflow-wrap: anywhere; }
+    .ti-counts { margin: 0; }
+    .ti-count { margin: 0; padding: var(--sol-space-sm, 8px) var(--sol-space-md, 16px); border: 1px solid var(--sol-border-color-default); border-radius: var(--sol-border-radius-md, 8px); }
+    .ti-count dd { margin: 0; }
+    .ti-pager { flex-wrap: wrap; }
+    .ti-row { padding: var(--sol-space-sm, 8px) var(--sol-space-md, 16px); border: 1px solid var(--sol-border-color-default); border-radius: var(--sol-border-radius-md, 8px); color: var(--sol-color-text-primary); overflow-wrap: anywhere; }
+    .ti-summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
+    .ti-summary:focus-visible { outline: 2px solid var(--sol-color-primary); outline-offset: 2px; }
   `],
 })
 export class TaskImportPreviewComponent {

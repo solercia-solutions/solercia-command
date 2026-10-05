@@ -55,6 +55,7 @@
   },
   "taskImport": {
     "title": "Vista previa de tareas",
+    "retry": "Reintentar",
     "scope": "Revisa un archivo antes de importar. Esta vista no crea tareas ni guarda archivos y no modifica el original.",
     "profile": "Perfil seleccionado: checklist de tareas",
     "requirements": "Usa los encabezados exactos: ID, Estado, Vencido, Urgencia, Categoría, Tarea, Detalle, Fecha Límite, Solicitante, Apoyo IA y Observaciones. En XLSX, la hoja debe llamarse Checklist Tareas; en CSV, usa UTF-8.",
