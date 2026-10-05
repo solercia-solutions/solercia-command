@@ -43,6 +43,19 @@ _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
 TASK_YEAR_TIMEZONE = "America/Bogota"
 
 
+def task_year_bounds(year: int | None) -> tuple[datetime | None, datetime | None]:
+    """Translate a calendar ``year`` into the half-open aware range in Bogotá.
+
+    Shared by the task filter and the project listing (``GET /projects?year=``)
+    so both use the same calendar.
+    """
+
+    if year is None:
+        return None, None
+    zone = ZoneInfo(TASK_YEAR_TIMEZONE)
+    return datetime(year, 1, 1, tzinfo=zone), datetime(year + 1, 1, 1, tzinfo=zone)
+
+
 class TaskService:
     """Orchestrates task use-cases for a single organization scope."""
 
@@ -176,10 +189,7 @@ class TaskService:
     def _year_bounds(year: int | None) -> tuple[datetime | None, datetime | None]:
         """Translate a calendar ``year`` into the half-open aware range in Bogotá."""
 
-        if year is None:
-            return None, None
-        zone = ZoneInfo(TASK_YEAR_TIMEZONE)
-        return datetime(year, 1, 1, tzinfo=zone), datetime(year + 1, 1, 1, tzinfo=zone)
+        return task_year_bounds(year)
 
     @staticmethod
     def _validate_due_range(due_from: date | None, due_to: date | None) -> None:

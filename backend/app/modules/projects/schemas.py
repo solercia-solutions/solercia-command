@@ -144,6 +144,11 @@ class ProjectRead(BaseModel):
     # (``override_requires_root``), nunca este schema.
     working_hours_per_day: Decimal | None = None
     working_days: list[int] | None = None
+    # Only ``GET /projects`` fills these (ODD S05): active tasks and open ones
+    # (not completed, not cancelled) for the requested ``year`` or for every
+    # year. ``null`` on endpoints that do not compute them.
+    task_count: int | None = None
+    open_task_count: int | None = None
 
 
 class ProjectTreeNode(BaseModel):

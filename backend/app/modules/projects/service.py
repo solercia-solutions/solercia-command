@@ -24,6 +24,7 @@ from app.modules.projects.system_project import (
     guard_system_project_update,
     reject_reserved_project_code,
 )
+from app.modules.tasks.service import TASK_YEAR_TIMEZONE, task_year_bounds
 from app.shared.enums import ProjectKind, ProjectStatus
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
@@ -61,8 +62,16 @@ class ProjectService:
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
         project_kind: ProjectKind | None = None,
+        *,
+        year: int | None = None,
     ) -> tuple[Sequence[Project], int]:
-        """Return ``(projects, total)`` with methodology info attached.
+        """Return ``(projects, total)`` with methodology info and task counts.
+
+        ``year`` (ODD S05) keeps only projects with active tasks created that
+        calendar year in ``America/Bogota`` (same criterion as the task
+        ``year`` filter). ``task_count``/``open_task_count`` are computed for
+        that year, or for every year when ``year`` is ``None``, in one
+        aggregate query for the whole page.
 
         Columns for every project's board are batch-preloaded in ONE call
         (two queries total, never N+1) instead of resolving each project's
@@ -72,8 +81,19 @@ class ProjectService:
         is forwarded to the repository unchanged — ``None`` keeps every kind.
         """
 
+        created_from, created_before = task_year_bounds(year)
         projects, total = await self.repo.list_by_org(
-            organization_id, pagination, project_kind
+            organization_id,
+            pagination,
+            project_kind,
+            tasks_created_from=created_from,
+            tasks_created_before=created_before,
+        )
+        counts = await self.repo.task_counts(
+            organization_id,
+            [project.id for project in projects],
+            created_from=created_from,
+            created_before=created_before,
         )
         columns_by_project = await BoardRepository(
             self.repo.db
@@ -85,7 +105,16 @@ class ProjectService:
             project.methodology_info = build_board_aware_strategy(
                 project, status_keys
             ).to_info()
+            project.task_count, project.open_task_count = counts.get(project.id, (0, 0))
         return projects, total
+
+    async def list_task_years(self, organization_id: uuid.UUID) -> list[int]:
+        """Return the years (Bogotá calendar) with active tasks in the
+        organization's projects, newest first."""
+
+        return await self.repo.list_task_created_years(
+            organization_id, timezone=TASK_YEAR_TIMEZONE
+        )
 
     async def create_project(
         self,

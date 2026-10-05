@@ -5,8 +5,9 @@ Only this layer talks to SQLAlchemy; services and routers depend on it.
 
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 
-from sqlalchemy import Integer, and_, cast, func, literal, select
+from sqlalchemy import Integer, and_, cast, exists, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 from sqlalchemy.sql import Select
@@ -38,8 +39,15 @@ class ProjectRepository:
         organization_id: uuid.UUID,
         pagination: PaginationParams | None = None,
         project_kind: ProjectKind | None = None,
+        *,
+        tasks_created_from: datetime | None = None,
+        tasks_created_before: datetime | None = None,
     ) -> tuple[Sequence[Project], int]:
         """Return ``(projects, total)`` — active projects, newest first.
+
+        ``tasks_created_from``/``tasks_created_before`` (ODD S05, both or
+        neither) keep only projects with at least one active task whose
+        ``created_at`` falls in the half-open range ``[from, before)``.
 
         ``project_kind`` (change 27-plantillas-idempotentes) filters by
         ``area``/``proyecto`` ONLY when given; ``None`` (the default) keeps
@@ -54,6 +62,15 @@ class ProjectRepository:
         )
         if project_kind is not None:
             stmt = stmt.where(Project.project_kind == project_kind)
+        if tasks_created_from is not None and tasks_created_before is not None:
+            stmt = stmt.where(
+                exists().where(
+                    Task.project_id == Project.id,
+                    Task.is_active.is_(True),
+                    Task.created_at >= tasks_created_from,
+                    Task.created_at < tasks_created_before,
+                )
+            )
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
@@ -62,6 +79,71 @@ class ProjectRepository:
         result = await self.db.execute(stmt)
         rows = result.scalars().all()
         return rows, len(rows)
+
+    async def task_counts(
+        self,
+        organization_id: uuid.UUID,
+        project_ids: Sequence[uuid.UUID],
+        *,
+        created_from: datetime | None = None,
+        created_before: datetime | None = None,
+    ) -> dict[uuid.UUID, tuple[int, int]]:
+        """Return ``{project_id: (task_count, open_task_count)}`` in ONE query.
+
+        Counts active tasks (subtasks included, like ``/tasks/years``),
+        optionally bounded to ``created_at`` in ``[created_from,
+        created_before)``. "Open" means not completed (``completed_at IS
+        NULL``, the timestamp ``TaskService`` stamps on final statuses and the
+        Jira import sets on resolved issues) and not ``cancelled``. Projects
+        without matching tasks are absent from the result (callers default to
+        zero). Scoped to the organization through ``Project``.
+        """
+
+        if not project_ids:
+            return {}
+        is_open = and_(Task.completed_at.is_(None), Task.status != "cancelled")
+        stmt = (
+            select(
+                Task.project_id,
+                func.count(Task.id).label("total"),
+                func.count(Task.id).filter(is_open).label("open"),
+            )
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Project.organization_id == organization_id,
+                Task.project_id.in_(project_ids),
+                Task.is_active.is_(True),
+            )
+            .group_by(Task.project_id)
+        )
+        if created_from is not None:
+            stmt = stmt.where(Task.created_at >= created_from)
+        if created_before is not None:
+            stmt = stmt.where(Task.created_at < created_before)
+        result = await self.db.execute(stmt)
+        return {row.project_id: (row.total, row.open) for row in result.all()}
+
+    async def list_task_created_years(
+        self, organization_id: uuid.UUID, *, timezone: str
+    ) -> list[int]:
+        """Return the distinct ``created_at`` years (in ``timezone``) of active
+        tasks in the organization's active projects, newest first.
+        """
+
+        year = func.extract("year", func.timezone(timezone, Task.created_at))
+        stmt = (
+            select(year.label("year"))
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Project.organization_id == organization_id,
+                Project.is_active.is_(True),
+                Task.is_active.is_(True),
+            )
+            .distinct()
+            .order_by(year.desc())
+        )
+        result = await self.db.execute(stmt)
+        return [int(value) for value in result.scalars().all()]
 
     async def get(
         self, organization_id: uuid.UUID, project_id: uuid.UUID

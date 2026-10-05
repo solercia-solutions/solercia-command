@@ -38,10 +38,27 @@ _require_hierarchy_write_role = require_role(MemberRole.admin, MemberRole.manage
 async def list_projects(
     pagination: PaginationParams = Depends(pagination_params),
     project_kind: ProjectKind | None = Query(default=None),
+    year: int | None = Query(
+        default=None,
+        ge=2000,
+        le=2100,
+        description=(
+            "Solo proyectos con tareas creadas ese año (created_at en hora de "
+            "Bogotá). También acota task_count/open_task_count. Fuera de "
+            "2000–2100 responde 422."
+        ),
+    ),
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List the projects of the caller's organization.
+
+    Every item carries ``task_count`` (active tasks, subtasks included) and
+    ``open_task_count`` (not completed — ``completed_at`` null — and not
+    ``cancelled``). With ``?year=`` only projects having active tasks created
+    that calendar year in ``America/Bogota`` are listed and both counts are
+    restricted to that year; see ``GET /projects/years`` for the years with
+    data.
 
     Supports opt-in pagination (``page``/``size``/``sort``/``order``); without
     those params the full collection is returned unchanged. Optional
@@ -54,10 +71,28 @@ async def list_projects(
 
     service = ProjectService(db)
     projects, total = await service.list_projects(
-        membership.organization_id, pagination, project_kind
+        membership.organization_id, pagination, project_kind, year=year
     )
     data = [ProjectRead.model_validate(project) for project in projects]
     return {"data": data, "meta": build_list_meta(pagination, total)}
+
+
+@router.get("/years")
+async def list_project_years(
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the creation years with active tasks across the organization's projects.
+
+    Newest first, computed from ``created_at`` in ``America/Bogota`` (the
+    calendar of ``GET /projects?year=``), so the UI only offers years with
+    data. Declared before ``/{project_id}`` so ``years`` is never parsed as
+    an id.
+    """
+
+    service = ProjectService(db)
+    years = await service.list_task_years(membership.organization_id)
+    return {"data": years, "meta": {"total": len(years)}}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

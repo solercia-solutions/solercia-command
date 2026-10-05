@@ -170,7 +170,8 @@ async def test_list_projects_batches_board_columns_without_n_plus_one(
 
     assert total == 5
     selects = [s for s in statements if s.strip().upper().startswith("SELECT")]
-    # 1 (projects list) + 1 (boards batch) + 1 (columns batch) = 3, independent of N.
-    assert len(selects) == 3, f"Expected 3 SELECTs, got {len(selects)}:\n" + "\n".join(
+    # 1 (projects list) + 1 (task counts, ODD S05) + 1 (boards batch)
+    # + 1 (columns batch) = 4, independent of N.
+    assert len(selects) == 4, f"Expected 4 SELECTs, got {len(selects)}:\n" + "\n".join(
         selects
     )
