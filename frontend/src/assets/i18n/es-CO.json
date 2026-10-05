@@ -745,7 +745,9 @@
       "preview": "Vista previa ({{ normalized }} de {{ total }} issues normalizados). Nada se guarda todavía.",
       "submit": "Procesar archivo",
       "submitting": "Procesando…",
-      "title": "Importar archivo de Jira"
+      "title": "Importar archivo de Jira",
+      "search": "Buscar en la vista previa…",
+      "noMatches": "Ningún issue coincide con la búsqueda."
     },
     "kind": {
       "api_token": "Token de API",
@@ -846,7 +848,7 @@
     "subtitle": "Conecta tu buzón de Microsoft 365 a través de Solercia Connect y trae tus correos como insumos y tareas.",
     "title": "Conexiones"
   },
-"executive": {
+  "executive": {
     "byAssignee": {
       "activeCount": "{{ count }} activas",
       "empty": "Nadie tiene tareas en progreso.",
@@ -989,7 +991,7 @@
       "organizationFallback": "tu organización"
     }
   },
-"performance": {
+  "performance": {
     "aria": {
       "onTimePercent": "{{ n }} por ciento a tiempo",
       "pointsCompleted": "{{ n }} puntos completados",
@@ -1678,7 +1680,7 @@
     "titleRequired": "El título es obligatorio.",
     "typeLabel": "Tipo"
   },
-"teams": {
+  "teams": {
     "empty": {
       "subtitle": "Cuando existan plantillas disponibles aparecerán en esta página.",
       "title": "No hay plantillas de equipo disponibles."

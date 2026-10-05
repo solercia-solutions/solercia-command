@@ -15,10 +15,13 @@ import {
   SolButtonComponent,
   SolCardComponent,
   SolChipComponent,
+  SolDataTableComponent,
+  DataTableColumn,
   SolConfirmDialogComponent,
   SolDrawerComponent,
   SolEmptyStateComponent,
   SolFileUploadComponent,
+  SolIconButtonComponent,
   SolIconComponent,
   SolInputComponent,
   SolSkeletonComponent,
@@ -71,62 +74,75 @@ const SOLERCIA_CONNECT = 'solercia_connect';
     SolCardComponent,
     SolChipComponent,
     SolConfirmDialogComponent,
+    SolDataTableComponent,
     SolDrawerComponent,
     SolEmptyStateComponent,
     SolFileUploadComponent,
+    SolIconButtonComponent,
     SolIconComponent,
     SolInputComponent,
     SolSkeletonComponent,
     SolToggleComponent,
     SolerciaConnectCardComponent,
   ],
+  styleUrl: '../page-layout.scss',
+  styles: [
+    `
+      .cn-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sol-space-md, 16px);
+      }
+      .cn-banner--success {
+        border-color: color-mix(in srgb, var(--sol-color-success) 40%, transparent);
+        background: color-mix(in srgb, var(--sol-color-success) 10%, transparent);
+        color: var(--sol-color-success);
+      }
+      @media (max-width: 1024px) {
+        .cn-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
   template: `
-    <section class="flex flex-col gap-6">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
-          <p class="text-sm text-muted">{{ text.subtitle() }}</p>
+    <section class="pg-page">
+      <header class="pg-header">
+        <div class="pg-header__text">
+          <h1 class="pg-title sol-display">{{ text.title() }}</h1>
+          <p class="pg-muted">{{ text.subtitle() }}</p>
         </div>
         <sol-button type="button" variant="primary" size="touch" (clicked)="openCreate()">
           {{ text.createOpen() }}
         </sol-button>
-      </div>
+      </header>
 
       @if (banner(); as note) {
         <div
           role="alert"
-          class="flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
-          [class.border-success/40]="note.kind === 'success'"
-          [class.bg-success/10]="note.kind === 'success'"
-          [class.text-success]="note.kind === 'success'"
-          [class.border-danger/40]="note.kind === 'error'"
-          [class.bg-danger/10]="note.kind === 'error'"
-          [class.text-danger]="note.kind === 'error'"
+          class="pg-alert"
+          [class.cn-banner--success]="note.kind === 'success'"
         >
           <span>{{ note.text }}</span>
-          <button
-            type="button"
-            class="shrink-0 opacity-70 hover:opacity-100"
-            [attr.aria-label]="text.bannerClose()"
-            (click)="banner.set(null)"
-          >
-            <sol-icon name="x-mark" size="sm" />
-          </button>
+          <sol-icon-button
+            icon="x-mark"
+            variant="ghost"
+            size="sm"
+            [ariaLabel]="text.bannerClose()"
+            (clicked)="banner.set(null)"
+          />
         </div>
       }
 
       @if (loading()) {
         <!-- Cargando: esqueleto de dos tarjetas -->
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-busy="true">
+        <div class="cn-grid" role="status" aria-busy="true" [attr.aria-label]="text.loading()">
           <sol-skeleton variant="card" />
           <sol-skeleton variant="card" />
         </div>
       } @else if (loadError(); as message) {
         <!-- Error de carga: detalle del backend + reintentar (nunca el estado vacío) -->
-        <div
-          role="alert"
-          class="flex flex-col gap-3 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between"
-        >
+        <div role="alert" class="pg-alert">
           <span>{{ message }}</span>
           <sol-button type="button" variant="secondary" size="touch" (clicked)="load()">
             {{ text.retry() }}
@@ -144,7 +160,7 @@ const SOLERCIA_CONNECT = 'solercia_connect';
           </sol-button>
         </sol-empty-state>
       } @else {
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="cn-grid">
           @for (connector of connectors(); track connector.id) {
             @if (connector.provider === solerciaConnect) {
               <sol-solercia-connect-card
@@ -453,38 +469,18 @@ const SOLERCIA_CONNECT = 'solercia_connect';
         </div>
 
         @if (jiraImportResult(); as result) {
-          <div class="flex flex-col gap-2">
-            <p class="text-sm text-muted">{{ jiraPreviewSummary(result) }}</p>
-            <div class="overflow-x-auto rounded-lg border border-border">
-              <table class="w-full min-w-[560px] text-left text-sm">
-                <thead class="bg-sunken text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th class="px-3 py-2">{{ text.jiraColKey() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColTitle() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColType() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColStatus() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColPriority() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColPoints() }}</th>
-                    <th class="px-3 py-2">{{ text.jiraColAssignee() }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (issue of result.issues; track issue.key) {
-                    <tr class="border-t border-border text-text">
-                      <td class="px-3 py-2 font-medium">{{ issue.key }}</td>
-                      <td class="max-w-[220px] truncate px-3 py-2">{{ issue.title }}</td>
-                      <td class="px-3 py-2">{{ issue.issue_type }}</td>
-                      <td class="px-3 py-2">{{ issue.status_bucket }}</td>
-                      <td class="px-3 py-2">{{ issue.priority }}</td>
-                      <td class="px-3 py-2">{{ issue.story_points ?? '—' }}</td>
-                      <td class="max-w-[160px] truncate px-3 py-2">
-                        {{ issue.assignee_raw || '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+          <div class="pg-section">
+            <p class="pg-muted">{{ jiraPreviewSummary(result) }}</p>
+            <sol-data-table
+              [data]="jiraRows()"
+              [columns]="jiraColumns()"
+              [searchPlaceholder]="text.jiraSearch()"
+              [emptyMessage]="text.jiraNoMatches()"
+              [paginated]="true"
+              [showActions]="false"
+              [collapseWidth]="760"
+              trackByKey="key"
+            />
           </div>
         }
       </div>
@@ -563,6 +559,9 @@ export class ConnectionsComponent implements OnInit {
     jiraColPriority: this.i18n.t('connectors.jiraImport.columns.priority'),
     jiraColPoints: this.i18n.t('connectors.jiraImport.columns.points'),
     jiraColAssignee: this.i18n.t('connectors.jiraImport.columns.assignee'),
+    jiraSearch: this.i18n.t('connectors.jiraImport.search'),
+    jiraNoMatches: this.i18n.t('connectors.jiraImport.noMatches'),
+    loading: this.i18n.t('connectors.loading'),
   } as const;
 
   // -- listado -------------------------------------------------------------
@@ -634,6 +633,29 @@ export class ConnectionsComponent implements OnInit {
   protected readonly jiraImporting = signal(false);
   protected readonly jiraImportError = signal<string | null>(null);
   protected readonly jiraImportResult = signal<JiraImportResult | null>(null);
+
+  /** Vista previa de Jira en `sol-data-table` (antes, `<table>` a mano con scroll horizontal). */
+  protected readonly jiraRows = computed<Record<string, unknown>[]>(() =>
+    (this.jiraImportResult()?.issues ?? []).map(issue => ({
+      key: issue.key,
+      title: issue.title,
+      issue_type: issue.issue_type,
+      status_bucket: issue.status_bucket,
+      priority: issue.priority,
+      story_points: issue.story_points ?? '—',
+      assignee: issue.assignee_raw || '—',
+    })),
+  );
+
+  protected readonly jiraColumns = computed<DataTableColumn[]>(() => [
+    { key: 'key', label: this.text.jiraColKey(), sortable: true },
+    { key: 'title', label: this.text.jiraColTitle(), sortable: true },
+    { key: 'issue_type', label: this.text.jiraColType(), sortable: true },
+    { key: 'status_bucket', label: this.text.jiraColStatus(), sortable: true },
+    { key: 'priority', label: this.text.jiraColPriority(), sortable: true },
+    { key: 'story_points', label: this.text.jiraColPoints() },
+    { key: 'assignee', label: this.text.jiraColAssignee(), sortable: true },
+  ]);
 
   constructor() {
     // Validación al vuelo del correo: el error se pinta junto al campo en
