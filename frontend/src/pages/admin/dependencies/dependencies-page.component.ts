@@ -8,21 +8,26 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
+  FormControl,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
 import {
   SolButtonComponent,
   SolInputComponent,
-  SolPageHeaderComponent,
   SolBadgeComponent,
   SolIconButtonComponent,
-  SolModalComponent,
+  SolDrawerComponent,
   SolConfirmDialogComponent,
   SolDataTableComponent,
+  SolEmptyStateComponent,
+  SolSelectComponent,
+  SolSelectOption,
+  SolSpinnerComponent,
   DataTableColumn,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
@@ -30,6 +35,13 @@ import { AlertService } from '@shared/lib/alerts';
 import { DependenciesService } from '@entities/dependency/dependencies.service';
 import { Dependency } from '@entities/dependency/dependency.model';
 
+type StatusFilter = 'all' | 'active' | 'inactive';
+
+/**
+ * `/admin/dependencies` con el patrón de listado de PANDORA (gestión de usuarios): encabezado
+ * `h1.sol-display`, tabla paginada con buscador y acciones al inicio, filtro de estado en la
+ * barra de la tabla y formulario de crear/editar en `sol-drawer` lateral.
+ */
 @Component({
   selector: 'sol-admin-dependencies',
   standalone: true,
@@ -38,76 +50,102 @@ import { Dependency } from '@entities/dependency/dependency.model';
     ReactiveFormsModule,
     SolButtonComponent,
     SolInputComponent,
-    SolPageHeaderComponent,
     SolBadgeComponent,
     SolIconButtonComponent,
-    SolModalComponent,
+    SolDrawerComponent,
     SolConfirmDialogComponent,
     SolDataTableComponent,
+    SolEmptyStateComponent,
+    SolSelectComponent,
+    SolSpinnerComponent,
   ],
+  styleUrl: '../admin-page.scss',
   template: `
-    <section class="flex flex-col gap-6">
-      <sol-page-header
-        [title]="text.title()"
-        [subtitle]="text.subtitle()"
-      >
+    <section class="adm-page">
+      <header class="adm-header">
+        <div class="adm-header__text">
+          <h1 class="adm-title sol-display">{{ text.title() }}</h1>
+          <p class="adm-muted">{{ text.subtitle() }}</p>
+        </div>
         <sol-button
           type="button"
           variant="primary"
-          (click)="openCreate()"
           [ariaLabel]="text.createAria()"
+          (clicked)="openCreate()"
         >
           {{ text.create() }}
         </sol-button>
-      </sol-page-header>
+      </header>
 
       @if (loading()) {
-        <p class="text-sm text-muted">{{ text.loading() }}</p>
-      } @else if (loadError()) {
-        <div
-          role="alert"
-          class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
-          {{ loadError() }}
+        <div class="adm-state" role="status" aria-live="polite">
+          <sol-spinner size="lg" />
+          <p>{{ text.loading() }}</p>
+        </div>
+      } @else if (loadError(); as message) {
+        <div class="adm-alert" role="alert">
+          <span>{{ message }}</span>
+          <sol-button type="button" variant="secondary" size="sm" (clicked)="load()">
+            {{ text.retry() }}
+          </sol-button>
         </div>
       } @else if (items().length === 0) {
-        <div class="rounded-xl border border-border bg-surface p-8 text-center">
-          <p class="text-base font-medium text-text">
-            {{ text.emptyTitle() }}
-          </p>
-          <p class="mt-1 text-sm text-muted">
-            {{ text.emptySubtitle() }}
-          </p>
-        </div>
+        <sol-empty-state
+          icon="folder"
+          titleKey="admin.dependencies.empty.title"
+          descriptionKey="admin.dependencies.empty.subtitle"
+        />
       } @else {
+        @if (deletingId()) {
+          <p class="adm-busy" role="status">{{ text.deleting() }}</p>
+        }
         <sol-data-table
           [data]="tableData()"
           [columns]="columns()"
-          [showToolbar]="false"
-          [paginated]="false"
+          [searchPlaceholder]="text.search()"
+          [emptyMessage]="statusFilter() === 'all' ? text.noSearchMatches() : text.noFilterMatches()"
+          [paginated]="true"
+          [showActions]="true"
           [actionsLabel]="text.thActions()"
+          actionsPosition="start"
+          [collapseWidth]="760"
+          trackByKey="id"
         >
+          <div tableActions class="adm-filters">
+            <sol-select
+              class="adm-filter"
+              [label]="text.filterStatus()"
+              [options]="statusOptions()"
+              [formControl]="statusControl"
+            />
+            @if (statusFilter() !== 'all') {
+              <sol-button type="button" variant="ghost" size="sm" (clicked)="clearFilters()">
+                {{ text.clearFilters() }}
+              </sol-button>
+            }
+          </div>
           <ng-template #rowActions let-row>
-            <div class="flex items-center justify-end gap-2">
-              <sol-icon-button
-                icon="edit"
-                [ariaLabel]="text.editAria()"
-                (clicked)="openEdit($any(row))"
-              />
-              <sol-icon-button
-                icon="trash"
-                variant="danger"
-                [ariaLabel]="text.deleteAria()"
-                (clicked)="askDelete($any(row))"
-              />
-            </div>
+            <sol-icon-button
+              icon="edit"
+              variant="outline"
+              [ariaLabel]="text.editAria()"
+              [disabled]="deletingId() === row['id']"
+              (clicked)="openEdit($any(row))"
+            />
+            <sol-icon-button
+              icon="trash"
+              variant="danger"
+              [ariaLabel]="text.deleteAria()"
+              [disabled]="deletingId() === row['id']"
+              (clicked)="askDelete($any(row))"
+            />
           </ng-template>
         </sol-data-table>
       }
     </section>
 
     <ng-template #codeCell let-value>
-      <span class="text-muted">{{ $any(value) || '—' }}</span>
+      <span>{{ $any(value) || '—' }}</span>
     </ng-template>
     <ng-template #statusCell let-row="row">
       @if ($any(row).is_active) {
@@ -117,63 +155,51 @@ import { Dependency } from '@entities/dependency/dependency.model';
       }
     </ng-template>
 
-    @if (showForm()) {
-      <sol-modal [open]="true"
-        [title]="editing() ? text.formEditTitle() : text.formCreateTitle()"
-        (closed)="closeForm()"
-      >
-        <form
-          [formGroup]="form"
-          (ngSubmit)="onSubmit()"
-          class="flex flex-col gap-4"
-          novalidate
+    <sol-drawer
+      [open]="showForm()"
+      [title]="editing() ? text.formEditTitle() : text.formCreateTitle()"
+      side="end"
+      size="md"
+      (closed)="closeForm()"
+    >
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="adm-form" novalidate>
+        <sol-input
+          [label]="text.nameLabel()"
+          [placeholder]="text.namePlaceholder()"
+          [error]="showError('name') ? text.nameRequired() : ''"
+          formControlName="name"
+        />
+        <sol-input
+          [label]="text.codeLabel()"
+          [placeholder]="text.codePlaceholder()"
+          formControlName="code"
+        />
+        <label class="adm-check">
+          <input type="checkbox" formControlName="is_active" />
+          {{ text.activeLabel() }}
+        </label>
+
+        @if (formError(); as message) {
+          <div class="adm-alert" role="alert">{{ message }}</div>
+        }
+        <button type="submit" class="adm-submit" tabindex="-1" aria-hidden="true"></button>
+      </form>
+
+      <div drawerFooter class="adm-footer">
+        <sol-button type="button" variant="secondary" (clicked)="closeForm()">
+          {{ text.cancel() }}
+        </sol-button>
+        <sol-button
+          type="button"
+          variant="primary"
+          [disabled]="saving()"
+          [loading]="saving()"
+          (clicked)="onSubmit()"
         >
-          <div>
-            <sol-input
-              [label]="text.nameLabel()"
-              [placeholder]="text.namePlaceholder()"
-              formControlName="name"
-            ></sol-input>
-            @if (showError('name')) {
-              <p class="mt-1 text-xs text-danger">{{ text.nameRequired() }}</p>
-            }
-          </div>
-
-          <sol-input
-            [label]="text.codeLabel()"
-            [placeholder]="text.codePlaceholder()"
-            formControlName="code"
-          ></sol-input>
-
-          <label class="flex items-center gap-2 text-sm text-text">
-            <input
-              type="checkbox"
-              formControlName="is_active"
-              class="h-4 w-4 rounded border-border text-brand focus:ring-brand/40"
-            />
-            {{ text.activeLabel() }}
-          </label>
-
-          @if (formError()) {
-            <div
-              role="alert"
-              class="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {{ formError() }}
-            </div>
-          }
-
-          <div class="flex items-center justify-end gap-2">
-            <sol-button type="button" variant="ghost" (click)="closeForm()">
-              {{ text.cancel() }}
-            </sol-button>
-            <sol-button type="submit" variant="primary" [disabled]="saving()">
-              {{ saving() ? text.saving() : text.save() }}
-            </sol-button>
-          </div>
-        </form>
-      </sol-modal>
-    }
+          {{ saving() ? text.saving() : text.save() }}
+        </sol-button>
+      </div>
+    </sol-drawer>
 
     <sol-confirm-dialog
       [open]="deleting() !== null"
@@ -198,8 +224,6 @@ export class DependenciesPageComponent implements OnInit {
     title: this.i18n.t('admin.dependencies.title'),
     subtitle: this.i18n.t('admin.dependencies.subtitle'),
     loading: this.i18n.t('admin.dependencies.loading'),
-    emptyTitle: this.i18n.t('admin.dependencies.empty.title'),
-    emptySubtitle: this.i18n.t('admin.dependencies.empty.subtitle'),
     thName: this.i18n.t('admin.dependencies.table.name'),
     thCode: this.i18n.t('admin.dependencies.table.code'),
     thStatus: this.i18n.t('admin.dependencies.table.status'),
@@ -214,6 +238,7 @@ export class DependenciesPageComponent implements OnInit {
     save: this.i18n.t('admin.dependencies.actions.save'),
     saving: this.i18n.t('admin.dependencies.actions.saving'),
     delete: this.i18n.t('admin.dependencies.actions.delete'),
+    deleting: this.i18n.t('admin.dependencies.actions.deleting'),
     formCreateTitle: this.i18n.t('admin.dependencies.form.createTitle'),
     formEditTitle: this.i18n.t('admin.dependencies.form.editTitle'),
     nameLabel: this.i18n.t('admin.dependencies.form.nameLabel'),
@@ -225,16 +250,39 @@ export class DependenciesPageComponent implements OnInit {
     deleteTitle: this.i18n.t('admin.dependencies.delete.title'),
     deleteConfirmPrefix: this.i18n.t('admin.dependencies.delete.confirmPrefix'),
     deleteConfirmSuffix: this.i18n.t('admin.dependencies.delete.confirmSuffix'),
+    retry: this.i18n.t('admin.common.retry'),
+    search: this.i18n.t('admin.common.searchPlaceholder'),
+    noSearchMatches: this.i18n.t('admin.common.noSearchMatches'),
+    noFilterMatches: this.i18n.t('admin.common.noFilterMatches'),
+    clearFilters: this.i18n.t('admin.common.clearFilters'),
+    filterStatus: this.i18n.t('admin.common.filters.status'),
+    allStatuses: this.i18n.t('admin.common.filters.allStatuses'),
   } as const;
 
   protected readonly items = signal<Dependency[]>([]);
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
 
-  /** Filas para `sol-data-table` (contrato genérico `Record<string, unknown>`). */
-  protected readonly tableData = computed<Record<string, unknown>[]>(
-    () => this.items() as unknown as Record<string, unknown>[],
-  );
+  /** Filtro de estado (preseleccionado en «Todos los estados»). */
+  protected readonly statusControl = new FormControl<StatusFilter>('all', { nonNullable: true });
+  protected readonly statusFilter = toSignal(this.statusControl.valueChanges, {
+    initialValue: this.statusControl.value,
+  });
+  protected readonly statusOptions = computed<SolSelectOption[]>(() => [
+    { value: 'all', label: this.text.allStatuses() },
+    { value: 'active', label: this.text.statusActive() },
+    { value: 'inactive', label: this.text.statusInactive() },
+  ]);
+
+  /** Filas para `sol-data-table` (contrato genérico `Record<string, unknown>`), ya filtradas. */
+  protected readonly tableData = computed<Record<string, unknown>[]>(() => {
+    const status = this.statusFilter();
+    const rows =
+      status === 'all'
+        ? this.items()
+        : this.items().filter((item) => item.is_active === (status === 'active'));
+    return rows as unknown as Record<string, unknown>[];
+  });
 
   private readonly codeTpl =
     viewChild<TemplateRef<{ $implicit: unknown; row: Record<string, unknown> }>>('codeCell');
@@ -243,14 +291,21 @@ export class DependenciesPageComponent implements OnInit {
 
   /** Columnas de la tabla (reactivas al idioma y a las plantillas de celda). */
   protected readonly columns = computed<DataTableColumn[]>(() => [
-    { key: 'name', label: this.text.thName() },
-    { key: 'code', label: this.text.thCode(), cellTemplate: this.codeTpl() },
-    { key: 'is_active', label: this.text.thStatus(), cellTemplate: this.statusTpl() },
+    { key: 'name', label: this.text.thName(), sortable: true },
+    { key: 'code', label: this.text.thCode(), cellTemplate: this.codeTpl(), sortable: true },
+    {
+      key: 'is_active',
+      label: this.text.thStatus(),
+      badge: true,
+      cellTemplate: this.statusTpl(),
+    },
   ]);
 
   protected readonly showForm = signal(false);
   protected readonly editing = signal<Dependency | null>(null);
   protected readonly deleting = signal<Dependency | null>(null);
+  /** Fila en eliminación: deshabilita sus acciones y muestra «Eliminando…». */
+  protected readonly deletingId = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
 
@@ -273,6 +328,10 @@ export class DependenciesPageComponent implements OnInit {
   protected showError(control: 'name'): boolean {
     const c = this.form.controls[control];
     return c.invalid && (c.touched || c.dirty);
+  }
+
+  protected clearFilters(): void {
+    this.statusControl.setValue('all');
   }
 
   protected openCreate(): void {
@@ -299,6 +358,9 @@ export class DependenciesPageComponent implements OnInit {
   }
 
   protected onSubmit(): void {
+    if (this.saving()) {
+      return;
+    }
     this.formError.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -342,24 +404,24 @@ export class DependenciesPageComponent implements OnInit {
   /** El diálogo se cierra al confirmar; si la eliminación falla, el motivo llega por alerta. */
   protected confirmDelete(): void {
     const item = this.deleting();
-    if (!item || this.saving()) {
+    if (!item || this.deletingId()) {
       return;
     }
     this.deleting.set(null);
-    this.saving.set(true);
+    this.deletingId.set(item.id);
     this.service.remove(item.id).subscribe({
       next: () => {
-        this.saving.set(false);
+        this.deletingId.set(null);
         this.load();
       },
       error: (err: HttpErrorResponse) => {
-        this.saving.set(false);
+        this.deletingId.set(null);
         this.alert.showError(this.messageFor(err));
       },
     });
   }
 
-  private load(): void {
+  protected load(): void {
     this.loading.set(true);
     this.loadError.set(null);
     this.service.list().subscribe({

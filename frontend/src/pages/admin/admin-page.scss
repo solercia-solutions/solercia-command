@@ -1,0 +1,146 @@
+/*
+ * Estilos compartidos de las páginas `/admin/*` (patrón de listado de PANDORA, gestión de
+ * usuarios): encabezado `h1.sol-display` + subtítulo, filtros en la barra de la tabla, estados
+ * (cargando, error con «Reintentar») y formularios en `sol-drawer` con pie de acciones.
+ * Solo tokens `--sol-*` para que respete el tema claro/oscuro.
+ */
+.adm-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-lg, 24px);
+}
+
+.adm-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sol-space-md, 16px);
+}
+
+.adm-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-xs, 4px);
+  min-width: 0;
+}
+
+.adm-title {
+  margin: 0;
+  font-size: var(--sol-font-size-xl, 1.25rem);
+  color: var(--sol-color-text-primary);
+}
+
+.adm-muted {
+  margin: 0;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-secondary);
+}
+
+.adm-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sol-space-sm, 8px);
+  padding: var(--sol-space-xl, 48px) var(--sol-space-md, 16px);
+  text-align: center;
+  color: var(--sol-color-text-muted);
+  font-size: var(--sol-font-size-sm, 0.875rem);
+}
+
+.adm-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sol-space-sm, 8px);
+  padding: var(--sol-space-sm, 8px) var(--sol-space-md, 16px);
+  border: 1px solid color-mix(in srgb, var(--sol-color-danger) 40%, transparent);
+  border-radius: var(--sol-border-radius-md, 8px);
+  background: color-mix(in srgb, var(--sol-color-danger) 10%, transparent);
+  color: var(--sol-color-danger);
+  font-size: var(--sol-font-size-sm, 0.875rem);
+}
+
+/* Filtros dentro de la barra de herramientas de `sol-data-table` (ranura `tableActions`). La
+   ranura mide lo que mide su contenido, así que los filtros llevan ancho fijo y no se envuelven
+   en escritorio (envolver con ancho intrínseco los apilaría). */
+.adm-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: var(--sol-space-sm, 8px);
+}
+
+.adm-filter {
+  flex: 0 0 200px;
+  width: 200px;
+}
+
+.adm-busy {
+  margin: 0;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-secondary);
+}
+
+.adm-form {
+  display: grid;
+  gap: var(--sol-space-md, 16px);
+}
+
+.adm-form--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.adm-form__full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .adm-form--two {
+    grid-template-columns: 1fr;
+  }
+
+  .adm-filters {
+    flex-wrap: wrap;
+  }
+
+  .adm-filter {
+    flex: 0 1 180px;
+    width: 180px;
+    max-width: 100%;
+  }
+}
+
+.adm-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sol-space-sm, 8px);
+  min-height: 44px;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-primary);
+}
+
+.adm-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sol-color-primary);
+}
+
+.adm-hint {
+  margin: 0;
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  color: var(--sol-color-text-muted);
+}
+
+.adm-submit {
+  display: none;
+}
+
+.adm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sol-space-sm, 8px);
+  padding: var(--sol-space-md, 16px) var(--sol-space-lg, 24px);
+  border-top: var(--sol-border-width-default, 1px) solid var(--sol-border-color-default, #e5e7eb);
+}

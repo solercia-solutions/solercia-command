@@ -208,6 +208,21 @@
     }
   },
   "admin": {
+    "common": {
+      "clearFilters": "Limpiar filtros",
+      "filters": {
+        "allDependencies": "Todas las dependencias",
+        "allRoles": "Todos los roles",
+        "allStatuses": "Todos los estados",
+        "dependency": "Dependencia",
+        "role": "Rol",
+        "status": "Estado"
+      },
+      "noFilterMatches": "Ningún registro coincide con los filtros. Ajústalos o límpialos.",
+      "noSearchMatches": "Ningún registro coincide con la búsqueda.",
+      "retry": "Reintentar",
+      "searchPlaceholder": "Buscar en la tabla…"
+    },
     "dependencies": {
       "actions": {
         "cancel": "Cancelar",
