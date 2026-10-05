@@ -989,10 +989,11 @@
       "organizationFallback": "tu organización"
     }
   },
-  "performance": {
+"performance": {
     "aria": {
       "onTimePercent": "{{ n }} por ciento a tiempo",
-      "pointsCompleted": "{{ n }} puntos completados"
+      "pointsCompleted": "{{ n }} puntos completados",
+      "onTimePerson": "{{ name }}: {{ n }} por ciento a tiempo"
     },
     "bars": {
       "onTime": "% a tiempo"
@@ -1014,7 +1015,23 @@
     },
     "subtitle": "Desempeño por colaborador: trabajo entregado, cumplimiento y carga actual.",
     "title": "Rendimiento",
-    "updatedAt": "Actualizado:"
+    "updatedAt": "Actualizado:",
+    "emptyHint": "Cuando las personas de la organización completen tareas, aquí verás su avance.",
+    "retry": "Reintentar",
+    "search": "Buscar persona…",
+    "noSearchMatches": "Ninguna persona coincide con la búsqueda.",
+    "noFilterMatches": "Ninguna persona coincide con el filtro.",
+    "columns": {
+      "person": "Persona"
+    },
+    "filter": {
+      "label": "Mostrar",
+      "clear": "Limpiar filtro",
+      "all": "Todas las personas ({{ count }})",
+      "overdue": "Con tareas vencidas ({{ count }})",
+      "active": "Con tareas activas ({{ count }})",
+      "delivered": "Con entregas ({{ count }})"
+    }
   },
   "plans": {
     "correlation": {

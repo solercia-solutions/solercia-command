@@ -106,8 +106,9 @@ const IN_PROGRESS_PREVIEW = 3;
         border: 1px solid var(--sol-border-color-default, #e5e7eb);
         border-radius: var(--sol-border-radius-md, 8px);
       }
-      .ex-wide {
+      .pg-filter.ex-wide {
         flex-basis: 340px;
+        max-width: none;
       }
       .ex-progress {
         min-width: 140px;
