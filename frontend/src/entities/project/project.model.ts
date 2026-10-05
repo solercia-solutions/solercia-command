@@ -32,6 +32,12 @@ export interface Project {
   parent_project_id: string | null;
   /** Present on GET /projects and GET /projects/:id responses. */
   methodology_info?: MethodologyInfo;
+  /**
+   * Only on GET /projects (ODD S05): active tasks and open ones (not completed,
+   * not cancelled) for the requested `year`, or for every year. `null` elsewhere.
+   */
+  task_count?: number | null;
+  open_task_count?: number | null;
 }
 
 /** A project whose methodology configuration is guaranteed to be present. */
@@ -47,6 +53,12 @@ export interface ProjectDetailResponse {
 /** Backend list envelope: { data: [...], meta: { total } }. */
 export interface ProjectListResponse {
   data: Project[];
+  meta: { total: number };
+}
+
+/** GET /projects/years — years (Bogotá calendar) with tasks, newest first. */
+export interface ProjectYearsResponse {
+  data: number[];
   meta: { total: number };
 }
 

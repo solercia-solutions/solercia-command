@@ -284,6 +284,7 @@ interface HierarchyRow {
         <div class="flex flex-col gap-3">
           <a
             routerLink="/projects"
+            [queryParams]="backQueryParams()"
             class="inline-flex w-fit items-center gap-1 text-sm text-muted transition-colors hover:text-text"
           >
             <svg
@@ -1636,6 +1637,10 @@ export class ProjectWorkspaceComponent implements OnInit {
   );
   /** Año preseleccionado al abrir (el que «Limpiar filtros» restaura). */
   private readonly defaultYear = signal<number | null>(null);
+  /** «Volver a proyectos» conserva el año elegido aquí (S05). */
+  protected readonly backQueryParams = computed(() => ({
+    year: this.selectedYear() ?? 'all',
+  }));
 
   /* ---- Barra de filtros (S04) --------------------------------------------
    * Todos viajan al backend (`status`, `assignee_id`, `priority`, `q`,
@@ -2386,8 +2391,11 @@ export class ProjectWorkspaceComponent implements OnInit {
         this.availableYears.set(years);
         this.yearsUnavailable.set(false);
         const current = new Date().getFullYear();
-        const preselected = years.includes(current) ? current : (years[0] ?? null);
-        this.defaultYear.set(preselected);
+        const fallback = years.includes(current) ? current : (years[0] ?? null);
+        const preselected = this.requestedYear(years, fallback);
+        // «Limpiar filtros» vuelve al año natural; el que llega por URL, si
+        // difiere, cuenta como filtro activo.
+        this.defaultYear.set(fallback);
         this.selectedYear.set(preselected);
         this.yearControl.setValue(preselected === null ? '' : String(preselected), {
           emitEvent: false,
@@ -2403,6 +2411,21 @@ export class ProjectWorkspaceComponent implements OnInit {
         this.loadTasks();
       },
     });
+  }
+
+  /**
+   * Año inicial: el `?year=` con el que se llegó desde `/projects` si es
+   * válido (`all` = «Todos los años»); si no, `fallback`.
+   */
+  private requestedYear(years: number[], fallback: number | null): number | null {
+    const requested = this.route.snapshot.queryParamMap.get('year');
+    if (requested === 'all') {
+      return null;
+    }
+    if (requested !== null && years.includes(Number(requested))) {
+      return Number(requested);
+    }
+    return fallback;
   }
 
   /** Restaura los filtros por defecto (año preseleccionado, sin más filtros)

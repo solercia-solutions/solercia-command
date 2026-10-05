@@ -1210,6 +1210,44 @@
     },
     "loading": "Cargando proyectos…",
     "noDescription": "Sin descripción.",
+    "filters": {
+      "regionAria": "Filtros de proyectos",
+      "year": "Año",
+      "yearAll": "Todos los años",
+      "yearsUnavailable": "No fue posible consultar los años con tareas; se muestran todos los proyectos.",
+      "methodology": "Metodología",
+      "methodologyAll": "Todas las metodologías",
+      "search": "Buscar",
+      "searchPlaceholder": "Nombre o código del proyecto",
+      "clear": "Limpiar filtros",
+      "activeOne": "1 filtro activo",
+      "activeOther": "{{ count }} filtros activos"
+    },
+    "count": {
+      "zero": "Sin proyectos para mostrar",
+      "one": "1 proyecto",
+      "other": "{{ count }} proyectos",
+      "yearOne": "1 proyecto con tareas en {{ year }}",
+      "yearOther": "{{ count }} proyectos con tareas en {{ year }}",
+      "filtered": "{{ shown }} de {{ total }} proyectos"
+    },
+    "card": {
+      "tasksZero": "Sin tareas",
+      "tasksOne": "1 tarea",
+      "tasksOther": "{{ count }} tareas",
+      "tasksYearOne": "1 tarea en {{ year }}",
+      "tasksYearOther": "{{ count }} tareas en {{ year }}",
+      "openZero": "ninguna abierta",
+      "openOne": "1 abierta",
+      "openOther": "{{ count }} abiertas"
+    },
+    "noMatch": {
+      "title": "Ningún proyecto coincide con los filtros.",
+      "hint": "Prueba con otro año, otra metodología u otro nombre, o limpia los filtros."
+    },
+    "emptyForYear": "No hay proyectos con tareas creadas en {{ year }}.",
+    "showAllYears": "Ver todos los años",
+    "retry": "Reintentar",
     "subtitle": "Administra los proyectos de tu organización.",
     "title": "Proyectos",
     "toggle": {

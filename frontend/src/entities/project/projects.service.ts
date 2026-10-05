@@ -10,6 +10,7 @@ import {
   ProjectListResponse,
   ProjectProgressResponse,
   ProjectTreeResponse,
+  ProjectYearsResponse,
   UpdateProjectPayload,
 } from './project.model';
 
@@ -24,8 +25,20 @@ import {
 export class ProjectsService {
   private readonly http = inject(HttpClient);
 
-  list(): Observable<ProjectListResponse> {
+  /**
+   * GET /projects. With `year`, only projects with tasks created that year
+   * (Bogotá calendar); `task_count`/`open_task_count` follow the same year.
+   */
+  list(params: { year?: number } = {}): Observable<ProjectListResponse> {
     return this.http.get<ProjectListResponse>(`${apiBase}/projects`, {
+      context: skipGlobalErrorHandling(),
+      ...(params.year !== undefined ? { params: { year: params.year } } : {}),
+    });
+  }
+
+  /** GET /projects/years — years with tasks across the organization, newest first. */
+  years(): Observable<ProjectYearsResponse> {
+    return this.http.get<ProjectYearsResponse>(`${apiBase}/projects/years`, {
       context: skipGlobalErrorHandling(),
     });
   }
