@@ -46,7 +46,8 @@ Estrategia `ask-on-risk`. Pronóstico > 400 líneas por las páginas; cada pági
       Más `GET /projects/{id}/tasks/years`. Commit `fc915ab`.
 - [x] S03 Frontend: `year` en `TaskQuery` y `sol-select` «Año» en el workspace del proyecto,
       con periodos reales (patrón «Periodo» de la telemetría de PANDORA). Commit `8f7b954`.
-- [ ] S04 `/projects/:id` (workspace): barra de filtros y grid a `sol-data-table` paginada (L).
+- [x] S04 `/projects/:id` (workspace): barra de filtros y grid a `sol-data-table` paginada (L).
+      Commit `064204b`.
 - [ ] S05 `/projects`: encabezado `h1.sol-display`, filtros en `sol-card` (M).
 - [ ] S06 `/task/:key` y `sol-task-detail-panel`: patrón de perfil de PANDORA (M).
 - [ ] S07 `/plans`: `sol-drawer` + `sol-form-field`, menos Tailwind (L).
@@ -81,6 +82,36 @@ formulario `.../gestion-usuarios/ui/usuario-form-modal.component.ts`; detalle
   consulta de años. `npm run build` exit 0 (aviso de presupuesto del bundle inicial, 1,09 MB),
   `npm run lint` exit 0. Pendiente: verificación en navegador (backend del compose apagado).
 
+- 2026-10-04 S03 navegador (backend en el host con `STARTUP_PROFILE=local_restricted`,
+  `EMAIL_ENABLED=false`, sin scheduler; front `ng serve` :4242): en IDARTES › MUNDOS DIGITALES
+  el selector «Año» carga 2026 y pide `?include_subtasks=true&year=2026`. Por año en BD: 2026 933,
+  2025 5, 2024 6. El tablero parece vacío porque las 944 tareas están en «Listo» (quinta columna,
+  fuera de la vista); los estados vienen así de Jira. Hallazgos para S04: el selector queda
+  apilado sobre «Nueva tarea» y desalineado del título; el tablero no indica columnas fuera de
+  la vista ni conteos totales.
+
+- 2026-10-04 S04: encabezado `h1.sol-display` + badge de metodología + conteo, «Nueva tarea» en
+  la misma fila. Barra de filtros extraída a `workspace-filters.component.ts` (`sol-card`): Año,
+  Estado (columnas del tablero), Responsable (miembros del proyecto), Prioridad y Buscar (`q`,
+  350 ms). Todos viajan al backend y aplican a todas las pestañas, como el año. «Limpiar filtros»
+  e indicador «N filtros activos» solo con filtros distintos del año preseleccionado. Cuadrícula
+  en `sol-data-table` (paginada, acciones al inicio, `collapseWidth` 760, `trackByKey` id, badges);
+  sin buscador propio para no duplicar `q`. La librería no expone clic de fila: el detalle se abre
+  desde el ícono «ver», el código o el título. Tablero: resumen de conteos por columna que lleva a
+  cada una (`scrollIntoView`, respeta `prefers-reduced-motion`); arrastrar y soltar sin cambios.
+  Estados: spinner con `role=status`, error con «Reintentar» (tablero oculto para no mostrar
+  ceros), sin coincidencias con «Limpiar filtros», sin tareas en el año y vacío legítimo.
+- 2026-10-04 S04 verificación: `npm run build` exit 0 (aviso de presupuesto igual, 1,09 MB) y
+  `npm run lint` exit 0. Navegador 1440×900 y 390×844, claro y oscuro: PANDORA-IDARTES pide
+  `status=EN CURSO&…&q=zzzxq` y muestra «Ninguna tarea coincide»; responsable + prioridad da
+  «1 tarea» y «2 filtros activos»; limpiar vuelve a 14. En MUNDOS DIGITALES el chip «Listo 14»
+  desplaza el tablero a esa columna. Error simulado (500 en la ruta) → alerta y reintento OK. A
+  390 px la tabla colapsa a tarjetas y no hay desplazamiento horizontal de página.
+- Veredicto UX: viene a ver y encontrar tareas del proyecto. Fricciones abiertas: (1) a 390 px la
+  barra de filtros ocupa ~400 px antes del tablero → revelación progresiva (botón «Filtros (n)»);
+  (2) `sol-select` y `sol-input` de la librería no asocian la etiqueta al control (nombre accesible
+  = valor/placeholder); (3) el vacío legítimo no se pudo ver con datos reales (solo lectura).
+
 ## Siguiente paso
 
-Verificar S03 en navegador con el backend arriba; luego S04.
+S05. Pendiente de S04: filtros plegables en móvil y etiquetas accesibles en `@solercia/ui`.
