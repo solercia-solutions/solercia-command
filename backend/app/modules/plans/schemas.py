@@ -138,6 +138,10 @@ class ActivityTaskRead(BaseModel):
     status: str
     role: str  # `primary` | `contributes`
     note: str | None = None
+    # Origin of an imported task (`checklist_xlsx`, `jira`) and its business
+    # key there (`CHECKLIST_TAREAS:T-07`); both null for native tasks.
+    source: str | None = None
+    external_key: str | None = None
     # True when this task is `primary` AND satisfies progress_denominator():
     # one of the rows the ratio of D-F actually counts.
     counts_toward_progress: bool = False

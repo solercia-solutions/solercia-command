@@ -245,6 +245,8 @@ class PlansService:
                     status=row.status,
                     role=row.role,
                     note=row.note,
+                    source=row.source,
+                    external_key=row.external_key,
                     counts_toward_progress=bool(row.counts_toward_progress),
                 )
             )

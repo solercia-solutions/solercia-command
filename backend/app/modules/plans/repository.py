@@ -364,6 +364,8 @@ class PlansRepository:
                 TaskPlanActivity.task_id.label("task_id"),
                 Task.title.label("title"),
                 Task.task_number.label("task_number"),
+                Task.source.label("source"),
+                Task.external_key.label("external_key"),
                 Project.code.label("project_code"),
                 Project.name.label("project_name"),
                 Task.status.label("status"),

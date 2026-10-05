@@ -209,6 +209,33 @@ async def test_activities_filtered_by_task_id_return_both_links(
     assert other.code not in {k.split("/")[1] for k in keys}
 
 
+async def test_activity_tasks_expose_the_source_external_key(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """The plans page shows the business code the entity knows («T-07» of the
+    checklist) next to the Command key, so each linked task carries the
+    origin's ``source`` and ``external_key`` (null for native tasks)."""
+
+    _, token = user
+    _, (activity,) = await _seed_plan(session, tenant.id)
+    imported = await _seed_task(session, tenant.id, code="CHK")
+    imported.source = "checklist_xlsx"
+    imported.external_key = "CHECKLIST_TAREAS:T-07"
+    native = await _seed_task(session, tenant.id, code="NAT")
+    await session.commit()
+    await _link_task(session, imported, activity)
+    await _link_task(session, native, activity, role="contributes")
+
+    response = await client.get(f"/plans/activities/{activity.id}/tasks", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    rows = {row["title"]: row for row in response.json()["data"]}
+    assert rows["Tarea CHK"]["source"] == "checklist_xlsx"
+    assert rows["Tarea CHK"]["external_key"] == "CHECKLIST_TAREAS:T-07"
+    assert rows["Tarea NAT"]["source"] is None
+    assert rows["Tarea NAT"]["external_key"] is None
+
+
 def test_task_read_declares_no_plan_field() -> None:
     from app.modules.tasks.schemas import TaskRead
 
