@@ -1724,6 +1724,14 @@
       "grid": "Cuadrícula",
       "gridAria": "Vista cuadrícula",
       "groupAria": "Modo de visualización"
+    },
+    "year": {
+      "all": "Todos los años",
+      "emptyForYear": "No hay tareas creadas en {{ year }}. Elige otro año o mira todas las tareas del proyecto.",
+      "label": "Año",
+      "loadingTasks": "Cargando las tareas…",
+      "showAll": "Ver todos los años",
+      "yearsUnavailable": "No fue posible consultar los años con tareas; se muestran todas las tareas."
     }
   }
 }

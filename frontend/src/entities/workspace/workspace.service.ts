@@ -34,6 +34,14 @@ export interface TaskQuery {
    * (change 32-jerarquia-subtareas); omitted/false preserves the previous
    * top-level-only listing (board/Gantt). */
   include_subtasks?: boolean;
+  /** Calendar year of `created_at` (America/Bogota); omitted = every year. */
+  year?: number;
+}
+
+/** `GET /projects/{id}/tasks/years`: creation years with data, newest first. */
+export interface TaskYearsResponse {
+  data: number[];
+  meta?: { total: number };
 }
 
 /**
@@ -79,9 +87,20 @@ export class WorkspaceService {
     if (query.include_subtasks) {
       params = params.set('include_subtasks', 'true');
     }
+    if (query.year != null) {
+      params = params.set('year', String(query.year));
+    }
     return this.http.get<TaskListResponse>(
       `${apiBase}/projects/${projectId}/tasks`,
       { params, context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Creation years (Bogotá calendar) that have tasks in the project. */
+  taskYears(projectId: string): Observable<TaskYearsResponse> {
+    return this.http.get<TaskYearsResponse>(
+      `${apiBase}/projects/${projectId}/tasks/years`,
+      { context: skipGlobalErrorHandling() },
     );
   }
 

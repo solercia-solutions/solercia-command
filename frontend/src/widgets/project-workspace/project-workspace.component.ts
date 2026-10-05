@@ -16,8 +16,9 @@ import {
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-import { forkJoin } from 'rxjs';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Subscription, forkJoin } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
   KanbanColumn,
   KanbanItemMoved,
@@ -27,6 +28,8 @@ import {
   SolIconComponent,
   SolModalComponent,
   SolKanbanBoardComponent,
+  SolSelectComponent,
+  SolSelectOption,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { ProjectsService } from '@entities/project/projects.service';
@@ -93,6 +96,7 @@ interface HierarchyRow {
     SolIconComponent,
     SolModalComponent,
     SolKanbanBoardComponent,
+    SolSelectComponent,
     SprintGanttComponent,
     TaskModalComponent,
     TaskDetailPanelComponent,
@@ -108,6 +112,12 @@ interface HierarchyRow {
     `
       .pw-drawer--sin-velo {
         --sol-overlay-blur: none;
+      }
+
+      /* Selector «Año» (patrón «Periodo» de la telemetría de PANDORA). */
+      .pw-year {
+        flex: 0 1 200px;
+        min-width: 160px;
       }
     `,
   ],
@@ -155,15 +165,28 @@ interface HierarchyRow {
                 {{ methodologyBadge() }}
               </span>
             </div>
-            <sol-button
-              type="button"
-              variant="primary"
-              (click)="openCreate()"
-              [ariaLabel]="text.newTaskAria()"
-            >
-              + {{ text.newTask() }}
-            </sol-button>
+            <div class="flex flex-wrap items-end gap-3">
+              <sol-select
+                class="pw-year"
+                [label]="text.yearLabel()"
+                [options]="yearOptions()"
+                [showAllOption]="true"
+                [allOptionLabel]="text.yearAll()"
+                [formControl]="yearControl"
+              />
+              <sol-button
+                type="button"
+                variant="primary"
+                (click)="openCreate()"
+                [ariaLabel]="text.newTaskAria()"
+              >
+                + {{ text.newTask() }}
+              </sol-button>
+            </div>
           </div>
+          @if (yearsUnavailable()) {
+            <p class="text-xs text-muted">{{ text.yearsUnavailable() }}</p>
+          }
         </div>
 
         <!-- Tabs -->
@@ -185,13 +208,28 @@ interface HierarchyRow {
           }
         </div>
 
-        @if (tasksError()) {
+        @if (tasksLoading()) {
+          <p class="text-sm text-muted" role="status" aria-live="polite">
+            {{ text.yearLoadingTasks() }}
+          </p>
+        } @else if (tasksError()) {
           <div
             role="alert"
             class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
           >
             {{ tasksError() }}
           </div>
+        } @else if (selectedYear() !== null && allTasks().length === 0) {
+          <sol-card>
+            <div class="flex flex-col items-center gap-3 py-4">
+              <p class="text-center text-sm text-muted" role="status">
+                {{ emptyForYearText() }}
+              </p>
+              <sol-button type="button" variant="secondary" (click)="yearControl.setValue('')">
+                {{ text.yearShowAll() }}
+              </sol-button>
+            </div>
+          </sol-card>
         }
 
         <!-- BOARD / GRID -->
@@ -1306,6 +1344,11 @@ export class ProjectWorkspaceComponent implements OnInit {
     backToProjects: this.i18n.t('workspace.backToProjects'),
     newTask: this.i18n.t('workspace.newTask'),
     newTaskAria: this.i18n.t('workspace.newTaskAria'),
+    yearLabel: this.i18n.t('workspace.year.label'),
+    yearAll: this.i18n.t('workspace.year.all'),
+    yearShowAll: this.i18n.t('workspace.year.showAll'),
+    yearLoadingTasks: this.i18n.t('workspace.year.loadingTasks'),
+    yearsUnavailable: this.i18n.t('workspace.year.yearsUnavailable'),
     viewModeGroupAria: this.i18n.t('workspace.viewMode.groupAria'),
     viewBoard: this.i18n.t('workspace.viewMode.board'),
     viewBoardAria: this.i18n.t('workspace.viewMode.boardAria'),
@@ -1404,6 +1447,28 @@ export class ProjectWorkspaceComponent implements OnInit {
 
   protected readonly allTasks = signal<Task[]>([]);
   protected readonly tasksError = signal<string | null>(null);
+  protected readonly tasksLoading = signal(false);
+  private tasksRequest: Subscription | null = null;
+
+  /**
+   * Filtro «Año» (año de creación en hora de Bogotá). `''` = todos los años.
+   * Las opciones son solo los años que el backend reporta con tareas
+   * (`/tasks/years`); al abrir se preselecciona el año actual si tiene datos,
+   * si no el más reciente.
+   */
+  protected readonly yearControl = new FormControl<string>('', { nonNullable: true });
+  protected readonly availableYears = signal<number[]>([]);
+  protected readonly yearsUnavailable = signal(false);
+  protected readonly selectedYear = signal<number | null>(null);
+  protected readonly yearOptions = computed<SolSelectOption[]>(() =>
+    this.availableYears().map((year) => ({ value: String(year), label: String(year) })),
+  );
+  protected readonly emptyForYearText = computed(() => {
+    this.i18n.activeLang();
+    return this.i18n.translate('workspace.year.emptyForYear', {
+      year: this.selectedYear(),
+    });
+  });
 
   /**
    * Hijas directas de cada épica. El listado del proyecto solo devuelve
@@ -1521,6 +1586,13 @@ export class ProjectWorkspaceComponent implements OnInit {
   });
 
   constructor() {
+    // `sol-select` es un ControlValueAccessor sin salida propia: el cambio de
+    // año se escucha por el control reactivo (mismo patrón que PANDORA).
+    this.yearControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
+      this.selectedYear.set(value ? Number(value) : null);
+      this.loadTasks();
+    });
+
     // Lazy-load velocity when the sprints tab becomes active.
     effect(() => {
       if (this.activeTab() === 'sprints' && !this.velocityLoaded()) {
@@ -1899,7 +1971,7 @@ export class ProjectWorkspaceComponent implements OnInit {
         this.project.set(res.data);
         this.loading.set(false);
         this.loadMembers();
-        this.loadTasks();
+        this.loadYearsThenTasks();
         if (res.data.methodology_info.sprints_enabled) {
           this.loadSprints();
         }
@@ -1939,21 +2011,62 @@ export class ProjectWorkspaceComponent implements OnInit {
     });
   }
 
+  /**
+   * Carga los años con tareas, preselecciona el año actual (o el más
+   * reciente) sin disparar `valueChanges`, y luego carga las tareas. Si la
+   * consulta de años falla, el selector queda en «Todos los años» y se avisa
+   * en línea: la vista nunca se queda vacía por ese fallo.
+   */
+  private loadYearsThenTasks(): void {
+    this.workspace.taskYears(this.projectId()).subscribe({
+      next: (res) => {
+        const years = res.data ?? [];
+        this.availableYears.set(years);
+        this.yearsUnavailable.set(false);
+        const current = new Date().getFullYear();
+        const preselected = years.includes(current) ? current : (years[0] ?? null);
+        this.selectedYear.set(preselected);
+        this.yearControl.setValue(preselected === null ? '' : String(preselected), {
+          emitEvent: false,
+        });
+        this.loadTasks();
+      },
+      error: () => {
+        this.availableYears.set([]);
+        this.yearsUnavailable.set(true);
+        this.selectedYear.set(null);
+        this.yearControl.setValue('', { emitEvent: false });
+        this.loadTasks();
+      },
+    });
+  }
+
   private loadTasks(): void {
     this.tasksError.set(null);
+    this.tasksLoading.set(true);
+    // Un cambio de año mientras otra carga sigue en vuelo cancela la
+    // anterior: la respuesta tardía de otro año no puede pisar la vigente.
+    this.tasksRequest?.unsubscribe();
     // include_subtasks: true (change 32-jerarquia-subtareas) — allTasks()
     // pasa a contener top-level + subtareas en una sola consulta (sin
     // N+1); topLevelTasks() filtra de vuelta para board/grid/Gantt.
-    this.workspace.tasks(this.projectId(), { include_subtasks: true }).subscribe({
-      next: (res) => {
-        this.allTasks.set(res.data ?? []);
-        this.loadEpicChildren(res.data ?? []);
-      },
-      error: () =>
-        this.tasksError.set(
-          this.i18n.translate('workspace.errors.tasksLoad'),
-        ),
-    });
+    const year = this.selectedYear();
+    this.tasksRequest = this.workspace
+      .tasks(this.projectId(), {
+        include_subtasks: true,
+        ...(year !== null ? { year } : {}),
+      })
+      .subscribe({
+        next: (res) => {
+          this.tasksLoading.set(false);
+          this.allTasks.set(res.data ?? []);
+          this.loadEpicChildren(res.data ?? []);
+        },
+        error: () => {
+          this.tasksLoading.set(false);
+          this.tasksError.set(this.i18n.translate('workspace.errors.tasksLoad'));
+        },
+      });
   }
 
   /** Carga las hijas de cada épica (una consulta por épica, en paralelo). */
