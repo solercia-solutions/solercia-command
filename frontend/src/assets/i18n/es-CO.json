@@ -935,7 +935,10 @@
     "title": "Árbol de proyectos",
     "tree": {
       "ariaLabel": "Árbol de proyectos"
-    }
+    },
+    "retry": "Reintentar",
+    "goProjects": "Ir a proyectos",
+    "rootsCount": "{{ count }} proyectos raíz"
   },
   "nav": {
     "brandAria": "Solercia Command, inicio",

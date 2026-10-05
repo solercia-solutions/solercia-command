@@ -8,7 +8,13 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of, timeout } from 'rxjs';
 import { I18nService } from '@shared/i18n';
-import { SolSpinnerComponent } from '@shared/ui';
+import { RouterLink } from '@angular/router';
+import {
+  SolButtonComponent,
+  SolCardComponent,
+  SolEmptyStateComponent,
+  SolSkeletonComponent,
+} from '@shared/ui';
 import { ProjectTreeComponent } from '@widgets/project-tree';
 import { ProjectsService } from '@entities/project/projects.service';
 import {
@@ -30,35 +36,50 @@ const PROGRESS_TIMEOUT_MS = 15_000;
   selector: 'sol-hierarchy',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectTreeComponent, SolSpinnerComponent],
+  imports: [
+    ProjectTreeComponent,
+    RouterLink,
+    SolButtonComponent,
+    SolCardComponent,
+    SolEmptyStateComponent,
+    SolSkeletonComponent,
+  ],
+  styleUrl: '../page-layout.scss',
   template: `
-    <section class="flex flex-col gap-6">
-      <div>
-        <h1 class="text-2xl font-semibold text-text">{{ text.title() }}</h1>
-        <p class="text-sm text-muted">{{ text.subtitle() }}</p>
-      </div>
+    <section class="pg-page">
+      <header class="pg-header">
+        <div class="pg-header__text">
+          <h1 class="pg-title sol-display">{{ text.title() }}</h1>
+          <p class="pg-muted">{{ text.subtitle() }}</p>
+        </div>
+        @if (!loading() && !loadError() && roots().length > 0) {
+          <p class="pg-small">{{ rootsLabel() }}</p>
+        }
+      </header>
 
       @if (loading()) {
-        <div class="flex items-center gap-3 py-8" role="status">
-          <sol-spinner size="md" />
-          <span class="text-sm text-muted">{{ text.loading() }}</span>
-        </div>
-      } @else if (loadError()) {
-        <div
-          role="alert"
-          class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
-          {{ loadError() }}
+        <sol-card>
+          <div class="pg-section" role="status" aria-live="polite" [attr.aria-label]="text.loading()">
+            <sol-skeleton variant="row" [count]="6" />
+          </div>
+        </sol-card>
+      } @else if (loadError(); as message) {
+        <div class="pg-alert" role="alert">
+          <span>{{ message }}</span>
+          <sol-button type="button" variant="secondary" size="sm" (clicked)="load()">
+            {{ text.retry() }}
+          </sol-button>
         </div>
       } @else if (roots().length === 0) {
-        <div
-          class="rounded-xl border border-border bg-surface px-4 py-8 text-center"
+        <sol-empty-state
+          icon="folder"
+          titleKey="hierarchy.empty.title"
+          descriptionKey="hierarchy.empty.subtitle"
         >
-          <p class="text-base font-medium text-text">
-            {{ text.emptyTitle() }}
-          </p>
-          <p class="mt-1 text-sm text-muted">{{ text.emptySubtitle() }}</p>
-        </div>
+          <a routerLink="/projects">
+            <sol-button type="button" variant="primary">{{ text.goProjects() }}</sol-button>
+          </a>
+        </sol-empty-state>
       } @else {
         <sol-project-tree [nodes]="roots()" />
       }
@@ -76,7 +97,13 @@ export class HierarchyComponent implements OnInit {
     loading: this.i18n.t('hierarchy.loading'),
     emptyTitle: this.i18n.t('hierarchy.empty.title'),
     emptySubtitle: this.i18n.t('hierarchy.empty.subtitle'),
+    retry: this.i18n.t('hierarchy.retry'),
+    goProjects: this.i18n.t('hierarchy.goProjects'),
   } as const;
+
+  protected rootsLabel(): string {
+    return this.i18n.translate('hierarchy.rootsCount', { count: this.roots().length });
+  }
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
@@ -86,7 +113,7 @@ export class HierarchyComponent implements OnInit {
     this.load();
   }
 
-  private load(): void {
+  protected load(): void {
     this.loading.set(true);
     this.loadError.set(null);
 
