@@ -610,7 +610,7 @@
     "login": {
       "demoLabel": "Usuario de prueba:",
       "emailLabel": "Correo electrónico",
-      "emailPlaceholder": "admin@solercia.com",
+      "emailPlaceholder": "usuario@entidad.gov.co",
       "errors": {
         "emailInvalid": "El correo no es válido.",
         "emailRequired": "El correo es obligatorio.",

@@ -112,15 +112,6 @@ import { SolInputComponent } from '@shared/ui';
           >
             {{ text.ssoButton() }}
           </sol-button>
-
-          <p
-            class="mt-5 rounded-lg border border-border bg-page px-3 py-2 text-center text-xs text-muted"
-          >
-            {{ text.demoLabel() }}
-            <span class="font-medium text-text">admin&#64;solercia.com</span>
-            /
-            <span class="font-medium text-text">Admin123*</span>
-          </p>
         </sol-card>
       </div>
     </div>
@@ -145,7 +136,6 @@ export class LoginComponent {
     ssoDivider: this.i18n.t('auth.login.ssoDivider'),
     submit: this.i18n.t('auth.login.submit'),
     submitting: this.i18n.t('auth.login.submitting'),
-    demoLabel: this.i18n.t('auth.login.demoLabel'),
   } as const;
 
   protected readonly loading = signal(false);
