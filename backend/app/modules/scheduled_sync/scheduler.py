@@ -55,6 +55,7 @@ def build_sync_scheduler(settings: Any, job: Callable[[], Awaitable[Any]]) -> As
 async def _daily_sync() -> None:
     from app.config import settings
     from app.database import AsyncSessionLocal
+    from app.modules.reconciliation.step import session_classification_step
     from app.modules.task_import.checklist_sync_service import ChecklistSyncConfig
 
     from .service import run_scheduled_sync
@@ -62,7 +63,11 @@ async def _daily_sync() -> None:
 
     try:
         await run_scheduled_sync(
-            session_unit_factory(AsyncSessionLocal, ChecklistSyncConfig.from_settings(settings))
+            session_unit_factory(
+                AsyncSessionLocal,
+                ChecklistSyncConfig.from_settings(settings),
+                lambda session: session_classification_step(session, settings),
+            )
         )
     except Exception:  # noqa: BLE001 - a job failure must never kill the scheduler
         logger.exception("La sincronización programada falló.")

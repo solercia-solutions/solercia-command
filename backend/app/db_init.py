@@ -90,6 +90,7 @@ from app.modules.plans.models import (  # noqa: F401
     TaskPlanActivity,
 )
 from app.modules.projects.models import Project  # noqa: F401
+from app.modules.reconciliation.models import IntakeProposal, TaskEmbedding  # noqa: F401
 from app.modules.reminders.models import Reminder, ReminderRule  # noqa: F401
 from app.modules.roles.models import (  # noqa: F401
     Role,

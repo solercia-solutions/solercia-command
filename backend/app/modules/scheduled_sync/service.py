@@ -2,8 +2,9 @@
 
 Order per organization: (1) checklist sync (C01) when configured for it,
 (2) intake pull since the start of the last run whose intake step was ``ok``
-(``None`` = each port's default window), (3) classification — a no-op
-extension point that C05 implements. A failing step never stops the next
+(``None`` = each port's default window), (3) classification — the mail
+thread channel of C05 (``app.modules.reconciliation.step``); the no-op stays
+as the default of ``SessionSyncSteps``. A failing step never stops the next
 ones: its session work is rolled back and the failure is recorded. Unknown
 exceptions are recorded by TYPE only (their text may carry URLs or secrets);
 the full traceback goes to the server log.

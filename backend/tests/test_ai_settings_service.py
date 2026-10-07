@@ -88,6 +88,17 @@ async def test_without_row_nor_global_the_default_is_local_ollama():
     assert resolved.config.api_key == ""
 
 
+async def test_default_preset_requests_the_configured_num_ctx():
+    """C05: a reduced context window for the local default lowers RAM use."""
+
+    resolved = await _service(global_settings=_global(AI_DEFAULT_NUM_CTX=4096)).resolve(
+        uuid.uuid4()
+    )
+    assert resolved.config.extra_body == {"options": {"num_ctx": 4096}}
+    default = await _service().resolve(uuid.uuid4())
+    assert default.config.extra_body == {"options": {"num_ctx": 8192}}
+
+
 async def test_global_openai_compatible_env_wins_over_the_default_preset():
     global_settings = _global(
         LLM_PROVIDER="openai_compatible",

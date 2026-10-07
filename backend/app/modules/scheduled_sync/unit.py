@@ -115,13 +115,15 @@ class SessionSyncUnit:
 def session_unit_factory(
     session_factory: Callable[[], Any],
     checklist: ChecklistSyncConfig | None,
-    classifier: ClassificationStep | None = None,
+    classifier_factory: Callable[[AsyncSession], ClassificationStep] | None = None,
 ) -> Callable[[], Any]:
-    """``open_unit`` for :func:`run_scheduled_sync`: one fresh session each."""
+    """``open_unit`` for :func:`run_scheduled_sync`: one fresh session each.
+    ``classifier_factory`` binds the classification step to that session."""
 
     @asynccontextmanager
     async def open_unit() -> AsyncIterator[SessionSyncUnit]:
         async with session_factory() as session:
+            classifier = classifier_factory(session) if classifier_factory else None
             yield SessionSyncUnit(
                 session,
                 SessionSyncSteps(session, checklist, classifier),

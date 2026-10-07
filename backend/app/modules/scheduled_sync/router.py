@@ -15,6 +15,7 @@ from app.config import settings
 from app.database import get_db
 from app.dependencies import get_actor_id, require_role
 from app.modules.organizations.models import OrganizationMember
+from app.modules.reconciliation.step import session_classification_step
 from app.modules.task_import.checklist_sync_service import ChecklistSyncConfig
 from app.shared.enums import MemberRole
 from app.shared.exceptions import AppException
@@ -32,7 +33,11 @@ require_sync_admin = require_role(MemberRole.admin)
 def get_sync_steps(db: AsyncSession = Depends(get_db)) -> SyncSteps:
     """Real steps bound to the request session (overridable in tests)."""
 
-    return SessionSyncSteps(db, ChecklistSyncConfig.from_settings(settings))
+    return SessionSyncSteps(
+        db,
+        ChecklistSyncConfig.from_settings(settings),
+        session_classification_step(db, settings),
+    )
 
 
 @router.post("/run")

@@ -367,6 +367,22 @@ class Settings(BaseSettings):
     SCHEDULED_SYNC_TZ: str = "America/Bogota"
     SCHEDULED_SYNC_MISFIRE_GRACE_SECONDS: int = 3600
 
+    # Mail classification channel (C05) — step 3 of `daily_sync`. It
+    # PROPOSES (``intake_proposals``); it never changes a task. Each run
+    # looks back `RECONCILIATION_WINDOW_DAYS`, classifies at most
+    # `RECONCILIATION_MAX_THREADS_PER_RUN` threads (most recent first) and
+    # sends at most `RECONCILIATION_MAX_THREAD_CHARS` of each to the LLM.
+    # `AI_DEFAULT_NUM_CTX` is the context window requested from the default
+    # local preset (Ollama) when the organization saved no provider: a
+    # smaller window lowers RAM use.
+    RECONCILIATION_ENABLED: bool = True
+    RECONCILIATION_WINDOW_DAYS: int = 7
+    RECONCILIATION_MAX_THREADS_PER_RUN: int = 40
+    RECONCILIATION_MAX_THREAD_CHARS: int = 6000
+    RECONCILIATION_TOP_K: int = 5
+    RECONCILIATION_LLM_MAX_TOKENS: int = 600
+    AI_DEFAULT_NUM_CTX: int = 8192
+
     @field_validator("SCHEDULED_SYNC_TIMES")
     @classmethod
     def _valid_sync_times(cls, value: str) -> str:

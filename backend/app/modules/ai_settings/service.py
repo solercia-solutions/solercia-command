@@ -192,8 +192,7 @@ class AiSettingsService:
             enabled=row.enabled,
         )
 
-    @staticmethod
-    def _default_candidate() -> _Candidate:
+    def _default_candidate(self) -> _Candidate:
         preset = PRESETS[DEFAULT_PRESET_KEY]
         return _Candidate(
             preset=preset,
@@ -205,7 +204,8 @@ class AiSettingsService:
             max_tokens=1024,
             temperature=0.0,
             reasoning_effort="none",
-            num_ctx=None,
+            # C05: reduced context window for the local default (RAM).
+            num_ctx=getattr(self._global, "AI_DEFAULT_NUM_CTX", None) or None,
             enabled=True,
         )
 
@@ -507,6 +507,25 @@ class AiSettingsService:
         return result
 
 
+async def get_llm_for_org(
+    organization_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    resolver: Resolver = default_resolver,
+) -> tuple[LlmPort, ResolvedProvider]:
+    """Port plus the resolution it came from (the classifier, C05, needs
+    the embedding model name to key its vector cache). Read-only."""
+
+    service = AiSettingsService(
+        SqlAiProviderSettingsRepository(db),
+        commit=db.commit,
+        resolver=resolver,
+    )
+    resolved = await service.resolve(organization_id)
+    return build_llm_port(resolved, organization_id, transport=transport), resolved
+
+
 async def get_llm_port_for_org(
     organization_id: uuid.UUID,
     db: AsyncSession,
@@ -517,10 +536,5 @@ async def get_llm_port_for_org(
     """The `LlmPort` an organization's domain flows (classifier, C05) use.
     Read-only: never commits. See the module docstring for precedence."""
 
-    service = AiSettingsService(
-        SqlAiProviderSettingsRepository(db),
-        commit=db.commit,
-        resolver=resolver,
-    )
-    resolved = await service.resolve(organization_id)
-    return build_llm_port(resolved, organization_id, transport=transport)
+    port, _ = await get_llm_for_org(organization_id, db, transport=transport, resolver=resolver)
+    return port
