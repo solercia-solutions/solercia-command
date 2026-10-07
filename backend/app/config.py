@@ -343,6 +343,17 @@ class Settings(BaseSettings):
     INTAKE_DEFAULT_PROJECT_NAME: str = "Tareas Outlook"
     INTAKE_PULL_MAX_ITEMS: int = 50
 
+    # Checklist sync (C01) — the CSV/XLSX checklist the scheduled job applies
+    # with `app.modules.task_import.checklist_sync_service`. Empty path or
+    # empty organization slug = disabled. `CHECKLIST_SYNC_TAREAS_ROOT` is only
+    # LISTED (T-NN folder names), never read. The CSV wins over Command on the
+    # fields it imports while `CHECKLIST_SYNC_UPDATE_EXISTING` is true.
+    CHECKLIST_SYNC_PATH: str = ""
+    CHECKLIST_SYNC_TAREAS_ROOT: str = ""
+    CHECKLIST_SYNC_ORG_SLUG: str = ""
+    CHECKLIST_SYNC_ACTOR_EMAIL: str = ""
+    CHECKLIST_SYNC_UPDATE_EXISTING: bool = True
+
     # LLM port (change 48-puerto-llm) — `LLM_PROVIDER` selects the active
     # `app.ai.ports.LlmPort` adapter, read AT CALL TIME (mirrors
     # `EMAIL_BACKEND="console"`). `LLM_BASE_URL_ALLOWLIST` is the anti-SSRF
