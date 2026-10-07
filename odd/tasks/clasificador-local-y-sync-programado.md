@@ -74,7 +74,7 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [x] C03 Ingesta con señales de hilo: `conversation_id`, `internet_message_id`, dirección, `cc`,
       fecha real; refresco de ítems existentes.
 - [x] C04 Proveedor de IA por organización (BYOK) con llave cifrada, presets y prueba de conexión.
-- [ ] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
+- [x] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
       propuestas persistidas.
 - [ ] C06 UI: «Inteligencia artificial» (proveedor) y bandeja de propuestas por tarea.
 - [ ] C07 Verificación con datos reales en simulación y medición de precisión.
@@ -146,11 +146,55 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - Hallazgo previo (no de C04): `test_ai_registry.py::test_does_not_import_the_anthropic_package…`
   falla si se ejecuta en la misma corrida que `test_ai_adapter_anthropic.py` (la colección importa
   el adaptador); pasa por separado y también falla igual en la rama antes de C04.
-- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029, 0030 y 0031) en
+- 2026-10-07 C05 (`f88fbe9` canal + persistencia + paso programado; `e6e9dc7` endpoints): módulo
+  `backend/app/modules/reconciliation/`. `threads.py` (puro): hilo por `conversation_id`;
+  respaldo por asunto normalizado (sin RE/RV/FW/Fwd/TR, sin tildes) unido por contrapartes
+  compartidas (sin el buzón que ingirió ni los remitentes salientes), clave `subj:<hash>` del
+  primer mensaje para que no cambie al crecer el hilo; estado `respondido` /
+  `pendiente_respuesta` / `solo_saliente` (dirección desconocida cuenta como entrante); corte de
+  citas con los delimitadores del corte manual (`De:`, `From:`, `El … escribió:`…) y claves
+  `PREFIJO-N` normalizadas (`t-07` → `T-7`). `candidates.py`: tareas activas (`completed_at`
+  nulo) con clave externa o `CODIGO-N`; las mencionadas van primero (`via=clave`) y el resto del
+  top-5 por coseno en Python. `prompt.py`: esquema Pydantic `ThreadClassification`,
+  temperatura 0, `max_tokens` 600, prompt en español; `task_ref` fuera de las candidatas se
+  degrada a `tarea_nueva` con confianza ≤ 0,3; fecha límite no ISO se descarta. `service.py`:
+  `ReconciliationService.classify_window(org, since)` con un commit por hilo; hilo sin mensajes
+  nuevos y ya clasificado no llama al LLM; mensajes nuevos actualizan la propuesta abierta; uno
+  decidido solo se repropone si crece; una propuesta sin clasificar se reintenta. Si el proveedor
+  cae, deja de llamarlo en esa corrida, guarda estado y candidatas por clave (con `task_id` de la
+  clave) y devuelve `llm_error`. Embeddings cacheados en `task_embeddings` por
+  `preset/modelo` y hash del texto. Paso 3 de C02: `reconciliation/step.py` (ventana de 7 días;
+  `StepFailed` con conteos si `llm_error`), conectado en el scheduler y en `POST /sync/run`.
+  `get_llm_for_org` devuelve puerto + resolución (nombre del modelo de embeddings); el preset
+  local por defecto pide `num_ctx` = `AI_DEFAULT_NUM_CTX` (8192). Configuración
+  `RECONCILIATION_*` (activado, ventana, máx. 40 hilos, 6000 caracteres, top-k 5, 600 tokens).
+  Endpoints `GET /intake/proposals` (filtros `status`, `task_id`, `thread_state`; paginado),
+  `POST …/{id}/accept` (comentario en la tarea con resumen, estado del hilo y enlace
+  `/intake/proposals/{id}`; el estado de la tarea solo cambia con `status` explícito, validado
+  antes por `TaskService.update_task`), `…/dismiss`, `…/create-task` (proyecto por defecto de
+  intake, título = acción, fecha límite = `due_date`); admin/manager; 404 entre organizaciones,
+  409 si ya fue decidida. Migración `0032_add_reconciliation_proposals` (dos tablas nuevas;
+  índice único parcial de una propuesta abierta por hilo) probada en la desechable: upgrade,
+  downgrade, upgrade y `alembic check` sin diferencias. RED: `ModuleNotFoundError` en 5 archivos,
+  revisión 0032 ausente, `num_ctx` por defecto y rutas 404. GREEN: 57 pruebas del cambio;
+  288 del cambio y vecinas (sync programado, IA, intake, comentarios, migraciones base,
+  aislamiento) contra PostgreSQL desechable (:55432).
+- Humo C05 con datos SINTÉTICOS contra Ollama local (preset por defecto, `num_ctx` 8192): 3
+  hilos y 3 tareas en 13,5 s (≈4,5 s por hilo con embeddings); VPN → `T-7` respondido y
+  atendido; cotización → `T-12` con fecha 2026-10-20; boletín → irrelevante; segunda corrida
+  sin llamadas (0,00 s).
+- Hallazgo previo (no de C05): `test_cross_tenant_isolation.py::test_all_modules_are_classified`
+  ya fallaba por `ai_settings`, `plans`, `scheduled_sync` y `task_import` sin clasificar; C05
+  clasifica `reconciliation` y deja esos cuatro igual.
+- Límites conocidos de C05: sin filtro previo de ruido (boletines pasan por el LLM y salen
+  `irrelevante`); el estado `pendiente_respuesta` también aplica a masivos; los ítems sin
+  `direction` (anteriores a C03) cuentan como entrantes; la ruta `/intake/proposals/{id}` del
+  comentario la materializa la UI de C06.
+- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029 a 0032) en
   127.0.0.1:5434 con confirmación del comando exacto; definir `CHECKLIST_SYNC_PATH`,
   `CHECKLIST_SYNC_ORG_SLUG`, `CHECKLIST_SYNC_ACTOR_EMAIL` y `SCHEDULED_SYNC_ENABLED=true` en el
   entorno del uvicorn del host y reiniciarlo.
 
 ## Siguiente paso
 
-C05 (canal de clasificación con `get_llm_port_for_org`).
+C06 (UI «Inteligencia artificial» y bandeja de propuestas sobre `/intake/proposals`).
