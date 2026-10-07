@@ -10,6 +10,7 @@ them raises `TypeError`). Retries and timeout are delegated to the SDK
 """
 
 import time
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -194,3 +195,8 @@ class AnthropicAdapter:
     async def probe(self) -> LlmProbe:
         """NEVER touches the network — probing would spend quota (D4)."""
         return LlmProbe(reachability="not_probed", reason=_NOT_PROBED_REASON)
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Anthropic offers no embeddings endpoint; the barrier still applies
+        first so no caller learns anything about the configuration (C04)."""
+        raise LlmAuthorizationRequired()

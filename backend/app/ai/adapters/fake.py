@@ -4,7 +4,9 @@
 test can inspect what it was asked.
 """
 
+import hashlib
 import time
+from collections.abc import Sequence
 
 from pydantic import ValidationError
 
@@ -20,6 +22,7 @@ class FakeLlmAdapter:
     def __init__(self) -> None:
         self.calls: list[LlmRequest] = []
         self.probe_calls: int = 0
+        self.embed_calls: list[tuple[str, ...]] = []
         self.next_text: str = "Respuesta de prueba del adaptador fake."
         self.next_usage: LlmUsage = LlmUsage(input_tokens=10, output_tokens=5, total_tokens=15)
 
@@ -49,6 +52,14 @@ class FakeLlmAdapter:
     async def probe(self) -> LlmProbe:
         self.probe_calls += 1
         return LlmProbe(reachability="ok")
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Deterministic 8-dim vectors derived from a hash of each text."""
+        self.embed_calls.append(tuple(texts))
+        return [
+            [byte / 255.0 for byte in hashlib.sha256(text.encode("utf-8")).digest()[:8]]
+            for text in texts
+        ]
 
 
 # Module-level singleton (D3, mirrors `_console_sender`).

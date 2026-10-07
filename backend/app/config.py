@@ -392,6 +392,10 @@ class Settings(BaseSettings):
     # `app.ai.ports.LlmPort` adapter, read AT CALL TIME (mirrors
     # `EMAIL_BACKEND="console"`). `LLM_BASE_URL_ALLOWLIST` is the anti-SSRF
     # guard, validated before any request (design.md "Configuración").
+    # C04: the fixed preset URLs (`app.ai.presets`) are admitted too, and
+    # these `LLM_*` are only the SECOND source for an organization: its own
+    # `ai_provider_settings` row wins, and with `LLM_PROVIDER="fake"` the
+    # local Ollama preset is used (`app.modules.ai_settings.service`).
     LLM_PROVIDER: str = "fake"
     LLM_BASE_URL: str = ""
     LLM_MODEL: str = ""

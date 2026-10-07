@@ -41,6 +41,7 @@ from app.database import AsyncSessionLocal, Base, engine
 # Import ALL models so they register on the shared metadata.
 from app.methodology.factory import get_strategy
 from app.modules.activity.models import TaskHistory  # noqa: F401
+from app.modules.ai_settings.models import AiProviderSettings  # noqa: F401
 from app.modules.alert_rules.models import AlertRule  # noqa: F401
 from app.modules.assets.models import Asset, AssetLicense, AssetTask  # noqa: F401
 from app.modules.attachments.models import Attachment  # noqa: F401

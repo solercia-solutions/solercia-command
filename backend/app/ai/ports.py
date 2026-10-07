@@ -3,6 +3,8 @@
 Protocol: the domain depends on this, never a provider SDK directly.
 """
 
+import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -35,12 +37,13 @@ class LlmUsage:
 @dataclass(frozen=True)
 class LlmRequest:
     """`output_schema` is a Pydantic model TYPE (design.md D1).
-    `max_tokens=None` resolves against `settings.LLM_MAX_TOKENS` (D2)."""
+    `max_tokens=None` resolves against the adapter configuration (D2);
+    `temperature=None` too (C04: per-organization default, 0.0 otherwise)."""
 
     system: str
     messages: tuple[LlmMessage, ...]
     output_schema: type[BaseModel] | None = None
-    temperature: float = 0.0
+    temperature: float | None = None
     max_tokens: int | None = None
     timeout_seconds: float | None = None
     prompt_version: str | None = None
@@ -69,7 +72,29 @@ class LlmProbe:
     reason: str | None = None
 
 
+DispatchSource = Literal["organization_settings", "global_settings", "default_preset"]
+
+
+@dataclass(frozen=True)
+class LlmDispatchContext:
+    """Trusted authorization to dispatch to a real provider (C04).
+
+    Built ONLY by `app.modules.ai_settings.service.build_llm_port` from an
+    `organization_id` resolved server-side (JWT membership or the scheduler's
+    own organization loop) and a provider configuration that organization's
+    admin saved (or the operator's `LLM_*`, or the local default preset).
+    Never derived from request payloads or prompts. Without it, real
+    adapters keep the deny-all barrier."""
+
+    organization_id: uuid.UUID
+    source: DispatchSource
+
+
 class LlmPort(Protocol):
     async def complete(self, request: LlmRequest) -> LlmResponse: ...
 
     async def probe(self) -> LlmProbe: ...
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """One vector per input text, in input order (C04)."""
+        ...

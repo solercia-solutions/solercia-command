@@ -16,6 +16,7 @@ from app.db_init import seed_default
 from app.email.scheduler import register_delivery_jobs
 from app.integrations import crypto as integrations_crypto
 from app.modules.activity.router import router as activity_router
+from app.modules.ai_settings.router import router as ai_settings_router
 from app.modules.alert_rules.router import router as alert_rules_router
 from app.modules.assets.router import router as assets_router
 from app.modules.assistant.router import router as assistant_router
@@ -222,6 +223,7 @@ app.include_router(glpi_sync_router, prefix=API_PREFIX)
 app.include_router(jira_import_router, prefix=API_PREFIX)
 app.include_router(intake_router, prefix=API_PREFIX)
 app.include_router(assistant_router, prefix=API_PREFIX)
+app.include_router(ai_settings_router, prefix=API_PREFIX)
 app.include_router(plans_router, prefix=API_PREFIX)
 app.include_router(scheduled_sync_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect

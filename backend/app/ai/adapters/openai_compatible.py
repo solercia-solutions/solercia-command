@@ -1,16 +1,25 @@
-"""`LlmPort` adapter for any OpenAI-compatible `/chat/completions` server
-(Ollama's `/v1` shim, llama.cpp, LM Studio) — design.md "Adaptador
-openai_compatible". Transport/`sleep` injectable, allowlist+model
-validated in the constructor before any request (spec `llm-port` "Guarda
-de destino"), deterministic retries (D7), logs never carry the key or the
-request body (spec `llm-port` "Protección de secretos")."""
+"""`LlmPort` adapter for any OpenAI-compatible server (Ollama's `/v1` shim,
+llama.cpp, LM Studio, OpenAI, OpenRouter, Groq, DeepSeek, Mistral) —
+design.md "Adaptador openai_compatible". Transport/`sleep` injectable,
+destination+model validated in the constructor before any request (spec
+`llm-port` "Guarda de destino"), deterministic retries (D7), logs never
+carry the key, the request body nor the provider's response body (spec
+`llm-port` "Protección de secretos").
+
+C04: the adapter is configured by an `OpenAiCompatibleConfig` (built from
+the global `LLM_*` or from an organization's saved settings) and dispatches
+ONLY when it holds an `LlmDispatchContext`; without one, `complete`,
+`probe` and `embed` keep the deny-all barrier of `cf0beff`.
+"""
 
 import asyncio
 import json
 import logging
+import math
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -21,19 +30,27 @@ from app.ai.errors import (
     LlmAuthorizationRequired,
     LlmConfigInvalid,
     LlmContentFiltered,
+    LlmEmbeddingsUnavailable,
     LlmInvalidOutput,
     LlmRateLimited,
     LlmSchemaMismatch,
     LlmTimeout,
     LlmUnavailable,
 )
-from app.ai.ports import FinishReason, LlmProbe, LlmRequest, LlmResponse, LlmUsage
+from app.ai.ports import (
+    FinishReason,
+    LlmDispatchContext,
+    LlmProbe,
+    LlmRequest,
+    LlmResponse,
+    LlmUsage,
+)
+from app.ai.presets import preset_base_urls
 from app.config import Settings
 from app.config import settings as default_settings
 
 logger = logging.getLogger("solercia.ai.openai_compatible")
 
-_LOGGED_BODY_PREVIEW_CHARS = 200
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
@@ -87,13 +104,55 @@ def _extract_json(text: str) -> Any:
 
 
 def _validate_base_url(settings: Settings) -> str:
+    """Global `LLM_*` path: the URL must be in `LLM_BASE_URL_ALLOWLIST` or be
+    one of the fixed preset URLs (C04 extends the allowlist with them)."""
+
     cleaned = settings.LLM_BASE_URL.strip().rstrip("/")
     if not cleaned:
         raise LlmConfigInvalid()
     allowlist = {entry.strip().rstrip("/") for entry in settings.LLM_BASE_URL_ALLOWLIST}
-    if cleaned not in allowlist:
+    if cleaned not in allowlist | preset_base_urls():
         raise LlmConfigInvalid()
     return cleaned
+
+
+@dataclass(frozen=True)
+class OpenAiCompatibleConfig:
+    """Everything one adapter instance needs. `base_url` must come out of a
+    destination guard (`_validate_base_url` or `app.ai.url_guard`). The key
+    is excluded from `repr` so it never reaches a log or a traceback."""
+
+    base_url: str
+    chat_model: str
+    embedding_model: str | None = None
+    api_key: str = field(default="", repr=False)
+    timeout_seconds: float = 60.0
+    max_tokens: int = 1024
+    temperature: float = 0.0
+    #: Sent as `reasoning_effort` when set ("none" disables thinking).
+    reasoning_effort: str | None = None
+    json_mode: str = "json_object"
+    max_retries: int = 2
+    max_backoff_seconds: float = 30.0
+    #: Provider-specific body keys, e.g. Ollama's `{"options": {"num_ctx": N}}`.
+    extra_body: Mapping[str, Any] = field(default_factory=dict)
+    provider_label: str = "openai_compatible"
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "OpenAiCompatibleConfig":
+        base_url = _validate_base_url(settings)
+        if not settings.LLM_MODEL.strip():
+            raise LlmConfigInvalid()
+        return cls(
+            base_url=base_url,
+            chat_model=settings.LLM_MODEL,
+            api_key=settings.LLM_API_KEY,
+            timeout_seconds=settings.LLM_TIMEOUT_SECONDS,
+            max_tokens=settings.LLM_MAX_TOKENS,
+            json_mode=settings.LLM_JSON_MODE,
+            max_retries=settings.LLM_MAX_RETRIES,
+            max_backoff_seconds=settings.LLM_MAX_BACKOFF_SECONDS,
+        )
 
 
 class OpenAiCompatibleAdapter:
@@ -104,29 +163,43 @@ class OpenAiCompatibleAdapter:
         self,
         *,
         settings: Settings = default_settings,
+        config: OpenAiCompatibleConfig | None = None,
+        dispatch_context: LlmDispatchContext | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
-        self._base_url = _validate_base_url(settings)
-        if not settings.LLM_MODEL.strip():
+        if config is None:
+            config = OpenAiCompatibleConfig.from_settings(settings)
+        elif not config.base_url.strip() or not config.chat_model.strip():
             raise LlmConfigInvalid()
-        self._settings = settings
+        self._config = config
+        self._base_url = config.base_url.rstrip("/")
+        self.dispatch_context = dispatch_context
         self._transport = transport
         self._sleep = sleep
 
+    def _authorize(self) -> None:
+        """Deny-all barrier: only a server-built `LlmDispatchContext`
+        authorizes a real call. Keys, allowlists, localhost and prompt
+        claims cannot."""
+
+        if self.dispatch_context is None:
+            raise LlmAuthorizationRequired()
+
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json"}
-        if self._settings.LLM_API_KEY.strip():
-            headers["Authorization"] = f"Bearer {self._settings.LLM_API_KEY}"
+        if self._config.api_key.strip():
+            headers["Authorization"] = f"Bearer {self._config.api_key}"
         return headers
 
     def _build_body(self, request: LlmRequest) -> dict[str, Any]:
+        config = self._config
         system_content = request.system
         response_format: dict[str, Any] | None = None
 
         if request.output_schema is not None:
             schema = _wire_schema(request.output_schema)
-            mode = self._settings.LLM_JSON_MODE
+            mode = config.json_mode
             if mode == "json_schema_openai":
                 response_format = {
                     "type": "json_schema",
@@ -148,33 +221,67 @@ class OpenAiCompatibleAdapter:
         messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
         messages.extend({"role": m.role, "content": m.content} for m in request.messages)
 
-        body: dict[str, Any] = {
-            "model": self._settings.LLM_MODEL,
-            "messages": messages,
-            "max_tokens": request.max_tokens or self._settings.LLM_MAX_TOKENS,
-            "temperature": request.temperature,
-            "stream": False,
-        }
+        body: dict[str, Any] = dict(config.extra_body)
+        body.update(
+            {
+                "model": config.chat_model,
+                "messages": messages,
+                "max_tokens": request.max_tokens or config.max_tokens,
+                "temperature": (
+                    request.temperature if request.temperature is not None else config.temperature
+                ),
+                "stream": False,
+            }
+        )
+        if config.reasoning_effort:
+            body["reasoning_effort"] = config.reasoning_effort
         if response_format is not None:
             body["response_format"] = response_format
         return body
 
     async def complete(self, request: LlmRequest) -> LlmResponse:
-        # LlmRequest has no trusted tenant/purpose/authorization context yet.
-        # Keys, allowlists, localhost and prompt claims cannot authorize dispatch.
-        # Before future enablement, sanitize provider error logs below as well.
-        raise LlmAuthorizationRequired()
-
+        self._authorize()
         started_at = time.perf_counter()
         body = self._build_body(request)
-        response = await self._post_with_retries(body, timeout=request.timeout_seconds)
+        response = await self._post_with_retries(
+            "/chat/completions", body, timeout=request.timeout_seconds
+        )
         latency_ms = int((time.perf_counter() - started_at) * 1000)
         return self._to_response(response, request, latency_ms)
 
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """`POST /embeddings` — one vector per text, reordered by `index`."""
+
+        self._authorize()
+        model = self._config.embedding_model
+        if not model or not model.strip():
+            raise LlmEmbeddingsUnavailable()
+        inputs = list(texts)
+        if not inputs:
+            return []
+        response = await self._post_with_retries(
+            "/embeddings", {"model": model, "input": inputs}, timeout=None
+        )
+        return self._to_vectors(response, expected=len(inputs))
+
+    @staticmethod
+    def _to_vectors(response: httpx.Response, *, expected: int) -> list[list[float]]:
+        try:
+            items = response.json()["data"]
+            ordered = sorted(items, key=lambda item: int(item["index"]))
+            vectors = [[float(value) for value in item["embedding"]] for item in ordered]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise LlmInvalidOutput() from exc
+        if len(vectors) != expected or any(
+            not vector or any(not math.isfinite(v) for v in vector) for vector in vectors
+        ):
+            raise LlmInvalidOutput()
+        return vectors
+
     async def _post_with_retries(
-        self, body: dict[str, Any], *, timeout: float | None
+        self, path: str, body: dict[str, Any], *, timeout: float | None
     ) -> httpx.Response:
-        effective_timeout = timeout or self._settings.LLM_TIMEOUT_SECONDS
+        effective_timeout = timeout or self._config.timeout_seconds
         attempt = 0
         while True:
             try:
@@ -183,9 +290,7 @@ class OpenAiCompatibleAdapter:
                     timeout=effective_timeout,
                     transport=self._transport,
                 ) as client:
-                    response = await client.post(
-                        "/chat/completions", json=body, headers=self._headers()
-                    )
+                    response = await client.post(path, json=body, headers=self._headers())
             except httpx.TimeoutException as exc:
                 raise LlmTimeout() from exc
             except httpx.RequestError as exc:
@@ -193,7 +298,7 @@ class OpenAiCompatibleAdapter:
 
             if response.status_code == 429:
                 attempt += 1
-                if attempt > self._settings.LLM_MAX_RETRIES:
+                if attempt > self._config.max_retries:
                     self._log_error(response)
                     raise LlmRateLimited()
                 await self._sleep(self._retry_after_seconds(response))
@@ -201,7 +306,7 @@ class OpenAiCompatibleAdapter:
 
             if response.status_code >= 500:
                 attempt += 1
-                if attempt > self._settings.LLM_MAX_RETRIES:
+                if attempt > self._config.max_retries:
                     self._log_error(response)
                     raise LlmUnavailable()
                 await self._sleep(self._retry_after_seconds(response))
@@ -225,15 +330,16 @@ class OpenAiCompatibleAdapter:
                 seconds = float(header)
             except ValueError:
                 seconds = 1.0
-        return min(seconds, self._settings.LLM_MAX_BACKOFF_SECONDS)
+        return min(seconds, self._config.max_backoff_seconds)
 
-    @staticmethod
-    def _log_error(response: httpx.Response) -> None:
-        """Status + up to 200 chars of the RESPONSE body only — never a
-        header, never the request body, never the key."""
+    def _log_error(self, response: httpx.Response) -> None:
+        """Status and provider label only — never a header, the request
+        body, the key, nor the response body (a provider may echo any of
+        them back)."""
 
-        body_preview = response.text[:_LOGGED_BODY_PREVIEW_CHARS]
-        logger.warning("El proveedor LLM respondió %s: %s", response.status_code, body_preview)
+        logger.warning(
+            "El proveedor LLM %s respondió %s.", self._config.provider_label, response.status_code
+        )
 
     def _to_response(
         self, response: httpx.Response, request: LlmRequest, latency_ms: int
@@ -244,6 +350,8 @@ class OpenAiCompatibleAdapter:
             text = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise LlmInvalidOutput() from exc
+        if not isinstance(text, str):
+            raise LlmInvalidOutput()
 
         finish_reason_raw = choice.get("finish_reason")
         usage_raw = payload.get("usage") or {}
@@ -279,8 +387,8 @@ class OpenAiCompatibleAdapter:
             text=text,
             parsed=parsed,
             usage=usage,
-            provider="openai_compatible",
-            model=self._settings.LLM_MODEL,
+            provider=self._config.provider_label,
+            model=self._config.chat_model,
             prompt_version=request.prompt_version,
             latency_ms=latency_ms,
             finish_reason=finish_reason,
@@ -295,13 +403,13 @@ class OpenAiCompatibleAdapter:
             raise LlmSchemaMismatch() from exc
 
     async def probe(self) -> LlmProbe:
-        """Network probes also lack a trusted authorization context."""
-        raise LlmAuthorizationRequired()
+        """`GET /models` — never generates text (D4). Denied without context."""
 
+        self._authorize()
         try:
             async with httpx.AsyncClient(
                 base_url=self._base_url,
-                timeout=self._settings.LLM_TIMEOUT_SECONDS,
+                timeout=self._config.timeout_seconds,
                 transport=self._transport,
             ) as client:
                 response = await client.get("/models", headers=self._headers())
@@ -325,9 +433,9 @@ class OpenAiCompatibleAdapter:
         except (ValueError, AttributeError):
             return LlmProbe(reachability="ok")
 
-        if model_ids and self._settings.LLM_MODEL not in model_ids:
+        if model_ids and self._config.chat_model not in model_ids:
             return LlmProbe(
                 reachability="ok",
-                reason="LLM_MODEL no aparece en la lista de modelos del proveedor.",
+                reason="El modelo configurado no aparece en la lista de modelos del proveedor.",
             )
         return LlmProbe(reachability="ok")
