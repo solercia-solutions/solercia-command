@@ -619,6 +619,36 @@ class TestConnectMailFolders:
         assert [message.external_id for message in messages] == ["inbox-new", "shared", "sent-old"]
 
     @pytest.mark.asyncio
+    async def test_a_read_without_since_sends_the_default_window(self) -> None:
+        """Connect rejects a read with no window ("start and end are required
+        timezone-aware ISO 8601 values"), so a first pull — with no previous
+        successful run to anchor ``since`` — must send a full default window."""
+
+        from datetime import datetime, timedelta
+
+        from app.integrations.ports import Capability
+
+        windows: list[tuple[datetime, datetime]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            windows.append(
+                (datetime.fromisoformat(body["start"]), datetime.fromisoformat(body["end"]))
+            )
+            return httpx.Response(200, json=_envelope([]))
+
+        built = _adapter(handler, SOLERCIA_CONNECT_DEFAULT_LOOKBACK_DAYS=7)
+        try:
+            await built.port_for(Capability.mail).list_messages(_context(), limit=10)
+        finally:
+            built._restore()
+
+        assert len(windows) == 2  # inbox and sent
+        for start, end in windows:
+            assert start.tzinfo is not None and end.tzinfo is not None
+            assert end - start == timedelta(days=7)
+
+    @pytest.mark.asyncio
     async def test_outlook_applies_the_limit_after_merging(self) -> None:
         from app.integrations.ports import Capability
 

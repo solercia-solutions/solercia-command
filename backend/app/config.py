@@ -247,6 +247,9 @@ class Settings(BaseSettings):
         "http://host.docker.internal:8765",
     ]
     SOLERCIA_CONNECT_TIMEOUT_SECONDS: float = 60.0
+    # Ventana de una lectura sin `since` (primera ingesta): Connect exige
+    # `start` y `end`, así que nunca se pide una ventana abierta.
+    SOLERCIA_CONNECT_DEFAULT_LOOKBACK_DAYS: int = 7
     # Runtime único que Command registra desde la API (`POST /connectors/
     # solercia-connect`): la URL debe pertenecer a la allowlist anterior —
     # se valida al usarla, no al importar, para que un despliegue sin

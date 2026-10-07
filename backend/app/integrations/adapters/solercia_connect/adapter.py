@@ -22,7 +22,7 @@ widening the core's ``AccessContext``.
 import json
 import logging
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.config import Settings
@@ -242,11 +242,14 @@ class _ConnectReader:
             "limit": min(max(limit, 1), 1000),
             "allow_browser_fallback": payload["allow_browser_fallback"],
         }
-        if since is not None:
-            # Connect's windows are exact and end-exclusive; it rejects a half
-            # window, so both bounds travel together or neither does.
-            body["start"] = since.isoformat()
-            body["end"] = datetime.now(tz=since.tzinfo).isoformat()
+        # Connect's windows are exact and end-exclusive and it rejects a read
+        # without both bounds, so a first pull (no ``since``) sends the default
+        # look-back window instead of an open one.
+        end = datetime.now(UTC)
+        if since is None:
+            since = end - timedelta(days=self._settings.SOLERCIA_CONNECT_DEFAULT_LOOKBACK_DAYS)
+        body["start"] = since.isoformat()
+        body["end"] = end.astimezone(since.tzinfo).isoformat()
 
         envelope = await client.run(body)
         if not envelope.get("ok"):
