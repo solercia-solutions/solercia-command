@@ -71,7 +71,7 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [x] C00 Resincronizar el checklist a la fecha (2026-10-07): 8 nuevas, 19 actualizadas.
 - [x] C01 Servicio reutilizable de sincronización del checklist (extraer del CLI) + configuración.
 - [x] C02 Trabajos programados 06:00 y 23:59 Bogotá con registro de corridas.
-- [ ] C03 Ingesta con señales de hilo: `conversation_id`, `internet_message_id`, dirección, `cc`,
+- [x] C03 Ingesta con señales de hilo: `conversation_id`, `internet_message_id`, dirección, `cc`,
       fecha real; refresco de ítems existentes.
 - [ ] C04 Proveedor de IA por organización (BYOK) con llave cifrada, presets y prueba de conexión.
 - [ ] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
@@ -98,11 +98,32 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
   por corrida y organización) probada en la desechable: upgrade, downgrade, upgrade y
   `alembic check` sin diferencias. RED: `ModuleNotFoundError` y 7 fallas del lifespan; GREEN:
   93 pruebas del cambio y vecinas.
-- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029) en
+- 2026-10-07 C03 (`86c1106`): `MailMessage` gana `conversation_id`, `internet_message_id`,
+  `in_reply_to`, `references`, `cc`, `direction`, `sent_at`, `delivered_at` y `has_attachments`
+  (opcionales; Google, Microsoft 365 y fake no cambian). El mapper de Connect los lee; la
+  dirección sale del `folder` del registro y, si falta, de la carpeta leída (`read_mail` ahora
+  devuelve `(carpeta, registros)`). Connect no emite `in_reply_to`/`references`: quedan vacíos.
+  Migración `0030_add_intake_thread_signals`: tres columnas nulas con índices
+  `(organization_id, conversation_id)`, `(organization_id, internet_message_id)` y `direction`;
+  paso de datos no destructivo que solo copia desde `raw_payload` de correos (dirección solo si es
+  `inbound`/`outbound`). `occurred_at` ya es el instante de envío; la recepción queda en
+  `raw_payload.delivered_at` (sin columna nueva). `upsert_item` refresca señales y agrega claves a
+  `raw_payload` sin borrar valores conocidos ni tocar `status`, `created_task_id`,
+  `matched_rule_id` ni `classified_at`. Privacidad: `GET /intake/items` y el detalle omiten
+  `raw_payload.body_text` para roles distintos de admin/manager (el `snippet` se conserva).
+  RED: `TypeError`/`AttributeError` de los campos nuevos, `listed_from` inexistente y revisión
+  0030 ausente. GREEN: 46 pruebas del cambio; 307 del cambio y vecinas (intake, adaptadores,
+  conectores, sync programado, migraciones base) contra PostgreSQL desechable (:55432); 0030
+  probada en la desechable con upgrade, downgrade, upgrade y `alembic check` sin diferencias.
+- Sin señal tras C03: los ítems ingeridos antes no traen estas claves en `raw_payload`, así que la
+  migración no les asigna nada; se completan al reingerir su ventana (p. ej. `POST /intake/pull`
+  o la corrida programada con `since` anterior a su fecha). Otros conectores (Google, Microsoft
+  365) siguen sin poblar las señales.
+- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029 y 0030) en
   127.0.0.1:5434 con confirmación del comando exacto; definir `CHECKLIST_SYNC_PATH`,
   `CHECKLIST_SYNC_ORG_SLUG`, `CHECKLIST_SYNC_ACTOR_EMAIL` y `SCHEDULED_SYNC_ENABLED=true` en el
   entorno del uvicorn del host y reiniciarlo.
 
 ## Siguiente paso
 
-C03 (señales de hilo en la ingesta).
+C04 (proveedor de IA por organización con BYOK).
