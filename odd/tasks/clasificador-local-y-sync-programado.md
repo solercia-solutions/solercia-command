@@ -77,7 +77,8 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [x] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
       propuestas persistidas.
 - [x] C06 UI: «Inteligencia artificial» (proveedor) y bandeja de propuestas por tarea.
-- [ ] C07 Verificación con datos reales en simulación y medición de precisión.
+- [ ] C07 Verificación con datos reales y medición de precisión. Primera corrida real hecha;
+      falta calibrar la confianza y subir el límite de correos por corrida (ver evidencia).
 
 ## Progreso y evidencia
 
@@ -244,7 +245,29 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
   `CHECKLIST_SYNC_ORG_SLUG`, `CHECKLIST_SYNC_ACTOR_EMAIL` y `SCHEDULED_SYNC_ENABLED=true` en el
   entorno del uvicorn del host y reiniciarlo.
 
+- 2026-10-07 Activación (confirmada por el usuario): respaldo
+  `~/Proyectos/SOLERCIA/respaldos/solercia-pre-0028-0032-2026-10-07.dump` (1.969 tareas, igual a la
+  base); `alembic upgrade head` 0027 → 0032; `scripts.sync_menu_catalog --apply` (3 menús × 3
+  organizaciones); uvicorn del host con `SCHEDULED_SYNC_ENABLED=true` y `CHECKLIST_SYNC_*`
+  (log: «Sincronización programada activa: 06:00,23:59 (America/Bogota)»).
+- 2026-10-07 Defectos encontrados en la primera corrida y corregidos con TDD:
+  `f767283` la URL del runtime guardada en la credencial (`host.docker.internal`) no resuelve con
+  Command en el host → las direcciones permitidas son alias y manda la del despliegue;
+  `9b18d07` Connect exige `start` y `end` → la primera ingesta envía 7 días
+  (`SOLERCIA_CONNECT_DEFAULT_LOOKBACK_DAYS`). 109 pruebas en verde (PG desechable).
+- 2026-10-07 C07 primera corrida real (SDMujer, `POST /sync/run`, 242 s): checklist 213 sin
+  cambios; ingesta 50 correos (41 entrantes, 9 enviados); clasificación 46 hilos, 40 procesados
+  (tope `RECONCILIATION_MAX_THREADS_PER_RUN`). Resultado: 21 a tarea existente, 4 a tarea nueva,
+  15 irrelevantes; estados 31 pendiente de respuesta, 2 respondidos, 7 solo salientes. Aciertos
+  claros en los hilos de la semana (T-204, T-206..T-210, T-207 respondido). Débil: tres
+  notificaciones automáticas con el mismo asunto quedaron en tres tareas distintas con 0,95; la
+  confianza promedio (~0,97) no está calibrada.
+- Pendientes C07: (1) calibrar confianza (penalizar remitentes automáticos/no-reply y asuntos
+  genéricos; exigir evidencia textual); (2) el límite de 50 correos por cuenta se reparte entre
+  entrada y enviados → subirlo; (3) registrar el código de error por cuenta en el paso de
+  ingesta (hoy solo «1 de 1 cuentas terminaron con error»); (4) la Mac debe estar despierta a las
+  06:00 y 23:59.
+
 ## Siguiente paso
 
-C07 (verificación con datos reales en simulación y medición de precisión), tras aplicar 0029–0032
-en la base real y reiniciar el uvicorn (aparecen también los tres menús nuevos).
+Cerrar los pendientes de C07 y medir precisión con una muestra revisada por el usuario.
