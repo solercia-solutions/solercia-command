@@ -21,6 +21,12 @@ export class TaskDetailService {
     });
   }
 
+  getTask(taskId: string): Observable<{ data: TaskDetail }> {
+    return this.http.get<{ data: TaskDetail }>(`${apiBase}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
+  }
+
   getSubtasks(taskId: string): Observable<{ data: TaskDetail[] }> {
     return this.http.get<{ data: TaskDetail[] }>(`${apiBase}/tasks/${taskId}/subtasks`, {
       context: skipGlobalErrorHandling(),

@@ -2093,5 +2093,148 @@
       "keyRequired": "{{ provider }} necesita una llave de API.",
       "range": "Usa un valor entre {{ min }} y {{ max }}."
     }
+  },
+  "proposals": {
+    "title": "Bandeja de seguimiento",
+    "subtitle": "Hilos de correo que el clasificador relacionó con tus tareas.",
+    "loading": "Cargando los hilos…",
+    "retry": "Reintentar",
+    "noSubject": "(sin asunto)",
+    "messages": "{{ count }} mensajes",
+    "messagesOne": "1 mensaje",
+    "classificationError": "No se pudo clasificar este hilo ({{ code }}); se reintentará en la próxima sincronización.",
+    "noMatches": "Ningún hilo coincide con los filtros.",
+    "noMatchesOnPage": "En esta página ningún hilo tiene esa relación.",
+    "summary": {
+      "propuesta": "{{ count }} hilos por decidir",
+      "aceptada": "{{ count }} hilos aceptados",
+      "descartada": "{{ count }} hilos descartados",
+      "all": "{{ count }} hilos en total"
+    },
+    "summaryOne": {
+      "propuesta": "1 hilo por decidir",
+      "aceptada": "1 hilo aceptado",
+      "descartada": "1 hilo descartado",
+      "all": "1 hilo en total"
+    },
+    "counters": {
+      "label": "Hilos por estado; toca uno para filtrar"
+    },
+    "thread": {
+      "pendiente_respuesta": "Pendiente de respuesta",
+      "respondido": "Respondido",
+      "solo_saliente": "Solo saliente"
+    },
+    "relation": {
+      "tarea_existente": "Tarea existente",
+      "tarea_nueva": "Tarea nueva",
+      "irrelevante": "Irrelevante"
+    },
+    "confidence": {
+      "alta": "Confianza alta",
+      "media": "Confianza media",
+      "baja": "Confianza baja"
+    },
+    "status": {
+      "propuesta": "Por decidir",
+      "aceptada": "Aceptada",
+      "descartada": "Descartada"
+    },
+    "attended": {
+      "si": "Sí",
+      "no": "No",
+      "parcial": "Parcial"
+    },
+    "via": {
+      "clave": "por clave",
+      "similitud": "por similitud"
+    },
+    "task": {
+      "proposed": "Tarea propuesta:",
+      "linked": "Vinculado a:",
+      "created": "Tarea creada:",
+      "new": "Propone crear:",
+      "none": "Sin tarea relacionada."
+    },
+    "filters": {
+      "toggle": "Filtros",
+      "toggleCount": "Filtros ({{ count }})",
+      "status": "Propuesta",
+      "thread": "Estado del hilo",
+      "relation": "Relación",
+      "task": "Tarea",
+      "clear": "Limpiar filtros",
+      "active": "{{ count }} filtros activos",
+      "activeOne": "1 filtro activo",
+      "allThreads": "Todos los hilos",
+      "allRelations": "Todas",
+      "allTasks": "Todas las tareas",
+      "statusOptions": {
+        "propuesta": "Por decidir",
+        "aceptada": "Aceptadas",
+        "descartada": "Descartadas",
+        "all": "Todas"
+      }
+    },
+    "empty": {
+      "title": "No hay hilos por revisar",
+      "description": "Cuando la sincronización clasifique correos nuevos, aparecerán aquí para que decidas.",
+      "goToSync": "Ver la sincronización"
+    },
+    "actions": {
+      "accept": "Aceptar",
+      "createTask": "Crear tarea",
+      "dismiss": "Descartar",
+      "cancel": "Cancelar",
+      "working": "Guardando la decisión…"
+    },
+    "accept": {
+      "title": "Vincular el hilo a la tarea",
+      "message": "Se agregará un comentario con el resumen del hilo en",
+      "loadingStatuses": "Cargando los estados del proyecto…",
+      "statusLabel": "Estado de la tarea",
+      "statusHint": "Cambia el estado solo si el correo lo confirma; por defecto se conserva.",
+      "statusUnavailable": "No fue posible leer los estados del proyecto: la tarea conservará su estado.",
+      "keepStatus": "Mantener «{{ status }}»",
+      "keepStatusUnknown": "Mantener el estado actual",
+      "confirm": "Vincular",
+      "confirmWithStatus": "Vincular y pasar a «{{ status }}»",
+      "done": "Hilo vinculado a {{ task }}."
+    },
+    "dismiss": {
+      "title": "Descartar la propuesta",
+      "message": "El hilo «{{ subject }}» no se vinculará a ninguna tarea. Si llegan mensajes nuevos, se volverá a proponer.",
+      "done": "Propuesta descartada."
+    },
+    "create": {
+      "title": "Crear tarea desde el hilo",
+      "message": "Se creará la tarea «{{ title }}» en el proyecto de la bandeja de correo.",
+      "messageWithDue": "Se creará la tarea «{{ title }}» en el proyecto de la bandeja de correo, con fecha límite {{ due }}.",
+      "done": "Tarea creada desde el hilo."
+    },
+    "detail": {
+      "back": "Volver a la bandeja",
+      "requester": "Solicitante",
+      "lastMessage": "Último mensaje",
+      "messages": "Mensajes",
+      "attended": "¿Atendido?",
+      "due": "Fecha límite",
+      "model": "Modelo",
+      "summary": "Resumen",
+      "noSummary": "El clasificador no dejó resumen.",
+      "action": "Acción pedida",
+      "reason": "Por qué lo propuso",
+      "task": "Tarea",
+      "degraded": "El modelo propuso «{{ ref }}», que no estaba entre las candidatas: se trata como tarea nueva.",
+      "candidates": "Tareas candidatas",
+      "decidedAt": "Decidida: {{ date }}"
+    },
+    "errors": {
+      "forbidden": "Solo administradores y líderes pueden ver la bandeja de seguimiento.",
+      "network": "No hay conexión con el servidor. Revisa tu red e intenta de nuevo.",
+      "load": "No fue posible cargar la bandeja.",
+      "notFound": "Esta propuesta no existe o no tienes acceso a ella.",
+      "action": "No fue posible guardar la decisión."
+    }
   }
 }

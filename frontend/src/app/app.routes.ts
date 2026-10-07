@@ -134,6 +134,21 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'intake/proposals',
+        loadComponent: () =>
+          import('@pages/intake-proposals/intake-proposals.component').then(
+            (m) => m.IntakeProposalsComponent,
+          ),
+      },
+      {
+        // El comentario que deja «Aceptar» en la tarea enlaza aquí.
+        path: 'intake/proposals/:id',
+        loadComponent: () =>
+          import('@pages/intake-proposals/proposal-detail.component').then(
+            (m) => m.ProposalDetailComponent,
+          ),
+      },
+      {
         path: 'task/:key',
         loadComponent: () =>
           import('@pages/task-detail/task-detail-page.component').then(
