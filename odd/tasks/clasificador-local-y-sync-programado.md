@@ -73,7 +73,7 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [x] C02 Trabajos programados 06:00 y 23:59 Bogotá con registro de corridas.
 - [x] C03 Ingesta con señales de hilo: `conversation_id`, `internet_message_id`, dirección, `cc`,
       fecha real; refresco de ítems existentes.
-- [ ] C04 Proveedor de IA por organización (BYOK) con llave cifrada, presets y prueba de conexión.
+- [x] C04 Proveedor de IA por organización (BYOK) con llave cifrada, presets y prueba de conexión.
 - [ ] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
       propuestas persistidas.
 - [ ] C06 UI: «Inteligencia artificial» (proveedor) y bandeja de propuestas por tarea.
@@ -119,11 +119,38 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
   migración no les asigna nada; se completan al reingerir su ventana (p. ej. `POST /intake/pull`
   o la corrida programada con `since` anterior a su fecha). Otros conectores (Google, Microsoft
   365) siguen sin poblar las señales.
-- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029 y 0030) en
+- 2026-10-07 C04 (`16371f8`): tabla `ai_provider_settings` (una fila por organización, sin
+  historial; llave solo como token Fernet + `api_key_last4`). Presets en código
+  (`app/ai/presets.py`): `ollama_local` (por defecto), `llamacpp_local`, `openai`, `openrouter`,
+  `groq`, `deepseek`, `mistral`, `custom`, cada uno local/externo. Guarda anti-SSRF
+  (`app/ai/url_guard.py`): externos con URL fija; locales solo loopback o `host.docker.internal`;
+  `custom` exige HTTPS a host público (toda IP resuelta global), HTTP solo a loopback explícito;
+  bloquea privadas, link-local/metadatos, CGNAT, IPv4 mapeada y credenciales en la URL.
+  `LLM_BASE_URL_ALLOWLIST` admite además las URL de presets. Puerto: `embed()` en `LlmPort`
+  (fake determinista, anthropic denegado) y en el adaptador (`/embeddings`), `reasoning_effort`,
+  `extra_body` (`options.num_ctx` en Ollama), `LlmRequest.temperature` opcional. La barrera de
+  `cf0beff` se conserva: el adaptador solo despacha con `LlmDispatchContext`, que únicamente
+  crea `build_llm_port`/`get_llm_port_for_org` con la organización resuelta en servidor; los
+  logs de error ya no incluyen el cuerpo de la respuesta. Precedencia: fila de la organización
+  (si `enabled=false` se detiene con `llm_provider_disabled`, sin respaldo) > `LLM_*` global si
+  `LLM_PROVIDER` ≠ `fake` (`anthropic` va al registro y sigue denegado) > preset `ollama_local`.
+  Una llave conservada solo se reutiliza para la misma URL destino; los presets externos exigen
+  llave (`AI_API_KEY_REQUIRED`). Endpoints `GET/PUT /ai/settings`, `GET /ai/presets`,
+  `POST /ai/settings/test` (admin escribe y prueba; manager solo lee). Migración
+  `0031_add_ai_provider_settings` probada en la desechable: upgrade, downgrade, upgrade y
+  `alembic check` sin diferencias. RED: `ImportError`/`ModuleNotFoundError` de los 5 módulos y
+  revisión 0031 ausente. GREEN: 114 pruebas del cambio; 181 del cambio y vecinas (IA, salud del
+  asistente, migraciones base, sync programado, señales de hilo) + 8 de anthropic aparte, contra
+  PostgreSQL desechable (:55432). Humo manual contra Ollama local con el preset por defecto:
+  chat 4,2 s, embeddings 1024 dimensiones.
+- Hallazgo previo (no de C04): `test_ai_registry.py::test_does_not_import_the_anthropic_package…`
+  falla si se ejecuta en la misma corrida que `test_ai_adapter_anthropic.py` (la colección importa
+  el adaptador); pasa por separado y también falla igual en la rama antes de C04.
+- Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029, 0030 y 0031) en
   127.0.0.1:5434 con confirmación del comando exacto; definir `CHECKLIST_SYNC_PATH`,
   `CHECKLIST_SYNC_ORG_SLUG`, `CHECKLIST_SYNC_ACTOR_EMAIL` y `SCHEDULED_SYNC_ENABLED=true` en el
   entorno del uvicorn del host y reiniciarlo.
 
 ## Siguiente paso
 
-C04 (proveedor de IA por organización con BYOK).
+C05 (canal de clasificación con `get_llm_port_for_org`).
