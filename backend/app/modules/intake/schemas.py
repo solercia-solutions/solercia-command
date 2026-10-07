@@ -11,7 +11,9 @@ from app.shared.enums import IntakeItemStatus, IntakeItemType, IntakeRunStatus, 
 class IntakeItemRead(BaseModel):
     """An ``IntakeItem`` as returned by the API — includes ``raw_payload``
     for triage (the original insumo, preserved for trazabilidad/
-    reclasificación futura, design.md "Almacenamiento de insumos")."""
+    reclasificación futura, design.md "Almacenamiento de insumos") and the
+    mail thread signals (C03). The router strips ``raw_payload.body_text``
+    for roles below manager (``without_body``)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +33,18 @@ class IntakeItemRead(BaseModel):
     created_task_id: uuid.UUID | None = None
     classified_at: datetime | None = None
     created_at: datetime
+    conversation_id: str | None = None
+    internet_message_id: str | None = None
+    direction: str | None = None
+
+    def without_body(self) -> "IntakeItemRead":
+        """The same item with the full mail body removed from ``raw_payload``
+        (C03 privacy: only admin/manager read it; ``snippet`` stays)."""
+
+        if "body_text" not in self.raw_payload:
+            return self
+        payload = {key: value for key, value in self.raw_payload.items() if key != "body_text"}
+        return self.model_copy(update={"raw_payload": payload})
 
 
 class IntakeRunRead(BaseModel):
@@ -55,9 +69,7 @@ class IntakeRuleCriterion(BaseModel):
     """One AND-combined condition of an ``IntakeRule.criteria`` list
     (design.md Interfaces/Contracts)."""
 
-    field: str = Field(
-        description="origin_actor|domain|title|snippet|source_provider|connector_id"
-    )
+    field: str = Field(description="origin_actor|domain|title|snippet|source_provider|connector_id")
     operator: str = Field(description="equals|contains|in")
     value: str | list[str]
 

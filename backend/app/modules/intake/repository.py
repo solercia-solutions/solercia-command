@@ -16,6 +16,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.intake.models import IntakeItem, IntakeRule, IntakeRun, IntakeSettings
 from app.shared.enums import IntakeItemStatus, IntakeItemType
 
+_SIGNAL_COLUMNS = ("conversation_id", "internet_message_id", "direction")
+
+
+def _refresh_signals(existing: IntakeItem, incoming: IntakeItem) -> None:
+    """Copy the observed thread signals of ``incoming`` onto ``existing``.
+
+    A value the new read did not observe (``None``) never erases a known one,
+    and ``raw_payload`` only gains/updates the keys the new read carries —
+    the original payload is never shrunk.
+    """
+
+    for column in _SIGNAL_COLUMNS:
+        value = getattr(incoming, column)
+        if value is not None and getattr(existing, column) != value:
+            setattr(existing, column, value)
+
+    current = existing.raw_payload or {}
+    observed = {
+        key: value
+        for key, value in (incoming.raw_payload or {}).items()
+        if value is not None and value != [] and current.get(key) != value
+    }
+    if observed:
+        # A NEW dict so SQLAlchemy sees the JSONB change (no MutableDict here).
+        existing.raw_payload = {**current, **observed}
+
 
 class IntakeItemRepository:
     """Async repository encapsulating ``intake_items``/``intake_runs``
@@ -44,29 +70,33 @@ class IntakeItemRepository:
         return result.scalar_one_or_none()
 
     async def upsert_item(self, item: IntakeItem) -> tuple[IntakeItem, bool]:
-        """Insert ``item`` if its idempotency key is new; otherwise return the
-        EXISTING row untouched (design.md, "Idempotencia").
+        """Insert ``item`` if its idempotency key is new; otherwise refresh
+        ONLY the thread signals of the EXISTING row (design.md,
+        "Idempotencia"; C03).
 
         Returns ``(item, created)`` — ``created=False`` on a duplicate lets
         the caller increment ``IntakeRun.items_duplicated`` without a second
-        query. Never re-classifies or overwrites an existing (possibly
-        already ``converted``) row (intake-items spec, "Re-pull de un ítem
-        ya convertido no crea una segunda tarea").
+        query. Never re-classifies or overwrites the triage state of an
+        existing (possibly already ``converted``) row: ``status``,
+        ``created_task_id``, ``matched_rule_id`` and ``classified_at`` are
+        left as they are (intake-items spec, "Re-pull de un ítem ya
+        convertido no crea una segunda tarea"). Re-ingesting a window is
+        therefore the backfill path for rows stored before the signals
+        existed. Changes are staged on the session; the caller commits.
         """
 
         existing = await self.get_by_external_id(
             item.organization_id, item.connector_id, item.external_id
         )
         if existing is not None:
+            _refresh_signals(existing, item)
             return existing, False
 
         self.db.add(item)
         await self.db.flush()
         return item, True
 
-    async def get_item(
-        self, organization_id: uuid.UUID, item_id: uuid.UUID
-    ) -> IntakeItem | None:
+    async def get_item(self, organization_id: uuid.UUID, item_id: uuid.UUID) -> IntakeItem | None:
         """Return a single active item scoped to the organization, or ``None``."""
 
         result = await self.db.execute(
@@ -182,9 +212,7 @@ class IntakeRuleRepository:
         await self.db.refresh(rule)
         return rule
 
-    async def get(
-        self, organization_id: uuid.UUID, rule_id: uuid.UUID
-    ) -> IntakeRule | None:
+    async def get(self, organization_id: uuid.UUID, rule_id: uuid.UUID) -> IntakeRule | None:
         """Return a single active (not soft-deleted) rule scoped to the
         organization, or ``None`` — regardless of ``is_active`` toggled via
         ``PATCH`` (a deactivated-but-not-deleted rule is still gettable)."""
@@ -213,9 +241,7 @@ class IntakeRuleRepository:
         )
         return result.scalars().all()
 
-    async def list_active_rules_ordered(
-        self, organization_id: uuid.UUID
-    ) -> Sequence[IntakeRule]:
+    async def list_active_rules_ordered(self, organization_id: uuid.UUID) -> Sequence[IntakeRule]:
         """Return ONLY active rules, ordered by ``rule_order`` ascending —
         exactly what ``RuleBasedClassifier.classify`` expects (intake-rules
         spec, "Precedencia determinista por orden de regla")."""

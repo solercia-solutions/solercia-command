@@ -217,7 +217,12 @@ def _dto_to_item(
             dto.created_at,
         )
 
+    # Thread signals exist only on mail (C03); every other type keeps NULL.
+    is_mail = capability == Capability.mail
     return IntakeItem(
+        conversation_id=dto.conversation_id if is_mail else None,
+        internet_message_id=dto.internet_message_id if is_mail else None,
+        direction=dto.direction if is_mail else None,
         organization_id=organization_id,
         source_provider=source_provider,
         connector_id=connector.id,
@@ -383,9 +388,7 @@ class IntakeService:
             # NOT attributed to the shared account (intake-items spec,
             # "Insumo de conector sin cuenta individual").
             item_account_id = (
-                connected_account_id
-                if connector.credential_kind == CredentialKind.oauth
-                else None
+                connected_account_id if connector.credential_kind == CredentialKind.oauth else None
             )
             for dto in dtos:
                 item = _dto_to_item(
@@ -476,9 +479,7 @@ class IntakeService:
 
         access_token = crypto.decrypt(credentials.access_token_enc)
         refresh_token = (
-            crypto.decrypt(credentials.refresh_token_enc)
-            if credentials.refresh_token_enc
-            else None
+            crypto.decrypt(credentials.refresh_token_enc) if credentials.refresh_token_enc else None
         )
         return AccessContext(
             access_token=access_token,
@@ -496,14 +497,19 @@ class IntakeService:
         status: IntakeItemStatus | None = None,
         item_type: IntakeItemType | None = None,
         connector_id: uuid.UUID | None = None,
+        include_body: bool = True,
     ) -> list[IntakeItemRead]:
+        """``include_body=False`` drops the full mail body from each
+        ``raw_payload`` (C03 privacy: readers below manager)."""
+
         rows = await self.items.list_items(
             organization_id, status=status, item_type=item_type, connector_id=connector_id
         )
-        return [IntakeItemRead.model_validate(row) for row in rows]
+        reads = [IntakeItemRead.model_validate(row) for row in rows]
+        return reads if include_body else [read.without_body() for read in reads]
 
     async def get_item(
-        self, organization_id: uuid.UUID, item_id: uuid.UUID
+        self, organization_id: uuid.UUID, item_id: uuid.UUID, *, include_body: bool = True
     ) -> IntakeItemRead:
         item = await self.items.get_item(organization_id, item_id)
         if item is None:
@@ -512,7 +518,8 @@ class IntakeService:
                 code="intake_item_not_found",
                 status_code=404,
             )
-        return IntakeItemRead.model_validate(item)
+        read = IntakeItemRead.model_validate(item)
+        return read if include_body else read.without_body()
 
     async def list_runs(self, organization_id: uuid.UUID) -> list[IntakeRunRead]:
         rows = await self.items.list_runs(organization_id)
@@ -549,9 +556,7 @@ class IntakeService:
         rows = await self.rules.list_rules(organization_id)
         return [IntakeRuleRead.model_validate(row) for row in rows]
 
-    async def get_rule(
-        self, organization_id: uuid.UUID, rule_id: uuid.UUID
-    ) -> IntakeRuleRead:
+    async def get_rule(self, organization_id: uuid.UUID, rule_id: uuid.UUID) -> IntakeRuleRead:
         rule = await self._require_rule(organization_id, rule_id)
         return IntakeRuleRead.model_validate(rule)
 
@@ -600,9 +605,7 @@ class IntakeService:
         rule.deleted_at = datetime.now(UTC)
         await self.rules.save(rule)
 
-    async def _require_rule(
-        self, organization_id: uuid.UUID, rule_id: uuid.UUID
-    ) -> IntakeRule:
+    async def _require_rule(self, organization_id: uuid.UUID, rule_id: uuid.UUID) -> IntakeRule:
         rule = await self.rules.get(organization_id, rule_id)
         if rule is None:
             raise AppException(
@@ -614,9 +617,7 @@ class IntakeService:
 
     # -- classification + conversion (Fase 4) -----------------------------
 
-    async def classify_and_convert(
-        self, organization_id: uuid.UUID, item: IntakeItem
-    ) -> bool:
+    async def classify_and_convert(self, organization_id: uuid.UUID, item: IntakeItem) -> bool:
         """Evaluate ``item`` against the org's active rules and, if a rule
         matches with ``convert_to_task=true``, create a real ``Task``
         (intake-classifier spec, "Conversión a tarea cuando una regla casa").

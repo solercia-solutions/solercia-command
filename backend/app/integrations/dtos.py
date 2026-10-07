@@ -10,7 +10,18 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class MailMessage:
-    """A single email message read from a mail provider."""
+    """A single email message read from a mail provider.
+
+    ``received_at`` is the instant the message is ordered by (for Connect, the
+    send instant). The trailing fields are the thread signals (C03); they all
+    default to "unknown" so a provider that does not observe them keeps
+    building the DTO unchanged, and none of them is ever invented:
+
+    - ``direction`` — ``"inbound"`` (read from the inbox) or ``"outbound"``
+      (read from sent items), relative to the account that ingested it.
+    - ``sent_at`` / ``delivered_at`` — real send and mailbox-receipt instants.
+    - ``has_attachments`` — ``None`` when the provider did not say.
+    """
 
     external_id: str
     subject: str
@@ -19,6 +30,15 @@ class MailMessage:
     received_at: datetime
     snippet: str
     body_text: str | None
+    conversation_id: str | None = None
+    internet_message_id: str | None = None
+    in_reply_to: str | None = None
+    references: tuple[str, ...] = ()
+    cc: tuple[str, ...] = ()
+    direction: str | None = None
+    sent_at: datetime | None = None
+    delivered_at: datetime | None = None
+    has_attachments: bool | None = None
 
 
 @dataclass(frozen=True)

@@ -80,6 +80,9 @@ _MAIL_INBOX = "mail.inbox.list"
 # keep the single sent-items read this adapter always did.
 _MAIL_FOLDERS_BY_TARGET: dict[str, tuple[str, ...]] = {"outlook": (_MAIL_INBOX, _MAIL_SENT)}
 _MAIL_FOLDERS_DEFAULT: tuple[str, ...] = (_MAIL_SENT,)
+# Connect capability → the folder name its records carry (``inbox``/``sent``),
+# kept so a merged read does not lose where each message came from.
+_MAIL_FOLDER_NAMES: dict[str, str] = {_MAIL_INBOX: "inbox", _MAIL_SENT: "sent"}
 
 # Connect error codes that mean "the person has to log in again", whichever
 # route produced them. Exposed so the connector facade maps them the same way.
@@ -145,9 +148,7 @@ def _decode_access_context(ctx: AccessContext) -> dict[str, Any]:
     for key in ("base_url", "api_key", "account", "target"):
         value = payload.get(key)
         if not isinstance(value, str) or not value.strip():
-            raise SolerciaConnectConfigError(
-                f"Solercia Connect access context is missing {key!r}"
-            )
+            raise SolerciaConnectConfigError(f"Solercia Connect access context is missing {key!r}")
     if payload["target"] not in _TARGETS:
         raise SolerciaConnectConfigError("Solercia Connect access context names an unknown target")
     payload["allow_browser_fallback"] = _flag(payload.get("allow_browser_fallback"))
@@ -199,20 +200,24 @@ class _ConnectReader:
 
     async def read_mail(
         self, ctx: AccessContext, *, since: datetime | None, limit: int
-    ) -> list[list[dict[str, Any]]]:
+    ) -> list[tuple[str, list[dict[str, Any]]]]:
         """Read every mail folder the connector's target calls for.
 
-        Returns one record list per folder, in folder order, so the port can
-        tell a single-folder target (records handed through untouched) from a
-        multi-folder one (merged, de-duplicated and re-ordered). A target
-        without mail returns no folders at all.
+        Returns one ``(folder, records)`` pair per folder, in folder order, so
+        the port can tell a single-folder target (records handed through
+        untouched) from a multi-folder one (merged, de-duplicated and
+        re-ordered) and still know which folder each record came from
+        (``inbox`` or ``sent``). A target without mail returns no folders.
         """
         payload = _decode_access_context(ctx)
         if not _target_serves(payload, Capability.mail):
             return []
         folders = _MAIL_FOLDERS_BY_TARGET.get(payload["target"], _MAIL_FOLDERS_DEFAULT)
         return [
-            await self._read_records(payload, folder, since=since, limit=limit)
+            (
+                _MAIL_FOLDER_NAMES[folder],
+                await self._read_records(payload, folder, since=since, limit=limit),
+            )
             for folder in folders
         ]
 
@@ -301,12 +306,13 @@ class SolerciaConnectMailPort:
         if not folders:
             return []
         if len(folders) == 1:
-            return [map_mail_message(record) for record in folders[0]]
+            folder, records = folders[0]
+            return [map_mail_message(record, listed_from=folder) for record in records]
 
         merged: dict[str, MailMessage] = {}
-        for records in folders:
+        for folder, records in folders:
             for record in records:
-                message = map_mail_message(record)
+                message = map_mail_message(record, listed_from=folder)
                 # A message present in both folders is one message: the first
                 # folder listed wins so the read is deterministic.
                 merged.setdefault(message.external_id, message)

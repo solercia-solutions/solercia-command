@@ -16,7 +16,17 @@ mirrors ``connection_credentials``' 1:1-per-parent shape, here 1:1-per-tenant.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -45,6 +55,9 @@ class IntakeItem(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMix
             "external_id",
             name="uq_intake_items_org_connector_external",
         ),
+        # Thread lookups are always tenant-scoped (C03).
+        Index("ix_intake_items_org_conversation", "organization_id", "conversation_id"),
+        Index("ix_intake_items_org_internet_message", "organization_id", "internet_message_id"),
     )
 
     source_provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -81,9 +94,13 @@ class IntakeItem(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMix
     created_task_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True
     )
-    classified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Thread signals (C03, migration 0030). Mail only; NULL means "not
+    # observed" — legacy rows stay NULL until a re-ingest refreshes them.
+    # ``direction`` is relative to the account that ingested the item.
+    conversation_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    internet_message_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    direction: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
 
 
 class IntakeRule(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin, Base):
@@ -145,9 +162,7 @@ class IntakeRun(PkMixin, TimestampMixin, AuditMixin, TenantMixin, Base):
         index=True,
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class IntakeSettings(PkMixin, TimestampMixin, TenantMixin, Base):
@@ -157,9 +172,7 @@ class IntakeSettings(PkMixin, TimestampMixin, TenantMixin, Base):
     (design.md "Proyecto por defecto de la organización")."""
 
     __tablename__ = "intake_settings"
-    __table_args__ = (
-        UniqueConstraint("organization_id", name="uq_intake_settings_organization"),
-    )
+    __table_args__ = (UniqueConstraint("organization_id", name="uq_intake_settings_organization"),)
 
     default_project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True

@@ -321,9 +321,7 @@ class TestConnectMapping:
                             "display_name": "Revisión de historia de usuario",
                             "recorded_at": "2026-08-20T20:56:16+00:00",
                             "content": (
-                                "WEBVTT\n\n1\n"
-                                "00:00:01.000 --> 00:00:04.000\n"
-                                "<v Persona Uno>Hola"
+                                "WEBVTT\n\n1\n00:00:01.000 --> 00:00:04.000\n<v Persona Uno>Hola"
                             ),
                             "speakers": ["Persona Uno", "Persona Dos"],
                         }
@@ -352,9 +350,7 @@ class TestConnectMapping:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
-                json=_envelope(
-                    [{"id": "t-1", "display_name": "Sin fecha", "content": "WEBVTT\n"}]
-                ),
+                json=_envelope([{"id": "t-1", "display_name": "Sin fecha", "content": "WEBVTT\n"}]),
             )
 
         built = _adapter(handler)
@@ -618,6 +614,113 @@ class TestConnectMailFolders:
             built._restore()
 
         assert capabilities == ["mail.sent.list"]
+
+
+class TestConnectMailThreadSignals:
+    """C03: the thread signals Connect already emits survive the mapping, and
+    the folder each record was read from becomes its direction."""
+
+    @staticmethod
+    def _mail(record_id: str, **extra: Any) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "id": record_id,
+            "subject": f"Asunto {record_id}",
+            "sent_at": "2026-08-20T10:00:00+00:00",
+            "body": "cuerpo",
+            "body_format": "text",
+        }
+        record.update(extra)
+        return record
+
+    @pytest.mark.asyncio
+    async def test_inbox_records_are_inbound_and_sent_records_are_outbound(self) -> None:
+        from app.integrations.ports import Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            if body["capability"] == "mail.inbox.list":
+                return httpx.Response(200, json=_envelope([self._mail("recibido")]))
+            return httpx.Response(200, json=_envelope([self._mail("enviado")]))
+
+        built = _adapter(handler)
+        try:
+            messages = await built.port_for(Capability.mail).list_messages(_context(), limit=10)
+        finally:
+            built._restore()
+
+        directions = {message.external_id: message.direction for message in messages}
+        assert directions == {"recibido": "inbound", "enviado": "outbound"}
+
+    @pytest.mark.asyncio
+    async def test_a_single_folder_target_keeps_the_sent_direction(self) -> None:
+        from app.integrations.ports import Capability
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=_envelope([self._mail("solo-enviado")]))
+
+        built = _adapter(handler)
+        try:
+            (message,) = await built.port_for(Capability.mail).list_messages(
+                _context(target="gmail")
+            )
+        finally:
+            built._restore()
+
+        assert message.direction == "outbound"
+
+    def test_the_record_folder_wins_over_the_folder_it_was_listed_from(self) -> None:
+        from app.integrations.adapters.solercia_connect.mapper import map_mail_message
+
+        message = map_mail_message(self._mail("propio", folder="sent"), listed_from="inbox")
+
+        assert message.direction == "outbound"
+
+    def test_a_record_without_folder_or_listing_has_no_direction(self) -> None:
+        from app.integrations.adapters.solercia_connect.mapper import map_mail_message
+
+        assert map_mail_message(self._mail("sin-carpeta")).direction is None
+
+    def test_thread_signals_cc_dates_and_attachments_are_kept(self) -> None:
+        from datetime import UTC, datetime
+
+        from app.integrations.adapters.solercia_connect.mapper import map_mail_message
+
+        message = map_mail_message(
+            self._mail(
+                "hilo-1",
+                conversation_id="CONV-1",
+                internet_message_id="<abc@entidad.example.gov.co>",
+                in_reply_to="<prev@entidad.example.gov.co>",
+                references=["<root@x>", "<prev@entidad.example.gov.co>"],
+                cc=[{"address": "copia@entidad.example.gov.co"}, {"name": "sin correo"}],
+                has_attachments=True,
+                received_at="2026-08-20T10:02:00+00:00",
+                folder="inbox",
+            )
+        )
+
+        assert message.conversation_id == "CONV-1"
+        assert message.internet_message_id == "<abc@entidad.example.gov.co>"
+        assert message.in_reply_to == "<prev@entidad.example.gov.co>"
+        assert message.references == ("<root@x>", "<prev@entidad.example.gov.co>")
+        assert message.cc == ("copia@entidad.example.gov.co",)
+        assert message.has_attachments is True
+        assert message.sent_at == datetime(2026, 8, 20, 10, 0, tzinfo=UTC)
+        assert message.delivered_at == datetime(2026, 8, 20, 10, 2, tzinfo=UTC)
+        assert message.direction == "inbound"
+
+    def test_absent_signals_stay_absent_instead_of_invented(self) -> None:
+        from app.integrations.adapters.solercia_connect.mapper import map_mail_message
+
+        message = map_mail_message(self._mail("minimo", conversation_id="  "))
+
+        assert message.conversation_id is None
+        assert message.internet_message_id is None
+        assert message.in_reply_to is None
+        assert message.references == ()
+        assert message.cc == ()
+        assert message.has_attachments is None
+        assert message.delivered_at is None
 
 
 class TestConnectInteractiveClient:

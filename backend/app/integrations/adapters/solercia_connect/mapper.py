@@ -65,12 +65,47 @@ def plain_text(body: str, body_format: str | None) -> str:
     return _WHITESPACE.sub(" ", body).strip()
 
 
-def map_mail_message(record: dict[str, Any]) -> MailMessage:
+# Connect's ``folder`` vocabulary (mail-record-contract spec) → direction
+# relative to the account that read it.
+_DIRECTION_BY_FOLDER: dict[str, str] = {"inbox": "inbound", "sent": "outbound"}
+
+
+def _text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _texts(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    found = [_text(entry) for entry in value]
+    return tuple(entry for entry in found if entry is not None)
+
+
+def _optional_timestamp(record: dict[str, Any], key: str) -> datetime | None:
+    value = record.get(key)
+    return None if value is None else _timestamp(value, key)
+
+
+def _direction(record: dict[str, Any], listed_from: str | None) -> str | None:
+    """The record's own ``folder`` wins: Connect stamps it explicitly. The
+    folder the port listed it from is the fallback for records that predate
+    that field. Anything else is left unknown, never guessed."""
+    folder = _text(record.get("folder"))
+    if folder is not None and folder.casefold() in _DIRECTION_BY_FOLDER:
+        return _DIRECTION_BY_FOLDER[folder.casefold()]
+    return _DIRECTION_BY_FOLDER.get(listed_from) if listed_from else None
+
+
+def map_mail_message(record: dict[str, Any], *, listed_from: str | None = None) -> MailMessage:
+    """Map one mail record. ``listed_from`` is the Connect folder (``inbox``
+    or ``sent``) the record was read from, when the port knows it."""
     body = _require(record, "body")
     if not isinstance(body, str):
         raise SolerciaConnectProtocolError("Solercia Connect mail body is not text")
     text = plain_text(body, record.get("body_format"))
     sender = _address(record.get("sender"))
+    sent_at = _timestamp(_require(record, "sent_at"), "sent_at")
+    has_attachments = record.get("has_attachments")
     return MailMessage(
         external_id=str(_require(record, "id")),
         subject=str(record.get("subject") or ""),
@@ -78,9 +113,19 @@ def map_mail_message(record: dict[str, Any]) -> MailMessage:
         # filled with the account that asked, which would misattribute it.
         sender=sender or "",
         recipients=_addresses(record.get("to")),
-        received_at=_timestamp(_require(record, "sent_at"), "sent_at"),
+        received_at=sent_at,
         snippet=text[:_SNIPPET_LENGTH],
         body_text=text or None,
+        conversation_id=_text(record.get("conversation_id")),
+        internet_message_id=_text(record.get("internet_message_id")),
+        # Connect does not emit these today; read them if a route ever does.
+        in_reply_to=_text(record.get("in_reply_to")),
+        references=_texts(record.get("references")),
+        cc=_addresses(record.get("cc")),
+        direction=_direction(record, listed_from),
+        sent_at=sent_at,
+        delivered_at=_optional_timestamp(record, "received_at"),
+        has_attachments=has_attachments if isinstance(has_attachments, bool) else None,
     )
 
 

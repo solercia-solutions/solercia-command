@@ -3,7 +3,8 @@
 ``POST /intake/pull`` and every write on `/intake/rules` require
 ``require_role(admin, manager)`` (intake-items spec, "Ingesta manual
 on-demand"; intake-rules spec, "CRUD de reglas con permisos por rol"); every
-``GET`` here is open to any authenticated member. Responses follow the
+``GET`` here is open to any authenticated member, but the full mail body
+(``raw_payload.body_text``) is returned only to admin/manager (C03). Responses follow the
 standard ``{data[, meta]}`` envelope, same as every other module.
 Triage/settings routes (Fase 5) are added by a later commit.
 """
@@ -26,6 +27,14 @@ from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import IntakeItemStatus, IntakeItemType, MemberRole
 
 router = APIRouter(tags=["intake"])
+
+# Roles allowed to read the full body of an ingested mail (C03 privacy).
+_BODY_READER_ROLES = frozenset({MemberRole.admin, MemberRole.manager})
+
+
+def _reads_full_body(membership: OrganizationMember) -> bool:
+    return membership.role in _BODY_READER_ROLES
+
 
 # Module-level singletons (ruff B008 — see connectors/router.py's identical
 # rationale): every write endpoint below shares ONE dependency instance.
@@ -57,7 +66,8 @@ async def list_intake_items(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """List the organization's stored insumos (any authenticated member),
-    including the triage view (`?status=pending`)."""
+    including the triage view (`?status=pending`). The full mail body is
+    included only for admin/manager; everyone keeps the snippet."""
 
     service = IntakeService(db)
     items = await service.list_items(
@@ -65,6 +75,7 @@ async def list_intake_items(
         status=status_filter,
         item_type=item_type,
         connector_id=connector_id,
+        include_body=_reads_full_body(membership),
     )
     return {"data": items, "meta": {"total": len(items)}}
 
@@ -75,10 +86,13 @@ async def get_intake_item(
     membership: OrganizationMember = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Get a single insumo. 404 if it does not exist or is not the caller's."""
+    """Get a single insumo. 404 if it does not exist or is not the caller's.
+    The full mail body is included only for admin/manager."""
 
     service = IntakeService(db)
-    item = await service.get_item(membership.organization_id, item_id)
+    item = await service.get_item(
+        membership.organization_id, item_id, include_body=_reads_full_body(membership)
+    )
     return {"data": item}
 
 
