@@ -1,9 +1,10 @@
 """Application settings loaded from environment variables."""
 
+import re
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -353,6 +354,39 @@ class Settings(BaseSettings):
     CHECKLIST_SYNC_ORG_SLUG: str = ""
     CHECKLIST_SYNC_ACTOR_EMAIL: str = ""
     CHECKLIST_SYNC_UPDATE_EXISTING: bool = True
+
+    # Scheduled sync (C02) — `daily_sync` at each `HH:MM` of
+    # `SCHEDULED_SYNC_TIMES`, in the explicit zone `SCHEDULED_SYNC_TZ`. Its
+    # own flag, INDEPENDENT of `STARTUP_PROFILE` and `EMAIL_ENABLED`: in
+    # `local_restricted` these are the ONLY jobs registered (no alerts,
+    # reminders nor mail). A job missed while the machine slept still runs if
+    # it wakes within `SCHEDULED_SYNC_MISFIRE_GRACE_SECONDS`; piled-up runs
+    # coalesce into one.
+    SCHEDULED_SYNC_ENABLED: bool = False
+    SCHEDULED_SYNC_TIMES: str = "06:00,23:59"
+    SCHEDULED_SYNC_TZ: str = "America/Bogota"
+    SCHEDULED_SYNC_MISFIRE_GRACE_SECONDS: int = 3600
+
+    @field_validator("SCHEDULED_SYNC_TIMES")
+    @classmethod
+    def _valid_sync_times(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",")]
+        for part in parts:
+            match = re.fullmatch(r"(\d{2}):(\d{2})", part)
+            if not match or int(match[1]) > 23 or int(match[2]) > 59:
+                raise ValueError(f"SCHEDULED_SYNC_TIMES no válido: «{part}» (usa HH:MM).")
+        return value
+
+    @field_validator("SCHEDULED_SYNC_TZ")
+    @classmethod
+    def _valid_sync_zone(cls, value: str) -> str:
+        import pytz  # APScheduler 3 resolves zone names through pytz.
+
+        try:
+            pytz.timezone(value)
+        except pytz.UnknownTimeZoneError as exc:
+            raise ValueError(f"SCHEDULED_SYNC_TZ no válida: «{value}».") from exc
+        return value
 
     # LLM port (change 48-puerto-llm) — `LLM_PROVIDER` selects the active
     # `app.ai.ports.LlmPort` adapter, read AT CALL TIME (mirrors

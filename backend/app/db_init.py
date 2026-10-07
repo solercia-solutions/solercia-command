@@ -96,6 +96,7 @@ from app.modules.roles.models import (  # noqa: F401
     UserRole,
 )
 from app.modules.roles.seed_catalog import MENU_SEED, ROLE_MENU_SEED, ROLE_SEED
+from app.modules.scheduled_sync.models import ScheduledSyncRun  # noqa: F401
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401

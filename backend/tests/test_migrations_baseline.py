@@ -30,6 +30,7 @@ _MIGRATIONS_DB_NAME = "solercia_test_migrations"
 # every model module). A handful is enough to prove the baseline actually
 # created the schema, without duplicating the full model inventory here.
 _EXPECTED_TABLES = {
+    "scheduled_sync_runs",
     "organizations",
     "organization_members",
     "users",

@@ -40,6 +40,7 @@ def runtime(monkeypatch):
         'stop_scheduler': Mock(), 'register_reminders_job': Mock(),
         'register_delivery_jobs': Mock(), 'has_active_durable_channel': Mock(return_value=True),
         'register_exception_handlers': Mock(),
+        'start_sync_scheduler': Mock(return_value=object()), 'stop_sync_scheduler': Mock(),
     }
     # Stub every app import, including routers, before executing the real main.
     # Unknown app imports fail closed instead of importing provider/DB modules.
@@ -79,8 +80,46 @@ async def test_local_disables_all_seed_and_scheduler_work(runtime, demo):
         runtime.main._wait_for_db.assert_awaited_once()
     runtime.main.seed_default.assert_not_called()
     for name in ('start_scheduler', 'stop_scheduler', 'register_reminders_job',
-                 'register_delivery_jobs', 'has_active_durable_channel'):
+                 'register_delivery_jobs', 'has_active_durable_channel',
+                 'start_sync_scheduler', 'stop_sync_scheduler'):
         getattr(runtime.main, name).assert_not_called()
+    runtime.engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', ['default', 'local_restricted'])
+async def test_scheduled_sync_starts_independently_of_profile(runtime, profile):
+    select(runtime, profile)
+    runtime.main.settings.SCHEDULED_SYNC_ENABLED = True
+    async with runtime.main.lifespan(runtime.main.app):
+        runtime.main.start_sync_scheduler.assert_called_once_with()
+    runtime.main.stop_sync_scheduler.assert_called_once_with()
+    local = profile == 'local_restricted'
+    # In local_restricted ONLY the sync jobs exist: no alerts, reminders nor mail.
+    assert runtime.main.start_scheduler.call_count == int(not local)
+    assert runtime.main.register_reminders_job.call_count == int(not local)
+    assert runtime.main.register_delivery_jobs.call_count == int(not local)
+    runtime.main.seed_default.assert_has_awaits([] if local else [()])
+    runtime.engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_scheduled_sync_disabled_by_default(runtime):
+    async with runtime.main.lifespan(runtime.main.app):
+        pass
+    runtime.main.start_sync_scheduler.assert_not_called()
+    runtime.main.stop_sync_scheduler.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['start_sync_scheduler', 'stop_sync_scheduler'])
+async def test_scheduled_sync_failures_are_best_effort(runtime, failure):
+    select(runtime, 'local_restricted')
+    runtime.main.settings.SCHEDULED_SYNC_ENABLED = True
+    getattr(runtime.main, failure).side_effect = RuntimeError('Fallo simulado.')
+    async with runtime.main.lifespan(runtime.main.app):
+        pass
+    runtime.main.stop_sync_scheduler.assert_called_once_with()
     runtime.engine.dispose.assert_awaited_once()
 
 

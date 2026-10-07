@@ -40,6 +40,8 @@ from app.modules.plans.router import router as plans_router
 from app.modules.projects.router import router as projects_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.roles.router import router as roles_admin_router
+from app.modules.scheduled_sync.router import router as scheduled_sync_router
+from app.modules.scheduled_sync.scheduler import start_sync_scheduler, stop_sync_scheduler
 from app.modules.search.router import router as search_router
 from app.modules.sprints.router import router as sprints_router
 from app.modules.task_import.router import router as task_import_router
@@ -99,6 +101,7 @@ async def lifespan(app: FastAPI):
     """
 
     scheduler_attempted = False
+    sync_scheduler_attempted = False
     lifespan_failed = False
     try:
         # Settings validates the closed profile set before importing resources.
@@ -125,12 +128,30 @@ async def lifespan(app: FastAPI):
                         register_delivery_jobs(scheduler)
                     except Exception:  # noqa: BLE001
                         logger.exception("No se pudieron registrar los trabajos de entrega; se continúa sin ellos.")
+        # Scheduled sync (C02): its own flag, independent of the profile and
+        # of EMAIL_ENABLED; in local_restricted these are the only jobs.
+        if settings.SCHEDULED_SYNC_ENABLED:
+            sync_scheduler_attempted = True
+            try:
+                start_sync_scheduler()
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "No se pudo iniciar la sincronización programada; se continúa sin ella."
+                )
         yield
     except BaseException:
         # Observe, never replace, the original failure (including cancellation).
         lifespan_failed = True
         raise
     finally:
+        if sync_scheduler_attempted:
+            try:
+                stop_sync_scheduler()
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "No se pudo detener correctamente la sincronización programada.",
+                    exc_info=True,
+                )
         try:
             if scheduler_attempted:
                 try:
@@ -202,6 +223,7 @@ app.include_router(jira_import_router, prefix=API_PREFIX)
 app.include_router(intake_router, prefix=API_PREFIX)
 app.include_router(assistant_router, prefix=API_PREFIX)
 app.include_router(plans_router, prefix=API_PREFIX)
+app.include_router(scheduled_sync_router, prefix=API_PREFIX)
 # Realtime push (WebSocket) is a best-effort channel: off does not affect
 # REST, which stays authoritative regardless (design.md, Migration / Rollout).
 if settings.WS_ENABLED:

@@ -42,7 +42,7 @@ def test_unreadable_source_exits_with_source_error(tmp_path, capsys):
 
 
 @skip_no_db
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_unknown_organization_exits_3_in_read_only_dry_run(engine, tmp_path, capsys):
     # ``engine`` builds the schema in the disposable test database first.
     args = cli.build_parser().parse_args(
