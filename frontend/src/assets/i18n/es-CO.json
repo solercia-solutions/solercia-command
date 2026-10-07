@@ -1983,5 +1983,115 @@
       "showAll": "Ver todos los años",
       "yearsUnavailable": "No fue posible consultar los años con tareas; se muestran todas las tareas."
     }
+  },
+  "aiSettings": {
+    "title": "Inteligencia artificial",
+    "subtitle": "Elige el modelo que lee y clasifica tus hilos de correo. Por defecto todo se queda en tu equipo.",
+    "loading": "Cargando el proveedor de IA…",
+    "retry": "Reintentar",
+    "readOnly": "Solo lectura: un administrador de la organización puede cambiar el proveedor.",
+    "saved": "Proveedor guardado: {{ provider }}.",
+    "active": {
+      "label": "Proveedor activo",
+      "disabled": "Clasificación apagada",
+      "noEmbeddings": "Sin modelo de embeddings",
+      "source": "Origen"
+    },
+    "locality": {
+      "local": "En tu equipo",
+      "external": "Externo"
+    },
+    "source": {
+      "organization": "Guardado para tu organización",
+      "global": "Configuración del servidor",
+      "default": "Valor por defecto (Ollama local)"
+    },
+    "presets": {
+      "title": "Proveedor",
+      "hint": "Al elegir uno se precargan la dirección y los modelos recomendados; puedes ajustarlos.",
+      "yourModel": "Tu modelo",
+      "saved": "Guardado",
+      "groups": {
+        "local": "En tu equipo",
+        "external": "Externos (con tu llave)",
+        "custom": "Personalizado"
+      }
+    },
+    "external": {
+      "title": "Proveedor externo",
+      "message": "El contenido de tus correos saldrá de tu equipo hacia {{ provider }}."
+    },
+    "fields": {
+      "baseUrl": "Dirección del servicio",
+      "baseUrlPlaceholder": "https://…/v1",
+      "baseUrlFixed": "Dirección fija de este proveedor.",
+      "baseUrlEditable": {
+        "local": "Cámbiala solo si el servicio corre en otro puerto de este equipo.",
+        "external": "Debe ser HTTPS a un servidor público compatible con la API de OpenAI."
+      },
+      "chatModel": "Modelo de chat",
+      "embeddingModel": "Modelo de embeddings",
+      "embeddingPlaceholder": "Vacío = el recomendado del proveedor",
+      "apiKey": "Llave de API",
+      "enabled": "Clasificar hilos con IA"
+    },
+    "key": {
+      "stored": "Guardada (termina en {{ last4 }})",
+      "none": "Sin llave",
+      "placeholder": "Pega tu llave de API",
+      "keepPlaceholder": "Déjala vacía para conservar la que termina en {{ last4 }}",
+      "keepHint": "Si escribes una nueva, reemplaza la guardada.",
+      "requiredHint": "{{ provider }} necesita tu llave; se guarda cifrada y nunca se vuelve a mostrar.",
+      "optionalHint": "Opcional para este proveedor.",
+      "remove": "Quitar llave",
+      "willRemove": "La llave se quitará al guardar.",
+      "undo": "Deshacer"
+    },
+    "advanced": {
+      "title": "Opciones avanzadas",
+      "hint": "Los valores por defecto sirven en la mayoría de los casos.",
+      "timeout": "Tiempo máximo (segundos)",
+      "maxTokens": "Máximo de tokens de respuesta",
+      "temperature": "Temperatura",
+      "numCtx": "Contexto (num_ctx, solo Ollama)",
+      "numCtxPlaceholder": "Vacío = el del servidor",
+      "reasoning": "Razonamiento",
+      "reasoningOptions": {
+        "none": "Sin razonamiento (más rápido)",
+        "low": "Bajo",
+        "medium": "Medio",
+        "high": "Alto"
+      }
+    },
+    "test": {
+      "running": "Probando la conexión…",
+      "ok": "Conexión correcta",
+      "chat": "Chat: {{ model }} respondió en {{ ms }} ms.",
+      "embeddings": "Embeddings: {{ model }} en {{ ms }} ms ({{ dims }} dimensiones).",
+      "noEmbeddings": "Este proveedor no tiene modelo de embeddings: las tareas candidatas se buscarán solo por clave.",
+      "failed": {
+        "chat": "Falló el chat",
+        "embeddings": "El chat respondió, pero fallaron los embeddings"
+      },
+      "code": "Código: {{ code }}"
+    },
+    "actions": {
+      "test": "Probar conexión",
+      "discard": "Descartar cambios",
+      "save": "Guardar",
+      "noChanges": "Sin cambios por guardar.",
+      "notSavedYet": "Aún no hay un proveedor guardado para tu organización: «Guardar» lo fija."
+    },
+    "errors": {
+      "forbidden": "Solo administradores y líderes pueden ver el proveedor de IA.",
+      "forbiddenWrite": "Solo un administrador puede cambiar o probar el proveedor.",
+      "network": "No hay conexión con el servidor. Revisa tu red e intenta de nuevo.",
+      "load": "No fue posible cargar el proveedor de IA.",
+      "unknown": "No fue posible completar la operación.",
+      "baseUrlRequired": "Escribe la dirección del servicio.",
+      "chatModelRequired": "Escribe el modelo de chat.",
+      "keyRequired": "{{ provider }} necesita una llave de API.",
+      "range": "Usa un valor entre {{ min }} y {{ max }}."
+    }
   }
 }

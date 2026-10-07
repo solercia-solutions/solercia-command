@@ -126,6 +126,14 @@ export const routes: Routes = [
           import('@pages/theme-studio').then((m) => m.ThemeStudioPageComponent),
       },
       {
+        // Proveedor de IA de la organización (C06). Menú «Inteligencia artificial».
+        path: 'settings/ai',
+        loadComponent: () =>
+          import('@pages/ai-settings/ai-settings.component').then(
+            (m) => m.AiSettingsComponent,
+          ),
+      },
+      {
         path: 'task/:key',
         loadComponent: () =>
           import('@pages/task-detail/task-detail-page.component').then(
