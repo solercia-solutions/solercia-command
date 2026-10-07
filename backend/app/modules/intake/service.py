@@ -724,6 +724,11 @@ class IntakeService:
         await self.settings_repo.save(settings_row)
         return project.id
 
+    async def ensure_default_project(self, organization_id: uuid.UUID) -> uuid.UUID:
+        """Public seam for other modules (C05 «crear tarea» from a proposal)."""
+
+        return await self._ensure_default_project(organization_id)
+
     # -- manual triage + settings (Fase 5) --------------------------------
 
     async def convert_manual(

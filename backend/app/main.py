@@ -39,6 +39,7 @@ from app.modules.org_role_templates.router import router as org_role_templates_r
 from app.modules.organizations.router import router as organizations_router
 from app.modules.plans.router import router as plans_router
 from app.modules.projects.router import router as projects_router
+from app.modules.reconciliation.router import router as reconciliation_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.roles.router import router as roles_admin_router
 from app.modules.scheduled_sync.router import router as scheduled_sync_router
@@ -222,6 +223,7 @@ app.include_router(connectors_router, prefix=API_PREFIX)
 app.include_router(glpi_sync_router, prefix=API_PREFIX)
 app.include_router(jira_import_router, prefix=API_PREFIX)
 app.include_router(intake_router, prefix=API_PREFIX)
+app.include_router(reconciliation_router, prefix=API_PREFIX)
 app.include_router(assistant_router, prefix=API_PREFIX)
 app.include_router(ai_settings_router, prefix=API_PREFIX)
 app.include_router(plans_router, prefix=API_PREFIX)

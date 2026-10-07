@@ -78,6 +78,10 @@ TENANT_SCOPED: frozenset[str] = frozenset(
         # and ``test_work_calendar_resolver.py``
         # (``test_resolve_never_crosses_organization_id``).
         "work_calendar",
+        # C05: `/intake/proposals` resolves `organization_id` from the JWT
+        # membership; a proposal or task of another organization is a 404
+        # (`test_reconciliation_router.py`).
+        "reconciliation",
     }
 )
 
