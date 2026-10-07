@@ -2236,5 +2236,87 @@
       "notFound": "Esta propuesta no existe o no tienes acceso a ella.",
       "action": "No fue posible guardar la decisión."
     }
+  },
+  "syncRuns": {
+    "title": "Sincronización",
+    "subtitle": "Dos veces al día Command trae el checklist, lee el correo nuevo y clasifica los hilos.",
+    "loading": "Cargando el historial…",
+    "retry": "Reintentar",
+    "goHome": "Ir a proyectos",
+    "next": {
+      "title": "Próximas ejecuciones",
+      "today": "Hoy",
+      "tomorrow": "Mañana",
+      "zone": "hora de Bogotá",
+      "configured": "Horario configurado en el servidor: {{ times }} ({{ zone }}).",
+      "lastScheduled": "Última corrida programada: {{ date }} ({{ status }}).",
+      "noScheduled": "Aún no hay corridas programadas en el historial; si no aparecen después de la próxima hora, la programación está apagada en el servidor y puedes usar «Ejecutar ahora»."
+    },
+    "history": {
+      "title": "Historial de corridas"
+    },
+    "empty": {
+      "title": "Todavía no hay corridas",
+      "description": "La primera aparecerá aquí después de la próxima ejecución o cuando uses «Ejecutar ahora»."
+    },
+    "status": {
+      "success": "Exitosa",
+      "partial": "Parcial",
+      "failed": "Fallida"
+    },
+    "trigger": {
+      "scheduled": "Programada",
+      "manual": "Manual"
+    },
+    "steps": {
+      "checklist": "Checklist",
+      "intake": "Correo",
+      "classification": "Clasificación"
+    },
+    "stepStatus": {
+      "ok": "OK",
+      "error": "Con error",
+      "skipped": "Omitido"
+    },
+    "counts": {
+      "created": "Nuevas",
+      "updated": "Actualizadas",
+      "unchanged": "Sin cambios",
+      "accounts": "Cuentas",
+      "errored": "Con error",
+      "items_fetched": "Leídos",
+      "items_new": "Nuevos",
+      "items_duplicated": "Repetidos",
+      "items_converted": "Convertidos",
+      "since": "Desde",
+      "processed": "Hilos",
+      "classified": "Clasificados",
+      "key_candidates": "Por clave",
+      "thread_errors": "Hilos con error",
+      "llm_error": "Error del modelo",
+      "embedding_error": "Error de embeddings"
+    },
+    "duration": {
+      "seconds": "{{ s }} s",
+      "minutes": "{{ m }} min {{ s }} s"
+    },
+    "run": {
+      "action": "Ejecutar ahora",
+      "running": "Ejecutando…",
+      "wait": "Sincronizando: puede tardar varios minutos. Puedes seguir trabajando en otra pantalla.",
+      "close": "Cerrar",
+      "cancel": "Cancelar",
+      "confirmTitle": "Ejecutar la sincronización ahora",
+      "confirmMessage": "Se traerá el checklist, el correo nuevo desde la última corrida exitosa y se clasificarán los hilos. No se cambia el estado de ninguna tarea.",
+      "done": "Sincronización terminada: {{ status }}.",
+      "doneWithErrors": "La sincronización terminó con estado «{{ status }}»: revisa los pasos con error en el historial.",
+      "alreadyRunning": "Ya hay una sincronización en curso; intenta de nuevo en unos minutos."
+    },
+    "errors": {
+      "forbidden": "Solo un administrador puede ver y ejecutar la sincronización.",
+      "network": "No hay conexión con el servidor. Revisa tu red e intenta de nuevo.",
+      "load": "No fue posible cargar el historial de sincronización.",
+      "run": "No fue posible ejecutar la sincronización."
+    }
   }
 }

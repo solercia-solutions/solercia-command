@@ -41,6 +41,13 @@ MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
     # `ROLE_MENU_SEED["ADMIN"] = "*"` lo cubre y NO se agrega a las listas
     # de MANAGER/MEMBER a propósito.
     ("Apariencia", "palette", "/settings/appearance", "Administración", 4),
+    # Clasificador de correo (C06). La bandeja la usan ADMIN y MANAGER (el API
+    # de propuestas admite ambos). Sincronización e IA cuelgan de
+    # "Administración" y solo los ve ADMIN por el comodín: el API de /sync es
+    # solo admin y el manager lee /settings/ai por URL, sin escribir.
+    ("Bandeja de seguimiento", "envelope", "/intake/proposals", None, 8),
+    ("Sincronización", "refresh", "/sync", "Administración", 5),
+    ("Inteligencia artificial", "cpu-chip", "/settings/ai", "Administración", 6),
 ]
 
 # Menu grants per role. "*" grants every menu.
@@ -54,6 +61,7 @@ ROLE_MENU_SEED: dict[str, str | list[str]] = {
         "Equipos",
         "Conexiones",
         "Planes",
+        "Bandeja de seguimiento",
     ],
     "MEMBER": ["Proyectos", "Jerarquía", "Planes"],
 }

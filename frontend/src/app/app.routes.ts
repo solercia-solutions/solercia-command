@@ -149,6 +149,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'sync',
+        loadComponent: () =>
+          import('@pages/sync/sync.component').then((m) => m.SyncComponent),
+      },
+      {
         path: 'task/:key',
         loadComponent: () =>
           import('@pages/task-detail/task-detail-page.component').then(
