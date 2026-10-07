@@ -76,7 +76,7 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [x] C04 Proveedor de IA por organización (BYOK) con llave cifrada, presets y prueba de conexión.
 - [x] C05 Canal de clasificación: hilos, respondido/pendiente, embeddings, LLM con esquema,
       propuestas persistidas.
-- [ ] C06 UI: «Inteligencia artificial» (proveedor) y bandeja de propuestas por tarea.
+- [x] C06 UI: «Inteligencia artificial» (proveedor) y bandeja de propuestas por tarea.
 - [ ] C07 Verificación con datos reales en simulación y medición de precisión.
 
 ## Progreso y evidencia
@@ -190,6 +190,55 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
   `irrelevante`); el estado `pendiente_respuesta` también aplica a masivos; los ítems sin
   `direction` (anteriores a C03) cuentan como entrantes; la ruta `/intake/proposals/{id}` del
   comentario la materializa la UI de C06.
+- 2026-10-07 C06 (`d10fea2` detalle en el API; `4466e96` IA; `6e2e675` bandeja; `57ce400`
+  sincronización + menús): tres pantallas lazy con el patrón PANDORA (`h1.sol-display`,
+  `sol-card`, `page-layout.scss`, cinco estados). `/settings/ai`: proveedor activo, presets en
+  tarjetas `role=radio` (local · externos · personalizado) que precargan URL y modelos, URL
+  bloqueada en externos, llave con últimos 4 (vacía conserva, «Quitar llave» envía `null`),
+  avanzadas plegadas, aviso «El contenido de tus correos saldrá de tu equipo hacia …», «Probar
+  conexión» (latencia, dimensiones o etapa + código) y «Guardar» solo con cambios (o para fijar
+  un proveedor por defecto); manager solo lee. `/intake/proposals`: contadores por estado del
+  hilo que también filtran, filtros (propuesta, hilo, relación, tarea) en la URL y plegables
+  en móvil, grupos Pendiente de respuesta · Respondido · Solo saliente, tarjeta con solicitante,
+  fecha, resumen, confianza alta/media/baja (≥ 0,75 / ≥ 0,5) y tarea con enlace `/task/:key`;
+  Aceptar en `sol-modal` con los estados reales del proyecto (por defecto se mantiene),
+  Descartar y Crear tarea con `sol-confirm-dialog`; `/intake/proposals/:id` con detalle,
+  candidatas y acciones. `/sync`: próximas ejecuciones calculadas en Bogotá, última programada,
+  historial paginado con conteos por paso y errores, «Ejecutar ahora» (admin) con 409 legible.
+- Ajuste de backend imprescindible: `GET /intake/proposals/{id}` (admin/manager, 404 entre
+  organizaciones). RED 404 de la ruta; GREEN 10/10 de `test_reconciliation_router.py` contra
+  PostgreSQL desechable (:55432, contenedor nuevo `postgres:16-alpine`). Menús: el seed es
+  idempotente (inserta faltantes al arrancar) → `seed_catalog.py` suma «Bandeja de seguimiento»
+  (`/intake/proposals`, raíz, orden 8, ADMIN + MANAGER), «Sincronización» (`/sync`) y
+  «Inteligencia artificial» (`/settings/ai`) bajo Administración (5 y 6, solo ADMIN).
+  `test_menu_seed_classifier.py` RED sin el seed y GREEN con él + seed/RBAC vecinas (12).
+  En la base real las filas aparecen al reiniciar el uvicorn (o con
+  `scripts/sync_menu_catalog`); mientras tanto las rutas se abren por URL.
+- Verificación C06: `npm run build` y `npm run lint` exit 0; bundle inicial 1,08 MB (igual).
+  Navegador 1440×900 y 390×844, claro y oscuro, con TODAS las respuestas de `/ai/*`, `/sync/*`,
+  `/intake/proposals*`, `/tasks/{id}` y el proyecto simuladas por `page.route` (datos
+  sintéticos) y cualquier otra petición no GET abortada (0 abortadas; solo pasó el login).
+  IA: OpenAI → aviso + URL fija; guardar sin llave → error en el campo; prueba → «Falló el
+  chat … llm_auth_error»; Ollama + temperatura 0,2 → prueba OK (4213 ms, 1024 dim) y guardado
+  («Guardado para tu organización», Guardar deshabilitado); manager → solo lectura. Bandeja:
+  5 por decidir (3/1/1); aceptar con «Hecho» envía `{"task_id":"t1","status":"Done"}`; crear
+  tarea `{}` con fecha límite en el mensaje; descartar; contador «Respondido» filtra
+  (`?hilo=respondido`); relación sin coincidencias + «Limpiar filtros»; «Todas» 6; vacío
+  legítimo; 500 → «Reintentar»; detalle, 409 → recarga como «Aceptada», 404 legible. Sync:
+  «Hoy 23:59 · Mañana 06:00», pasos y conteos, 409 → aviso, ejecución → nueva corrida, vacío,
+  403. Sin desplazamiento horizontal. Capturas `.playwright-mcp/c06-*.png`.
+- Veredicto UX C06: vienen a decidir qué hilos se vinculan (bandeja), a elegir el modelo (IA) y
+  a saber si la corrida funcionó (sync). Bien: presets en vez de URL a mano, decisión por
+  defecto segura (mantener estado), estados distinguibles, errores del backend con su código.
+  Fricciones: (1) el API de propuestas no trae la clave del proyecto ni el estado de la tarea:
+  la bandeja hace un `GET /tasks/{id}` por tarea única (agregarlos al API lo evitaría); (2) el
+  filtro de relación es de la página cargada (el API no lo acepta); (3) el horario de `/sync` es
+  el configurado por defecto (el API no expone `SCHEDULED_SYNC_TIMES` ni si está activo); (4)
+  «Ejecutar ahora» espera la corrida completa en la misma petición (sin progreso por paso); (5)
+  `sol-card` deja `transform` y recortaba los diálogos: se anula en la bandeja; `sol-select`
+  trae buscador por defecto (se apagó en selects cortos).
+- Incidente menor: un `pytest` sin argumentos se lanzó por error contra la base desechable
+  (:55432) y se detuvo; no tocó 127.0.0.1:5434.
 - Pendiente para activar en la base real: aplicar `alembic upgrade head` (0029 a 0032) en
   127.0.0.1:5434 con confirmación del comando exacto; definir `CHECKLIST_SYNC_PATH`,
   `CHECKLIST_SYNC_ORG_SLUG`, `CHECKLIST_SYNC_ACTOR_EMAIL` y `SCHEDULED_SYNC_ENABLED=true` en el
@@ -197,4 +246,5 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 
 ## Siguiente paso
 
-C06 (UI «Inteligencia artificial» y bandeja de propuestas sobre `/intake/proposals`).
+C07 (verificación con datos reales en simulación y medición de precisión), tras aplicar 0029–0032
+en la base real y reiniciar el uvicorn (aparecen también los tres menús nuevos).
