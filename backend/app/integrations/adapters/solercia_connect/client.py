@@ -131,6 +131,13 @@ class SolerciaConnectClient:
             )
         if not api_key.strip():
             raise SolerciaConnectConfigError("Solercia Connect API key is empty")
+        # Every allowlisted address is an alias of the same local runtime, so
+        # a URL stored at registration time (e.g. host.docker.internal while
+        # Command ran in Docker) follows the address this deployment is
+        # configured with — as long as that address is itself allowlisted.
+        deployed = active.SOLERCIA_CONNECT_BASE_URL.strip().rstrip("/")
+        if deployed in allowlist:
+            cleaned = deployed
         self._base_url = cleaned
         self._api_key = api_key
         self._timeout = active.SOLERCIA_CONNECT_TIMEOUT_SECONDS

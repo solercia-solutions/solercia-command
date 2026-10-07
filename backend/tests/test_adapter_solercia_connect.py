@@ -114,6 +114,49 @@ class TestConnectClientBoundary:
                 transport=httpx.MockTransport(handler),
             )
 
+    @pytest.mark.asyncio
+    async def test_a_stored_runtime_alias_follows_the_deployment_address(self) -> None:
+        """A connector registered while Command ran in Docker stored
+        ``host.docker.internal``; once Command runs on the host that name does
+        not resolve. Both addresses are allowlisted aliases of the same local
+        runtime, so the deployment's configured address wins."""
+
+        from app.integrations.adapters.solercia_connect.client import SolerciaConnectClient
+
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(f"{request.url.scheme}://{request.url.host}:{request.url.port}")
+            return httpx.Response(200, json=_envelope([]))
+
+        client = SolerciaConnectClient(
+            base_url="http://host.docker.internal:8765",
+            api_key=_API_KEY,
+            settings=_settings(
+                SOLERCIA_CONNECT_BASE_URL_ALLOWLIST=[_BASE_URL, "http://host.docker.internal:8765"],
+                SOLERCIA_CONNECT_BASE_URL=_BASE_URL,
+            ),
+            transport=httpx.MockTransport(handler),
+        )
+        await client.health()
+
+        assert seen == [_BASE_URL]
+
+    def test_an_alias_is_kept_when_the_deployment_address_is_not_allowlisted(self) -> None:
+        from app.integrations.adapters.solercia_connect.client import SolerciaConnectClient
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("construction alone issues no request")
+
+        client = SolerciaConnectClient(
+            base_url=_BASE_URL,
+            api_key=_API_KEY,
+            settings=_settings(SOLERCIA_CONNECT_BASE_URL="http://evil.example.com"),
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert client._base_url == _BASE_URL
+
     def test_the_allowlist_does_not_care_about_a_trailing_slash(self) -> None:
         from app.integrations.adapters.solercia_connect.client import SolerciaConnectClient
 
