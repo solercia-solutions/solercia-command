@@ -95,6 +95,16 @@ class ProposalDecisionService:
     async def list_proposals(self, organization_id: uuid.UUID, **filters):
         return await self._repo.list_proposals(organization_id, **filters)
 
+    async def get_proposal(
+        self, organization_id: uuid.UUID, proposal_id: uuid.UUID
+    ) -> IntakeProposal:
+        """One proposal of the organization (any status); 404 otherwise."""
+
+        proposal = await self._repo.get_proposal(organization_id, proposal_id)
+        if proposal is None:
+            raise _not_found()
+        return proposal
+
     async def _open(self, organization_id: uuid.UUID, proposal_id: uuid.UUID) -> IntakeProposal:
         proposal = await self._repo.get_proposal(organization_id, proposal_id, for_update=True)
         if proposal is None:

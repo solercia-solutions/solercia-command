@@ -96,6 +96,29 @@ async def test_list_is_scoped_filtered_and_paginated(
     assert by_task.json()["meta"]["total"] == 4
 
 
+async def test_detail_is_scoped_and_role_guarded(
+    client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
+):
+    """C06: the task comment links to /intake/proposals/{id}; the UI reads it here."""
+
+    a, b = two_orgs.a, two_orgs.b
+    proposal = await _proposal(session, a)
+    foreign = await _proposal(session, b)
+
+    response = await client.get(f"/intake/proposals/{proposal.id}", headers=_auth(a.token))
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["id"] == str(proposal.id)
+    assert data["result"]["solicitante"] == "Ana Pérez"
+
+    missing = await client.get(f"/intake/proposals/{foreign.id}", headers=_auth(a.token))
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "proposal_not_found"
+    _, member_token = await make_member(session, a.organization, MemberRole.member)
+    denied = await client.get(f"/intake/proposals/{proposal.id}", headers=_auth(member_token))
+    assert denied.status_code == 403
+
+
 async def test_anonymous_gets_401_and_member_gets_403(
     client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
 ):

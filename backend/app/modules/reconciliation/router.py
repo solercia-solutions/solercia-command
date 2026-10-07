@@ -57,6 +57,21 @@ async def list_proposals(
     }
 
 
+@router.get("/{proposal_id}")
+async def get_proposal(
+    proposal_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_proposal_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One proposal of the caller's organization (the task comment links
+    here). 404 ``proposal_not_found`` for another organization's id."""
+
+    proposal = await ProposalDecisionService(db).get_proposal(
+        membership.organization_id, proposal_id
+    )
+    return {"data": _read(proposal)}
+
+
 @router.post("/{proposal_id}/accept")
 async def accept_proposal(
     proposal_id: uuid.UUID,
