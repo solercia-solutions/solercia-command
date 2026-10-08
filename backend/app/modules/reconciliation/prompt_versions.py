@@ -12,6 +12,7 @@ macro-F1 on the TEST cuts, never on the development cut).
 
 from dataclasses import dataclass
 
+from . import prompt_v2_1, prompt_v2_2
 from .prompt_v2 import PROMPT_VERSION_V2, SYSTEM_PROMPT_V2
 
 
@@ -22,7 +23,11 @@ class PromptSpec:
 
 
 PROMPTS_V2: dict[str, PromptSpec] = {
-    spec.version: spec for spec in (PromptSpec(PROMPT_VERSION_V2, SYSTEM_PROMPT_V2),)
+    spec.version: spec
+    for spec in (
+        PromptSpec(PROMPT_VERSION_V2, SYSTEM_PROMPT_V2),
+        *(PromptSpec(m.PROMPT_VERSION, m.SYSTEM_PROMPT) for m in (prompt_v2_1, prompt_v2_2)),
+    )
 }
 
 DEFAULT_PROMPT_VERSION_V2 = PROMPT_VERSION_V2
