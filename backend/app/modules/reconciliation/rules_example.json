@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "descripcion": "Ejemplo SINTÉTICO del esquema de reglas del canal v2. Las reglas reales de una organización viven fuera del repositorio (RECONCILIATION_RULES_PATH).",
+  "buzon": "dueno@ejemplo.gov.co",
+  "resultados": {
+    "Cierra": {"cuando": "Lo que dependía del dueño del buzón quedó hecho y hay evidencia"},
+    "Avanza": {"cuando": "Acción con evidencia; queda algo del dueño del buzón"},
+    "Confirma": {"cuando": "Ratifica lo ya registrado; no cambia el estado"},
+    "Tarea nueva": {"cuando": "Objeto propio + solicitante + acción del dueño, sin tarea existente"},
+    "Solo bitácora": {"cuando": "Actividad ejecutada que no es pendiente"},
+    "Informativo": {"cuando": "Leído, sin acción"},
+    "Descartado": {"cuando": "Ruido según las listas"},
+    "No concluyente": {"cuando": "El registro no permite afirmar el hecho"}
+  },
+  "hilo": {"clave": "conversation_id si existe; si no, 'subj:' + asunto normalizado"},
+  "corte_de_citas_regex": ["^-{3,}\\s*(Original Message|Mensaje original)", "^De:\\s.+", "^From:\\s.+"],
+  "ruido": {
+    "remitentes_generales": {"valores": ["boletin@", "noreply", "no-reply", "newsletter", "comunicaciones@"]},
+    "asunto_regex": "webinar|capacitaci|convocatoria|jornada|encuesta|boletin",
+    "asunto_solo_masivos": true,
+    "lista_masiva": {"valor": "todos@", "campo": "to"},
+    "excepciones": {
+      "asunto_seguridad_regex": "csirt|alerta|phishing|vulnerab|malware|incidente",
+      "no_descartar_remitentes": ["notificaciones-sistema@ejemplo.gov.co"]
+    }
+  },
+  "identificadores": {
+    "tarea": {"regex": "\\bT-\\d{1,3}\\b"},
+    "caso_mesa": {"regex": "\\b(?:caso|ticket)\\s*(?:No\\.?|#)?\\s*0*(\\d{5})\\b"},
+    "radicado": {"regex": "\\b\\d-\\d{4}-\\d{6}\\b"},
+    "contrato": {"regex": "\\b(?:contrato|convenio)\\s*(?:No\\.?\\s*)?(\\d{3,4})(?:-(\\d{4}))?\\b"}
+  },
+  "orden_de_cruce": [
+    {"paso": 1, "criterio": "ID explícito T-xx"},
+    {"paso": 2, "criterio": "asunto literal contra la tarea"},
+    {"paso": 3, "criterio": "solicitante y destinatarios"},
+    {"paso": 4, "criterio": "objeto concreto (identificadores)"}
+  ],
+  "reuniones": {"estados_con_asistencia": ["Accepted", "Organizer"]}
+}
