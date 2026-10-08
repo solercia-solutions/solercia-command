@@ -26,9 +26,9 @@ from app.ai.adapters.ollama_native import OllamaNativeAdapter, OllamaNativeConfi
 from app.ai.adapters.openai_compatible import OpenAiCompatibleAdapter, OpenAiCompatibleConfig
 from app.ai.determinism import Determinism, determinism_profile
 from app.ai.ports import LlmDispatchContext, LlmPort
-from app.ai.presets import get_preset
+from app.ai.presets import ProviderPreset, get_preset
 from app.modules.reconciliation.channel_v2 import ChannelV2, ChannelV2Config
-from app.modules.reconciliation.prompt_v2 import PROMPT_VERSION_V2
+from app.modules.reconciliation.prompt_versions import DEFAULT_PROMPT_VERSION_V2
 from app.modules.reconciliation.rules import load_rules_file
 from app.modules.reconciliation.stages import build_units
 
@@ -67,6 +67,7 @@ class EvalOptions:
     max_tokens: int = 600
     seed: int = 42
     num_ctx: int = 8192
+    prompt_version: str = DEFAULT_PROMPT_VERSION_V2
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -132,10 +133,20 @@ def determinism_for(options: EvalOptions) -> Determinism:
     )
 
 
+def uses_ollama_native(preset: ProviderPreset) -> bool:
+    """Local Ollama presets go through ``/api/chat``: ``/v1`` ignores ``options``.
+
+    Without it ``num_ctx``, ``seed``, ``top_k``, ``num_gpu`` and ``num_thread``
+    never reach the runner and a measurement would not be reproducible.
+    """
+
+    return preset.locality == "local" and preset.supports_num_ctx
+
+
 def build_chat(options: EvalOptions) -> LlmPort:
     preset = get_preset(options.preset)
     determinism = determinism_for(options)
-    if options.preset == "ollama_local":
+    if uses_ollama_native(preset):
         return OllamaNativeAdapter(
             config=OllamaNativeConfig(
                 base_url=options.base_url or preset.base_url or DEFAULT_OLLAMA_URL,
@@ -228,7 +239,10 @@ async def run_evaluation(
     embedder = (embedder_factory or build_embedder)(options)
     determinism = determinism_for(options)
     config = ChannelV2Config(
-        top_k=options.top_k, max_chars=options.max_chars, max_tokens=options.max_tokens
+        top_k=options.top_k,
+        max_chars=options.max_chars,
+        max_tokens=options.max_tokens,
+        prompt_version=options.prompt_version,
     )
 
     plan = []  # (cut, unit, label, existing tasks)
@@ -278,6 +292,7 @@ async def run_evaluation(
                     output_tokens=result.output_tokens,
                     error=result.error,
                     output_hash=result.output_hash,
+                    prompt_version=options.prompt_version,
                 )
             )
         if run == 1:
@@ -297,7 +312,7 @@ async def run_evaluation(
         "top_k": options.top_k,
         "max_chars": options.max_chars,
         "max_tokens": options.max_tokens,
-        "prompt_version": PROMPT_VERSION_V2,
+        "prompt_version": options.prompt_version,
         "rules": {"version": rules.version, "digest": rules.digest},
         "determinism": determinism.as_dict(),
         "git_commit": _git_commit(),

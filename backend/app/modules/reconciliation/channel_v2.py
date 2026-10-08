@@ -20,13 +20,8 @@ from typing import Any, Protocol
 from app.ai.ports import LlmMessage, LlmPort, LlmRequest
 from app.shared.exceptions import AppException
 
-from .prompt_v2 import (
-    PROMPT_VERSION_V2,
-    SYSTEM_PROMPT_V2,
-    ClassificationV2,
-    apply_post_rules,
-    build_user_message_v2,
-)
+from .prompt_v2 import ClassificationV2, apply_post_rules, build_user_message_v2
+from .prompt_versions import DEFAULT_PROMPT_VERSION_V2, get_prompt_v2
 from .rules import CompiledRules
 from .stages import (
     CandidateV2,
@@ -82,6 +77,8 @@ class ChannelV2Config:
     max_chars: int = 6000
     embed_chars: int = 2000
     max_tokens: int = 600
+    #: A registered version (``prompt_versions.PROMPTS_V2``).
+    prompt_version: str = DEFAULT_PROMPT_VERSION_V2
 
 
 @dataclass
@@ -106,6 +103,7 @@ class UnitResult:
     output_hash: str | None = None
     model: str | None = None
     provider: str | None = None
+    prompt_version: str | None = None
 
 
 class ChannelV2:
@@ -125,6 +123,7 @@ class ChannelV2:
         self._embedding_model = embedding_model
         self._cache = cache
         self._config = config
+        self._prompt = get_prompt_v2(config.prompt_version)
         self.embedding_error: str | None = None
 
     @property
@@ -207,7 +206,7 @@ class ChannelV2:
             )
 
         request = LlmRequest(
-            system=SYSTEM_PROMPT_V2,
+            system=self._prompt.system,
             messages=(
                 LlmMessage(
                     role="user",
@@ -219,7 +218,7 @@ class ChannelV2:
             output_schema=ClassificationV2,
             temperature=0.0,
             max_tokens=self._config.max_tokens,
-            prompt_version=PROMPT_VERSION_V2,
+            prompt_version=self._prompt.version,
         )
         try:
             response = await self._chat.complete(request)
@@ -238,6 +237,7 @@ class ChannelV2:
                 error=code,
                 payload={"clase": "no_concluyente", "error": code},
                 output_hash=text_digest(f"error|{code}"),
+                prompt_version=self._prompt.version,
             )
         if not isinstance(response.parsed, ClassificationV2):
             raise ProviderDown("llm_invalid_output")
@@ -259,4 +259,5 @@ class ChannelV2:
             ),
             model=response.model,
             provider=response.provider,
+            prompt_version=self._prompt.version,
         )

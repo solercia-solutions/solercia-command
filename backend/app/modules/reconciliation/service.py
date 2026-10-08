@@ -50,7 +50,7 @@ from .prompt import (
     thread_embedding_text,
     validate_classification,
 )
-from .prompt_v2 import PROMPT_VERSION_V2
+from .prompt_versions import DEFAULT_PROMPT_VERSION_V2
 from .repository import ReconciliationRepository
 from .rules import CompiledRules, RulesError
 from .stages import MailRecord, TaskEntry, Unit, build_units
@@ -526,7 +526,9 @@ class ReconciliationService:
         proposal.provider = result.provider
         proposal.model = result.model
         proposal.prompt_version = (
-            PROMPT_VERSION_V2 if result.stage != "regla" else f"reglas-{rules.version}"
+            (result.prompt_version or DEFAULT_PROMPT_VERSION_V2)
+            if result.stage != "regla"
+            else f"reglas-{rules.version}"
         )
 
 

@@ -372,3 +372,58 @@ def test_evaluator_imports_no_database_module():
         [sys.executable, "-c", code], cwd=BACKEND, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# --- E05a: native Ollama adapter and prompt versions ---------------------------------------
+
+
+def test_local_ollama_presets_use_the_native_adapter_that_honours_options(tmp_path):
+    from app.ai.adapters.ollama_native import OllamaNativeAdapter
+    from app.ai.adapters.openai_compatible import OpenAiCompatibleAdapter
+    from app.ai.presets import PRESETS
+    from app.eval.runner import build_chat, uses_ollama_native
+
+    assert uses_ollama_native(PRESETS["ollama_local"])
+    assert not uses_ollama_native(PRESETS["llamacpp_local"])
+    assert not any(uses_ollama_native(p) for p in PRESETS.values() if p.locality != "local")
+    chat = build_chat(
+        _options(tmp_path, tmp_path, base_url="http://127.0.0.1:11435/v1", profile="server")
+    )
+    assert isinstance(chat, OllamaNativeAdapter)
+    body = chat._body(
+        __import__("app.ai.ports", fromlist=["LlmRequest"]).LlmRequest(
+            system="s", messages=(), max_tokens=10
+        )
+    )
+    assert body["options"]["num_ctx"] == 8192 and body["options"]["num_gpu"] == 0
+    assert chat._base_url == "http://127.0.0.1:11435"
+    assert isinstance(
+        build_chat(_options(tmp_path, tmp_path, preset="llamacpp_local")), (OpenAiCompatibleAdapter)
+    )
+
+
+@pytest.mark.asyncio
+async def test_prompt_version_is_recorded_in_predictions_and_config(tmp_path):
+    from app.modules.reconciliation.prompt_versions import PROMPTS_V2
+
+    version = sorted(PROMPTS_V2)[0]
+    llm = ScriptedLlm()
+    metrics = await run_evaluation(
+        _options(_golden(tmp_path), tmp_path, runs=1, prompt_version=version),
+        chat_factory=lambda opts: llm,
+        embedder_factory=lambda opts: llm,
+    )
+    assert metrics["config"]["prompt_version"] == version
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "out" / "predictions.jsonl").read_text("utf-8").splitlines()
+    ]
+    assert {row["prompt_version"] for row in rows} == {version}
+    assert {c.prompt_version for c in llm.calls} == {version}
+
+
+def test_cli_refuses_an_unknown_prompt_version(capsys):
+    from scripts.eval_classifier import main
+
+    with pytest.raises(SystemExit):
+        main(["--golden-dir", "x", "--cortes", "c", "--rules", "r", "--prompt-version", "nope"])

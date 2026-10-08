@@ -33,6 +33,7 @@ from app.eval.golden import GoldenError
 from app.eval.report import pct
 from app.eval.runner import EvalOptions, ExternalProviderRefused, run_evaluation
 from app.modules.reconciliation.channel_v2 import ProviderDown
+from app.modules.reconciliation.prompt_versions import DEFAULT_PROMPT_VERSION_V2, PROMPTS_V2
 from app.modules.reconciliation.rules import RulesError
 
 
@@ -58,6 +59,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-tokens", type=int, default=600)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-ctx", type=int, default=8192)
+    parser.add_argument(
+        "--prompt-version", default=DEFAULT_PROMPT_VERSION_V2, choices=sorted(PROMPTS_V2)
+    )
     return parser
 
 
@@ -87,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         seed=args.seed,
         num_ctx=args.num_ctx,
+        prompt_version=args.prompt_version,
     )
     try:
         metrics = asyncio.run(run_evaluation(options))
@@ -107,7 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"determinismo={pct(metrics['determinism']['rate'])} "
         f"p50={latency['p50']}ms p95={latency['p95']}ms errores_json={metrics['json_errors']}"
     )
-    print(f"Resultados: {metrics['out_dir']}")
+    print(f"Prompt: {options.prompt_version} · resultados: {metrics['out_dir']}")
     return 0
 
 

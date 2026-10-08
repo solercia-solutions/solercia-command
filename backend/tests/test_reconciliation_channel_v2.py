@@ -19,7 +19,9 @@ from app.modules.reconciliation.channel_v2 import (
     MemoryEmbeddingCache,
     ProviderDown,
 )
-from app.modules.reconciliation.prompt_v2 import PROMPT_VERSION_V2
+from app.modules.reconciliation.prompt_versions import (
+    DEFAULT_PROMPT_VERSION_V2 as PROMPT_VERSION_V2,
+)
 from app.modules.reconciliation.rules import compile_rules
 from app.modules.reconciliation.stages import MailRecord, TaskEntry, build_units
 

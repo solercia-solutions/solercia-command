@@ -12,7 +12,9 @@ import pytest
 
 from app.ai.adapters.fake import FakeLlmAdapter
 from app.ai.errors import LlmUnavailable
-from app.modules.reconciliation.prompt_v2 import PROMPT_VERSION_V2
+from app.modules.reconciliation.prompt_versions import (
+    DEFAULT_PROMPT_VERSION_V2 as PROMPT_VERSION_V2,
+)
 from app.modules.reconciliation.rules import RulesError, compile_rules
 from app.modules.reconciliation.service import (
     ClassifierBackend,

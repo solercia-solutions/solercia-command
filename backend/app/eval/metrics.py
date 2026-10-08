@@ -37,6 +37,8 @@ class Prediction:
     output_tokens: int | None
     error: str | None
     output_hash: str | None
+    #: Prompt version that produced it (rules-decided units carry it too).
+    prompt_version: str | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)
