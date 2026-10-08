@@ -30,6 +30,7 @@ from .stages import (
     forced_candidates,
     precheck,
     rank_candidates,
+    subject_candidates,
     task_embedding_text,
     unit_identifiers,
     unit_text,
@@ -79,6 +80,8 @@ class ChannelV2Config:
     max_tokens: int = 600
     #: A registered version (``prompt_versions.PROMPTS_V2``).
     prompt_version: str = DEFAULT_PROMPT_VERSION_V2
+    #: Literal subject in the task text forces a candidate (methodology b.4, step 2).
+    subject_match: bool = False
 
 
 @dataclass
@@ -188,6 +191,13 @@ class ChannelV2:
 
         text = unit_text(unit, self._rules)
         forced = forced_candidates(unit_identifiers(unit, self._rules), tasks, self._rules)
+        if self._config.subject_match:
+            forced += subject_candidates(
+                unit,
+                tasks,
+                exclude={c.task_id for c in forced},
+                limit=self._config.top_k - len(forced),
+            )
         unit_vector = None
         if task_vectors and len(forced) < self._config.top_k:
             (unit_vector,) = await self._embed_cached(

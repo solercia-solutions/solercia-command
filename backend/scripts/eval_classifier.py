@@ -62,6 +62,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prompt-version", default=DEFAULT_PROMPT_VERSION_V2, choices=sorted(PROMPTS_V2)
     )
+    parser.add_argument(
+        "--subject-match",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Asunto literal en el texto de la tarea → candidata forzada.",
+    )
     return parser
 
 
@@ -92,6 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=args.seed,
         num_ctx=args.num_ctx,
         prompt_version=args.prompt_version,
+        subject_match=args.subject_match,
     )
     try:
         metrics = asyncio.run(run_evaluation(options))

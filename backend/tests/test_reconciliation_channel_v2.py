@@ -180,3 +180,31 @@ async def test_event_without_attendance_skips_the_llm():
     (unit,) = build_units([event])
     result = await _channel(llm).classify(unit, TASKS, {})
     assert result.clase == "no_concluyente" and llm.calls == []
+
+
+async def test_subject_match_is_off_by_default_and_forces_candidates_when_on():
+    tasks = [
+        *TASKS,
+        TaskEntry(
+            id="T-4",
+            ref="T-4",
+            title="Mesa de ayuda",
+            status="EN CURSO",
+            observations="Se atendió «Solicitud de acceso remoto»",
+        ),
+    ]
+    mail = _mail("1", subject="RE: Solicitud de acceso remoto", body="texto")
+    for flag, expected in ((False, []), (True, ["T-4"])):
+        llm = FakeLlmAdapter()
+        llm.next_text = _answer(task_ref="T-4")
+        channel = ChannelV2(
+            RULES,
+            chat=llm,
+            embedder=None,
+            embedding_model=None,
+            cache=MemoryEmbeddingCache(),
+            config=ChannelV2Config(top_k=3, subject_match=flag),
+        )
+        (unit,) = build_units([mail])
+        result = await channel.classify(unit, tasks, {})
+        assert [c.ref for c in result.candidates if c.via == "asunto"] == expected

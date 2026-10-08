@@ -68,6 +68,7 @@ class EvalOptions:
     seed: int = 42
     num_ctx: int = 8192
     prompt_version: str = DEFAULT_PROMPT_VERSION_V2
+    subject_match: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -243,6 +244,7 @@ async def run_evaluation(
         max_chars=options.max_chars,
         max_tokens=options.max_tokens,
         prompt_version=options.prompt_version,
+        subject_match=options.subject_match,
     )
 
     plan = []  # (cut, unit, label, existing tasks)
@@ -313,6 +315,7 @@ async def run_evaluation(
         "max_chars": options.max_chars,
         "max_tokens": options.max_tokens,
         "prompt_version": options.prompt_version,
+        "subject_match": options.subject_match,
         "rules": {"version": rules.version, "digest": rules.digest},
         "determinism": determinism.as_dict(),
         "git_commit": _git_commit(),

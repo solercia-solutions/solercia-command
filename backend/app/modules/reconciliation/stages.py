@@ -22,6 +22,7 @@ No database, clock nor LLM: the same input always gives the same output.
 
 import math
 import re
+import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -38,6 +39,8 @@ Via = str  # "id_explicito" | "identificador:<name>" | "similitud"
 _SUBJECT_PREFIX = re.compile(r"^\s*((re|rv|fw|fwd|tr)\s*:\s*)+", re.IGNORECASE)
 _QUOTE_MIN_OFFSET = 40
 _DESCRIPTION_CHARS = 280
+#: A literal subject shorter than this («Informe», «Solicitud») says nothing.
+_SUBJECT_MATCH_MIN_CHARS = 12
 
 
 @dataclass(frozen=True)
@@ -294,6 +297,34 @@ def forced_candidates(
                     seen.add(task.id)
                     break
     return picked
+
+
+def _fold(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text or "")
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    return " ".join(plain.split())
+
+
+def subject_candidates(
+    unit: Unit, tasks: Sequence[TaskEntry], *, exclude: set[str], limit: int
+) -> list[CandidateV2]:
+    """Tasks whose title, detail or observations quote the thread subject literally.
+
+    Methodology b.4, step 2: observations cite the subjects of earlier cuts
+    between «», so a thread that continues reaches its task even when the
+    embedding does not. Case and accents are ignored; a short subject forces
+    nothing. Ordered by task ref.
+    """
+
+    subject = _fold(normalize_subject(unit.subject))
+    if len(subject) < _SUBJECT_MATCH_MIN_CHARS or limit <= 0:
+        return []
+    picked = [
+        _candidate(task, 1.0, "asunto")
+        for task in sorted(tasks, key=lambda t: ref_sort_key(t.ref))
+        if task.id not in exclude and subject in _fold(task.matching_text)
+    ]
+    return picked[:limit]
 
 
 def cosine(a: Sequence[float], b: Sequence[float]) -> float:

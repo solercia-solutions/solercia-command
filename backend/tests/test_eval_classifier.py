@@ -427,3 +427,14 @@ def test_cli_refuses_an_unknown_prompt_version(capsys):
 
     with pytest.raises(SystemExit):
         main(["--golden-dir", "x", "--cortes", "c", "--rules", "r", "--prompt-version", "nope"])
+
+
+@pytest.mark.asyncio
+async def test_subject_match_option_reaches_the_channel_config(tmp_path):
+    llm = ScriptedLlm()
+    metrics = await run_evaluation(
+        _options(_golden(tmp_path), tmp_path, runs=1, subject_match=True),
+        chat_factory=lambda opts: llm,
+        embedder_factory=lambda opts: llm,
+    )
+    assert metrics["config"]["subject_match"] is True

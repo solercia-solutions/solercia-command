@@ -252,3 +252,38 @@ def test_rules_v2_shape_follows_the_v2_evaluation_order():
     listed = _mail("4", sender="boletin@x", to=("grupo@x",))
     assert message_noise(listed, RULES_V2) == "remitente"
     assert message_noise(_mail("5", sender="boletin@x", to=(ME,)), RULES_V2) is None
+
+
+# --- E05a: literal subject against the task text (methodology b.4, step 2) ------------------
+
+
+def test_literal_subject_in_task_text_forces_a_candidate():
+    from app.modules.reconciliation.stages import subject_candidates
+
+    tasks = [
+        TaskEntry(id="a", ref="T-20", title="Plan de continuidad", observations=""),
+        TaskEntry(
+            id="b",
+            ref="T-21",
+            title="Mesa de soporte",
+            observations="[Corte 1-sep] Se respondió «Solicitud de acceso a la VPN» | previa",
+        ),
+        TaskEntry(id="c", ref="T-22", title="Otra", detail="Ver solicitud de acceso a la vpn."),
+    ]
+    (unit,) = [
+        u
+        for u in build_units([_mail("a", subject="RE: Solicitud de acceso a la VPN")])
+        if u.kind == "thread"
+    ]
+    found = subject_candidates(unit, tasks, exclude=set(), limit=5)
+    assert [(c.ref, c.via) for c in found] == [("T-21", "asunto"), ("T-22", "asunto")]
+    assert subject_candidates(unit, tasks, exclude={"b"}, limit=5)[0].ref == "T-22"
+    assert len(subject_candidates(unit, tasks, exclude=set(), limit=1)) == 1
+
+
+def test_short_or_generic_subject_forces_nothing():
+    from app.modules.reconciliation.stages import subject_candidates
+
+    tasks = [TaskEntry(id="a", ref="T-1", title="Informe", observations="informe mensual")]
+    (unit,) = [u for u in build_units([_mail("a", subject="RV: Informe")]) if u.kind == "thread"]
+    assert subject_candidates(unit, tasks, exclude=set(), limit=5) == []

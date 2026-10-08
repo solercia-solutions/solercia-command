@@ -28,7 +28,7 @@ PROMPT_VERSION_V2 = "reconciliation-v2.0"
 _EVIDENCE_MISSING_FACTOR = 0.6
 _MIN_EVIDENCE_CHARS = 8
 _FIELD_CHARS = {"accion": 300, "solicitante": 200, "resumen": 600, "evidencia": 400}
-_VIA_CONFIDENCE = {"id_explicito": 0.9, "identificador": 0.75, "similitud": 0.5}
+_VIA_CONFIDENCE = {"id_explicito": 0.9, "identificador": 0.75, "asunto": 0.75, "similitud": 0.5}
 _CLASS_CONFIDENCE = {
     "tarea_nueva": 0.55,
     "solo_bitacora": 0.6,

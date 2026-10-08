@@ -141,3 +141,9 @@ def test_determinism_profiles():
     assert "num_gpu" not in mac.ollama_options(max_tokens=300)
     with pytest.raises(ValueError):
         determinism_profile("gpu-cluster")
+
+
+def test_literal_subject_counts_as_an_identifier_for_confidence():
+    candidates = [CandidateV2("id5", "T-5", "Mesa", "EN CURSO", 1.0, "asunto")]
+    verdict = apply_post_rules(_out(task_ref="T-5"), candidates, TEXT)
+    assert verdict.confidence == 0.75
