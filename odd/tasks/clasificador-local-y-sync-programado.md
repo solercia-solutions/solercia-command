@@ -80,6 +80,42 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
 - [ ] C07 Verificación con datos reales y medición de precisión. Primera corrida real hecha;
       falta calibrar la confianza y subir el límite de correos por corrida (ver evidencia).
 
+### Fase E — Línea base y evaluación multimodelo (2026-10-07/08)
+
+Autorizado por el usuario: la metodología `TAREAS/METODOLOGIA_CORTES_CORREO_A_TAREAS.md` y todo lo
+de clasificación en TAREAS «se rige para todo lo que sigue»; mismo determinismo al cambiar de
+modelo; dry-run hasta que funcione igual; probar muchos modelos (incluidos Ornith y LFM2.5) y uno
+que corra en un servidor convencional (CPU, como el de PANDORA), intercambiable por BYOK.
+
+Decisiones del usuario (2026-10-08):
+- Notificaciones de Pandora, ICOPS, resumen PIM y chat de Teams: **nunca se descartan** (salvo si
+  van a todos@); el modelo decide si mueven una tarea.
+- Filtro por asunto (convocatoria, jornada, capacitación): **solo para correos masivos**; si va
+  dirigido al dueño del buzón (para/cc) no se descarta.
+- **8 clases**: Cierra, Avanza, Confirma (ratifica lo ya registrado, abierta o cerrada, sin cambio
+  de estado), Tarea nueva, Solo bitácora, Informativo (sin acción), Descartado, No concluyente.
+- Pendientes de etiqueta: se suma el corte del 1-oct al conjunto dorado y se prepara una forma de
+  etiquetar el resto.
+
+Principios: lo determinista (ruido, identificadores, orden de cruce, estado del hilo, candidatas
+con un único modelo de embeddings local) va en reglas versionadas; el LLM solo elige entre
+candidatas con prompt versionado, temperatura 0, `top_k` 1, semilla y `num_ctx` fijos y esquema
+JSON. El conjunto dorado contiene correos reales y vive fuera del repo
+(`~/Proyectos/SOLERCIA/evaluaciones/`); nunca se envía a un proveedor externo sin confirmación
+expresa por proveedor.
+
+- [x] E01 Reglas consolidadas (`evaluaciones/REGLAS_CLASIFICACION.md`, `reglas.json`) y conjunto
+      dorado 09-14, 09-18, 10-05: 469 registros, 80 % etiquetado, agrupación por hilo idéntica a
+      los cortes (260/260, 43/43).
+- [ ] E02 Aplicar las decisiones a reglas v2, re-etiquetar y sumar el corte 10-01.
+- [x] E03 Canal v2 alineado a la metodología: reglas por organización versionadas, 8 clases,
+      prompt v2, parámetros de determinismo y perfil «servidor» (CPU).
+- [x] E04 Evaluador en simulación (`scripts/eval_classifier.py`): conjunto dorado → métricas,
+      matriz de confusión, determinismo en N corridas, latencia por hilo, reporte comparable.
+- [ ] E05 Matriz de modelos: qwen3.5:9b (base), qwen3.5:4b, ornith:9b, lfm2.5:8b, ministral-3:8b,
+      gemma4 e4b/e2b, granite4:tiny-h; en Mac (GPU) y perfil servidor (CPU).
+- [ ] E06 Recomendación de modelo para servidor y BYOK, y cierre de pendientes de C07.
+
 ## Progreso y evidencia
 
 - 2026-10-07 C00: simulación 213 planificadas (8 nuevas, 19 con cambios, 186 sin cambios);
@@ -268,6 +304,54 @@ Estrategia `ask-on-risk`. Pronóstico > 2.000 líneas; cada tarea es una rebanad
   ingesta (hoy solo «1 de 1 cuentas terminaron con error»); (4) la Mac debe estar despierta a las
   06:00 y 23:59.
 
+- 2026-10-08 E03 (`5926304` reglas; `ce50e14` etapas; `d017241` prompt v2; `61d829c` adaptador
+  nativo; `80c0e63` servicio): `reconciliation/rules.py` carga reglas con el esquema de
+  `reglas.json` (v1 y v2: `remitentes_automaticos`, `remitentes_lista`, `listas_masivas` en to/cc,
+  `excepciones.reglas`, `asunto_masivo_regex`, `clases`), validadas con Pydantic y con huella
+  (`digest`); `RECONCILIATION_RULES_PATH` = archivo o carpeta con `<slug>.json`; vacío → ejemplo
+  sintético `rules_example.json`. `stages.py`: frentes A (enviados y eventos como registros
+  propios) y B (hilos por `conversation_id` o `subj:` + asunto normalizado), ruido en el orden v2
+  (enviado → seguridad → lista masiva → excepción → automático → lista no dirigida → asunto solo
+  masivo), identificadores (`T-xx` y demás regex) → candidatas forzadas, estado del hilo, eventos
+  cancelados o sin asistencia → `no_concluyente` sin LLM; top-k fijo con desempate por ID.
+  `prompt_v2.py` (`reconciliation-v2.0`): 8 clases, criterio de cierre, evidencia válida y «ante
+  la duda, no concluyente»; post-reglas (ref fuera de candidatas o clase sin tarea →
+  `no_concluyente`); confianza por evidencia (ID 0,9 > identificador 0,75 > similitud 0,5; ×0,6
+  si la evidencia citada no está en el registro). `app/ai/determinism.py`: temperatura 0,
+  `top_k` 1, `top_p` 1, semilla 42, `num_ctx` 8192, sin razonamiento; perfil `server` con
+  `num_gpu` 0 y `num_thread` N. `OllamaNativeAdapter` (`/api/chat`, `think: false`, `format` por
+  esquema, `/api/embed`, `/api/ps`). `channel_v2.py` lo comparten el servicio y el evaluador.
+  Servicio: `RECONCILIATION_CHANNEL=v2` (v1 sigue por defecto); sin migración: la clase va en
+  `result.clase` y la relación se deriva (`cierra/avanza/confirma` → `tarea_existente`;
+  `no_concluyente` con tarea forzada → `tarea_existente`; `tarea_nueva`; resto → `irrelevante`);
+  el ruido se decide por reglas (`prompt_version = reglas-<versión>`); reglas inválidas →
+  `reconciliation_rules_invalid` sin llamar al LLM. RED: `ModuleNotFoundError` en cada módulo y
+  `AttributeError` de `find_organization_slug`. GREEN: 250 pruebas del cambio y vecinas
+  (reconciliación, IA, ajustes de IA, evaluador) contra PostgreSQL desechable (:55432).
+- Hallazgo E03: el endpoint `/v1` de Ollama ignora `options` (con `options.num_ctx` 3072 el modelo
+  cargó con 65536 de contexto); el nativo sí lo respeta (4096). El `num_ctx` que C04 envía por
+  `/v1` no tiene efecto: el canal v2 en producción sigue usando el puerto de la organización
+  (`/v1`, solo temperatura 0); conectar el adaptador nativo al preset `ollama_local` queda para
+  E06.
+- 2026-10-08 E04 (`bdef82a`): `app/eval/` (`golden`, `metrics`, `runner`, `report`, `compare`) y
+  `scripts/eval_classifier.py` / `scripts/eval_compare.py`. Lee el conjunto dorado por ruta en
+  ejecución, arma el checklist en memoria desde `checklist_before.csv`, corre el canal v2 sin base
+  de datos (prueba de importación: ni `app.database` ni `asyncpg`), cachea embeddings en disco por
+  (modelo, hash) en `evaluaciones/resultados/_cache/`, excluye `manual_needed` y escribe
+  `metrics.json`, `predictions.jsonl` (sin texto de correos) y `report.md`. Preset externo
+  rechazado salvo `--allow-external <preset>` + `SOLERCIA_EVAL_EXTERNAL_CONFIRM=<preset>`.
+  Pruebas con conjunto dorado SINTÉTICO y fakes: 11.
+- 2026-10-08 Humo E04 (`--cortes 2026-09-18 --model qwen3.5:9b-q4_K_M --runs 2 --profile mac
+  --limit 15`, reglas 2.0.0, 77 s): n 15 (13 «avanza», 2 «descartado»); exactitud 13,3 % en ambas
+  corridas; macro-F1 0,167; tarea top-1 15,4 %; tarea correcta entre candidatas 76,9 %; descartado
+  P/R 100 %/100 % (2 por reglas); no concluyente 13,3 %; determinismo 100 % (15/15); latencia p50
+  2,36 s y p95 4,28 s por registro; 31.512/3.408 tokens en 26 llamadas; RAM 5,7 GB; 0 errores de
+  JSON. Lectura: el modelo usa «informativo» para 8 de 13 hilos que la metodología marca
+  «avanza» (aporte nuevo a una tarea = observación con la marca del corte); la definición de
+  «avanza» del prompt v2 debe incluir ese caso antes de E05.
+
 ## Siguiente paso
 
-Cerrar los pendientes de C07 y medir precisión con una muestra revisada por el usuario.
+E05: ajustar la definición de «avanza» del prompt (aporte sobre una candidata aunque no exija
+acción del dueño), medir de nuevo y correr la matriz de modelos en Mac y perfil servidor. Siguen
+abiertos los pendientes de C07.
