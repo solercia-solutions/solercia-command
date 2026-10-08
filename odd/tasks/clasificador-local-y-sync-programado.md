@@ -115,8 +115,8 @@ expresa por proveedor.
 - [x] E05a Afinar el canal v2 sin sobreajustar (desarrollo 09-18; prueba 10-01 + 10-05; prueba
       adicional 09-14): versiones de prompt registradas, adaptador nativo en el evaluador,
       etapa de asunto literal; v2.2 por defecto.
-- [ ] E05 Matriz de modelos: qwen3.5:9b (base), qwen3.5:4b, ornith:9b, lfm2.5:8b, ministral-3:8b,
-      gemma4 e4b/e2b, granite4:tiny-h; en Mac (GPU) y perfil servidor (CPU).
+- [x] E05 Matriz de modelos (E05b): qwen3.5:9b (base), qwen3.5:4b, ornith:9b, lfm2.5:8b,
+      ministral-3:8b, gemma4 e4b/e2b, granite4:tiny-h; en Mac (GPU) y perfil servidor (CPU).
 - [ ] E06 Recomendación de modelo para servidor y BYOK, y cierre de pendientes de C07.
 
 ## Progreso y evidencia
@@ -382,9 +382,43 @@ expresa por proveedor.
 - Límites para E06: el servicio sigue por `/v1` (ignora `num_ctx`) y arma `TaskEntry` sin
   observaciones, así que `subject_match` y las notas de v2.3 no tienen efecto en producción todavía.
 
+- 2026-10-08 E05b — matriz de modelos (sin cambios de código; evaluador en `72e29d1`; detalle en
+  `evaluaciones/resultados/e05b/COMPARATIVA.md`). v2.2, reglas 2.0.0, embeddings
+  `qwen3-embedding:0.6b`, semilla 42, `top_k` 1, `num_ctx` 8192, `think: false`, adaptador nativo.
+  Prueba = 10-01 + 10-05 (n 121); desarrollo = 09-18 (n 65). Mac: GPU, 3 corridas. Servidor:
+  `num_gpu` 0, `num_thread` 8, 2 corridas, solo prueba; ningún modelo superó 15 s p50 en la sonda
+  de 20 registros, así que ninguno se cortó. Un modelo a la vez, descargando el anterior.
+
+  | Modelo (prueba) | Perfil | Exact. | Macro-F1 | Top-1 | ∈cand. | No concl. | Determ. | JSON | p50 s | 40 hilos | RAM |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | ornith:9b | mac | 60,3 % | **0,428** | 38,1 % | 67,3 % | 0,0 % | 100 % | 0 | 3,19 | 1,8 min | 6,2 GB |
+  | qwen3.5:9b | mac | 58,7 % | 0,403 | 30,9 % | 67,3 % | 5,0 % | 100 % | 0 | 3,09 | 1,7 min | 5,8 GB |
+  | qwen3.5:9b +asunto | mac | 58,7 % | 0,402 | 33,3 % | 72,7 % | 5,0 % | 100 % | 0 | 3,05 | 1,6 min | 5,8 GB |
+  | gemma4:e2b | mac | 60,3 % | 0,325 | 40,5 % | 67,3 % | 4,1 % | 97,5 % | 0 | 0,94 | 0,5 min | n. d. |
+  | qwen3.5:4b | mac | 49,6 % | 0,307 | 19,1 % | 67,3 % | 22,3 % | 100 % | 0 | 1,67 | 1,0 min | 3,4 GB |
+  | gemma4:e4b | mac | 57,9 % | 0,291 | 38,1 % | 67,3 % | 1,7 % | 95,0 % | 0 | 1,95 | 1,1 min | 9,6 GB |
+  | lfm2.5:8b | mac | 43,0 % | 0,256 | 2,4 % | 67,3 % | 1,7 % | 100 % | 3/363 | 0,78 | 0,5 min | 5,4 GB |
+  | ministral-3:8b | mac | 56,2 % | 0,251 | 38,1 % | 67,3 % | 5,8 % | 99,2 % | 0 | 3,46 | 1,9 min | 6,4 GB |
+  | granite4:tiny-h | mac | 36,4 % | 0,228 | 42,9 % | 67,3 % | 7,4 % | 93,4 % | 18/363 | 1,24 | 0,8 min | 4,5 GB |
+  | qwen3.5:9b | CPU | 59,5 % | **0,401** | 35,7 % | 67,3 % | 4,1 % | 79,3 % | 0 | 11,27 | 7,2 min | 6,3 GB |
+  | qwen3.5:4b | CPU | 53,7 % | 0,338 | 16,7 % | 67,3 % | 23,1 % | 100 % | 0 | 6,60 | 4,2 min | 3,9 GB |
+  | gemma4:e2b | CPU | 60,3 % | 0,323 | 40,5 % | 67,3 % | 3,3 % | 41,3 % | 0 | 4,30 | 2,7 min | n. d. |
+  | lfm2.5:8b | CPU | 47,1 % | 0,291 | 9,5 % | 67,3 % | 2,5 % | 81,8 % | 2/242 | 3,19 | 2,0 min | 5,6 GB |
+  | granite4:tiny-h | CPU | 36,4 % | 0,228 | 38,1 % | 67,3 % | 12,4 % | 81,0 % | 11/242 | 3,62 | 2,4 min | 4,6 GB |
+
+  Descartado P/R 97,3 / 100 % en todos (etapa de reglas). qwen3.5:9b en mac reproduce E05a v2.2
+  exacto. Desarrollo (mac): ornith 61,5 % / 0,433; qwen3.5:9b 46,2 % / 0,469 (+asunto 0,473).
+  Lectura: en mac, ornith:9b lidera prueba (macro-F1 0,428, exactitud mayor en ambos conjuntos,
+  determinismo 100 %); qwen3.5:9b queda a 2–3 registros. En CPU, qwen3.5:9b conserva la calidad
+  (0,401) a 11,3 s p50; qwen3.5:4b es el único 100 % determinista en CPU, con 23 % no concluyente.
+  `+asunto`: macro-F1 igual, top-1 +2,4 puntos y candidata correcta +5,4 puntos en prueba, sin
+  costo de latencia. En CPU el determinismo cae (79–82 %; gemma4:e2b 41 %). Problemas: lfm2.5
+  elige casi siempre la primera candidata (top-1 2,4 %); granite4 con 18 errores de JSON
+  (6 registros); gemma4 no acierta `tarea_nueva`; `ollama ps` no reporta la RAM de gemma4:e2b.
+
 ## Siguiente paso
 
-E05: correr la matriz de modelos con el prompt v2.2 en Mac y perfil servidor (evaluar también
-`--subject-match`). E06: adaptador nativo de Ollama en el canal de producción, `subject_match` y
+E06: elegir modelo (ornith:9b frente a qwen3.5:9b en GPU; qwen3.5:9b o 4b en CPU, revisando el
+determinismo en CPU) y BYOK; adaptador nativo de Ollama en el canal de producción, `subject_match` y
 observaciones de la tarea en el servicio. Siguen
 abiertos los pendientes de C07.
