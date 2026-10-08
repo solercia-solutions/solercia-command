@@ -35,7 +35,7 @@ PROMPTS_V2: dict[str, PromptSpec] = {
     )
 }
 
-DEFAULT_PROMPT_VERSION_V2 = PROMPT_VERSION_V2
+DEFAULT_PROMPT_VERSION_V2 = prompt_v2_2.PROMPT_VERSION
 
 
 def get_prompt_v2(version: str) -> PromptSpec:

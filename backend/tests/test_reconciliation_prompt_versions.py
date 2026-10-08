@@ -123,3 +123,8 @@ async def test_versions_with_candidate_notes_send_the_latest_task_note():
         await channel.classify(unit, tasks, {})
         content = llm.calls[0].messages[0].content
         assert ("Última nota: [Corte 1-sep] Se pidió el informe" in content) is expected
+
+
+def test_default_is_the_version_chosen_by_test_macro_f1():
+    # E05a: v2.2 had the best macro-F1 on the test cuts (2026-10-01 + 2026-10-05).
+    assert DEFAULT_PROMPT_VERSION_V2 == "reconciliation-v2.2"
