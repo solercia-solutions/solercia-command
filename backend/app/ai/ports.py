@@ -72,7 +72,9 @@ class LlmProbe:
     reason: str | None = None
 
 
-DispatchSource = Literal["organization_settings", "global_settings", "default_preset"]
+DispatchSource = Literal[
+    "organization_settings", "global_settings", "default_preset", "offline_evaluation"
+]
 
 
 @dataclass(frozen=True)
@@ -84,7 +86,11 @@ class LlmDispatchContext:
     own organization loop) and a provider configuration that organization's
     admin saved (or the operator's `LLM_*`, or the local default preset).
     Never derived from request payloads or prompts. Without it, real
-    adapters keep the deny-all barrier."""
+    adapters keep the deny-all barrier.
+
+    E04 exception: ``offline_evaluation`` is built only by the operator-run
+    evaluator (``scripts/eval_classifier.py``), which refuses non-local
+    presets unless explicitly confirmed and never touches a database."""
 
     organization_id: uuid.UUID
     source: DispatchSource
