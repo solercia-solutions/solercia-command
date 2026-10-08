@@ -384,6 +384,12 @@ class Settings(BaseSettings):
     RECONCILIATION_MAX_THREAD_CHARS: int = 6000
     RECONCILIATION_TOP_K: int = 5
     RECONCILIATION_LLM_MAX_TOKENS: int = 600
+    # Channel v2 (E03): versioned rules per organization, 8 classes, prompt
+    # v2. `RECONCILIATION_RULES_PATH` is a rules JSON (same for every
+    # organization) or a directory with `<organization slug>.json`; empty →
+    # the bundled synthetic example. v1 stays the default.
+    RECONCILIATION_CHANNEL: Literal["v1", "v2"] = "v1"
+    RECONCILIATION_RULES_PATH: str = ""
     AI_DEFAULT_NUM_CTX: int = 8192
 
     @field_validator("SCHEDULED_SYNC_TIMES")

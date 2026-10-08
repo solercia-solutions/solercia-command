@@ -176,3 +176,10 @@ async def test_list_proposals_filters_paginates_and_scopes(session, two_orgs):
     assert total == 4 and all(r.organization_id == org for r in rows)
     other = rows[0].id
     assert await repo.get_proposal(two_orgs.b.organization.id, other) is None
+
+
+async def test_finds_the_organization_slug_for_its_rules(session, two_orgs):
+    repo = SqlReconciliationRepository(session)
+    org_a = two_orgs.a.organization
+    assert await repo.find_organization_slug(org_a.id) == org_a.slug
+    assert await repo.find_organization_slug(uuid.uuid4()) is None

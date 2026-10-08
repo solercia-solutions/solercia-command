@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.connectors.models import ConnectedAccount
 from app.modules.intake.models import IntakeItem
+from app.modules.organizations.models import Organization
 from app.modules.projects.models import Project
 from app.modules.tasks.models import Task
 from app.shared.enums import IntakeItemType
@@ -91,6 +92,13 @@ class SqlReconciliationRepository:
 
     async def flush(self) -> None:
         await self._session.flush()
+
+    async def find_organization_slug(self, organization_id: uuid.UUID) -> str | None:
+        """Slug that names the organization's rules file (channel v2)."""
+
+        return await self._session.scalar(
+            select(Organization.slug).where(Organization.id == organization_id)
+        )
 
     # --- mail -------------------------------------------------------------------
 

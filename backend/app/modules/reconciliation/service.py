@@ -38,6 +38,8 @@ from .candidates import (
     task_embedding_text,
     text_hash,
 )
+from .channel_v2 import ChannelV2, ChannelV2Config, MemoryEmbeddingCache, ProviderDown, UnitResult
+from .classes import relation_for
 from .models import IntakeProposal
 from .prompt import (
     PROMPT_VERSION,
@@ -48,8 +50,11 @@ from .prompt import (
     thread_embedding_text,
     validate_classification,
 )
+from .prompt_v2 import PROMPT_VERSION_V2
 from .repository import ReconciliationRepository
-from .threads import MailThread, extract_task_keys, group_threads, new_content
+from .rules import CompiledRules, RulesError
+from .stages import MailRecord, TaskEntry, Unit, build_units
+from .threads import MailItem, MailThread, extract_task_keys, group_threads, new_content
 
 logger = logging.getLogger("solercia.reconciliation")
 
@@ -66,6 +71,8 @@ class ReconciliationConfig:
     max_thread_chars: int = 6000
     top_k: int = 5
     llm_max_tokens: int = 600
+    #: ``v1`` (C05) or ``v2`` (E03: rules per organization, 8 classes).
+    channel: str = "v1"
 
     @classmethod
     def from_settings(cls, settings: Any) -> "ReconciliationConfig":
@@ -74,6 +81,7 @@ class ReconciliationConfig:
             max_thread_chars=settings.RECONCILIATION_MAX_THREAD_CHARS,
             top_k=settings.RECONCILIATION_TOP_K,
             llm_max_tokens=settings.RECONCILIATION_LLM_MAX_TOKENS,
+            channel=getattr(settings, "RECONCILIATION_CHANNEL", "v1"),
         )
 
 
@@ -86,6 +94,7 @@ class ClassifierBackend:
 
 
 BackendFactory = Callable[[uuid.UUID], Awaitable[ClassifierBackend]]
+RulesFactory = Callable[[uuid.UUID], Awaitable[CompiledRules]]
 
 
 def _code(exc: AppException) -> str:
@@ -101,14 +110,18 @@ class ReconciliationService:
         commit: Callable[[], Awaitable[None]],
         config: ReconciliationConfig | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        rules_factory: RulesFactory | None = None,
     ) -> None:
         self._repo = repository
         self._backend_factory = backend_factory
+        self._rules_factory = rules_factory
         self._commit = commit
         self._config = config or ReconciliationConfig()
         self._clock = clock
 
     async def classify_window(self, organization_id: uuid.UUID, since: datetime) -> dict[str, Any]:
+        if self._config.channel == "v2":
+            return await self._classify_window_v2(organization_id, since)
         threads = group_threads(await self._repo.list_mail_items(organization_id, since))
         counts: dict[str, Any] = {
             "threads": len(threads),
@@ -336,3 +349,196 @@ class ReconciliationService:
         if proposal.relation is None:
             keyed = next((c for c in candidates if c.via == "clave"), None)
             proposal.task_id = keyed.task_id if keyed else None
+
+    # --- channel v2 (E03) ---------------------------------------------------------------
+
+    async def _is_unchanged(
+        self, organization_id: uuid.UUID, key: str, item_ids: list[str]
+    ) -> tuple[IntakeProposal | None, bool]:
+        proposal = await self._repo.find_open_proposal(organization_id, key)
+        if proposal is not None:
+            classified = proposal.relation is not None and proposal.classification_error is None
+            return proposal, classified and sorted(proposal.item_ids) == item_ids
+        decided = await self._repo.find_latest_decided(organization_id, key)
+        return None, decided is not None and set(item_ids) <= set(decided.item_ids)
+
+    async def _classify_window_v2(
+        self, organization_id: uuid.UUID, since: datetime
+    ) -> dict[str, Any]:
+        records = [
+            _to_record(item) for item in await self._repo.list_mail_items(organization_id, since)
+        ]
+        threads = [u for u in build_units(records) if u.kind == "thread"]
+        counts: dict[str, Any] = {
+            "channel": "v2",
+            "threads": len(threads),
+            "processed": 0,
+            "created": 0,
+            "updated": 0,
+            "unchanged": 0,
+            "classified": 0,
+            "decided_by_rules": 0,
+            "key_candidates": 0,
+            "thread_errors": 0,
+            "llm_error": None,
+            "embedding_error": None,
+            "rules_version": None,
+        }
+        selected = threads[: self._config.max_threads]
+        counts["processed"] = len(selected)
+        if not selected:
+            return counts
+        if self._rules_factory is None:
+            counts["llm_error"] = "reconciliation_rules_invalid"
+            return counts
+        try:
+            rules = await self._rules_factory(organization_id)
+        except RulesError:
+            counts["llm_error"] = "reconciliation_rules_invalid"
+            return counts
+        counts["rules_version"] = rules.version
+
+        snapshots = await self._repo.list_active_tasks(organization_id)
+        tasks = [
+            TaskEntry(
+                id=str(t.id),
+                ref=t.ref or f"C{i}",
+                title=t.title,
+                detail=t.description,
+                status="abierta",
+            )
+            for i, t in enumerate(snapshots, start=1)
+        ]
+        backend: ClassifierBackend | None = None
+        try:
+            backend = await self._backend_factory(organization_id)
+        except AppException as exc:
+            counts["llm_error"] = _code(exc)
+        task_vectors: dict[str, list[float]] = {}
+        if backend is not None and backend.embedding_model:
+            try:
+                vectors = await self._task_vectors(organization_id, backend, snapshots)
+                task_vectors = {str(k): v for k, v in vectors.items()}
+            except AppException as exc:
+                counts["embedding_error"] = _code(exc)
+                await self._commit()
+
+        def channel(with_llm: bool) -> ChannelV2:
+            return ChannelV2(
+                rules,
+                chat=backend.port if backend is not None and with_llm else None,
+                embedder=backend.port if backend is not None else None,
+                embedding_model=backend.embedding_model if backend is not None else None,
+                cache=MemoryEmbeddingCache(),
+                config=ChannelV2Config(
+                    top_k=self._config.top_k,
+                    max_chars=self._config.max_thread_chars,
+                    max_tokens=self._config.llm_max_tokens,
+                ),
+            )
+
+        runner = channel(with_llm=counts["llm_error"] is None)
+        for unit in selected:
+            key = f"conv:{unit.conversation_id}" if unit.conversation_id else unit.key
+            item_ids = sorted(r.id for r in unit.records)
+            proposal, unchanged = await self._is_unchanged(organization_id, key, item_ids)
+            if unchanged:
+                counts["unchanged"] += 1
+                continue
+            try:
+                result = await runner.classify(unit, tasks, task_vectors)
+            except ProviderDown as exc:
+                counts["llm_error"] = exc.code
+                logger.warning("Clasificación v2 detenida: proveedor caído (%s).", exc.code)
+                runner = channel(with_llm=False)
+                result = await runner.classify(unit, tasks, task_vectors)
+            counts["embedding_error"] = counts["embedding_error"] or runner.embedding_error
+            self._count_v2(result, counts)
+            is_new = proposal is None
+            if proposal is None:
+                proposal = IntakeProposal(
+                    organization_id=organization_id, conversation_key=key, status="propuesta"
+                )
+            self._fill_v2(proposal, unit, item_ids, result, rules, counts["llm_error"])
+            if is_new:
+                await self._repo.add_proposal(proposal)
+            else:
+                await self._repo.flush()
+            counts["created" if is_new else "updated"] += 1
+            await self._commit()
+        logger.info(
+            "Clasificación v2 %s: %d hilos, %d creadas, %d actualizadas, %d por reglas, error=%s.",
+            organization_id,
+            counts["processed"],
+            counts["created"],
+            counts["updated"],
+            counts["decided_by_rules"],
+            counts["llm_error"],
+        )
+        return counts
+
+    @staticmethod
+    def _count_v2(result: UnitResult, counts: dict[str, Any]) -> None:
+        if any(c.via == "id_explicito" for c in result.candidates):
+            counts["key_candidates"] += 1
+        if result.stage == "llm":
+            counts["classified"] += 1
+        elif result.stage == "regla":
+            counts["decided_by_rules"] += 1
+        elif result.stage == "error_llm":
+            counts["thread_errors"] += 1
+
+    @staticmethod
+    def _fill_v2(
+        proposal: IntakeProposal,
+        unit: Unit,
+        item_ids: list[str],
+        result: UnitResult,
+        rules: CompiledRules,
+        llm_error: str | None,
+    ) -> None:
+        proposal.conversation_id = unit.conversation_id
+        proposal.subject = (unit.subject or "(sin asunto)")[:500]
+        proposal.item_ids = item_ids
+        proposal.message_count = len(unit.records)
+        proposal.last_message_at = unit.last_at
+        proposal.thread_state = unit.state or "pendiente_respuesta"
+        proposal.candidates = [c.as_dict() for c in result.candidates]
+        proposal.classification_error = result.error or (
+            llm_error if result.stage == "sin_llm" else None
+        )
+        if result.clase is None:
+            if proposal.relation is None:
+                keyed = next((c for c in result.candidates if c.via == "id_explicito"), None)
+                proposal.task_id = uuid.UUID(keyed.task_id) if keyed else None
+            return
+        task_id = uuid.UUID(result.task_id) if result.task_id else None
+        proposal.relation = relation_for(result.clase, task_id)
+        proposal.task_id = task_id  # type: ignore[assignment]
+        proposal.confidence = result.confidence
+        proposal.result = {
+            **result.payload,
+            "clase": result.clase,
+            "etapa": result.stage,
+            "motivo_regla": result.reason,
+            "reglas": {"version": rules.version, "digest": rules.digest},
+        }
+        proposal.provider = result.provider
+        proposal.model = result.model
+        proposal.prompt_version = (
+            PROMPT_VERSION_V2 if result.stage != "regla" else f"reglas-{rules.version}"
+        )
+
+
+def _to_record(item: MailItem) -> MailRecord:
+    return MailRecord(
+        id=str(item.id),
+        kind="out" if item.is_outbound else "in",
+        conversation_id=item.conversation_id,
+        subject=item.subject,
+        sender=item.sender,
+        to=item.recipients,
+        cc=item.cc,
+        occurred_at=item.occurred_at,
+        body=item.body,
+    )

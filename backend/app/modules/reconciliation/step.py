@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.scheduled_sync.service import StepFailed, StepSkipped
 
 from .repository import SqlReconciliationRepository
+from .rules import CompiledRules, load_rules_for_org
 from .service import ClassifierBackend, ReconciliationConfig, ReconciliationService
 
 
@@ -65,9 +66,16 @@ def build_reconciliation_service(session: AsyncSession, settings: Any) -> Reconc
             port=port, embedding_model=embedding_model, provider=resolved.preset
         )
 
+    repository = SqlReconciliationRepository(session)
+
+    async def rules_factory(organization_id: uuid.UUID) -> CompiledRules:
+        slug = await repository.find_organization_slug(organization_id) or ""
+        return load_rules_for_org(getattr(settings, "RECONCILIATION_RULES_PATH", ""), slug)
+
     return ReconciliationService(
-        SqlReconciliationRepository(session),
+        repository,
         backend_factory=backend_factory,
+        rules_factory=rules_factory,
         commit=session.commit,
         config=ReconciliationConfig.from_settings(settings),
     )
