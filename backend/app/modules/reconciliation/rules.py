@@ -50,6 +50,7 @@ class RulesFile(BaseModel):
     version: str = Field(pattern=r"^\d+\.\d+(\.\d+)?$")
     buzon: str | None = None
     resultados: dict[str, Any] = Field(default_factory=dict)
+    clases: dict[str, Any] = Field(default_factory=dict)
     ruido: dict[str, Any] = Field(default_factory=dict)
     identificadores: dict[str, IdentifierSpec] = Field(default_factory=dict)
     orden_de_cruce: list[Any] = Field(default_factory=list)
@@ -79,8 +80,23 @@ class CompiledIdentifier:
         for match in self.pattern.finditer(text):
             groups = [g for g in match.groups() if g]
             raw = "-".join(groups) if groups else match.group(0)
-            found.add(re.sub(r"\s+", "", raw).upper())
+            token = re.sub(r"\s+", "", raw).upper()
+            found.add((token.lstrip("0") or "0") if token.isdigit() else token)
         return found
+
+
+@dataclass(frozen=True)
+class NoiseException:
+    """Never noise unless sent to a mass list (sender substring or subject)."""
+
+    name: str
+    senders: tuple[str, ...] = ()
+    subject: re.Pattern[str] | None = None
+
+    def matches(self, sender: str, subject: str) -> bool:
+        if any(fragment in sender for fragment in self.senders):
+            return True
+        return bool(self.subject and self.subject.search(subject or ""))
 
 
 @dataclass(frozen=True)
@@ -88,9 +104,13 @@ class CompiledRules:
     version: str
     digest: str
     owner: str | None
+    #: Noise even when addressed to the owner (automatic reports, vendors).
+    sender_noise_always: tuple[str, ...]
+    #: Noise only when the owner is not in to/cc.
     sender_noise: tuple[str, ...]
-    never_discard_senders: tuple[str, ...]
+    exceptions: tuple[NoiseException, ...]
     mass_lists: tuple[str, ...]
+    mass_fields: tuple[str, ...]
     subject_noise: re.Pattern[str] | None
     security_subject: re.Pattern[str] | None
     subject_filter_mass_only: bool
@@ -99,6 +119,10 @@ class CompiledRules:
     event_evidence_statuses: frozenset[str]
     taxonomy: tuple[str, ...]
     matching_order: tuple[str, ...]
+
+    @property
+    def never_discard_senders(self) -> tuple[str, ...]:
+        return tuple(s for e in self.exceptions for s in e.senders)
 
     @property
     def task_identifier(self) -> CompiledIdentifier:
@@ -139,21 +163,30 @@ def _first_token(value: str) -> str:
     return re.split(r"[\s(]", value.strip(), maxsplit=1)[0].lower()
 
 
-def _sender_noise(noise: dict[str, Any]) -> tuple[str, ...]:
-    values: list[str] = []
+def _values(group: Any) -> list[str]:
+    items = group.get("valores") if isinstance(group, dict) else group
+    return [v.strip().lower() for v in _strings(items) if v.strip()]
+
+
+def _sender_groups(noise: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """``remitentes_automaticos`` (v2) are always noise; every other
+    ``remitentes*`` group only when the mail is not addressed to the owner."""
+
+    always: list[str] = []
+    undirected: list[str] = []
     for key, group in noise.items():
-        if not key.startswith("remitentes"):
-            continue
-        items = group.get("valores") if isinstance(group, dict) else group
-        values += [v.strip().lower() for v in _strings(items) if v.strip()]
-    return tuple(dict.fromkeys(values))
+        if key.startswith("remitentes"):
+            (always if key == "remitentes_automaticos" else undirected).extend(_values(group))
+    return tuple(dict.fromkeys(always)), tuple(dict.fromkeys(undirected))
 
 
 def _subject_noise(noise: dict[str, Any]) -> re.Pattern[str] | None:
     parts = [
         value
         for key, value in noise.items()
-        if key.startswith("asunto_regex") and not key.endswith("_fuente") and isinstance(value, str)
+        if key.startswith(("asunto_regex", "asunto_masivo_regex"))
+        and not key.endswith("_fuente")
+        and isinstance(value, str)
     ]
     if not parts:
         return None
@@ -162,22 +195,49 @@ def _subject_noise(noise: dict[str, Any]) -> re.Pattern[str] | None:
     return _compile("|".join(f"(?:{p})" for p in parts), "ruido.asunto_regex")
 
 
-def _mass_lists(noise: dict[str, Any]) -> tuple[str, ...]:
-    raw = noise.get("lista_masiva")
-    values = _strings(raw.get("valor") if isinstance(raw, dict) else raw)
-    return tuple(v.strip().lower() for v in values if v.strip())
+def _mass_lists(noise: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    raw = noise.get("listas_masivas", noise.get("lista_masiva"))
+    if isinstance(raw, dict):
+        values = _strings(raw.get("valores", raw.get("valor")))
+        fields = _strings(raw.get("campos", raw.get("campo"))) or ["to"]
+    else:
+        values, fields = _strings(raw), ["to"]
+    return (
+        tuple(v.strip().lower() for v in values if v.strip()),
+        tuple(f.strip().lower() for f in fields if f.strip()),
+    )
 
 
-def _never_discard(exceptions: dict[str, Any]) -> tuple[str, ...]:
-    values: list[str] = []
+def _exceptions(exceptions: dict[str, Any]) -> tuple[NoiseException, ...]:
+    """v2 ``excepciones.reglas`` and v1 ``*no_descartar_remitentes`` lists."""
+
+    found: list[NoiseException] = []
+    for index, rule in enumerate(exceptions.get("reglas") or []):
+        if not isinstance(rule, dict):
+            continue
+        name = str(rule.get("nombre") or f"excepcion_{index + 1}")
+        subject = rule.get("asunto_regex")
+        found.append(
+            NoiseException(
+                name=name,
+                senders=tuple(_values(rule.get("remitente"))),
+                subject=(
+                    _compile(subject, f"ruido.excepciones.{name}")
+                    if isinstance(subject, str)
+                    else None
+                ),
+            )
+        )
     for key, items in exceptions.items():
         if "no_descartar_remitentes" in key:
-            values += [_first_token(v) for v in _strings(items) if v.strip()]
-    return tuple(dict.fromkeys(values))
+            senders = tuple(_first_token(v) for v in _strings(items) if v.strip())
+            if senders:
+                found.append(NoiseException(name=key, senders=senders))
+    return tuple(found)
 
 
-def _taxonomy(results: Iterable[str]) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(token for r in results if (token := class_token(r))))
+def _taxonomy(classes: Iterable[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(token for r in classes if (token := class_token(r))))
 
 
 def _digest(raw: dict[str, Any]) -> str:
@@ -194,7 +254,7 @@ def compile_rules(raw: dict[str, Any]) -> CompiledRules:
 
     noise = parsed.ruido
     exceptions = noise.get("excepciones") if isinstance(noise.get("excepciones"), dict) else {}
-    security = exceptions.get("asunto_seguridad_regex")
+    security = noise.get("asunto_seguridad_regex", exceptions.get("asunto_seguridad_regex"))
     identifiers = tuple(
         CompiledIdentifier(
             name=name,
@@ -209,16 +269,22 @@ def compile_rules(raw: dict[str, Any]) -> CompiledRules:
     )
     meetings = parsed.reuniones
     statuses = _strings(meetings.get("estados_con_asistencia")) or list(DEFAULT_EVENT_EVIDENCE)
+    always, undirected = _sender_groups(noise)
+    mass_lists, mass_fields = _mass_lists(noise)
     return CompiledRules(
         version=parsed.version,
         digest=_digest(raw),
         owner=(parsed.buzon or "").strip().lower() or None,
-        sender_noise=_sender_noise(noise),
-        never_discard_senders=_never_discard(exceptions),
-        mass_lists=_mass_lists(noise),
+        sender_noise_always=always,
+        sender_noise=undirected,
+        exceptions=_exceptions(exceptions),
+        mass_lists=mass_lists,
+        mass_fields=mass_fields,
         subject_noise=_subject_noise(noise),
         security_subject=(
-            _compile(security, "ruido.excepciones") if isinstance(security, str) else None
+            _compile(security, "ruido.asunto_seguridad_regex")
+            if isinstance(security, str)
+            else None
         ),
         subject_filter_mass_only=bool(noise.get("asunto_solo_masivos", True)),
         identifiers=identifiers,
@@ -226,7 +292,7 @@ def compile_rules(raw: dict[str, Any]) -> CompiledRules:
             _compile(p, "corte_de_citas_regex") for p in parsed.corte_de_citas_regex
         ),
         event_evidence_statuses=frozenset(statuses),
-        taxonomy=_taxonomy(parsed.resultados),
+        taxonomy=_taxonomy(parsed.clases or parsed.resultados),
         matching_order=tuple(
             str(step.get("criterio", step)) if isinstance(step, dict) else str(step)
             for step in parsed.orden_de_cruce

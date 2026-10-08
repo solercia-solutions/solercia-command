@@ -143,4 +143,5 @@ def test_loads_the_real_methodology_rules_when_available():
     if not real.exists():
         pytest.skip("reglas.json de la metodología no disponible en este equipo")
     rules = load_rules_file(real)
-    assert rules.sender_noise and rules.mass_lists and rules.task_identifier
+    complete = bool(rules.sender_noise and rules.mass_lists and rules.task_identifier)
+    assert complete, "las reglas reales no traen listas de ruido o identificador de tarea"
