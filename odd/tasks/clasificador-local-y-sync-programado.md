@@ -112,6 +112,9 @@ expresa por proveedor.
       prompt v2, parámetros de determinismo y perfil «servidor» (CPU).
 - [x] E04 Evaluador en simulación (`scripts/eval_classifier.py`): conjunto dorado → métricas,
       matriz de confusión, determinismo en N corridas, latencia por hilo, reporte comparable.
+- [x] E05a Afinar el canal v2 sin sobreajustar (desarrollo 09-18; prueba 10-01 + 10-05; prueba
+      adicional 09-14): versiones de prompt registradas, adaptador nativo en el evaluador,
+      etapa de asunto literal; v2.2 por defecto.
 - [ ] E05 Matriz de modelos: qwen3.5:9b (base), qwen3.5:4b, ornith:9b, lfm2.5:8b, ministral-3:8b,
       gemma4 e4b/e2b, granite4:tiny-h; en Mac (GPU) y perfil servidor (CPU).
 - [ ] E06 Recomendación de modelo para servidor y BYOK, y cierre de pendientes de C07.
@@ -350,8 +353,38 @@ expresa por proveedor.
   «avanza» (aporte nuevo a una tarea = observación con la marca del corte); la definición de
   «avanza» del prompt v2 debe incluir ese caso antes de E05.
 
+- 2026-10-08 E05a (`affdce3` versiones de prompt + nativo; `8dc476b` asunto literal; `4243271`
+  v2.1; `9d963b1` v2.2; `4ffa709` v2.3; `d4cdddf` v2.4; `d91aa56` v2.2 por defecto):
+  `prompt_versions.py` registra `reconciliation-v2.0` … `v2.4` (ninguna se borra); el canal envía la
+  versión de `ChannelV2Config.prompt_version` y la guarda en el resultado; el servicio la persiste en
+  `prompt_version`. Evaluador: `--prompt-version` (en `config` y en cada predicción) y
+  `--subject-match`; todo preset local de Ollama (`uses_ollama_native`) va por `/api/chat`
+  (verificado con `ollama ps`: CONTEXT 4096 al pedir `--num-ctx 4096`, 8192 por defecto). Etapa
+  opcional `subject_match`: el asunto normalizado (≥ 12 caracteres) citado en tarea, detalle u
+  observaciones fuerza la candidata (vía `asunto`, confianza 0,75; metodología b.4 paso 2).
+  v2.3 muestra la última nota de cada candidata (`candidate_notes`). RED: `ModuleNotFoundError`
+  (`prompt_versions`), `ImportError` (`uses_ollama_native`, `subject_candidates`, `latest_note`),
+  versión por defecto ≠ v2.2. GREEN: 274 pruebas (reconciliación, evaluador, IA) sin base de
+  datos; las de PostgreSQL quedan omitidas (no se tocó persistencia).
+- Afinamiento (qwen3.5:9b-q4_K_M, mac, 2 corridas; detalle en
+  `evaluaciones/resultados/afinamiento.md`). Macro-F1 desarrollo / prueba: v2.0 0,303 / 0,337;
+  v2.1 0,446 / 0,375; **v2.2 0,469 / 0,403**; v2.2 +asunto 0,473 / 0,402 (top-1 prueba 33,3 %,
+  cobertura 72,7 %); v2.3 +asunto 0,372 / 0,370; v2.4 +asunto 0,433 / 0,340. Exactitud en prueba
+  55,4 % → 58,7 % (v2.2); tarea top-1 19,1 % → 30,9 %; no concluyente 13,2 % → 5,0 %;
+  determinismo 100 %; p50 ≈ 3,2 s por registro; 0 errores de JSON. Elegida v2.2 por macro-F1 en
+  prueba; parada en 5 iteraciones (las dos últimas bajaron en prueba).
+- Prueba adicional 09-14 (v2.2, 1 corrida, n 258): exactitud 59,3 %, macro-F1 0,294, tarea top-1
+  43,1 %, cobertura 74,6 %; débiles `solo_bitacora` y `tarea_nueva`.
+- Errores típicos (desarrollo): aporte sin pedido leído como informativo, a menudo con la tarea
+  fuera de las 5 candidatas; `confirma` siempre sale `avanza`; enviado intermedio leído como
+  cierre. Dudas de 7 etiquetas en `evaluaciones/resultados/dudas_etiquetas.md` (no se modificó
+  ninguna).
+- Límites para E06: el servicio sigue por `/v1` (ignora `num_ctx`) y arma `TaskEntry` sin
+  observaciones, así que `subject_match` y las notas de v2.3 no tienen efecto en producción todavía.
+
 ## Siguiente paso
 
-E05: ajustar la definición de «avanza» del prompt (aporte sobre una candidata aunque no exija
-acción del dueño), medir de nuevo y correr la matriz de modelos en Mac y perfil servidor. Siguen
+E05: correr la matriz de modelos con el prompt v2.2 en Mac y perfil servidor (evaluar también
+`--subject-match`). E06: adaptador nativo de Ollama en el canal de producción, `subject_match` y
+observaciones de la tarea en el servicio. Siguen
 abiertos los pendientes de C07.
