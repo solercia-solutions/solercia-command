@@ -147,3 +147,35 @@ def test_literal_subject_counts_as_an_identifier_for_confidence():
     candidates = [CandidateV2("id5", "T-5", "Mesa", "EN CURSO", 1.0, "asunto")]
     verdict = apply_post_rules(_out(task_ref="T-5"), candidates, TEXT)
     assert verdict.confidence == 0.75
+
+
+def test_latest_note_is_the_newest_cut_mark_clipped():
+    from app.modules.reconciliation.prompt_v2 import latest_note
+
+    assert latest_note("[Corte 2-sep] Se envió la versión 2 | [Corte 1-sep] previa") == (
+        "[Corte 2-sep] Se envió la versión 2"
+    )
+    assert latest_note("") is None
+    assert len(latest_note("x" * 500, limit=50)) == 50
+
+
+def test_user_message_can_show_the_latest_note_of_each_candidate():
+    record = MailRecord(
+        id="m1",
+        kind="in",
+        conversation_id="c1",
+        subject="Informe VPN",
+        sender="ana@otra.gov.co",
+        to=("yo@x",),
+        cc=(),
+        occurred_at=datetime(2026, 9, 1, 14, 0, tzinfo=UTC),
+        body=TEXT,
+    )
+    (unit,) = [u for u in build_units([record]) if u.kind == "thread"]
+    message = build_user_message_v2(
+        unit, CANDIDATES, max_chars=4000, notes={"id7": "[Corte 1-sep] Se pidió la VPN"}
+    )
+    assert "- T-7 [EN CURSO] (id_explicito): VPN\n  Última nota: [Corte 1-sep] Se pidió la VPN" in (
+        message
+    )
+    assert "Última nota" not in build_user_message_v2(unit, CANDIDATES, max_chars=4000)

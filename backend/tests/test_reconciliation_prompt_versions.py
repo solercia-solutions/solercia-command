@@ -87,3 +87,39 @@ async def test_channel_sends_the_configured_version(version):
 
 def test_default_channel_config_uses_the_default_version():
     assert ChannelV2Config().prompt_version == DEFAULT_PROMPT_VERSION_V2
+
+
+@pytest.mark.asyncio
+async def test_versions_with_candidate_notes_send_the_latest_task_note():
+    from app.modules.reconciliation.prompt_versions import PromptSpec
+
+    noted = [v for v, spec in PROMPTS_V2.items() if spec.candidate_notes]
+    assert noted, "at least one version shows candidate notes"
+    assert PromptSpec("x", "s").candidate_notes is False
+    tasks = [
+        TaskEntry(
+            id="T-1",
+            ref="T-1",
+            title="Informe de gestión",
+            status="PENDIENTE",
+            observations="[Corte 1-sep] Se pidió el informe | antes",
+        )
+    ]
+    for version, expected in ((noted[0], True), (PROMPT_VERSION_V2, False)):
+        llm = FakeLlmAdapter()
+        llm.next_text = json.dumps({"clase": "informativo", "task_ref": None, "resumen": "r"})
+        channel = ChannelV2(
+            RULES,
+            chat=llm,
+            embedder=None,
+            embedding_model=None,
+            cache=MemoryEmbeddingCache(),
+            config=ChannelV2Config(top_k=1, prompt_version=version),
+        )
+        mail = MailRecord(
+            "1", "in", "c-1", "T-1", "ana@otra.gov.co", (ME,), (), datetime(2026, 9, 1, tzinfo=UTC)
+        )
+        (unit,) = build_units([mail])
+        await channel.classify(unit, tasks, {})
+        content = llm.calls[0].messages[0].content
+        assert ("Última nota: [Corte 1-sep] Se pidió el informe" in content) is expected

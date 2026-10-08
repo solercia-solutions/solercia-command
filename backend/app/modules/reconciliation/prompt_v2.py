@@ -14,7 +14,7 @@ Its answer is checked by ``apply_post_rules``:
 """
 
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -28,6 +28,7 @@ PROMPT_VERSION_V2 = "reconciliation-v2.0"
 _EVIDENCE_MISSING_FACTOR = 0.6
 _MIN_EVIDENCE_CHARS = 8
 _FIELD_CHARS = {"accion": 300, "solicitante": 200, "resumen": 600, "evidencia": 400}
+_NOTE_CHARS = 200
 _VIA_CONFIDENCE = {"id_explicito": 0.9, "identificador": 0.75, "asunto": 0.75, "similitud": 0.5}
 _CLASS_CONFIDENCE = {
     "tarea_nueva": 0.55,
@@ -214,12 +215,20 @@ def unit_messages_text(unit: Unit, max_chars: int, rules: CompiledRules | None =
     return f"({omitted} mensajes anteriores omitidos)\n\n{text}" if omitted else text
 
 
+def latest_note(observations: str | None, limit: int = _NOTE_CHARS) -> str | None:
+    """Newest cut mark of a task's observations (they are prepended, ``|``-separated)."""
+
+    first = " ".join((observations or "").split("|", 1)[0].split())
+    return first[:limit] or None
+
+
 def build_user_message_v2(
     unit: Unit,
     candidates: Sequence[CandidateV2],
     *,
     max_chars: int,
     rules: CompiledRules | None = None,
+    notes: Mapping[str, str] | None = None,
 ) -> str:
     lines = [
         f"Tipo de registro: {_KIND_LABEL[unit.kind]}",
@@ -235,8 +244,10 @@ def build_user_message_v2(
         "",
         "Tareas candidatas (referencia [estado] (vía): título):",
     ]
-    if candidates:
-        lines += [f"- {c.ref} [{c.status or '?'}] ({c.via}): {c.title}" for c in candidates]
-    else:
+    for c in candidates:
+        lines.append(f"- {c.ref} [{c.status or '?'}] ({c.via}): {c.title}")
+        if notes and notes.get(c.task_id):
+            lines.append(f"  Última nota: {notes[c.task_id]}")
+    if not candidates:
         lines.append("(ninguna)")
     return "\n".join(lines)

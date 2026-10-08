@@ -20,7 +20,7 @@ from typing import Any, Protocol
 from app.ai.ports import LlmMessage, LlmPort, LlmRequest
 from app.shared.exceptions import AppException
 
-from .prompt_v2 import ClassificationV2, apply_post_rules, build_user_message_v2
+from .prompt_v2 import ClassificationV2, apply_post_rules, build_user_message_v2, latest_note
 from .prompt_versions import DEFAULT_PROMPT_VERSION_V2, get_prompt_v2
 from .rules import CompiledRules
 from .stages import (
@@ -215,13 +215,25 @@ class ChannelV2:
                 candidates=candidates,
             )
 
+        notes = None
+        if self._prompt.candidate_notes:
+            by_id = {t.id: t for t in tasks}
+            notes = {
+                c.task_id: note
+                for c in candidates
+                if c.task_id in by_id and (note := latest_note(by_id[c.task_id].observations))
+            }
         request = LlmRequest(
             system=self._prompt.system,
             messages=(
                 LlmMessage(
                     role="user",
                     content=build_user_message_v2(
-                        unit, candidates, max_chars=self._config.max_chars, rules=self._rules
+                        unit,
+                        candidates,
+                        max_chars=self._config.max_chars,
+                        rules=self._rules,
+                        notes=notes,
                     ),
                 ),
             ),
