@@ -1,0 +1,10 @@
+# Solo lo que importa `scripts/eval_classifier.py` y `scripts/eval_compare.py` (mismos pines que
+# backend/requirements.txt). Sin base de datos, sin SDK externos: el evaluador nunca importa
+# app.database ni asyncpg (prueba `test_evaluator_imports_no_database_module`).
+fastapi==0.115.6
+pydantic==2.10.4
+pydantic-settings==2.7.1
+email-validator==2.2.0
+python-multipart==0.0.20
+httpx==0.28.1
+pytz==2026.2

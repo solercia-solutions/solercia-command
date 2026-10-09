@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# Evaluador del clasificador (E07a): solo `app/` y `scripts/` del backend y las dependencias que
+# importan los scripts de evaluación. Contexto: la raíz del repo (ver compose.eval.yml); el
+# archivo Dockerfile.evaluator.dockerignore deja fuera todo lo demás.
+FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY eval/docker/requirements.evaluator.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+
+COPY backend/app ./app
+COPY backend/scripts ./scripts
+
+# Sin servidor: cada corrida es `docker compose run --rm evaluator python -m scripts.<script>`.
+CMD ["python", "-m", "scripts.eval_classifier", "--help"]
