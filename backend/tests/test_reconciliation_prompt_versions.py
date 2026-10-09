@@ -128,3 +128,15 @@ async def test_versions_with_candidate_notes_send_the_latest_task_note():
 def test_default_is_the_version_chosen_by_test_macro_f1():
     # E05a: v2.2 had the best macro-F1 on the test cuts (2026-10-01 + 2026-10-05).
     assert DEFAULT_PROMPT_VERSION_V2 == "reconciliation-v2.2"
+
+
+def test_v2_5_requires_the_same_concrete_object_with_many_candidates():
+    # E08: with 8 RRF candidates the model attached «tarea_nueva» threads to a similar
+    # candidate. v2.5 keeps v2.2 and requires the same concrete object to link, and says
+    # that more candidates do not mean that one of them is right.
+    spec = get_prompt_v2("reconciliation-v2.5")
+    system = spec.system.lower()
+    assert spec.candidate_notes is False
+    assert "mismo objeto concreto" in system
+    assert "ninguna sea la correcta" in system
+    assert "tarea_nueva" in system
