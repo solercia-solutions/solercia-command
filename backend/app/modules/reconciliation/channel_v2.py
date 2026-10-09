@@ -15,7 +15,7 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.ai.ports import LlmMessage, LlmPort, LlmRequest
 from app.shared.exceptions import AppException
@@ -25,9 +25,15 @@ from .prompt_versions import DEFAULT_PROMPT_VERSION_V2, get_prompt_v2
 from .rules import CompiledRules
 from .stages import (
     CandidateV2,
+    Identifiers,
+    LexicalIndex,
     TaskEntry,
     Unit,
+    embedding_order,
     forced_candidates,
+    fused_candidates,
+    object_matches,
+    ordered_candidates,
     precheck,
     rank_candidates,
     subject_candidates,
@@ -74,14 +80,28 @@ def _code(exc: AppException) -> str:
 
 @dataclass(frozen=True)
 class ChannelV2Config:
-    top_k: int = 5
+    """Defaults = E07b choice: best candidate coverage on the test cuts with k <= 8."""
+
+    top_k: int = 8
     max_chars: int = 6000
     embed_chars: int = 2000
     max_tokens: int = 600
     #: A registered version (``prompt_versions.PROMPTS_V2``).
     prompt_version: str = DEFAULT_PROMPT_VERSION_V2
     #: Literal subject in the task text forces a candidate (methodology b.4, step 2).
-    subject_match: bool = False
+    subject_match: bool = True
+    #: Object identifiers (GLPI, Orfeo, contracts…) shared by mail and task: ``forced`` (all
+    #: force a candidate), ``specific`` (only tokens shared by few tasks), ``fused`` (a third
+    #: ranking inside RRF) or ``off``.
+    object_match: Literal["off", "forced", "specific", "fused"] = "specific"
+    #: Task text for retrieval: ``base`` (ref, title, detail slice) or ``full`` (+ observations).
+    task_text: Literal["base", "full"] = "full"
+    #: ``embedding`` (cosine), ``bm25`` (lexical) or ``rrf`` (fusion of both).
+    ranking: Literal["embedding", "bm25", "rrf"] = "rrf"
+
+    def __post_init__(self) -> None:
+        if self.object_match == "fused" and self.ranking != "rrf":
+            raise ValueError("object_match='fused' requires ranking='rrf'")
 
 
 @dataclass
@@ -128,6 +148,7 @@ class ChannelV2:
         self._config = config
         self._prompt = get_prompt_v2(config.prompt_version)
         self.embedding_error: str | None = None
+        self._lexical: tuple[tuple[str, ...], LexicalIndex] | None = None
 
     @property
     def rules(self) -> CompiledRules:
@@ -154,7 +175,10 @@ class ChannelV2:
         return vectors
 
     async def task_vectors(self, tasks: Sequence[TaskEntry]) -> dict[str, list[float]]:
-        vectors = await self._embed_cached([task_embedding_text(t) for t in tasks])
+        full = self._config.task_text == "full"
+        vectors = await self._embed_cached(
+            [task_embedding_text(t, full=full, max_chars=self._config.embed_chars) for t in tasks]
+        )
         return {t.id: v for t, v in zip(tasks, vectors, strict=True) if v is not None}
 
     # --- one unit ------------------------------------------------------------------------
@@ -167,6 +191,39 @@ class ChannelV2:
             state=unit.state,
             **fields,
         )
+
+    def _lexical_index(self, tasks: Sequence[TaskEntry]) -> LexicalIndex:
+        ids = tuple(t.id for t in tasks)
+        if self._lexical is None or self._lexical[0] != ids:
+            index = LexicalIndex(tasks, full=self._config.task_text == "full")
+            self._lexical = (ids, index)
+        return self._lexical[1]
+
+    async def _retrieve(
+        self,
+        unit: Unit,
+        text: str,
+        forced: list[CandidateV2],
+        tasks: Sequence[TaskEntry],
+        task_vectors: Mapping[str, Sequence[float]],
+        objects: Sequence[TaskEntry] = (),
+    ) -> list[CandidateV2]:
+        """Forced candidates first, then the configured ranking up to ``top_k``."""
+
+        k = self._config.top_k
+        query = f"{unit.subject}\n{text}"[: self._config.embed_chars]
+        ranking = self._config.ranking
+        unit_vector = None
+        if task_vectors and len(forced) < k and ranking != "bm25":
+            (unit_vector,) = await self._embed_cached([query])
+        if ranking == "embedding":
+            return rank_candidates(forced, unit_vector, task_vectors, tasks, k=k)
+        lexical = self._lexical_index(tasks).rank(query) if len(forced) < k else []
+        if ranking == "bm25":
+            return ordered_candidates(forced, lexical, k=k, via="lexico")
+        semantic = embedding_order(unit_vector, task_vectors, tasks)
+        rankings = [[t for t, _ in semantic], [t for t, _ in lexical], list(objects)]
+        return fused_candidates(forced, [r for r in rankings if r], k=k)
 
     async def classify(
         self,
@@ -190,7 +247,16 @@ class ChannelV2:
             )
 
         text = unit_text(unit, self._rules)
-        forced = forced_candidates(unit_identifiers(unit, self._rules), tasks, self._rules)
+        found = unit_identifiers(unit, self._rules)
+        mode = self._config.object_match
+        objects: list[TaskEntry] = []
+        if mode == "fused":
+            objects = [m.task for m in object_matches(found, tasks, self._rules)]
+        if mode in ("off", "fused"):
+            found = Identifiers(task_keys=found.task_keys)
+        forced = forced_candidates(
+            found, tasks, self._rules, objects="specific" if mode == "specific" else "forced"
+        )
         if self._config.subject_match:
             forced += subject_candidates(
                 unit,
@@ -198,12 +264,7 @@ class ChannelV2:
                 exclude={c.task_id for c in forced},
                 limit=self._config.top_k - len(forced),
             )
-        unit_vector = None
-        if task_vectors and len(forced) < self._config.top_k:
-            (unit_vector,) = await self._embed_cached(
-                [f"{unit.subject}\n{text}"[: self._config.embed_chars]]
-            )
-        candidates = rank_candidates(forced, unit_vector, task_vectors, tasks, k=self._config.top_k)
+        candidates = await self._retrieve(unit, text, forced, tasks, task_vectors, objects)
         if self._chat is None:
             return self._result(
                 unit,

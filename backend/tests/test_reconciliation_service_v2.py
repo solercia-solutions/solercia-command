@@ -71,7 +71,7 @@ def _service(repo, port, *, rules_error=None, channel="v2"):
         backend_factory=factory,
         rules_factory=rules_factory,
         commit=CountingCommit(),
-        config=ReconciliationConfig(max_threads=10, top_k=3, channel=channel),
+        config=ReconciliationConfig(max_threads=10, top_k=3, v2_top_k=3, channel=channel),
     )
 
 

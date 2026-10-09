@@ -273,10 +273,62 @@ def _candidate(task: TaskEntry, score: float, via: Via) -> CandidateV2:
     return CandidateV2(task.id, task.ref, task.title, task.status, score, via)
 
 
-def forced_candidates(
+#: E07b: an object token shared by more tasks than this is generic (a procedure code cited by
+#: many tasks) and does not force a candidate in the ``specific`` mode.
+OBJECT_MAX_SPREAD = 2
+
+
+@dataclass(frozen=True)
+class ObjectMatch:
+    task: TaskEntry
+    #: Fewest tasks sharing one of the matched tokens (1 = unique to this task).
+    spread: int
+    name: str
+
+
+def object_matches(
     found: Identifiers, tasks: Sequence[TaskEntry], rules: CompiledRules
+) -> list[ObjectMatch]:
+    """Tasks sharing an object token with the unit, most specific first, ties by ref."""
+
+    if not found.objects:
+        return []
+    identifiers = {i.name: i for i in rules.object_identifiers()}
+    shared: dict[str, set[tuple[str, str]]] = {}
+    for task in tasks:
+        keys = {
+            (name, token)
+            for name in found.objects
+            for token in found.objects[name] & identifiers[name].tokens(task.matching_text)
+        }
+        if keys:
+            shared[task.id] = keys
+    spread: dict[tuple[str, str], int] = defaultdict(int)
+    for keys in shared.values():
+        for key in keys:
+            spread[key] += 1
+    by_id = {t.id: t for t in tasks}
+    matches = []
+    for task_id, keys in shared.items():
+        best = min(keys, key=lambda key: (spread[key], key))
+        matches.append(ObjectMatch(by_id[task_id], spread[best], best[0]))
+    matches.sort(key=lambda m: (m.spread, ref_sort_key(m.task.ref)))
+    return matches
+
+
+def forced_candidates(
+    found: Identifiers,
+    tasks: Sequence[TaskEntry],
+    rules: CompiledRules,
+    *,
+    objects: Literal["forced", "specific"] = "forced",
+    max_spread: int = OBJECT_MAX_SPREAD,
 ) -> list[CandidateV2]:
-    """Explicit IDs first (by ref), then tasks sharing an object identifier."""
+    """Explicit IDs first (by ref), then tasks sharing an object identifier.
+
+    ``specific`` (E07b) forces only tokens shared by at most ``max_spread``
+    tasks, most specific first: a code cited by many tasks says nothing.
+    """
 
     by_ref = {normalize_task_ref(t.ref): t for t in tasks}
     picked: list[CandidateV2] = []
@@ -286,6 +338,12 @@ def forced_candidates(
         if task is not None and task.id not in seen:
             picked.append(_candidate(task, 1.0, "id_explicito"))
             seen.add(task.id)
+    if objects == "specific":
+        for match in object_matches(found, tasks, rules):
+            if match.spread <= max_spread and match.task.id not in seen:
+                picked.append(_candidate(match.task, 1.0, f"identificador:{match.name}"))
+                seen.add(match.task.id)
+        return picked
     if found.objects:
         identifiers = {i.name: i for i in rules.object_identifiers()}
         for task in sorted(tasks, key=lambda t: ref_sort_key(t.ref)):
@@ -359,7 +417,141 @@ def rank_candidates(
     return picked
 
 
-def task_embedding_text(task: TaskEntry) -> str:
-    detail = " ".join((task.detail or "").split())[:_DESCRIPTION_CHARS]
+def task_embedding_text(task: TaskEntry, *, full: bool = False, max_chars: int = 2000) -> str:
+    """Task text for retrieval: ref, title and a slice of the detail.
+
+    ``full`` (E07b) adds the whole detail and the observations, where the
+    methodology cites earlier subjects and objects, capped at ``max_chars``.
+    """
+
     head = f"{task.ref} {task.title}".strip()
-    return f"{head}. {detail}" if detail else head
+    if not full:
+        detail = " ".join((task.detail or "").split())[:_DESCRIPTION_CHARS]
+        return f"{head}. {detail}" if detail else head
+    body = " ".join(f"{task.detail or ''} {task.observations or ''}".split())
+    return (f"{head}. {body}" if body else head)[:max_chars]
+
+
+# --- E07b: lexical ranking and rank fusion --------------------------------------------------
+
+_TOKEN = re.compile(r"\w+")
+#: Frequent Spanish function words; they carry no task signal.
+_STOPWORDS_TEXT = (
+    "a al ante con contra de del desde el en entre es esta este esto hacia hasta la las le "
+    "les lo los mas me mi no nos o para pero por que se si sin sobre su sus te tu un una uno "
+    "unos unas y ya ha he han fue ser son como cual cuando donde muy le favor buen buenos "
+    "buenas dias tardes cordial saludo saludos gracias"
+)
+_STOPWORDS = frozenset(_STOPWORDS_TEXT.split())
+BM25_K1 = 1.5
+BM25_B = 0.75
+RRF_K = 60
+
+
+def lexical_tokens(text: str) -> list[str]:
+    """Accent- and case-folded words; stopwords and single characters out."""
+
+    return [
+        token for token in _TOKEN.findall(_fold(text)) if len(token) > 1 and token not in _STOPWORDS
+    ]
+
+
+class LexicalIndex:
+    """BM25 over the task text (``full`` adds detail and observations).
+
+    Query terms count once (a long mail does not outweigh a short one); the
+    ranking keeps only tasks sharing at least one term, ties by task ref.
+    """
+
+    def __init__(self, tasks: Sequence[TaskEntry], *, full: bool = False) -> None:
+        self._tasks = sorted(tasks, key=lambda t: ref_sort_key(t.ref))
+        self._docs: list[dict[str, int]] = []
+        frequency: dict[str, int] = defaultdict(int)
+        for task in self._tasks:
+            counts: dict[str, int] = defaultdict(int)
+            for token in lexical_tokens(task_embedding_text(task, full=full, max_chars=1 << 20)):
+                counts[token] += 1
+            self._docs.append(counts)
+            for token in counts:
+                frequency[token] += 1
+        total = len(self._docs)
+        self._lengths = [sum(d.values()) for d in self._docs]
+        self._average = (sum(self._lengths) / total) if total else 0.0
+        self._idf = {
+            token: math.log(1 + (total - n + 0.5) / (n + 0.5)) for token, n in frequency.items()
+        }
+
+    def rank(self, query: str) -> list[tuple[TaskEntry, float]]:
+        terms = sorted(set(lexical_tokens(query)) & self._idf.keys())
+        scored = []
+        for task, counts, length in zip(self._tasks, self._docs, self._lengths, strict=True):
+            score = 0.0
+            for term in terms:
+                tf = counts.get(term, 0)
+                if tf:
+                    norm = 1 - BM25_B + BM25_B * length / (self._average or 1.0)
+                    score += self._idf[term] * tf * (BM25_K1 + 1) / (tf + BM25_K1 * norm)
+            if score > 0:
+                scored.append((round(score, 6), task))
+        scored.sort(key=lambda item: (-item[0], ref_sort_key(item[1].ref)))
+        return [(task, score) for score, task in scored]
+
+
+def embedding_order(
+    unit_vector: Sequence[float] | None,
+    task_vectors: Mapping[str, Sequence[float]],
+    tasks: Sequence[TaskEntry],
+) -> list[tuple[TaskEntry, float]]:
+    """Every task with a vector, by cosine (desc), ties by task ref."""
+
+    if unit_vector is None:
+        return []
+    scored = [
+        (round(cosine(unit_vector, task_vectors[t.id]), 6), t)
+        for t in tasks
+        if t.id in task_vectors
+    ]
+    scored.sort(key=lambda item: (-item[0], ref_sort_key(item[1].ref)))
+    return [(task, score) for score, task in scored]
+
+
+def ordered_candidates(
+    forced: Sequence[CandidateV2],
+    order: Sequence[tuple[TaskEntry, float]],
+    *,
+    k: int,
+    via: Via,
+) -> list[CandidateV2]:
+    """Forced first, then ``order`` without repeats, up to ``k``."""
+
+    picked = list(forced[:k])
+    seen = {c.task_id for c in picked}
+    for task, score in order:
+        if len(picked) >= k:
+            break
+        if task.id not in seen:
+            picked.append(_candidate(task, score, via))
+            seen.add(task.id)
+    return picked
+
+
+def fused_candidates(
+    forced: Sequence[CandidateV2],
+    rankings: Sequence[Sequence[TaskEntry]],
+    *,
+    k: int,
+    rrf_k: int = RRF_K,
+) -> list[CandidateV2]:
+    """Reciprocal rank fusion: score = Σ 1 / (rrf_k + rank); ties by task ref."""
+
+    scores: dict[str, float] = defaultdict(float)
+    by_id: dict[str, TaskEntry] = {}
+    for ranking in rankings:
+        for position, task in enumerate(ranking, start=1):
+            scores[task.id] += 1.0 / (rrf_k + position)
+            by_id[task.id] = task
+    order = sorted(
+        ((by_id[i], round(score, 9)) for i, score in scores.items()),
+        key=lambda item: (-item[1], ref_sort_key(item[0].ref)),
+    )
+    return ordered_candidates(forced, order, k=k, via="rrf")

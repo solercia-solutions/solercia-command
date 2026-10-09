@@ -32,7 +32,7 @@ from app.ai.presets import PRESETS
 from app.eval.golden import GoldenError
 from app.eval.report import pct
 from app.eval.runner import EvalOptions, ExternalProviderRefused, run_evaluation
-from app.modules.reconciliation.channel_v2 import ProviderDown
+from app.modules.reconciliation.channel_v2 import ChannelV2Config, ProviderDown
 from app.modules.reconciliation.prompt_versions import DEFAULT_PROMPT_VERSION_V2, PROMPTS_V2
 from app.modules.reconciliation.rules import RulesError
 
@@ -54,7 +54,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-external", default=None, metavar="PRESET")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--embedding-url", default="http://127.0.0.1:11434")
-    parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--top-k", type=int, default=ChannelV2Config.top_k)
     parser.add_argument("--max-chars", type=int, default=6000)
     parser.add_argument("--max-tokens", type=int, default=600)
     parser.add_argument("--seed", type=int, default=42)
@@ -65,8 +65,32 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--subject-match",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=ChannelV2Config.subject_match,
         help="Asunto literal en el texto de la tarea → candidata forzada.",
+    )
+    parser.add_argument(
+        "--object-match",
+        default=ChannelV2Config.object_match,
+        choices=("off", "forced", "specific", "fused"),
+        help="Identificadores de objeto compartidos (GLPI, Orfeo, contratos…): todos forzados, "
+        "solo los específicos, como tercer orden dentro de RRF o apagados.",
+    )
+    parser.add_argument(
+        "--task-text",
+        default=ChannelV2Config.task_text,
+        choices=("base", "full"),
+        help="Texto de la tarea para recuperar: base o full (+ detalle completo y observaciones).",
+    )
+    parser.add_argument(
+        "--ranking",
+        default=ChannelV2Config.ranking,
+        choices=("embedding", "bm25", "rrf"),
+        help="Orden de candidatas: embeddings, léxico BM25 o fusión RRF de ambos.",
+    )
+    parser.add_argument(
+        "--candidates-only",
+        action="store_true",
+        help="Solo recuperación de candidatas (sin modelo de chat, 1 corrida): mide cobertura.",
     )
     return parser
 
@@ -99,6 +123,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         num_ctx=args.num_ctx,
         prompt_version=args.prompt_version,
         subject_match=args.subject_match,
+        object_match=args.object_match,
+        task_text=args.task_text,
+        ranking=args.ranking,
+        candidates_only=args.candidates_only,
     )
     try:
         metrics = asyncio.run(run_evaluation(options))
@@ -111,6 +139,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ProviderDown as exc:
         print(f"El proveedor no respondió ({exc.code}).", file=sys.stderr)
         return 4
+    if options.candidates_only:
+        print(
+            f"n={metrics['n']} cobertura={pct(metrics['candidate_coverage'])} "
+            f"top_k={options.top_k} ranking={options.ranking} texto={options.task_text} "
+            f"asunto={options.subject_match} objetos={options.object_match}"
+        )
+        print(f"Solo candidatas · resultados: {metrics['out_dir']}")
+        return 0
     latency = metrics["latency_ms"]
     print(
         f"n={metrics['n']} exactitud={pct(metrics['class_accuracy'])} "

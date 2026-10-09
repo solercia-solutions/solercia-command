@@ -438,3 +438,83 @@ async def test_subject_match_option_reaches_the_channel_config(tmp_path):
         embedder_factory=lambda opts: llm,
     )
     assert metrics["config"]["subject_match"] is True
+
+
+# --- E07b: candidate coverage only (no chat model) -------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_candidates_only_never_builds_the_chat_model_and_measures_coverage(tmp_path):
+    embedder = ScriptedLlm()
+
+    def no_chat(opts):
+        raise AssertionError("candidates-only must not build the chat model")
+
+    metrics = await run_evaluation(
+        _options(_golden(tmp_path), tmp_path, runs=3, candidates_only=True),
+        chat_factory=no_chat,
+        embedder_factory=lambda opts: embedder,
+    )
+    assert embedder.calls == []
+    assert metrics["runs"] == 1 and metrics["config"]["candidates_only"] is True
+    assert metrics["candidate_coverage"] is not None
+    assert metrics["stages"].get("llm", 0) == 0
+    lines = (tmp_path / "out" / "predictions.jsonl").read_text().splitlines()
+    rows = [json.loads(line) for line in lines]
+    assert rows and all(r["predicted"] is None for r in rows if r["stage"] == "sin_llm")
+
+
+@pytest.mark.asyncio
+async def test_retrieval_options_reach_the_channel_config(tmp_path):
+    metrics = await run_evaluation(
+        _options(
+            _golden(tmp_path),
+            tmp_path,
+            candidates_only=True,
+            task_text="full",
+            ranking="rrf",
+            object_match="off",
+            top_k=8,
+        ),
+        embedder_factory=lambda opts: ScriptedLlm(),
+    )
+    config = metrics["config"]
+    assert (config["task_text"], config["ranking"], config["object_match"], config["top_k"]) == (
+        "full",
+        "rrf",
+        "off",
+        8,
+    )
+
+
+def test_cli_accepts_the_retrieval_flags(tmp_path, monkeypatch):
+    from scripts import eval_classifier
+
+    seen = {}
+
+    async def fake_run(options):
+        seen["options"] = options
+        return {
+            "n": 0,
+            "class_accuracy": None,
+            "macro_f1": None,
+            "task_top1": None,
+            "candidate_coverage": 0.5,
+            "determinism": {"rate": None},
+            "latency_ms": {"p50": None, "p95": None},
+            "json_errors": 0,
+            "out_dir": str(tmp_path),
+        }
+
+    monkeypatch.setattr(eval_classifier, "run_evaluation", fake_run)
+    code = eval_classifier.main(
+        [
+            "--golden-dir", str(tmp_path), "--rules", str(tmp_path / "r.json"),
+            "--cortes", "2026-09-01", "--candidates-only", "--task-text", "full",
+            "--ranking", "bm25", "--object-match", "specific", "--top-k", "10",
+        ]
+    )  # fmt: skip
+    options = seen["options"]
+    assert code == 0
+    assert options.candidates_only and options.task_text == "full"
+    assert options.ranking == "bm25" and options.object_match == "specific" and options.top_k == 10

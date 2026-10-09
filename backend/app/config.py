@@ -390,6 +390,8 @@ class Settings(BaseSettings):
     # the bundled synthetic example. v1 stays the default.
     RECONCILIATION_CHANNEL: Literal["v1", "v2"] = "v1"
     RECONCILIATION_RULES_PATH: str = ""
+    # Candidates per unit in channel v2 (E07b: best coverage on the test cuts with k <= 8).
+    RECONCILIATION_V2_TOP_K: int = 8
     AI_DEFAULT_NUM_CTX: int = 8192
 
     @field_validator("SCHEDULED_SYNC_TIMES")

@@ -62,13 +62,18 @@ class EvalOptions:
     allow_external: str | None = None
     base_url: str | None = None
     embedding_url: str = DEFAULT_OLLAMA_URL
-    top_k: int = 5
+    top_k: int = ChannelV2Config.top_k
     max_chars: int = 6000
     max_tokens: int = 600
     seed: int = 42
     num_ctx: int = 8192
     prompt_version: str = DEFAULT_PROMPT_VERSION_V2
-    subject_match: bool = False
+    subject_match: bool = ChannelV2Config.subject_match
+    object_match: str = ChannelV2Config.object_match
+    task_text: str = ChannelV2Config.task_text
+    ranking: str = ChannelV2Config.ranking
+    #: E07b: only retrieval (no chat model, one run) — candidate coverage in seconds.
+    candidates_only: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -236,7 +241,8 @@ async def run_evaluation(
         options.cache_dir
         or Path(options.golden_dir).parent / "resultados" / "_cache" / "embeddings"
     )
-    chat = (chat_factory or build_chat)(options)
+    runs = 1 if options.candidates_only else options.runs
+    chat = None if options.candidates_only else (chat_factory or build_chat)(options)
     embedder = (embedder_factory or build_embedder)(options)
     determinism = determinism_for(options)
     config = ChannelV2Config(
@@ -245,6 +251,9 @@ async def run_evaluation(
         max_tokens=options.max_tokens,
         prompt_version=options.prompt_version,
         subject_match=options.subject_match,
+        object_match=options.object_match,  # type: ignore[arg-type]
+        task_text=options.task_text,  # type: ignore[arg-type]
+        ranking=options.ranking,  # type: ignore[arg-type]
     )
 
     plan = []  # (cut, unit, label, existing tasks)
@@ -258,7 +267,7 @@ async def run_evaluation(
 
     predictions: list[Prediction] = []
     ram_bytes: int | None = None
-    for run in range(1, options.runs + 1):
+    for run in range(1, runs + 1):
         vectors_by_cut = {}
         for cut in cuts:
             channel = ChannelV2(
@@ -297,10 +306,10 @@ async def run_evaluation(
                     prompt_version=options.prompt_version,
                 )
             )
-        if run == 1:
+        if run == 1 and chat is not None:
             ram_bytes = await _memory(embedder, options.model)
 
-    metrics = compute_metrics(predictions, runs=options.runs)
+    metrics = compute_metrics(predictions, runs=runs)
     metrics["manual_needed_excluded"] = sum(c.manual_needed for c in cuts)
     metrics["ram_bytes"] = ram_bytes
     metrics["config"] = {
@@ -308,7 +317,8 @@ async def run_evaluation(
         "model": options.model,
         "embedding_model": options.embedding_model,
         "profile": options.profile,
-        "runs": options.runs,
+        "runs": runs,
+        "candidates_only": options.candidates_only,
         "cuts": options.cuts,
         "limit": options.limit,
         "top_k": options.top_k,
@@ -316,6 +326,9 @@ async def run_evaluation(
         "max_tokens": options.max_tokens,
         "prompt_version": options.prompt_version,
         "subject_match": options.subject_match,
+        "object_match": options.object_match,
+        "task_text": options.task_text,
+        "ranking": options.ranking,
         "rules": {"version": rules.version, "digest": rules.digest},
         "determinism": determinism.as_dict(),
         "git_commit": _git_commit(),

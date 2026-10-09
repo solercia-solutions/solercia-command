@@ -182,7 +182,7 @@ async def test_event_without_attendance_skips_the_llm():
     assert result.clase == "no_concluyente" and llm.calls == []
 
 
-async def test_subject_match_is_off_by_default_and_forces_candidates_when_on():
+async def test_subject_match_forces_candidates_only_when_on():
     tasks = [
         *TASKS,
         TaskEntry(
