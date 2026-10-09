@@ -57,6 +57,8 @@ class EvalOptions:
     profile: str = "mac"
     num_thread: int = 8
     num_batch: int | None = None
+    #: Seconds per chat call (E08: emulated amd64 needs more than 300 s per 9B call).
+    timeout: float = 300.0
     limit: int | None = None
     out_dir: Path | None = None
     cache_dir: Path | None = None
@@ -164,6 +166,7 @@ def build_chat(options: EvalOptions) -> LlmPort:
                 chat_model=options.model,
                 determinism=determinism,
                 max_tokens=options.max_tokens,
+                timeout_seconds=options.timeout,
             ),
             dispatch_context=_context(),
         )
@@ -175,7 +178,7 @@ def build_chat(options: EvalOptions) -> LlmPort:
             base_url=options.base_url or preset.base_url or "",
             chat_model=options.model,
             api_key=os.environ.get(API_KEY_ENV, ""),
-            timeout_seconds=300.0,
+            timeout_seconds=options.timeout,
             max_tokens=options.max_tokens,
             temperature=determinism.temperature,
             reasoning_effort="none" if preset.sends_reasoning_effort else None,

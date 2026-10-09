@@ -60,6 +60,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-ctx", type=int, default=8192)
     parser.add_argument(
+        "--timeout", type=float, default=300, help="Segundos por llamada al modelo de chat."
+    )
+    parser.add_argument(
         "--num-batch", type=int, default=None, help="Tamaño de lote fijo (determinismo en CPU)."
     )
     parser.add_argument(
@@ -125,6 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=args.seed,
         num_ctx=args.num_ctx,
         num_batch=args.num_batch,
+        timeout=args.timeout,
         prompt_version=args.prompt_version,
         subject_match=args.subject_match,
         object_match=args.object_match,

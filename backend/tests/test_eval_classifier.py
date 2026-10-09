@@ -553,3 +553,18 @@ def test_cli_num_batch_reaches_the_determinism_options(tmp_path, monkeypatch):
     assert options.num_batch == 256
     determinism = determinism_for(options)
     assert determinism.num_batch == 256 and determinism.num_thread == 1
+
+
+def test_timeout_option_reaches_the_native_chat_adapter():
+    # E08: under amd64 emulation one 9B call takes more than the default 300 s.
+    from app.eval.runner import EvalOptions, build_chat
+    from scripts.eval_classifier import _parser
+
+    args = _parser().parse_args(
+        ["--golden-dir", ".", "--cortes", "x", "--rules", "r", "--timeout", "1200"]
+    )
+    assert args.timeout == 1200
+    default = _parser().parse_args(["--golden-dir", ".", "--cortes", "x", "--rules", "r"])
+    assert default.timeout == 300
+    options = EvalOptions(golden_dir=".", cuts=[], rules_path=".", timeout=1200)
+    assert build_chat(options)._config.timeout_seconds == 1200
