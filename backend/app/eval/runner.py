@@ -56,6 +56,7 @@ class EvalOptions:
     runs: int = 3
     profile: str = "mac"
     num_thread: int = 8
+    num_batch: int | None = None
     limit: int | None = None
     out_dir: Path | None = None
     cache_dir: Path | None = None
@@ -135,7 +136,11 @@ def _context() -> LlmDispatchContext:
 
 def determinism_for(options: EvalOptions) -> Determinism:
     return determinism_profile(
-        options.profile, num_thread=options.num_thread, seed=options.seed, num_ctx=options.num_ctx
+        options.profile,
+        num_thread=options.num_thread,
+        seed=options.seed,
+        num_ctx=options.num_ctx,
+        num_batch=options.num_batch,
     )
 
 

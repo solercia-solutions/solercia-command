@@ -60,6 +60,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-ctx", type=int, default=8192)
     parser.add_argument(
+        "--num-batch", type=int, default=None, help="Tamaño de lote fijo (determinismo en CPU)."
+    )
+    parser.add_argument(
         "--prompt-version", default=DEFAULT_PROMPT_VERSION_V2, choices=sorted(PROMPTS_V2)
     )
     parser.add_argument(
@@ -121,6 +124,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         seed=args.seed,
         num_ctx=args.num_ctx,
+        num_batch=args.num_batch,
         prompt_version=args.prompt_version,
         subject_match=args.subject_match,
         object_match=args.object_match,

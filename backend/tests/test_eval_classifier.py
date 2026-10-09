@@ -518,3 +518,38 @@ def test_cli_accepts_the_retrieval_flags(tmp_path, monkeypatch):
     assert code == 0
     assert options.candidates_only and options.task_text == "full"
     assert options.ranking == "bm25" and options.object_match == "specific" and options.top_k == 10
+
+
+def test_cli_num_batch_reaches_the_determinism_options(tmp_path, monkeypatch):
+    from app.eval.runner import determinism_for
+    from scripts import eval_classifier
+
+    seen = {}
+
+    async def fake_run(options):
+        seen["options"] = options
+        return {
+            "n": 0,
+            "class_accuracy": None,
+            "macro_f1": None,
+            "task_top1": None,
+            "candidate_coverage": None,
+            "determinism": {"rate": None},
+            "latency_ms": {"p50": None, "p95": None},
+            "json_errors": 0,
+            "out_dir": str(tmp_path),
+        }
+
+    monkeypatch.setattr(eval_classifier, "run_evaluation", fake_run)
+    code = eval_classifier.main(
+        [
+            "--golden-dir", str(tmp_path), "--rules", str(tmp_path / "r.json"),
+            "--cortes", "2026-09-01", "--profile", "server", "--num-thread", "1",
+            "--num-batch", "256",
+        ]
+    )  # fmt: skip
+    assert code == 0
+    options = seen["options"]
+    assert options.num_batch == 256
+    determinism = determinism_for(options)
+    assert determinism.num_batch == 256 and determinism.num_thread == 1

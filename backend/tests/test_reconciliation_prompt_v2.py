@@ -179,3 +179,11 @@ def test_user_message_can_show_the_latest_note_of_each_candidate():
         message
     )
     assert "Última nota" not in build_user_message_v2(unit, CANDIDATES, max_chars=4000)
+
+
+def test_fixed_num_batch_is_sent_only_when_set():
+    # E08: a fixed batch size is one of the CPU determinism knobs under test.
+    server = determinism_profile("server", num_thread=4, num_batch=128)
+    assert server.ollama_options(max_tokens=10)["num_batch"] == 128
+    assert server.as_dict()["num_batch"] == 128
+    assert "num_batch" not in determinism_profile("server").ollama_options(max_tokens=10)

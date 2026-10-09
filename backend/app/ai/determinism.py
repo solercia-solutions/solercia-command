@@ -24,6 +24,8 @@ class Determinism:
     think: bool = False
     num_gpu: int | None = None
     num_thread: int | None = None
+    #: Fixed prompt batch size (E08: CPU determinism); ``None`` keeps Ollama's default.
+    num_batch: int | None = None
 
     def ollama_options(self, *, max_tokens: int) -> dict[str, Any]:
         options: dict[str, Any] = {
@@ -38,6 +40,8 @@ class Determinism:
             options["num_gpu"] = self.num_gpu
         if self.num_thread is not None:
             options["num_thread"] = self.num_thread
+        if self.num_batch is not None:
+            options["num_batch"] = self.num_batch
         return options
 
     def as_dict(self) -> dict[str, Any]:
@@ -50,6 +54,7 @@ class Determinism:
             "think": self.think,
             "num_gpu": self.num_gpu,
             "num_thread": self.num_thread,
+            "num_batch": self.num_batch,
         }
 
 
