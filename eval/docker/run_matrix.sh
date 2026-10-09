@@ -40,6 +40,12 @@ case "$PLATFORM" in
   *) echo "PLATFORM debe ser linux/arm64 o linux/amd64 (recibido: $PLATFORM)." >&2; exit 1 ;;
 esac
 ARCH="${PLATFORM#linux/}"
+# Manifiestos por plataforma del índice ollama/ollama:0.35.1@sha256:292ee794… (imagetools inspect).
+case "$ARCH" in
+  amd64) DEFAULT_OLLAMA_IMAGE="ollama/ollama:0.35.1@sha256:17e945f1aa6e505707eeb621e3f36847d0a4a063d4778f7007645acccfb8bd4f" ;;
+  arm64) DEFAULT_OLLAMA_IMAGE="ollama/ollama:0.35.1@sha256:149e245141f5d0370bd46f774229e87781276a44050a02e8fe7e35b82a15adb5" ;;
+esac
+export OLLAMA_IMAGE="${OLLAMA_IMAGE:-$DEFAULT_OLLAMA_IMAGE}"
 STAMP="$(date +%Y-%m-%d_%H%M)"
 OUT_SUBDIR="${OUT_SUBDIR:-e07a}"
 OUT_ROOT="/data/resultados/${OUT_SUBDIR}/${STAMP}_${ARCH}"
@@ -127,6 +133,7 @@ for model in "${MODELS[@]}"; do
   evaluate "$model" "$out" "$RUNS" ${limit_args[@]+"${limit_args[@]}"}
   if [[ -n "$watcher" ]]; then
     kill "$watcher" 2>/dev/null || true
+    wait "$watcher" 2>/dev/null || true
     python3 - "$HOST_OUT_ROOT/$safe/ram_muestras.txt" >"$HOST_OUT_ROOT/$safe/ram_pico.txt" <<'PY'
 import re, sys
 units = {"B": 1, "KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "kB": 1e3, "MB": 1e6, "GB": 1e9}
