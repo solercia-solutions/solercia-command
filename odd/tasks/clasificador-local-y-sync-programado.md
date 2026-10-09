@@ -478,12 +478,48 @@ expresa por proveedor.
   texto de C05, así que en producción solo actúan BM25/RRF sobre título y descripción, el asunto
   y los objetos `specific`; el texto completo queda para E06.
 
+- 2026-10-09 E08 (`a153d13` prompt v2.5; `a9df38d` `--num-batch`; `6184ff9` k=5 por defecto;
+  `1e7460a` entorno; `95d3a30` `--timeout`; detalle en `evaluaciones/resultados/e08_ajuste.md` y
+  `evaluaciones/resultados/e08/COMPARATIVA_REALISTA.md`).
+  Paso 1 (Ollama del host, qwen3.5:9b, mac, 2 corridas, RRF con texto completo): macro-F1
+  desarrollo / prueba — (a) k=5 v2.2 0,361 / **0,372**; (b) k=8 v2.2 0,397 / 0,311; (c) k=5 v2.5
+  0,446 / 0,361. `tarea_nueva` F1 en prueba 0,450 / 0,343 / 0,368. Queda por defecto k=5 con v2.2
+  (`ChannelV2Config.top_k`, `ReconciliationConfig.v2_top_k`, `RECONCILIATION_V2_TOP_K`); v2.5
+  (mismo objeto concreto nombrable para vincular; más candidatas no implican que alguna sea la
+  correcta) sube desarrollo y baja prueba, se conserva registrada. RED/GREEN: v2.5 desconocida →
+  registrada; `Determinism(num_batch)` y `--num-batch`; valores por defecto 8 → 5; `--timeout`.
+  296 pruebas en verde sin base de datos (32 de PostgreSQL omitidas).
+  Entorno: `compose.hostmodels.yml` monta `~/.ollama/models` en solo lectura (sin descargas);
+  `cpuset: 0-3` (antes `nproc` veía 8); `LLAMA_ARG_CACHE_RAM=0` (sin ella qwen3.5:9b murió por OOM
+  en 8 GB); manifiesto de Ollama por plataforma (Docker Desktop no guarda dos plataformas bajo un
+  digest de índice); `run_matrix.sh` calienta embeddings, mide pico de RAM y sondea el p50.
+  Límites verificados: `NanoCpus` 4e9, `Memory`/`MemorySwap` 8 GiB, modelos `RW=false`, Ollama
+  `library=cpu`, runner con 4 hilos; amd64 bajo Rosetta con AVX2 y sin AVX-512.
+
+  | Modelo | arm64 30×3: macro-F1 / determ. (clase) / p50 / 40 hilos / RAM | amd64 emul. 10×1: p50 / 40 hilos |
+  |---|---|---|
+  | qwen3.5:9b-q4_K_M | 0,460 / 96,7 % (100 %) / 23,8 s / 18,3 min / 7,0 GiB | 168 s / 134 min |
+  | ornith:9b | 0,416 / 96,7 % (100 %) / 24,7 s / 18,8 min / 6,1 GiB | 180 s / 138 min |
+  | qwen3.5:4b | 0,328 / 96,7 % (100 %) / 13,4 s / 10,8 min / 4,4 GiB | 87 s / 72 min |
+  | gemma4:e2b | 0,400 / 33,3 % (90 %) / 10,7 s / 9,0 min / 5,5 GiB | 63 s / 44 min |
+
+  Desvíos: 30 registros (15 por corte de prueba) en arm64 porque 121 × 3 tomaba ≈ 4 h por 9B;
+  amd64 con 10 registros × 1 corrida porque Rosetta procesa el prompt a ≈ 7 tokens/s (todos los
+  modelos > 60 s de p50). Calidad igual entre plataformas (clase y tarea iguales en 25–29 de 30
+  frente a Mac). Determinismo (qwen3.5:9b, arm64, 10 × 3): base 90 % de salida idéntica y 100 % de
+  clase; `num_batch` 128 → 100 % con +59 % de latencia; `num_thread` 1 no viable (> 300 s);
+  `LLAMA_ARG_CACHE_PROMPT=false` sin efecto. Recomendación: servidor y Mac con
+  qwen3.5:9b-q4_K_M; `qwen3.5:4b` si el servidor real supera ≈ 60 min por 40 hilos; gemma4:e2b
+  descartado por determinismo. Hallazgos para E06: con un solo modelo cargado, alternar
+  `/api/embed` y `/api/chat` recarga el modelo de chat en cada hilo (calcular embeddings en lote
+  primero); `/api/embed` no envía `num_thread`.
+
 ## Siguiente paso
 
-E07: decidir entre RRF k=5 (85,5 % de cobertura) y k=8 con un ajuste del prompt para
-`tarea_nueva`, midiendo ambos con el LLM; ampliar la VM de Docker (12–16 GB) y correr
-`eval/docker/run_matrix.sh` en arm64 y amd64; diagnóstico real del servidor.
-E06: elegir modelo (ornith:9b frente a qwen3.5:9b en GPU; qwen3.5:9b o 4b en CPU, revisando el
-determinismo en CPU) y BYOK; adaptador nativo de Ollama en el canal de producción, `subject_match` y
-observaciones de la tarea en el servicio. Siguen
-abiertos los pendientes de C07.
+E06: adaptador nativo de Ollama en el canal de producción con `qwen3.5:9b-q4_K_M`, `num_thread` 4
+también en `/api/embed`, embeddings del lote antes de las llamadas de chat, `LLAMA_ARG_CACHE_RAM=0`
+en el Ollama del servidor, `subject_match` y observaciones de la tarea en el servicio; BYOK.
+Servidor: correr `scripts/diagnostico-servidor-ia.sh` y la matriz nativa x86 (`run_matrix.sh`,
+121 × 3) para cerrar la horquilla 18–134 min por 40 hilos. Pendiente comparar RRF frente a
+embeddings con el LLM (E05b: 0,403 en prueba con embeddings y k=5). Siguen abiertos los
+pendientes de C07.
