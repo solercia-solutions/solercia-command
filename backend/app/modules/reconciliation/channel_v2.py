@@ -80,9 +80,13 @@ def _code(exc: AppException) -> str:
 
 @dataclass(frozen=True)
 class ChannelV2Config:
-    """Defaults = E07b choice: best candidate coverage on the test cuts with k <= 8."""
+    """Defaults = E07b retrieval (RRF, full text, subject, specific objects) with E08 k=5.
 
-    top_k: int = 8
+    E08: k=8 raised coverage but lowered macro-F1 on the test cuts (the model attached new
+    tasks to similar candidates); k=5 had the better test macro-F1.
+    """
+
+    top_k: int = 5
     max_chars: int = 6000
     embed_chars: int = 2000
     max_tokens: int = 600

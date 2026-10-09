@@ -222,7 +222,7 @@ def test_fused_objects_need_the_rrf_ranking():
 
 def test_channel_v2_defaults_are_the_e07b_choice():
     config = ChannelV2Config()
-    assert (config.top_k, config.ranking, config.task_text) == (8, "rrf", "full")
+    assert (config.top_k, config.ranking, config.task_text) == (5, "rrf", "full")
     assert config.subject_match is True and config.object_match == "specific"
 
 
@@ -236,7 +236,7 @@ def test_evaluator_and_service_follow_the_channel_defaults():
     options = EvalOptions(golden_dir=".", cuts=[], rules_path=".")
     args = _parser().parse_args(["--golden-dir", ".", "--cortes", "x", "--rules", "r"])
     for source in (options, args):
-        assert (source.top_k, source.ranking, source.task_text) == (8, "rrf", "full")
+        assert (source.top_k, source.ranking, source.task_text) == (5, "rrf", "full")
         assert source.subject_match is True and source.object_match == "specific"
     assert ReconciliationConfig().v2_top_k == channel.top_k
     assert Settings.model_fields["RECONCILIATION_V2_TOP_K"].default == channel.top_k

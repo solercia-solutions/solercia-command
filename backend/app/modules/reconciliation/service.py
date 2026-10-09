@@ -71,7 +71,7 @@ class ReconciliationConfig:
     max_thread_chars: int = 6000
     top_k: int = 5
     #: Channel v2 candidates (E07b: RRF of BM25 + embeddings, k = 8).
-    v2_top_k: int = 8
+    v2_top_k: int = 5
     llm_max_tokens: int = 600
     #: ``v1`` (C05) or ``v2`` (E03: rules per organization, 8 classes).
     channel: str = "v1"
@@ -82,7 +82,7 @@ class ReconciliationConfig:
             max_threads=settings.RECONCILIATION_MAX_THREADS_PER_RUN,
             max_thread_chars=settings.RECONCILIATION_MAX_THREAD_CHARS,
             top_k=settings.RECONCILIATION_TOP_K,
-            v2_top_k=getattr(settings, "RECONCILIATION_V2_TOP_K", 8),
+            v2_top_k=getattr(settings, "RECONCILIATION_V2_TOP_K", 5),
             llm_max_tokens=settings.RECONCILIATION_LLM_MAX_TOKENS,
             channel=getattr(settings, "RECONCILIATION_CHANNEL", "v1"),
         )
