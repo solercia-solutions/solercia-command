@@ -1,0 +1,15 @@
+# Variante E08: usa el almacén de modelos del Ollama del host en SOLO LECTURA, sin descargar de
+# nuevo (los GGUF no dependen de la arquitectura: sirven igual para arm64 y amd64).
+#
+#   docker compose -p solercia-eval -f eval/docker/compose.eval.yml \
+#     -f eval/docker/compose.hostmodels.yml up -d --wait ollama
+#
+# OLLAMA_NOPRUNE evita que Ollama intente borrar blobs al arrancar (el montaje es de solo
+# lectura y el almacén es del host). HOST_OLLAMA_MODELS apunta a otra carpeta si hace falta.
+services:
+  ollama:
+    environment:
+      OLLAMA_MODELS: /models
+      OLLAMA_NOPRUNE: "1"
+    volumes:
+      - ${HOST_OLLAMA_MODELS:-${HOME}/.ollama/models}:/models:ro

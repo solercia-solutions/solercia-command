@@ -17,6 +17,8 @@ services:
     image: ollama/ollama:0.35.1@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c
     platform: ${PLATFORM:-linux/arm64}
     cpus: 4
+    # E08: sin cpuset el contenedor veía 8 CPU (nproc) con cuota de 4; con 0-3 ve 4, como la VM.
+    cpuset: "0-3"
     mem_limit: 8g
     # Sin swap adicional: si el modelo no cabe en 8 GB, falla igual que en el servidor.
     memswap_limit: 8g
@@ -25,6 +27,11 @@ services:
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_KEEP_ALIVE: "30m"
       OLLAMA_HOST: "0.0.0.0:11434"
+      # E08: Ollama 0.35 corre llama-server con caché de prompts en RAM (hasta 8 GiB) y puntos de
+      # control de contexto (~50 MiB cada uno con qwen3.5). Con 8 GB, qwen3.5:9b murió por OOM a
+      # los pocos minutos. llama-server lee LLAMA_ARG_* del entorno que hereda de Ollama.
+      LLAMA_ARG_CACHE_RAM: "${LLAMA_ARG_CACHE_RAM:-0}"
+      LLAMA_ARG_CACHE_PROMPT: "${LLAMA_ARG_CACHE_PROMPT:-true}"
     ports:
       # Puerto distinto del Ollama del host (11434) y solo en loopback.
       - "127.0.0.1:${EVAL_OLLAMA_PORT:-11534}:11434"

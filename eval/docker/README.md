@@ -91,6 +91,22 @@ done
 $COMPOSE exec ollama ollama list
 ```
 
+#### 1b. Alternativa sin descargar: modelos del host en solo lectura (E08)
+
+`compose.hostmodels.yml` monta `~/.ollama/models` del host en `/models` con `:ro`
+(`OLLAMA_MODELS=/models`, `OLLAMA_NOPRUNE=1`). Ollama arranca y carga los GGUF sin escribir en el
+almacén, así que no hace falta el paso 1. `run_matrix.sh` lo usa con `HOST_MODELS=1`:
+
+```bash
+HOST_MODELS=1 OUT_SUBDIR=e08 PLATFORM=linux/arm64 eval/docker/run_matrix.sh
+# amd64 con sonda: si el p50 de 10 registros supera 60 s, corre 15 por corte (30 registros).
+HOST_MODELS=1 OUT_SUBDIR=e08 PROBE_P50_S=60 PLATFORM=linux/amd64 eval/docker/run_matrix.sh
+```
+
+Cada modelo deja `ram_pico.txt` (pico de `docker stats` del contenedor de Ollama, muestreo cada
+2 s) y, si se cortó, `LIMITE.txt`. El contenedor usa `cpuset: "0-3"` además de `cpus: 4`: sin
+cpuset, `nproc` veía 8 CPU con cuota de 4; así ve 4, como la VM supuesta.
+
 ### 2. Matriz en CPU, límite optimista (arm64 nativo)
 
 ```bash
