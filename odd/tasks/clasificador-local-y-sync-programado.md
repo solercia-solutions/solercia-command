@@ -118,6 +118,10 @@ expresa por proveedor.
 - [x] E05 Matriz de modelos (E05b): qwen3.5:9b (base), qwen3.5:4b, ornith:9b, lfm2.5:8b,
       ministral-3:8b, gemma4 e4b/e2b, granite4:tiny-h; en Mac (GPU) y perfil servidor (CPU).
 - [ ] E06 Recomendación de modelo para servidor y BYOK, y cierre de pendientes de C07.
+- [x] E07a Entorno de evaluación en contenedores «igual a producción» (`eval/docker/`): archivos
+      validados; la matriz en contenedores queda pendiente de ampliar la VM de Docker.
+- [x] E07b Recuperación de candidatas medible (texto completo, BM25, RRF, objetos, top-k) y
+      configuración por defecto del canal v2; la exactitud bajó con k=8 (ver evidencia).
 
 ## Progreso y evidencia
 
@@ -416,8 +420,69 @@ expresa por proveedor.
   elige casi siempre la primera candidata (top-1 2,4 %); granite4 con 18 errores de JSON
   (6 registros); gemma4 no acierta `tarea_nueva`; `ollama ps` no reporta la RAM de gemma4:e2b.
 
+- Supuesto de servidor (pendiente de confirmar con `scripts/diagnostico-servidor-ia.sh`): VM VMware
+  u Oracle, Intel Xeon 4 vCPU con AVX2 y sin AVX-512, 16 GB de RAM, sin GPU, compartida con
+  PANDORA → presupuesto del modelo 4 CPU y 8 GB.
+- 2026-10-08 E07a (`41aec15`): `eval/docker/compose.eval.yml` con `ollama`
+  (`ollama/ollama:0.35.1@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c`,
+  índice amd64 + arm64, misma versión del host; `cpus: 4`, `mem_limit`/`memswap_limit` 8g,
+  `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`, volumen `solercia-eval-ollama-models`,
+  puerto 127.0.0.1:11534) y `evaluator` (Python 3.12 slim fijado por digest, solo `app/` y
+  `scripts/`, dependencias mínimas en `requirements.evaluator.txt`; red interna sin salida a
+  internet; `evaluaciones/` en solo lectura salvo `resultados/`; perfil `server`, 4 hilos).
+  `PLATFORM=linux/arm64` (límite optimista) o `linux/amd64` (pesimista, emulado; nativo en el
+  servidor). `run_matrix.sh` (qwen3.5:9b-q4_K_M, ornith:9b, qwen3.5:4b, gemma4:e2b; prueba;
+  runs=3; caché de embeddings por plataforma; `eval_compare` al final; `--dry-run`). README con
+  supuestos, horquilla, requisitos (Docker Desktop 12–16 GB) y comandos de precarga, matriz y
+  servidor real. Validación: `docker compose config` (arm64 y amd64), `bash -n`, `--dry-run` y
+  las dependencias mínimas importan los dos scripts en un venv limpio. No se construyó ni arrancó
+  ningún contenedor (VM de 4 GB con la swap llena).
+- 2026-10-08 E07b (`b910ff8`): `stages.py` gana `task_embedding_text(full=…)` (detalle completo y
+  observaciones, tope 2000), `LexicalIndex` (BM25 k1 1,5 b 0,75, sin tildes ni palabras vacías),
+  `fused_candidates` (RRF k=60, desempate por ref) y `object_matches` / modo `specific` (solo
+  tokens compartidos por ≤ 2 tareas). `ChannelV2Config`: `ranking` (embedding/bm25/rrf),
+  `task_text` (base/full), `object_match` (off/forced/specific/fused). Evaluador
+  `--candidates-only` (sin modelo de chat, 1 corrida) y banderas de recuperación. RED:
+  `ImportError` de `LexicalIndex`, banderas desconocidas, modos de objeto y valores por defecto;
+  GREEN: 290 pruebas sin base de datos (reconciliación, evaluador, IA; 32 de PostgreSQL omitidas).
+- Diagnóstico E07b (desarrollo, configuración anterior, solo conteos): 21 de 55 registros sin la
+  tarea correcta en el top-5; 9 son eventos decididos por reglas (techo 83,6 %); de los 12
+  restantes, la tarea estaba en los puestos 6–20 por embeddings en 9 casos y 8 quedaban en el
+  top-5 de BM25 con texto completo. Los identificadores de objeto forzados eran ruido:
+  `codigo_documental` acierta 18/147 y `riesgo_matriz` 0/36 en prueba (14 registros con ≥ 9
+  forzadas). Detalle y tabla de 120 combinaciones en `evaluaciones/resultados/e07b_candidatas.md`.
+
+  | Configuración | k | Desarrollo | Prueba |
+  |---|---|---|---|
+  | Anterior: embeddings, texto base, objetos forzados | 5 | 61,8 % | 67,3 % |
+  | Anterior + asunto | 5 | 63,6 % | 72,7 % |
+  | Embeddings, texto base, objetos forzados | 10 | 67,3 % | 76,4 % |
+  | BM25, texto completo, objetos apagados | 8 | 65,5 % | 90,9 % |
+  | RRF, texto completo, asunto, objetos forzados | 8 | 63,6 % | 80,0 % |
+  | RRF, texto completo, asunto, objetos `specific` | 5 | 65,5 % | 85,5 % |
+  | **RRF, texto completo, asunto, objetos `specific` (elegida)** | **8** | **67,3 %** | **90,9 %** |
+  | RRF, texto completo (cualquier modo de objetos) | 10 | 69,1 % | 94,5 % |
+
+  Elegida por cobertura en prueba con k ≤ 8 y hecha la configuración por defecto del canal v2
+  (`ChannelV2Config`, evaluador y `RECONCILIATION_V2_TOP_K=8`).
+- Evaluación completa con la configuración elegida (qwen3.5:9b-q4_K_M, Ollama del host, perfil
+  mac, v2.2, 2 corridas, prueba n 121): exactitud 55,4 % (E05b 58,7 %), macro-F1 0,311 (0,403),
+  tarea top-1 26,2 % (30,9 %), cobertura 90,9 % (67,3 %), no concluyente 5,0 %, determinismo
+  100 %, 0 errores de JSON, p50 3,26 s (3,09 s), RAM 5,8 GB, tokens de entrada por llamada +5 %.
+  F1 por clase: `tarea_nueva` 0,343 (0,605), `avanza` 0,447 (0,418), `informativo` 0,400
+  (0,410); aparece `solo_bitacora` predicha con F1 0 (cuenta en el macro). Lectura: más
+  candidatas correctas no se tradujeron en más aciertos; con 8 candidatas parecidas el modelo
+  vincula a una tarea existente hilos que son tarea nueva. La recuperación mejoró, la decisión
+  del LLM empeoró: no se recomienda llevar k=8 a producción sin ajustar el prompt o reducir k.
+- Límites E07b: el servicio arma `TaskEntry` sin observaciones y calcula sus embeddings con el
+  texto de C05, así que en producción solo actúan BM25/RRF sobre título y descripción, el asunto
+  y los objetos `specific`; el texto completo queda para E06.
+
 ## Siguiente paso
 
+E07: decidir entre RRF k=5 (85,5 % de cobertura) y k=8 con un ajuste del prompt para
+`tarea_nueva`, midiendo ambos con el LLM; ampliar la VM de Docker (12–16 GB) y correr
+`eval/docker/run_matrix.sh` en arm64 y amd64; diagnóstico real del servidor.
 E06: elegir modelo (ornith:9b frente a qwen3.5:9b en GPU; qwen3.5:9b o 4b en CPU, revisando el
 determinismo en CPU) y BYOK; adaptador nativo de Ollama en el canal de producción, `subject_match` y
 observaciones de la tarea en el servicio. Siguen
