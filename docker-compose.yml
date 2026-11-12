@@ -38,7 +38,7 @@ services:
       TEST_DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/solercia_test
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: dev-secret-change-me
-      INTEGRATIONS_FERNET_KEY: GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8=
+      INTEGRATIONS_FERNET_KEY: ${INTEGRATIONS_FERNET_KEY:?Define INTEGRATIONS_FERNET_KEY en .env; ver env.example}
       # Off by default (change 42-purga-datos-demo): a fresh deploy never
       # creates ana@/carlos@/diana@ or their demo projects/tasks/sprint.
       SEED_DEMO_DATA: "false"

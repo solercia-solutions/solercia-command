@@ -205,3 +205,4 @@ las que dependen de tu equipo van en `.env` (raíz, ignorado por git):
 | `SOLERCIA_CONNECT_BASE_URL` | compose (`http://host.docker.internal:8765`) | Dónde está Connect visto desde el contenedor |
 | `SOLERCIA_CONNECT_DEFAULT_TARGET` | compose (`outlook`) | Destino por defecto al registrar una conexión |
 | `JWT_SECRET` | compose | Cámbialo en cualquier ambiente que no sea de desarrollo |
+| `INTEGRATIONS_FERNET_KEY` | `.env` (obligatoria) | Cifra en reposo las credenciales de las integraciones; genera una distinta por ambiente (ver `env.example`) |
