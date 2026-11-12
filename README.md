@@ -206,3 +206,14 @@ las que dependen de tu equipo van en `.env` (raíz, ignorado por git):
 | `SOLERCIA_CONNECT_DEFAULT_TARGET` | compose (`outlook`) | Destino por defecto al registrar una conexión |
 | `JWT_SECRET` | compose | Cámbialo en cualquier ambiente que no sea de desarrollo |
 | `INTEGRATIONS_FERNET_KEY` | `.env` (obligatoria) | Cifra en reposo las credenciales de las integraciones; genera una distinta por ambiente (ver `env.example`) |
+
+## Licencia
+
+Copyright (C) 2026 Cristian Camilo Calderón Tapia.
+
+Solercia Command es software libre: puedes usarlo, estudiarlo, modificarlo y
+redistribuirlo bajo los términos de la Licencia Pública General Affero de GNU
+(GNU AGPL), versión 3, publicada por la Free Software Foundation. Se distribuye
+SIN NINGUNA GARANTÍA; consulta el archivo [LICENSE](LICENSE). Si ofreces una versión
+modificada como servicio en red, debes poner su código fuente a disposición de
+quienes usan ese servicio.
