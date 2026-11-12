@@ -55,6 +55,14 @@ check_docker_running() {
   "$DOCKER" info >/dev/null 2>&1 || { echo -e "${RED}[ERR]${NC} Docker Desktop no está corriendo. Ábrelo y espera 'Engine running'."; exit 1; }
 }
 
+# Compose interpola todo el archivo en cada comando (ps, stop, logs incluidos):
+# si falta una variable obligatoria, como INTEGRATIONS_FERNET_KEY, todos fallan.
+# Se valida antes para no reportar «apagado» con contenedores en marcha.
+check_compose_config() {
+  local err
+  err=$(dc config -q 2>&1) || { echo -e "${RED}[ERR]${NC} docker-compose.yml no se puede interpretar:"; echo "  $err"; echo -e "  Revisa el .env (ver env.example)."; exit 1; }
+}
+
 # ── Node vía nvm (o node del sistema si ya es >= 20) ────────────────────────
 use_node() {
   export NVM_DIR="$HOME/.nvm"
@@ -252,6 +260,10 @@ cmd_rebuild() {
   dc up -d --build "${targets[@]}"
   echo -e "${GREEN}[REBUILD]${NC} Listo."
 }
+
+case "${1:-help}" in
+  on|encender|start|up|off|apagar|stop|down|status|st|logs|rebuild|restart) check_compose_config ;;
+esac
 
 case "${1:-help}" in
   on|encender|start|up) shift || true; cmd_on "$@" ;;
