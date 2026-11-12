@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="590" viewBox="0 0 960 590" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitectura de Solercia Command</title>
+  <desc id="desc">El navegador usa el frontend Angular, que llama a la API FastAPI. El backend guarda en PostgreSQL y Redis, valida el SSO contra Keycloak y lee correo y calendario a través de Solercia Connect, que corre en el host.</desc>
+  <defs>
+    <style>
+      text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+      .bg{fill:#f8fafc;stroke:#e2e8f0}
+      .h{fill:#0f172a;font-size:22px;font-weight:700}
+      .sub{fill:#475569;font-size:13px}
+      .t{fill:#0f172a;font-size:14px;font-weight:600}
+      .s{fill:#475569;font-size:12px}
+      .k{fill:#64748b;font-size:11px;font-weight:700;letter-spacing:.08em}
+      .box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5}
+      .zone{fill:none;stroke:#94a3b8;stroke-width:1.2;stroke-dasharray:6 5}
+      .ind{fill:#eef2ff;stroke:#6366f1;stroke-width:1.5}
+      .grn{fill:#ecfdf5;stroke:#10b981;stroke-width:1.5}
+      .amb{fill:#fffbeb;stroke:#f59e0b;stroke-width:1.5}
+      .sky{fill:#f0f9ff;stroke:#0ea5e9;stroke-width:1.5}
+      .pill{fill:#ffffff;stroke:#c7d2fe}
+      .ln{fill:none;stroke:#64748b;stroke-width:1.6}
+      .dash{stroke-dasharray:5 4}
+      .ah{fill:#64748b}
+      @media (prefers-color-scheme:dark){
+        .bg{fill:#0d1117;stroke:#30363d}
+        .h,.t{fill:#e6edf3}
+        .sub,.s{fill:#9da7b3}
+        .k{fill:#8b949e}
+        .box{fill:#161b22;stroke:#30363d}
+        .zone{stroke:#484f58}
+        .ind{fill:#1c1f3a;stroke:#818cf8}
+        .grn{fill:#0f2a20;stroke:#34d399}
+        .amb{fill:#2b2111;stroke:#fbbf24}
+        .sky{fill:#0c2433;stroke:#38bdf8}
+        .pill{fill:#161b22;stroke:#4f46e5}
+        .ln{stroke:#8b949e}
+        .ah{fill:#8b949e}
+      }
+    </style>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="589" rx="16"/>
+  <text class="h" x="32" y="44">Cómo se conectan las piezas</text>
+  <text class="sub" x="32" y="66">Frontend en el host, API y datos en Docker, Solercia Connect como servicio hermano opcional.</text>
+
+  <!-- Persona -->
+  <rect class="box" x="32" y="96" width="180" height="72" rx="10"/>
+  <text class="t" x="122" y="127" text-anchor="middle">Persona usuaria</text>
+  <text class="s" x="122" y="147" text-anchor="middle">navegador</text>
+
+  <!-- Frontend -->
+  <rect class="ind" x="252" y="96" width="300" height="72" rx="10"/>
+  <text class="t" x="402" y="122" text-anchor="middle">Frontend · Angular 22</text>
+  <text class="s" x="402" y="141" text-anchor="middle">@solercia/ui · Tailwind 3</text>
+  <text class="s" x="402" y="158" text-anchor="middle">ng serve en el host · :4242</text>
+
+  <!-- Keycloak -->
+  <rect class="box" x="700" y="96" width="228" height="72" rx="10"/>
+  <text class="t" x="814" y="122" text-anchor="middle">Keycloak (opcional)</text>
+  <text class="s" x="814" y="141" text-anchor="middle">OIDC · perfil sso de compose</text>
+  <text class="s" x="814" y="158" text-anchor="middle">:8180</text>
+
+  <path class="ln" d="M212 132 H250" marker-end="url(#a)"/>
+
+  <!-- Docker zone -->
+  <rect class="zone" x="252" y="196" width="676" height="316" rx="14"/>
+  <text class="k" x="268" y="218">DOCKER COMPOSE</text>
+
+  <!-- Backend -->
+  <rect class="ind" x="272" y="234" width="636" height="150" rx="12"/>
+  <text class="t" x="290" y="260">Backend · FastAPI (Python 3.12)</text>
+  <text class="s" x="290" y="279">API REST /api/v1 · WebSocket de notificaciones · :8081 → 8000</text>
+  <g>
+    <rect class="pill" x="290" y="296" width="144" height="30" rx="15"/>
+    <text class="s" x="362" y="315" text-anchor="middle">Proyectos y tableros</text>
+    <rect class="pill" x="444" y="296" width="144" height="30" rx="15"/>
+    <text class="s" x="516" y="315" text-anchor="middle">Tareas y sprints</text>
+    <rect class="pill" x="598" y="296" width="144" height="30" rx="15"/>
+    <text class="s" x="670" y="315" text-anchor="middle">Bandeja de entrada</text>
+    <rect class="pill" x="752" y="296" width="140" height="30" rx="15"/>
+    <text class="s" x="822" y="315" text-anchor="middle">Integraciones</text>
+    <rect class="pill" x="290" y="336" width="144" height="30" rx="15"/>
+    <text class="s" x="362" y="355" text-anchor="middle">Alertas y avisos</text>
+    <rect class="pill" x="444" y="336" width="144" height="30" rx="15"/>
+    <text class="s" x="516" y="355" text-anchor="middle">Vista ejecutiva</text>
+    <rect class="pill" x="598" y="336" width="144" height="30" rx="15"/>
+    <text class="s" x="670" y="355" text-anchor="middle">Roles y menús</text>
+    <rect class="pill" x="752" y="336" width="140" height="30" rx="15"/>
+    <text class="s" x="822" y="355" text-anchor="middle">Conciliación</text>
+  </g>
+
+  <path class="ln" d="M402 168 V232" marker-end="url(#a)"/>
+  <text class="s" x="412" y="190">REST + WebSocket</text>
+  <path class="ln dash" d="M814 232 V170" marker-end="url(#a)"/>
+  <text class="s" x="804" y="190" text-anchor="end">código, JWKS</text>
+
+  <!-- Data -->
+  <rect class="sky" x="272" y="414" width="300" height="76" rx="10"/>
+  <text class="t" x="422" y="444" text-anchor="middle">PostgreSQL 16</text>
+  <text class="s" x="422" y="464" text-anchor="middle">datos por organización · 127.0.0.1:5434</text>
+  <rect class="amb" x="608" y="414" width="300" height="76" rx="10"/>
+  <text class="t" x="758" y="444" text-anchor="middle">Redis 7</text>
+  <text class="s" x="758" y="464" text-anchor="middle">estado OAuth y SSO, alertas · :6380</text>
+  <path class="ln" d="M422 384 V412" marker-end="url(#a)"/>
+  <path class="ln" d="M758 384 V412" marker-end="url(#a)"/>
+
+  <!-- Connect -->
+  <rect class="grn" x="32" y="234" width="180" height="122" rx="10"/>
+  <text class="t" x="122" y="262" text-anchor="middle">Solercia Connect</text>
+  <text class="s" x="122" y="283" text-anchor="middle">en el host · :8765</text>
+  <text class="s" x="122" y="302" text-anchor="middle">vía host.docker.internal</text>
+  <text class="s" x="122" y="321" text-anchor="middle">navegador supervisado</text>
+  <text class="s" x="122" y="340" text-anchor="middle">para el inicio de sesión</text>
+  <path class="ln" d="M270 300 H214" marker-end="url(#a)"/>
+
+  <rect class="box" x="32" y="414" width="180" height="76" rx="10"/>
+  <text class="t" x="122" y="444" text-anchor="middle">Microsoft 365</text>
+  <text class="s" x="122" y="464" text-anchor="middle">correo, calendario, actas</text>
+  <path class="ln" d="M122 356 V412" marker-end="url(#a)"/>
+
+  <text class="s" x="32" y="544">Adaptadores directos del backend: Microsoft 365, Google, Jira, GLPI y servidores MCP.</text>
+  <text class="s" x="32" y="564">Si Connect no está corriendo, Command arranca igual y solo degrada las capacidades que Connect respalda.</text>
+</svg>

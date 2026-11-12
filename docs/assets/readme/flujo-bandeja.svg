@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="470" viewBox="0 0 960 470" role="img" aria-labelledby="title desc">
+  <title id="title">De correo a tarea: flujo de la bandeja de entrada</title>
+  <desc id="desc">Los correos, eventos y actas entran como insumos pendientes. Las reglas activas se evalúan en orden; la primera que casa decide si se crea una tarea, si el insumo se ignora o si queda en triage manual.</desc>
+  <defs>
+    <style>
+      text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+      .bg{fill:#f8fafc;stroke:#e2e8f0}
+      .h{fill:#0f172a;font-size:22px;font-weight:700}
+      .sub{fill:#475569;font-size:13px}
+      .t{fill:#0f172a;font-size:14px;font-weight:600}
+      .s{fill:#475569;font-size:12px}
+      .n{fill:#6366f1;font-size:11px;font-weight:700;letter-spacing:.08em}
+      .c{fill:#334155;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+      .box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5}
+      .ind{fill:#eef2ff;stroke:#6366f1;stroke-width:1.5}
+      .grn{fill:#ecfdf5;stroke:#10b981;stroke-width:1.5}
+      .amb{fill:#fffbeb;stroke:#f59e0b;stroke-width:1.5}
+      .ln{fill:none;stroke:#64748b;stroke-width:1.6}
+      .ah{fill:#64748b}
+      @media (prefers-color-scheme:dark){
+        .bg{fill:#0d1117;stroke:#30363d}
+        .h,.t{fill:#e6edf3}
+        .sub,.s{fill:#9da7b3}
+        .n{fill:#a5b4fc}
+        .c{fill:#c9d1d9}
+        .box{fill:#161b22;stroke:#30363d}
+        .ind{fill:#1c1f3a;stroke:#818cf8}
+        .grn{fill:#0f2a20;stroke:#34d399}
+        .amb{fill:#2b2111;stroke:#fbbf24}
+        .ln{stroke:#8b949e}
+        .ah{fill:#8b949e}
+      }
+    </style>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="469" rx="16"/>
+  <text class="h" x="32" y="44">De correo a tarea</text>
+  <text class="sub" x="32" y="66">Cada sincronización trae insumos; las reglas de la organización deciden qué se vuelve trabajo.</text>
+
+  <!-- Row 1 -->
+  <rect class="box" x="32" y="96" width="200" height="112" rx="10"/>
+  <text class="n" x="48" y="118">1 · FUENTES</text>
+  <text class="t" x="48" y="141">Correo, calendario</text>
+  <text class="t" x="48" y="160">y actas de reunión</text>
+  <text class="s" x="48" y="184">vía Solercia Connect u</text>
+  <text class="s" x="48" y="200">otros conectores</text>
+
+  <rect class="box" x="264" y="96" width="200" height="112" rx="10"/>
+  <text class="n" x="280" y="118">2 · SINCRONIZACIÓN</text>
+  <text class="t" x="280" y="141">Sincronizar ahora</text>
+  <text class="s" x="280" y="162">o a las horas programadas</text>
+  <text class="s" x="280" y="184">periodo: hoy, 7 o 30 días</text>
+
+  <rect class="box" x="496" y="96" width="200" height="112" rx="10"/>
+  <text class="n" x="512" y="118">3 · INSUMOS</text>
+  <text class="t" x="512" y="141">Bandeja de entrada</text>
+  <text class="s" x="512" y="162">cada correo es un insumo</text>
+  <text class="c" x="512" y="186">status = pending</text>
+
+  <rect class="ind" x="728" y="96" width="200" height="112" rx="10"/>
+  <text class="n" x="744" y="118">4 · REGLAS</text>
+  <text class="t" x="744" y="141">Reglas activas, en orden</text>
+  <text class="s" x="744" y="162">todos los criterios deben</text>
+  <text class="s" x="744" y="178">cumplirse; la primera regla</text>
+  <text class="s" x="744" y="194">que casa decide</text>
+
+  <path class="ln" d="M232 152 H262" marker-end="url(#a)"/>
+  <path class="ln" d="M464 152 H494" marker-end="url(#a)"/>
+  <path class="ln" d="M696 152 H726" marker-end="url(#a)"/>
+
+  <!-- Branches -->
+  <path class="ln" d="M828 208 V250 M172 250 H828"/>
+  <path class="ln" d="M172 250 V298" marker-end="url(#a)"/>
+  <path class="ln" d="M480 250 V298" marker-end="url(#a)"/>
+  <path class="ln" d="M788 250 V298" marker-end="url(#a)"/>
+  <text class="c" x="182" y="280">convert_to_task = true</text>
+  <text class="c" x="490" y="280">convert_to_task = false</text>
+  <text class="s" x="798" y="280">ninguna regla casa</text>
+
+  <!-- Outcomes -->
+  <rect class="grn" x="32" y="300" width="280" height="100" rx="10"/>
+  <text class="t" x="48" y="328">Se crea la tarea</text>
+  <text class="s" x="48" y="350">en el proyecto destino de la regla o en</text>
+  <text class="s" x="48" y="366">el proyecto por defecto, con prioridad</text>
+  <text class="c" x="48" y="388">y asignado · status = converted</text>
+
+  <rect class="box" x="340" y="300" width="280" height="100" rx="10"/>
+  <text class="t" x="356" y="328">Se ignora</text>
+  <text class="s" x="356" y="350">la regla lo descarta y el insumo no</text>
+  <text class="s" x="356" y="366">pasa a revisión manual</text>
+  <text class="c" x="356" y="388">status = ignored</text>
+
+  <rect class="amb" x="648" y="300" width="280" height="100" rx="10"/>
+  <text class="t" x="664" y="328">Triage manual</text>
+  <text class="s" x="664" y="350">sin regla, o con asignado no elegible:</text>
+  <text class="s" x="664" y="366">se convierte a mano desde la bandeja</text>
+  <text class="c" x="664" y="388">status = pending</text>
+
+  <text class="s" x="32" y="440">Un insumo cuyo origen ya está anclado a una tarea queda en triage: un duplicado nunca detiene la sincronización.</text>
+</svg>
