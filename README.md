@@ -70,3 +70,14 @@ Estos atajos están disponibles a través del `Makefile`:
 Copia `.env.example` a `.env` para personalizar la configuración. Las variables
 clave son `DATABASE_URL`, `REDIS_URL` y `JWT_SECRET`. En cualquier ambiente que no
 sea de desarrollo, cambia `JWT_SECRET` por un valor secreto y seguro.
+
+## Licencia
+
+Copyright (C) 2026 Cristian Camilo Calderón Tapia.
+
+Solercia Command es software libre: puedes usarlo, estudiarlo, modificarlo y
+redistribuirlo bajo los términos de la Licencia Pública General Affero de GNU
+(GNU AGPL), versión 3, publicada por la Free Software Foundation. Se distribuye
+SIN NINGUNA GARANTÍA; consulta el archivo [LICENSE](LICENSE). Si ofreces una versión
+modificada como servicio en red, debes poner su código fuente a disposición de
+quienes usan ese servicio.
