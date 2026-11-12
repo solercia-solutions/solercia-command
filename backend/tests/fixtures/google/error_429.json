@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": 429,
+    "message": "Too many requests",
+    "errors": [
+      {
+        "domain": "usageLimits",
+        "reason": "rateLimitExceeded",
+        "message": "Too many requests"
+      }
+    ]
+  }
+}

@@ -33,6 +33,8 @@ Modelo `Project` (Pk + Timestamp + SoftDelete + Tenant):
 - **R2**: El `code` del proyecto DEBE alimentar la clave legible de sus tareas mediante `task_counter` secuencial.
 - **R3**: `GET /{id}/velocity` DEBE calcular los puntos completados por sprint cerrado, su promedio y una proyección.
 - **R4**: Las consultas DEBEN filtrar por `organization_id` de la membresía activa.
+- **R5**: `POST /api/v1/projects` DEBE aceptar un campo opcional `parent_project_id` (UUID de otro `Project`). Cuando se envía, la creación DEBE aplicar las validaciones de jerarquía definidas en `project-hierarchy` (mismo tenant, padre activo, sin ciclos, dentro de la profundidad máxima vigente) antes de persistir; si alguna falla, la creación completa DEBE rechazarse y ningún proyecto queda persistido. Cuando se omite, el proyecto se crea como raíz (`parent_project_id = null`), sin cambio respecto al contrato actual.
+- **R6**: El detalle y la lista de proyectos (`GET /projects`, `GET /projects/{id}`) DEBEN exponer `parent_project_id` (`null` cuando el proyecto es raíz).
 
 ### Escenarios centrales
 
@@ -50,6 +52,95 @@ Modelo `Project` (Pk + Timestamp + SoftDelete + Tenant):
 - Dado proyectos de dos organizaciones distintas
 - Cuando un miembro de la organización A lista `/projects`
 - Entonces no ve proyectos de la organización B.
+
+**R5 — Creación con padre opcional**
+- Dado un usuario con membresía activa y un proyecto existente "Seguridad de la Información" en su organización
+- Cuando envía `POST /projects` con `parent_project_id` apuntando a ese proyecto
+- Entonces el proyecto nuevo queda creado (201) con `parent_project_id` poblado
+- Y cuando envía `POST /projects` sin `parent_project_id`
+- Entonces el proyecto se crea (201) con `parent_project_id = null`, igual que hoy
+- Y cuando envía `POST /projects` con un `parent_project_id` de otra organización
+- Entonces la API rechaza la creación completa con un error de validación y ningún proyecto queda persistido
+
+**R6 — Exposición de jerarquía**
+- Dado un proyecto hijo con padre asignado
+- Cuando se consulta `GET /projects`
+- Entonces el elemento correspondiente incluye `parent_project_id` con el id del padre
+- Y cuando se consulta `GET /projects/{id}` para un proyecto raíz
+- Entonces la respuesta incluye `parent_project_id: null`
+
+**R7 — Responsable del proyecto**
+- Dado un proyecto creado por la instanciación de una plantilla organizacional
+- Cuando se consulta `GET /projects/{id}`
+- Entonces la respuesta incluye `lead_user_id` con el id de la persona responsable
+- Y dado un usuario que crea un proyecto vía `POST /projects` sin pasar por una plantilla
+- Cuando se consulta el proyecto creado
+- Entonces `lead_user_id` es `null`, sin romper el contrato actual
+
+### Requirement: Campo project_kind en Project
+
+`Project` DEBE tener una columna `project_kind` (enum `area | proyecto`, no nulo, default `proyecto`) agregada mediante una migración aditiva y reversible. Todo proyecto creado por `POST /projects` sin pasar por instanciación de plantilla DEBE quedar con `project_kind = proyecto`. La instanciación de plantillas (`org-role-templates`) lo asigna según la regla del nodo (contenedor con hijos = `area`, hoja = `proyecto`).
+
+#### Scenario: Creación directa con POST /projects es siempre proyecto
+- DADO un usuario con membresía activa
+- CUANDO crea un proyecto vía `POST /projects` sin pasar por una plantilla
+- ENTONCES el proyecto queda creado con `project_kind = proyecto`
+
+#### Scenario: Migración es aditiva y reversible
+- DADO proyectos existentes antes de la migración
+- CUANDO se ejecuta `upgrade`
+- ENTONCES todos quedan con `project_kind = proyecto` sin perder datos
+- Y CUANDO se ejecuta `downgrade`
+- ENTONCES la columna se elimina sin afectar el resto del modelo
+
+### Requirement: Filtro opcional project_kind en el listado
+
+`GET /projects` DEBE aceptar un parámetro de consulta opcional `project_kind` (`area` o `proyecto`); cuando se envía, la lista DEBE incluir únicamente proyectos de ese tipo dentro de la organización del solicitante; cuando se omite, el comportamiento DEBE ser idéntico al actual (todos los tipos, sin romper clientes existentes).
+
+#### Scenario: Filtro por area devuelve solo contenedores
+- DADO una organización con proyectos `area` y `proyecto` mezclados
+- CUANDO consulta `GET /projects?project_kind=area`
+- ENTONCES la respuesta incluye únicamente los proyectos `area`
+
+#### Scenario: Filtro por proyecto devuelve solo trabajo real
+- DADO la misma organización
+- CUANDO consulta `GET /projects?project_kind=proyecto`
+- ENTONCES la respuesta incluye únicamente los proyectos `proyecto`
+
+#### Scenario: Sin parámetro el comportamiento no cambia
+- DADO la misma organización
+- CUANDO consulta `GET /projects` sin `project_kind`
+- ENTONCES recibe todos los proyectos de la organización, igual que antes de este cambio
+
+#### Scenario: Valor inválido de project_kind se rechaza
+- DADO un usuario autenticado
+- CUANDO consulta `GET /projects?project_kind=invalido`
+- ENTONCES la API responde con un error de validación (422) y no ejecuta el listado
+
+### Requirement: Columnas nullable de override de calendario laboral en Project
+
+`Project` DEBE tener las columnas nullable `working_hours_per_day` (numérico, admite medias jornadas) y `working_days` (array de enteros ISO 1-7), agregadas mediante una migración aditiva y reversible. Solo el proyecto RAÍZ (`parent_project_id = null`) PUEDE tener valores no nulos en estas columnas; un proyecto con padre (no raíz) NUNCA DEBE persistir un valor propio en ellas — la edición y su validación viven en la capability `work-calendar`. El detalle y la lista de proyectos (`GET /projects`, `GET /projects/{id}`) DEBEN exponer ambos campos, `null` cuando el proyecto no tiene override (no-raíz, o raíz sin configurar).
+
+#### Scenario: Proyecto raíz con override expone sus valores
+- DADO un proyecto raíz con `working_hours_per_day=6` y `working_days=[6,7]`
+- CUANDO se consulta `GET /projects/{id}`
+- ENTONCES la respuesta incluye ambos campos con esos valores
+
+#### Scenario: Proyecto hijo nunca expone override propio
+- DADO un proyecto hijo (con `parent_project_id` no nulo)
+- CUANDO se consulta `GET /projects/{id}` o `GET /projects`
+- ENTONCES ambos campos aparecen como `null`, sin importar el calendario resuelto que herede
+
+#### Scenario: Migración es aditiva y reversible
+- DADO proyectos existentes antes de la migración
+- CUANDO se ejecuta `upgrade`
+- ENTONCES todos quedan con ambas columnas en `null`, sin perder datos
+- Y CUANDO se ejecuta `downgrade`
+- ENTONCES las columnas se eliminan sin afectar el resto del modelo
+
+## Requisitos adicionales
+
+- **R7**: `Project` DEBE soportar un campo opcional `lead_user_id` (referencia a `User`, `ON DELETE SET NULL`) que identifica al responsable/cabeza del proyecto. La instanciación de plantillas organizacionales (`org-role-templates`) DEBE poblarlo en TODOS los proyectos que genera. Los proyectos creados sin plantilla (flujo actual de `POST /projects`) mantienen `lead_user_id = null`.
 
 ## Limitaciones y deuda conocida
 

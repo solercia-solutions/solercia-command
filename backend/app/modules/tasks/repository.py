@@ -6,7 +6,7 @@ every read joins ``Task`` to ``Project`` and filters by ``organization_id``.
 
 import uuid
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,25 @@ SORTABLE_FIELDS: dict[str, InstrumentedAttribute] = {
 }
 
 
+class TransactionalTaskCreationRepository:
+    """Implement TaskCreationPort using the caller's existing session.
+
+    Accept only an aggregate whose tenant/project relationships the caller
+    already validated (see tasks.ports). No lookups or transaction ownership.
+    This adapter is not yet wired into the legacy creation workflow.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def create(self, task: Task) -> Task:
+        """Flush and refresh without committing; propagate failures unchanged."""
+        self.db.add(task)
+        await self.db.flush()
+        await self.db.refresh(task)
+        return task
+
+
 class TaskRepository:
     """Async repository encapsulating task persistence."""
 
@@ -48,11 +67,16 @@ class TaskRepository:
         status: str | None = None,
         assignee_id: uuid.UUID | None = None,
         parent_task_id: uuid.UUID | None = None,
+        task_type: str | None = None,
         label_ids: Sequence[uuid.UUID] | None = None,
         priority: Priority | None = None,
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        created_from: datetime | None = None,
+        created_before: datetime | None = None,
+        source: str | None = None,
+        external_key: str | None = None,
         subtasks_only: bool = False,
         top_level_only: bool = False,
         pagination: PaginationParams | None = None,
@@ -68,7 +92,8 @@ class TaskRepository:
         semantics, deduplicated via ``.distinct()``); ``due_from``/``due_to``
         filter on the DATE portion of ``due_date`` (a task with no
         ``due_date`` never matches a range filter, change 10-busqueda-global
-        design.md "Decisión 5").
+        design.md "Decisión 5"). ``created_from``/``created_before`` bound
+        ``created_at`` as a half-open range ``[from, before)`` (aware datetimes).
         """
 
         stmt = (
@@ -88,6 +113,8 @@ class TaskRepository:
             stmt = stmt.where(Task.assignee_id == assignee_id)
         if parent_task_id is not None:
             stmt = stmt.where(Task.parent_task_id == parent_task_id)
+        if task_type is not None:
+            stmt = stmt.where(Task.task_type == task_type)
         if subtasks_only:
             stmt = stmt.where(Task.parent_task_id.isnot(None))
         if top_level_only:
@@ -112,6 +139,14 @@ class TaskRepository:
         if q is not None:
             pattern = f"%{q}%"
             stmt = stmt.where(Task.title.ilike(pattern) | Task.description.ilike(pattern))
+        if created_from is not None:
+            stmt = stmt.where(Task.created_at >= created_from)
+        if created_before is not None:
+            stmt = stmt.where(Task.created_at < created_before)
+        if source is not None:
+            stmt = stmt.where(Task.source == source)
+        if external_key is not None:
+            stmt = stmt.where(Task.external_key == external_key)
 
         if pagination is not None and pagination.requested:
             return await paginate(self.db, stmt, pagination, SORTABLE_FIELDS)
@@ -121,9 +156,65 @@ class TaskRepository:
         rows = result.scalars().all()
         return rows, len(rows)
 
-    async def list_for_org(
-        self, organization_id: uuid.UUID
+    async def list_created_years(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        *,
+        timezone: str,
+    ) -> list[int]:
+        """Return the distinct ``created_at`` years of active tasks, newest first.
+
+        The year is taken in ``timezone`` (PostgreSQL ``timezone()``), scoped
+        to the organization through ``Project`` like every other read here.
+        """
+
+        year = func.extract("year", func.timezone(timezone, Task.created_at))
+        stmt = (
+            select(year.label("year"))
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+            .distinct()
+            .order_by(year.desc())
+        )
+        result = await self.db.execute(stmt)
+        return [int(value) for value in result.scalars().all()]
+
+    async def get_by_ids(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        ids: Sequence[uuid.UUID],
     ) -> Sequence[Task]:
+        """Return active tasks matching ``ids``, scoped to org/project.
+
+        Used by the assignee-filter context-parent rule (change
+        32-jerarquia-subtareas, D2): resolves the foreign parents of matched
+        subtasks. Never crosses tenant/project boundaries, same as every
+        other read in this repository. Returns ``[]`` without querying when
+        ``ids`` is empty.
+        """
+
+        if not ids:
+            return []
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.id.in_(ids),
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+        )
+        return result.scalars().all()
+
+    async def list_for_org(self, organization_id: uuid.UUID) -> Sequence[Task]:
         """Return every active task across the organization's projects."""
 
         result = await self.db.execute(
@@ -137,9 +228,7 @@ class TaskRepository:
         )
         return result.scalars().all()
 
-    async def get(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task | None:
+    async def get(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task | None:
         """Return a single active task scoped to the organization, or ``None``."""
 
         result = await self.db.execute(
@@ -152,6 +241,29 @@ class TaskRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_by_external_key(
+        self,
+        organization_id: uuid.UUID,
+        source: str,
+        external_key: str,
+    ) -> Task | None:
+        """Return an active external anchor within one organization."""
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.source == source,
+                Task.external_key == external_key,
+                Project.organization_id == organization_id,
+                Project.is_active.is_(True),
+                Task.is_active.is_(True),
+            )
+            .order_by(Task.created_at.asc(), Task.id.asc())
+            .limit(1)
+        )
+        return result.scalars().first()
 
     async def get_by_project_and_number(
         self,
@@ -194,7 +306,12 @@ class TaskRepository:
         return result.scalar_one()
 
     async def create(self, task: Task) -> Task:
-        """Persist a new task and return the refreshed instance."""
+        """Temporary legacy compatibility facade: commit, then refresh once.
+
+        This is a documented exception to caller-owned transaction completion,
+        not a completed migration. Existing callers retain their exact behavior;
+        do not delegate to the new adapter and introduce a pre-commit refresh.
+        """
 
         self.db.add(task)
         await self.db.commit()
@@ -208,13 +325,13 @@ class TaskRepository:
         await self.db.refresh(task)
         return task
 
-    async def get_subtask_counts(
-        self, task_id: uuid.UUID, done_status: str
-    ) -> tuple[int, int]:
+    async def get_subtask_counts(self, task_id: uuid.UUID, done_status: str) -> tuple[int, int]:
         """Return ``(total, done)`` subtask counts for ``task_id``."""
 
         total_result = await self.db.execute(
-            select(func.count()).select_from(Task).where(
+            select(func.count())
+            .select_from(Task)
+            .where(
                 Task.parent_task_id == task_id,
                 Task.is_active.is_(True),
             )
@@ -222,7 +339,9 @@ class TaskRepository:
         total = total_result.scalar_one() or 0
 
         done_result = await self.db.execute(
-            select(func.count()).select_from(Task).where(
+            select(func.count())
+            .select_from(Task)
+            .where(
                 Task.parent_task_id == task_id,
                 Task.status == done_status,
                 Task.is_active.is_(True),
@@ -247,9 +366,42 @@ class TaskRepository:
         )
         return list(result.tuples().all())
 
-    async def is_org_member(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def reassign_order_for_container(
+        self,
+        organization_id: uuid.UUID,
+        project_id: uuid.UUID,
+        ordered_task_ids: Sequence[uuid.UUID],
+    ) -> None:
+        """Set ``task.order`` to each id's index within ``ordered_task_ids``.
+
+        Scoped to ``organization_id``/``project_id``/``is_active`` so a
+        malformed id from another tenant or project is silently excluded
+        rather than reassigned. Does NOT commit — the caller
+        (``TaskService.reorder_tasks``) closes the transaction with its own
+        ``repo.save()`` so the sprint move and the reindex land atomically
+        (design.md D1, "1 transacción").
+        """
+
+        if not ordered_task_ids:
+            return
+
+        result = await self.db.execute(
+            select(Task)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.id.in_(ordered_task_ids),
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+        )
+        tasks_by_id = {task.id: task for task in result.scalars().all()}
+        for index, task_id in enumerate(ordered_task_ids):
+            task = tasks_by_id.get(task_id)
+            if task is not None:
+                task.order = index
+
+    async def is_org_member(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Return whether the user belongs to the organization."""
 
         result = await self.db.execute(

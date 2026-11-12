@@ -1,0 +1,15 @@
+{
+  "kind": "calendar#events",
+  "summary": "ana.torres@example.com",
+  "items": [
+    {
+      "id": "gcal-event-3",
+      "summary": "Día de cierre de sprint",
+      "start": { "date": "2026-07-20" },
+      "end": { "date": "2026-07-21" },
+      "organizer": { "email": "ana.torres@example.com" },
+      "attendees": [],
+      "location": null
+    }
+  ]
+}

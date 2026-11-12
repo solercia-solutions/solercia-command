@@ -1,11 +1,35 @@
 """Tests for subtask creation and subtask estimation guard (Feature #4 — subtask part)."""
 
 import pytest
+from httpx import AsyncClient
 
-try:
-    from tests.conftest import skip_no_db
-except ImportError:
-    skip_no_db = pytest.mark.skip(reason="conftest not found")
+from app.modules.organizations.models import Organization
+from app.modules.users.models import User
+from tests.conftest import skip_no_db
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_project(client: AsyncClient, token: str, methodology: str) -> str:
+    response = await client.post(
+        "/projects",
+        json={"name": f"Subtasks {methodology.capitalize()} Project", "methodology": methodology},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["data"]["id"]
+
+
+async def _create_parent_task(client: AsyncClient, token: str, project_id: str) -> str:
+    response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Parent task"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["data"]["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -42,90 +66,58 @@ class TestSubtaskPointsGuard:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests
+# Integration tests — shared in-process fixtures
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_create_subtask_rejects_points() -> None:
-    """Creating a subtask with estimation_points raises 422."""
+async def test_create_subtask_rejects_points(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Creating a subtask with estimation_points is rejected with 422."""
 
-    import os
+    _, token = user
+    # A scrum project supports points, so the rejection comes from the
+    # subtask-specific guard, not the methodology.
+    project_id = await _create_project(client, token, "scrum")
+    parent_id = await _create_parent_task(client, token, project_id)
 
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        # Pick a project whose methodology supports points (scrum).
-        scrum = next((p for p in projects if p["methodology"] == "scrum"), projects[0])
-        project_id = scrum["id"]
-
-        # Create parent task.
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Parent task"},
-        )
-        assert r.status_code == 201
-        parent_id = r.json()["data"]["id"]
-
-        # Attempt subtask with points — must fail.
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={
-                "title": "Subtask with points",
-                "parent_task_id": parent_id,
-                "estimation_points": 3,
-            },
-        )
-        assert r.status_code == 422
-        assert r.json()["code"] == "subtask_points_not_allowed"
+    response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={
+            "title": "Subtask with points",
+            "parent_task_id": parent_id,
+            "estimation_points": 3,
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "subtask_points_not_allowed"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_create_subtask_allows_hours() -> None:
+async def test_create_subtask_allows_hours(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
     """Subtasks accept estimation_hours (no velocity double-counting risk)."""
 
-    import os
+    _, token = user
+    project_id = await _create_project(client, token, "kanban")
+    parent_id = await _create_parent_task(client, token, project_id)
 
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        # Kanban or planner support hours.
-        non_scrum = next(
-            (p for p in projects if p["methodology"] != "scrum"),
-            projects[0],
-        )
-        project_id = non_scrum["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/tasks", json={"title": "Parent"}
-        )
-        assert r.status_code == 201
-        parent_id = r.json()["data"]["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={
-                "title": "Subtask with hours",
-                "parent_task_id": parent_id,
-                "estimation_hours": 4.0,
-            },
-        )
-        assert r.status_code == 201
-        subtask = r.json()["data"]
-        assert subtask["task_type"] == "subtask"
-        assert subtask["estimation_hours"] == 4.0
-        assert subtask["estimation_points"] is None
+    response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={
+            "title": "Subtask with hours",
+            "parent_task_id": parent_id,
+            "estimation_hours": 4.0,
+        },
+        headers=_auth(token),
+    )
+    assert response.status_code == 201, response.text
+    subtask = response.json()["data"]
+    assert subtask["task_type"] == "subtask"
+    assert subtask["estimation_hours"] == 4.0
+    assert subtask["estimation_points"] is None

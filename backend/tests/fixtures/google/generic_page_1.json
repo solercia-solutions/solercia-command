@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "id": "generic-item-1" },
+    { "id": "generic-item-2" }
+  ],
+  "nextPageToken": "generic-page-2-token"
+}

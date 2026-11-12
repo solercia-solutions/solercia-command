@@ -1,0 +1,258 @@
+/* «Bandeja de seguimiento» (C06): tarjeta, contadores, filtros plegables en móvil, detalle. */
+.pp-counters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sol-space-sm, 8px);
+}
+
+.pp-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  min-width: 0;
+  padding: var(--sol-space-sm, 8px) var(--sol-space-md, 12px);
+  border: 1px solid var(--sol-color-border, rgba(127, 127, 127, 0.3));
+  border-radius: var(--sol-border-radius-md, 8px);
+  background: var(--sol-bg-surface, transparent);
+  color: var(--sol-color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--sol-color-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sol-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.pp-counter--active {
+  border-color: var(--sol-color-primary);
+  background: color-mix(in srgb, var(--sol-color-primary) 10%, transparent);
+}
+
+.pp-counter__value {
+  font-size: var(--sol-font-size-xl, 1.25rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-counter__label {
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  color: var(--sol-color-text-secondary);
+  line-height: 1.25;
+}
+
+.pp-filters-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-sm, 8px);
+}
+
+.pp-filters-toggle {
+  display: none;
+  min-height: 44px;
+  padding: 0 var(--sol-space-md, 12px);
+  border: 1px solid var(--sol-color-border, rgba(127, 127, 127, 0.3));
+  border-radius: var(--sol-border-radius-md, 8px);
+  background: transparent;
+  color: var(--sol-color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pp-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-sm, 8px);
+}
+
+.pp-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-sm, 8px);
+  min-width: 0;
+}
+
+.pp-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sol-space-sm, 8px);
+}
+
+.pp-card__subject {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--sol-color-text-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+
+  &:hover {
+    color: var(--sol-color-primary);
+    text-decoration: underline;
+  }
+}
+
+.pp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sol-space-xs, 4px);
+}
+
+.pp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sol-space-xs, 4px);
+  margin: 0;
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  color: var(--sol-color-text-muted);
+}
+
+.pp-summary {
+  margin: 0;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pp-task {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sol-space-xs, 4px);
+  margin: 0;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.pp-task__label {
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  color: var(--sol-color-text-muted);
+}
+
+.pp-task__code {
+  font-family: var(--sol-font-family-mono, ui-monospace, monospace);
+  font-weight: 600;
+}
+
+.pp-warning {
+  margin: 0;
+  padding: var(--sol-space-xs, 4px) var(--sol-space-sm, 8px);
+  border-radius: var(--sol-border-radius-md, 8px);
+  background: color-mix(in srgb, var(--sol-color-warning) 12%, transparent);
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  color: var(--sol-color-text-primary);
+}
+
+.pp-center {
+  margin: 0;
+  text-align: center;
+}
+
+.pp-back {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.pp-detail__title {
+  overflow-wrap: anywhere;
+}
+
+.pp-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sol-space-sm, 8px);
+  margin: 0;
+
+  dt {
+    font-size: var(--sol-font-size-xs, 0.75rem);
+    color: var(--sol-color-text-muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: var(--sol-font-size-sm, 0.875rem);
+    color: var(--sol-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+}
+
+.pp-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sol-space-xs, 4px);
+}
+
+.pp-block__label {
+  margin: var(--sol-space-sm, 8px) 0 0;
+  font-size: var(--sol-font-size-xs, 0.75rem);
+  font-weight: 600;
+  color: var(--sol-color-text-muted);
+}
+
+.pp-text {
+  margin: 0;
+  font-size: var(--sol-font-size-sm, 0.875rem);
+  color: var(--sol-color-text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.pp-candidate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sol-space-sm, 8px);
+}
+
+@media (min-width: 900px) {
+  .pp-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Móvil: los filtros se pliegan detrás de un botón para no empujar la lista. */
+@media (max-width: 640px) {
+  .pp-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+  }
+
+  .pp-filters {
+    display: none;
+  }
+
+  .pp-filters--open {
+    display: flex;
+  }
+
+  .pp-filters .pg-filter {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+/*
+ * `sol-card` queda con `transform` (animación de entrada) y eso convierte a la tarjeta en el
+ * bloque contenedor de los `position: fixed`: el `sol-modal` y el `sol-confirm-dialog` de las
+ * acciones quedaban recortados a la tarjeta. Sin transform, cubren la pantalla completa.
+ */
+:host ::ng-deep .sol-card {
+  transform: none !important;
+}

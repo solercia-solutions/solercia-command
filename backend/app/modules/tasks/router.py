@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_actor_id, get_current_membership
 from app.modules.organizations.models import OrganizationMember
-from app.modules.tasks.schemas import TaskColumnMove, TaskCreate, TaskUpdate
+from app.modules.tasks.schemas import (
+    TaskColumnMove,
+    TaskCreate,
+    TaskReorder,
+    TaskUpdate,
+)
 from app.modules.tasks.service import TaskService
 from app.shared.enums import Priority
 from app.shared.pagination import PaginationParams, build_list_meta, pagination_params
@@ -30,9 +35,7 @@ async def list_project_members(
     """List the organization members assignable on a project."""
 
     service = TaskService(db)
-    members = await service.list_members(
-        membership.organization_id, project_id
-    )
+    members = await service.list_members(membership.organization_id, project_id)
     return {"data": members, "meta": {"total": len(members)}}
 
 
@@ -52,8 +55,38 @@ async def list_tasks(
     due_to: date | None = Query(
         default=None, description="Fin del rango de vencimiento (inclusive)."
     ),
-    q: str | None = Query(
-        default=None, description="Texto libre sobre título/descripción."
+    q: str | None = Query(default=None, description="Texto libre sobre título/descripción."),
+    year: int | None = Query(
+        default=None,
+        ge=2000,
+        le=2100,
+        description=(
+            "Año de creación (created_at) en hora de Bogotá: rango semiabierto "
+            "[1-ene-año, 1-ene-año+1). Fuera de 2000–2100 responde 422."
+        ),
+    ),
+    source: str | None = Query(
+        default=None,
+        description="Filtra por sistema de origen exacto (ej. 'checklist_xlsx', 'jira').",
+    ),
+    external_key: str | None = Query(
+        default=None,
+        description="Filtra por clave exacta en el sistema de origen (ej. 'T-05').",
+    ),
+    task_type: str | None = Query(
+        default=None,
+        description="Filtra por tipo exacto de tarea (ej. 'epic', 'story', 'bug').",
+    ),
+    parent_task_id: uuid.UUID | None = Query(
+        default=None,
+        description=(
+            "Devuelve las hijas directas de esa tarea (ej. las historias de "
+            "una épica); desactiva la restricción top-level del listado."
+        ),
+    ),
+    include_subtasks: bool = Query(
+        default=False,
+        description="Incluye subtareas junto a las tareas de nivel superior en el mismo listado.",
     ),
     pagination: PaginationParams = Depends(pagination_params),
     membership: OrganizationMember = Depends(get_current_membership),
@@ -65,7 +98,22 @@ async def list_tasks(
     those params the full collection is returned unchanged. ``label_id`` is
     repeatable (``?label_id=a&label_id=b``, OR semantics); ``priority``,
     ``due_from``/``due_to`` (range) and ``q`` (title/description) compose
-    with every other filter (change 10-busqueda-global, R7).
+    with every other filter (change 10-busqueda-global, R7). ``task_type``
+    filters by exact equality; ``parent_task_id`` returns the direct children
+    of that task (which are never top-level, so it lifts the top-level-only
+    restriction). ``year`` keeps tasks whose ``created_at`` falls in that
+    calendar year in ``America/Bogota`` (half-open range; see
+    ``GET /projects/{id}/tasks/years`` for the years that have data).
+
+    ``include_subtasks`` (change 32-jerarquia-subtareas) also lifts the
+    top-level-only restriction, returning subtasks flat alongside top-level
+    tasks in the same ``order asc, created_at asc`` order, without nesting
+    them. When ``assignee_id`` is present — with or without
+    ``include_subtasks`` — any subtask assigned to that user is ALWAYS
+    surfaced even if its parent is assigned to someone else; that foreign
+    parent is returned too, flagged ``is_context=true`` in the response
+    (deduplicated when the parent already matches the filter by itself).
+    Context parents never count toward ``meta.total``.
     """
 
     service = TaskService(db)
@@ -80,9 +128,34 @@ async def list_tasks(
         due_from=due_from,
         due_to=due_to,
         q=q,
+        year=year,
+        source=source,
+        external_key=external_key,
+        task_type=task_type,
+        parent_task_id=parent_task_id,
+        include_subtasks=include_subtasks,
         pagination=pagination,
     )
     return {"data": tasks, "meta": build_list_meta(pagination, total)}
+
+
+@router.get("/projects/{project_id}/tasks/years")
+async def list_task_years(
+    project_id: uuid.UUID,
+    membership: OrganizationMember = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the creation years that have active tasks in a project, newest first.
+
+    Years are computed from ``created_at`` in ``America/Bogota`` (the same
+    calendar the ``year`` filter of ``GET /projects/{id}/tasks`` uses), so the
+    UI only offers years with data. Includes subtasks. Scoped to the caller's
+    organization: a project of another organization answers ``404``.
+    """
+
+    service = TaskService(db)
+    years = await service.list_task_years(membership.organization_id, project_id)
+    return {"data": years, "meta": {"total": len(years)}}
 
 
 @router.post("/projects/{project_id}/tasks", status_code=status.HTTP_201_CREATED)
@@ -93,7 +166,13 @@ async def create_task(
     actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Create a task (or subtask when ``parent_task_id`` is set) within a project."""
+    """Create a task within a project, optionally as a child of another task.
+
+    When ``parent_task_id`` points to an ``epic`` the child keeps its
+    requested ``task_type`` (``task``/``story``/``bug``/``subtask``; never a
+    nested ``epic``) and may carry ``estimation_points``. Under any other
+    parent the child is coerced to ``subtask`` and points are rejected.
+    """
 
     service = TaskService(db)
     task = await service.create_task(
@@ -118,6 +197,32 @@ async def get_task_by_key(
 
     service = TaskService(db)
     task = await service.get_task_by_key(membership.organization_id, key)
+    return {"data": task}
+
+
+@router.post("/tasks/reorder")
+async def reorder_tasks(
+    payload: TaskReorder,
+    membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Move a task to ``sprint_id`` and reindex the destination container's
+    ``order`` from ``ordered_task_ids`` in a single transaction.
+
+    Consumed by the drag & drop view and the "Mover a…" keyboard menu
+    (change 31-backlog-drag-drop). Applies the same ``closed``-sprint guard
+    as ``PATCH /tasks/{id}``.
+    """
+
+    service = TaskService(db)
+    task = await service.reorder_tasks(
+        membership.organization_id,
+        payload.task_id,
+        payload.sprint_id,
+        payload.ordered_task_ids,
+        actor_id=actor_id,
+    )
     return {"data": task}
 
 
@@ -177,12 +282,13 @@ async def move_task_column(
 async def delete_task(
     task_id: uuid.UUID,
     membership: OrganizationMember = Depends(get_current_membership),
+    actor_id: uuid.UUID | None = Depends(get_actor_id),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Soft-delete a task."""
 
     service = TaskService(db)
-    await service.delete_task(membership.organization_id, task_id)
+    await service.delete_task(membership.organization_id, task_id, actor_id=actor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

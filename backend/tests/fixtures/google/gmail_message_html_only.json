@@ -1,0 +1,20 @@
+{
+  "id": "gmail-msg-2",
+  "threadId": "gmail-thread-2",
+  "labelIds": ["INBOX"],
+  "snippet": "Recordatorio: la reunión de mañana inicia a las 9am.",
+  "internalDate": "1783587600000",
+  "payload": {
+    "mimeType": "text/html",
+    "headers": [
+      { "name": "Subject", "value": "Recordatorio de reunión" },
+      { "name": "From", "value": "Carlos Ruiz <carlos.ruiz@example.com>" },
+      { "name": "To", "value": "Ana Torres <ana.torres@example.com>" },
+      { "name": "Date", "value": "Thu, 09 Jul 2026 09:00:00 +0000" }
+    ],
+    "body": {
+      "size": 118,
+      "data": "PGh0bWw-PGJvZHk-PHA-UmVjb3JkYXRvcmlvOiBsYSByZXVuacOzbiBkZSBtYcOxYW5hIGluaWNpYSBhIGxhcyA8Yj45YW08L2I-LjwvcD48L2JvZHk-PC9odG1sPg"
+    }
+  }
+}

@@ -1,76 +1,87 @@
 /** @type {import('tailwindcss').Config} */
 
-// Semantic color -> CSS variable (RGB channels) with alpha support.
-const c = (name) => `rgb(var(--sp-${name}) / <alpha-value>)`;
+// Puente de utilidades de marca -> tokens vivos de @solercia/ui.
+// Los colores apuntan a las CSS custom properties `--sol-*` que emite el
+// ThemeService (provideTheme); así `bg-brand`, `text-text`, `bg-surface`, etc.
+// se retematizan solos por tenant y en claro/oscuro (clase `.dark`).
+//
+// NOTA (Wave B): los tokens --sol-* son colores HEX (no canales RGB), por lo
+// que el modificador de opacidad de Tailwind (`bg-brand/10`) no puede inyectar
+// alpha y renderiza opaco. Los tintes suaves usan `color-mix` explícito
+// (brand-soft, success-soft, ...). El puente estático --sp-* se retiró.
+const v = (name) => `var(--sol-${name})`;
+const soft = (name, pct) => `color-mix(in srgb, var(--sol-${name}) ${pct}, transparent)`;
 
 module.exports = {
-  // Toggle dark mode by adding/removing the 'dark' class on <html>.
+  // Toggle dark mode by adding/removing the 'dark' class on <html> (ThemeService).
   darkMode: 'class',
   content: ['./src/**/*.{html,ts}'],
   theme: {
     extend: {
-      // Semantic colors driven by --sp-* variables. Their values switch
-      // between :root and .dark (static fallback in styles.scss) and are
-      // re-applied at runtime from the theme JSON by ThemeService.
       colors: {
-        brand: c('brand'),
-        'brand-fg': c('brand-fg'),
-        'brand-hover': c('brand-hover'),
-        'brand-soft': c('brand-soft'),
-        'brand-soft-fg': c('brand-soft-fg'),
+        brand: v('color-primary'),
+        'brand-fg': '#ffffff',
+        'brand-hover': v('color-primary'),
+        'brand-soft': soft('color-primary', '12%'),
+        'brand-soft-fg': v('color-primary'),
 
-        page: c('page'),
-        surface: c('surface'),
-        elevated: c('elevated'),
-        sunken: c('sunken'),
+        // Compat con utilidades brand-blue heredadas de plantillas.
+        'brand-blue': {
+          light: soft('color-primary', '60%'),
+          DEFAULT: v('color-primary'),
+          dark: v('color-primary'),
+        },
 
-        text: c('text'),
-        muted: c('muted'),
-        subtle: c('subtle'),
+        page: v('bg-page'),
+        surface: v('bg-surface'),
+        elevated: v('bg-surface'),
+        sunken: v('bg-sunken'),
 
-        border: c('border'),
-        'border-strong': c('border-strong'),
+        text: v('color-text-primary'),
+        muted: v('color-text-secondary'),
+        subtle: v('color-text-muted'),
 
-        success: c('success'),
-        'success-soft': c('success-soft'),
-        'success-soft-fg': c('success-soft-fg'),
-        warning: c('warning'),
-        'warning-soft': c('warning-soft'),
-        'warning-soft-fg': c('warning-soft-fg'),
-        danger: c('danger'),
-        'danger-soft': c('danger-soft'),
-        'danger-soft-fg': c('danger-soft-fg'),
-        info: c('info'),
-        accent: c('accent'),
-        ring: c('ring'),
+        border: v('border-color-default'),
+        'border-strong': v('border-color-default'),
+
+        success: v('color-success'),
+        'success-soft': soft('color-success', '14%'),
+        'success-soft-fg': v('color-success'),
+        warning: v('color-warning'),
+        'warning-soft': soft('color-warning', '14%'),
+        'warning-soft-fg': v('color-warning'),
+        danger: v('color-danger'),
+        'danger-soft': soft('color-danger', '12%'),
+        'danger-soft-fg': v('color-danger'),
+        info: v('color-info'),
+        accent: v('color-accent'),
+        ring: v('color-primary'),
       },
       borderRadius: {
-        sm: 'var(--sp-radius-sm)',
-        DEFAULT: 'var(--sp-radius-md)',
-        md: 'var(--sp-radius-md)',
-        lg: 'var(--sp-radius-lg)',
-        xl: 'var(--sp-radius-xl)',
-        '2xl': 'var(--sp-radius-2xl)',
-        full: 'var(--sp-radius-full)',
+        sm: v('border-radius-sm'),
+        DEFAULT: v('border-radius-md'),
+        md: v('border-radius-md'),
+        lg: v('border-radius-lg'),
+        full: v('border-radius-full'),
       },
       boxShadow: {
-        xs: 'var(--sp-shadow-xs)',
-        sm: 'var(--sp-shadow-sm)',
-        DEFAULT: 'var(--sp-shadow-sm)',
-        md: 'var(--sp-shadow-md)',
-        lg: 'var(--sp-shadow-lg)',
-        xl: 'var(--sp-shadow-xl)',
+        xs: v('shadow-sm'),
+        sm: v('shadow-sm'),
+        DEFAULT: v('shadow-sm'),
+        md: v('shadow-md'),
+        lg: v('shadow-lg'),
+        xl: v('shadow-lg'),
       },
       fontFamily: {
-        sans: ['var(--sp-font-sans)'],
-        display: ['var(--sp-font-display)'],
-        mono: ['var(--sp-font-mono)'],
+        sans: ['var(--sol-font-family)'],
+        display: ['var(--sol-font-display)', 'var(--sol-font-family)'],
+        mono: ['var(--sol-font-family-mono)'],
       },
       transitionTimingFunction: {
-        theme: 'var(--sp-ease)',
+        theme: 'var(--sol-ease, cubic-bezier(0.4, 0, 0.2, 1))',
       },
       ringColor: {
-        DEFAULT: c('ring'),
+        DEFAULT: v('color-primary'),
       },
     },
   },

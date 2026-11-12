@@ -1,0 +1,69 @@
+change: 39-conector-capacidades
+artifact_store: hybrid
+depends_on:
+  - 47-solercia-connect-operativo
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - connector-action-panel
+  modified:
+    - connectors
+target_capabilities:
+  - connectors
+  - connector-action-panel
+constraints:
+  - capability-driven-actions
+  - no-if-provider-in-template
+  - declarative-capability-actions-catalog
+  - read-only-integrations
+  - no-schema-migration
+  - reuse-adapter-registry
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Backend GET /connectors/{connector_id}/actions deriva las acciones de get_adapter(provider).capabilities interseccionadas con un catalogo declarativo capability->acciones + estado de conexion (ConnectedAccount activa del caller/org)"
+  - "Cada accion: key, label, capability, state (available|requires_connection|coming_soon), kind (navigate|execute); lectura abierta a cualquier miembro (como GET /connectors); 404 si el conector es de otra org"
+  - "Catalogo declarativo por Capability, NUNCA if provider==: tickets(jira)->importar proyectos/importar historias/sincronizar; mail|calendar(m365|google)->leer correo/leer calendario; external_resources(mcp)->explorar recursos/herramientas"
+  - "Accion Probar/Sincronizar minima ejecutable: POST /connectors/{connector_id}/probe ejerce el puerto primario con limit=1 (jira list_tickets, m365|google reader port, mcp list_resources); no persiste"
+  - "Frontend: tarjeta expandible con panel de acciones renderizado DESDE el endpoint (elimina el bloque hardcodeado por provider); estados visuales disponible/requiere conexion/proximamente"
+  - "Import Jira = punto de entrada que navega al flujo del cambio 40; coming_soon hasta que 40 aterrice; el preview de archivo Jira actual se pliega como accion 'importar historias (archivo)' ya disponible"
+  - "Fuera de alcance: flujos completos de importacion (40/41), reparacion OAuth M365/Google (38), sync programado/scheduler, nuevas capabilities en el enum, escritura en sistemas externos"
+module_decision:
+  - "Reutilizar el registry de adaptadores (app/integrations/registry.py get_adapter) y el enum Capability (app/integrations/ports.py); NO se agregan capabilities nuevas al enum"
+  - "Catalogo CAPABILITY_ACTIONS en backend/app/modules/connectors/actions_catalog.py (o dentro del service): mapa Capability->descriptores de accion; el estado se calcula segun exista ConnectedAccount activa"
+  - "Nuevo endpoint de lectura en connectors/router.py (Depends get_current_membership) + ConnectorActionRead en schemas; probe como POST acotado"
+  - "Frontend: connectors.service.ts agrega fetch de acciones; connections.component.ts pinta el panel expandido desde la respuesta y retira los @if provider== del bloque de acciones"
+  - "Sin migracion Alembic: el catalogo vive en codigo, no en esquema"
+facts_verified:
+  - "Consecutivo 39 libre en openspec/changes/ (existe 37-cambio-metodologia y 36-proyectos-jerarquia-unificada; NO existe 38 ni 39 aun como carpeta)"
+  - "Capability enum en backend/app/integrations/ports.py:61 = {mail, calendar, external_tasks, meeting_notes, tickets, external_resources}; cada adaptador declara capabilities: frozenset[Capability]"
+  - "JiraAdapter (adapters/jira/adapter.py:205-213): provider='jira', capabilities=frozenset({Capability.tickets}), credential_kind=api_token; ademas expone import_issues()/parse_file() ricos que usa el modulo jira_import"
+  - "registry.py: get_adapter(provider) devuelve el IntegrationAdapter registrado; register_adapter en el propio modulo del adaptador (sin tocar el nucleo)"
+  - "ConnectorRead (connectors/schemas.py:85) NO expone capabilities; NO existe endpoint que liste acciones/capabilities por conector"
+  - "connectors/router.py: GET /connectors y GET /connectors/{id} abiertos a cualquier miembro (get_current_membership); writes admin/manager; service.get_connector ya devuelve 404 para conector de otra org"
+  - "Estado de conexion: register_api_token_credentials y el callback OAuth crean ConnectedAccount; GET /connectors/{id}/accounts lista cuentas (admin/manager ven todas, member solo las suyas) -> 'conectado' = ConnectedAccount activa"
+  - "modulo jira_import (router.py) YA tiene POST /connectors/{id}/jira/import (via API) y /jira/import-file (CSV/XLSX preview), RBAC admin/manager"
+  - "Frontend connections.component.ts: tarjetas muestran icono/label/kind/status-badge/borrar + lista de cuentas; bloque de acciones HARDCODEADO por @if (connector.provider === 'jira') / (credential_kind === 'oauth') / (credential_kind === 'api_token' && provider !== 'mcp') -> anti-patron a reemplazar"
+  - "El drawer 'Importar de Jira' actual solo hace preview de archivo (submitJiraImport -> importJiraFile), no importa proyectos/sprints via API todavia"
+  - "connector.model.ts: interface Connector NO tiene capabilities/actions; PROVIDER_CATALOG cablea label/icon/credentialKind por provider en el front"
+  - "Specs openspec existentes relevantes: connectors, integration-ports, jira-import, mcp-connector, adapter-microsoft365, google-adapter, glpi-adapter, frontend-ui-consumption"
+dependency_gating:
+  - "El apply del 39 se apoya en el 38 (OAuth M365/Google reparado) para que las acciones OAuth tengan estado de conexion real; si 38 no aplico, las acciones OAuth se muestran 'requiere conexion' (correcto, no bloquea)"
+  - "El destino de la accion de import Jira se cablea cuando 40 aterrice; hasta entonces coming_soon (frontera documentada)"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability MODIFIED: connectors -> agregar Requirement 'Acciones disponibles por conector' (GET /connectors/{id}/actions derivado de capabilities + estado de conexion) y 'Verificacion puntual de conexion' (POST /connectors/{id}/probe acotado limit=1)"
+  - "Capability NEW: connector-action-panel (frontend) -> tarjeta expandida con panel de acciones por capability y estados available/requires_connection/coming_soon, renderizado desde el endpoint (sin if provider== en el template)"
+  - "Requisitos a especificar: forma del ConnectorActionRead (key/label/capability/state/kind); catalogo declarativo capability->acciones; calculo de state segun ConnectedAccount; RBAC (lectura miembro, 404 otra org); estados de UI y textos es-CO formal; punto de entrada al 40 como coming_soon"
+  - "TDD backend: happy (jira conectado devuelve acciones esperadas con estados), permisos (miembro autenticado si; sin sesion 401), conector de otra org -> 404"

@@ -13,8 +13,11 @@ tested for R4; adding PATCH/DELETE assertions here would test routes that
 do not exist.
 """
 
+from decimal import Decimal
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import TwoOrgs, skip_no_db
 
@@ -123,10 +126,41 @@ async def test_velocity_reports_closed_sprint_points_average_and_projection(
         f"/tasks/{task_id}", json={"status": "Done"}, headers=_auth(token)
     )
 
+    # An INCOMPLETE task with points must NOT count towards completed_points —
+    # only Done tasks sum (legacy test_close_sprint_sums_only_done_tasks).
+    incomplete = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Incomplete task", "sprint_id": sprint_id, "estimation_points": 8},
+        headers=_auth(token),
+    )
+    assert incomplete.status_code == 201, incomplete.text
+
     close = await client.post(
         f"/sprints/{sprint_id}/close", headers=_auth(token)
     )
     assert close.status_code == 200, close.text
+
+    # A SECOND closed sprint proves the average aggregates across multiple
+    # real closed-sprint rows (legacy test_velocity_averages_closed_sprints).
+    sprint_two = await client.post(
+        f"/projects/{project_id}/sprints",
+        json={"name": "Sprint 2"},
+        headers=_auth(token),
+    )
+    sprint_two_id = sprint_two.json()["data"]["id"]
+    task_two = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Done task 2", "sprint_id": sprint_two_id, "estimation_points": 3},
+        headers=_auth(token),
+    )
+    task_two_id = task_two.json()["data"]["id"]
+    await client.patch(
+        f"/tasks/{task_two_id}", json={"status": "Done"}, headers=_auth(token)
+    )
+    close_two = await client.post(
+        f"/sprints/{sprint_two_id}/close", headers=_auth(token)
+    )
+    assert close_two.status_code == 200, close_two.text
 
     response = await client.get(
         f"/projects/{project_id}/velocity", headers=_auth(token)
@@ -134,9 +168,9 @@ async def test_velocity_reports_closed_sprint_points_average_and_projection(
 
     assert response.status_code == 200, response.text
     body = response.json()["data"]
-    assert len(body["series"]) == 1
-    assert body["series"][0]["completed_points"] == 5
-    assert body["average_velocity"] == 5.0
+    assert len(body["series"]) == 2
+    assert sorted(s["completed_points"] for s in body["series"]) == [3, 5]
+    assert body["average_velocity"] == 4.0
     assert body["projected_sprints"] is not None
 
 
@@ -174,3 +208,263 @@ async def test_get_project_of_other_org_by_id_returns_404(
     )
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# projects delta R1 — lead_user_id (change 23-org-role-templates)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_project_without_template_keeps_lead_user_id_null(
+    client: AsyncClient, tenant, user
+) -> None:
+    """A project created via the plain ``POST /projects`` flow (no template
+    instantiation involved) keeps ``lead_user_id = null`` — compatibility
+    scenario of the ``projects`` delta spec."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={"name": "Sin Plantilla", "methodology": "planner"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["lead_user_id"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_projects_listing_exposes_lead_user_id_per_element(
+    client: AsyncClient, tenant, user
+) -> None:
+    """``GET /projects`` exposes ``lead_user_id`` on every listed element."""
+
+    _, token = user
+
+    created = await client.post(
+        "/projects",
+        json={"name": "Listado Con Responsable", "methodology": "planner"},
+        headers=_auth(token),
+    )
+    assert created.status_code == 201, created.text
+
+    response = await client.get("/projects", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    rows = response.json()["data"]
+    assert rows
+    assert all("lead_user_id" in row for row in rows)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_post_projects_ignores_explicit_lead_user_id_of_other_org(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """The plain ``POST /projects`` flow IGNORES any ``lead_user_id`` sent in
+    the payload — it always persists ``null``, even when the caller submits
+    a user id belonging to ANOTHER organization. Only template instantiation
+    (which validates membership) may set ``lead_user_id``."""
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Con Lead Ajeno",
+            "methodology": "planner",
+            "lead_user_id": str(two_orgs.b.user.id),
+        },
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["lead_user_id"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_post_projects_ignores_client_supplied_project_kind_and_forces_proyecto(
+    client: AsyncClient, tenant, user
+) -> None:
+    """Change 27-plantillas-idempotentes: ``POST /projects`` normal SIEMPRE
+    crea `project_kind = proyecto` — incluso si el payload intenta forzar
+    `area` — spec 'Creación directa con POST /projects es siempre
+    proyecto'. Solo la instanciación de plantillas puede producir un
+    `area`."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Intento De Area",
+            "methodology": "planner",
+            "project_kind": "area",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["data"]["project_kind"] == "proyecto"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_post_projects_rejects_explicit_code_of_soft_deleted_project(
+    client: AsyncClient, session, tenant, user
+) -> None:
+    """Forward-looking (no soft-delete endpoint exists yet): ``code_exists``
+    deliberately checks EVERY row regardless of ``is_active`` — a
+    soft-deleted project's ``code`` is still physically taken by
+    ``uq_project_code_per_org``. Seeding one by ORM proves the friendly 409
+    fires instead of a bare 500 once soft-delete ships."""
+
+    from app.modules.projects.models import Project
+    from app.shared.enums import Methodology, ProjectStatus
+
+    _, token = user
+
+    deleted_project = Project(
+        organization_id=tenant.id,
+        name="Proyecto Archivado",
+        methodology=Methodology.kanban,
+        status=ProjectStatus.active,
+        code="ARCHV",
+        task_counter=0,
+        is_active=False,
+    )
+    session.add(deleted_project)
+    await session.flush()
+
+    response = await client.post(
+        "/projects",
+        json={
+            "name": "Nuevo Con Código Repetido",
+            "methodology": "planner",
+            "code": "ARCHV",
+        },
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "project_code_taken"
+
+
+# ---------------------------------------------------------------------------
+# No-regresión — extracción de _create_project_unit() (Lote 2, tasks.md T2.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_create_project_persists_in_a_single_call_no_regression(
+    client: AsyncClient, tenant, user
+) -> None:
+    """No-regresión: tras extraer ``_create_project_unit()`` sin commit,
+    ``POST /projects`` sigue devolviendo 201 y dejando el proyecto persistido
+    en UNA sola llamada — ``create_project`` público sigue siendo
+    ``_create_project_unit() + repo.save()`` (design.md Decisión 3)."""
+
+    _, token = user
+
+    response = await client.post(
+        "/projects",
+        json={"name": "Persistencia Atómica", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+
+    assert response.status_code == 201, response.text
+    project_id = response.json()["data"]["id"]
+
+    fetched = await client.get(f"/projects/{project_id}", headers=_auth(token))
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["name"] == "Persistencia Atómica"
+
+
+# ---------------------------------------------------------------------------
+# Override de calendario laboral en ProjectRead (change 28-calendario-laboral)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_project_exposes_root_work_calendar_override_values(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """A root project's own override columns are exposed as-is on GET."""
+
+    _, token = user
+    create_response = await client.post(
+        "/projects",
+        json={"name": "Raíz Con Override", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert create_response.status_code == 201, create_response.text
+    project_id = create_response.json()["data"]["id"]
+
+    from app.modules.projects.models import Project
+
+    project = await session.get(Project, project_id)
+    project.working_hours_per_day = Decimal("6")
+    project.working_days = [6, 7]
+    await session.flush()
+
+    response = await client.get(f"/projects/{project_id}", headers=_auth(token))
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert float(data["working_hours_per_day"]) == 6
+    assert data["working_days"] == [6, 7]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_get_project_child_always_exposes_null_work_calendar_override(
+    client: AsyncClient, session: AsyncSession, tenant, user
+) -> None:
+    """A child project ALWAYS shows null overrides, even if its root has one."""
+
+    _, token = user
+    root_response = await client.post(
+        "/projects",
+        json={"name": "Raíz Con Override Hijo", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert root_response.status_code == 201, root_response.text
+    root_id = root_response.json()["data"]["id"]
+
+    from app.modules.projects.models import Project
+
+    root = await session.get(Project, root_id)
+    root.working_hours_per_day = Decimal("6")
+    root.working_days = [6, 7]
+    await session.flush()
+
+    child_response = await client.post(
+        "/projects",
+        json={
+            "name": "Hijo De Override",
+            "methodology": "kanban",
+            "parent_project_id": root_id,
+        },
+        headers=_auth(token),
+    )
+    assert child_response.status_code == 201, child_response.text
+    child_id = child_response.json()["data"]["id"]
+
+    detail_response = await client.get(f"/projects/{child_id}", headers=_auth(token))
+    assert detail_response.status_code == 200, detail_response.text
+    detail_data = detail_response.json()["data"]
+    assert detail_data["working_hours_per_day"] is None
+    assert detail_data["working_days"] is None
+
+    listing_response = await client.get("/projects", headers=_auth(token))
+    assert listing_response.status_code == 200, listing_response.text
+    listing_entry = next(
+        item for item in listing_response.json()["data"] if item["id"] == child_id
+    )
+    assert listing_entry["working_hours_per_day"] is None
+    assert listing_entry["working_days"] is None

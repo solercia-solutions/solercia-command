@@ -1,0 +1,141 @@
+{
+  "instante": "2026-10-02T15:00:00-05:00",
+  "persona": {
+    "id": 7,
+    "uuid": "00000000-0000-4000-8000-000000000007",
+    "nombres": "Persona",
+    "apellidos": "De Prueba",
+    "correo": "persona.prueba@ejemplo.test",
+    "insignia": "DEMO"
+  },
+  "organizacion": {
+    "uuid": "00000000-0000-4000-8000-000000000001",
+    "nombre": "Organización de Prueba",
+    "nombreCorto": "DEMO",
+    "slug": "prueba"
+  },
+  "modulo": {
+    "id": 1,
+    "nombre": "Administrador",
+    "iconoPandora": "fa fa-cogs",
+    "iconoCommand": "settings"
+  },
+  "menu": [
+    {
+      "id": 10,
+      "etiqueta": "Usuarios",
+      "iconoPandora": "fa fa-users",
+      "iconoCommand": "users",
+      "hijos": [
+        {
+          "id": 11,
+          "etiqueta": "Gestionar usuarios",
+          "iconoPandora": "fa fa-user",
+          "iconoCommand": "user",
+          "urlPandora": "/gestionar-usuarios",
+          "rutaCommand": "/admin/users"
+        },
+        {
+          "id": 12,
+          "etiqueta": "Roles y permisos",
+          "iconoPandora": "fa fa-key",
+          "iconoCommand": "key",
+          "urlPandora": "/roles",
+          "rutaCommand": "/admin/roles"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "etiqueta": "Parámetros",
+      "iconoPandora": "fa fa-list-ul",
+      "iconoCommand": "list",
+      "urlPandora": "/parametros",
+      "rutaCommand": "/demo/parametros"
+    },
+    {
+      "id": 30,
+      "etiqueta": "Reportes",
+      "iconoPandora": "fa fa-bar-chart",
+      "iconoCommand": "bar-chart",
+      "hijos": [
+        {
+          "id": 31,
+          "etiqueta": "Indicadores",
+          "iconoPandora": "fa fa-pie-chart",
+          "iconoCommand": "chart-pie",
+          "hijos": [
+            {
+              "id": 311,
+              "etiqueta": "Mensuales",
+              "iconoPandora": "fa fa-calendar",
+              "iconoCommand": "calendar",
+              "urlPandora": "/indicadores/mensuales",
+              "rutaCommand": "/demo/indicadores/mensuales"
+            },
+            {
+              "id": 312,
+              "etiqueta": "Anuales",
+              "iconoPandora": "fa fa-calendar",
+              "iconoCommand": "calendar",
+              "urlPandora": "/indicadores/anuales",
+              "rutaCommand": "/demo/indicadores/anuales"
+            }
+          ]
+        },
+        {
+          "id": 32,
+          "etiqueta": "Descargas",
+          "iconoPandora": "fa fa-download",
+          "iconoCommand": "arrow-down-tray",
+          "urlPandora": "/descargas",
+          "rutaCommand": "/demo/descargas"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "etiqueta": "Documentos",
+      "iconoPandora": "fa fa-file-text",
+      "iconoCommand": "document-text",
+      "urlPandora": "/documentos",
+      "rutaCommand": "/demo/documentos"
+    },
+    {
+      "id": 50,
+      "etiqueta": "Calendario",
+      "iconoPandora": "fa fa-calendar",
+      "iconoCommand": "calendar",
+      "urlPandora": "/calendario",
+      "rutaCommand": "/demo/calendario"
+    },
+    {
+      "id": 60,
+      "etiqueta": "Auditoría",
+      "iconoPandora": "fa fa-eye",
+      "iconoCommand": "eye",
+      "urlPandora": "/auditoria",
+      "rutaCommand": "/demo/auditoria"
+    }
+  ],
+  "dependencias": [
+    { "id": 1, "nombre": "Dependencia Uno" },
+    { "id": 2, "nombre": "Dependencia Dos" }
+  ],
+  "usuarios": [
+    { "id": 101, "nombres": "Persona", "apellidos": "Uno Prueba", "correo": "persona.uno@ejemplo.test", "documento": "1000000001", "dependencia": 1, "activo": true, "telefono": "6010000001", "nacimiento": "1990-01-15" },
+    { "id": 102, "nombres": "Persona", "apellidos": "Dos Prueba", "correo": "persona.dos@ejemplo.test", "documento": "1000000002", "dependencia": 1, "activo": true, "telefono": "6010000002", "nacimiento": "1988-03-22" },
+    { "id": 103, "nombres": "Persona", "apellidos": "Tres Prueba", "correo": "persona.tres@ejemplo.test", "documento": "1000000003", "dependencia": 2, "activo": false, "telefono": "6010000003", "nacimiento": "1992-07-09" },
+    { "id": 104, "nombres": "Persona", "apellidos": "Cuatro Prueba", "correo": "persona.cuatro@ejemplo.test", "documento": "1000000004", "dependencia": 2, "activo": true, "telefono": "6010000004", "nacimiento": "1985-11-30" },
+    { "id": 105, "nombres": "Persona", "apellidos": "Cinco Prueba", "correo": "persona.cinco@ejemplo.test", "documento": "1000000005", "dependencia": 1, "activo": true, "telefono": "6010000005", "nacimiento": "1995-05-05" },
+    { "id": 106, "nombres": "Persona", "apellidos": "Seis Prueba", "correo": "persona.seis@ejemplo.test", "documento": "1000000006", "dependencia": 2, "activo": true, "telefono": "6010000006", "nacimiento": "1991-09-18" }
+  ],
+  "versiones": [
+    { "id": 5, "fecha": "2026-10-01T16:20:00-05:00", "capturaInicial": false, "origen": null, "primario": null },
+    { "id": 4, "fecha": "2026-09-28T09:05:00-05:00", "capturaInicial": false, "origen": 2, "primario": "#0B6E4F" },
+    { "id": 3, "fecha": "2026-09-20T11:40:00-05:00", "capturaInicial": false, "origen": null, "primario": "#7A1F5C" },
+    { "id": 2, "fecha": "2026-09-12T08:15:00-05:00", "capturaInicial": false, "origen": null, "primario": "#0B6E4F" },
+    { "id": 1, "fecha": "2026-09-01T10:00:00-05:00", "capturaInicial": true, "origen": null, "primario": null }
+  ],
+  "versionRestaurada": 3
+}

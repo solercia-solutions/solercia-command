@@ -325,6 +325,33 @@ async def real_org_user(engine: AsyncEngine):
             await db.commit()
 
 
+@pytest.fixture
+def fake_redis():
+    """In-memory Redis client (``fakeredis``), decode_responses=True to match
+    ``app.shared.redis.get_redis_client`` (change 14-integration-ports)."""
+
+    import fakeredis.aioredis as fakeredis_aioredis
+
+    return fakeredis_aioredis.FakeRedis(decode_responses=True)
+
+
+@pytest.fixture
+def patched_redis(monkeypatch, fake_redis):
+    """Patches ``app.shared.redis.get_redis_client`` to return ``fake_redis``.
+
+    Consumers MUST call it through a MODULE-qualified reference (``from
+    app.shared import redis as shared_redis`` + ``shared_redis.
+    get_redis_client()``), never ``from app.shared.redis import
+    get_redis_client`` — the latter binds its own name at import time, which
+    this monkeypatch would not reach.
+    """
+
+    from app.shared import redis as shared_redis
+
+    monkeypatch.setattr(shared_redis, "get_redis_client", lambda: fake_redis)
+    return fake_redis
+
+
 @dataclass
 class OrgData:
     """One organization's worth of seeded tenant-scoped data."""

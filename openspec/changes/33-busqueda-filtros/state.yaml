@@ -1,0 +1,69 @@
+change: 33-busqueda-filtros
+artifact_store: hybrid
+depends_on:
+  - 30-backlog-sprints-agrupados
+  - 32-jerarquia-subtareas
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - frontend-task-filters
+  modified:
+    - tasks
+target_capabilities:
+  - frontend-task-filters
+  - tasks
+constraints:
+  - client-side-filtering-for-text-epic-type-date-over-loaded-alltasks
+  - shared-filter-bar-feature-consumed-by-backlog-and-gantt
+  - search-highlights-and-autoexpands-no-hard-narrowing
+  - assignee-filter-server-side-extends-32-context-rule-to-union
+  - epic-filter-derived-from-parent-task-id-no-epic-id
+  - multi-select-avatars-overflow-plus-n
+  - filters-combine-AND-plus-clear-chip
+  - api-delta-assignee-id-repeatable-with-backend-tdd
+  - jql-and-labels-out-of-scope
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Barra de filtros compartida (feature filter-tasks) entre backlog (30) y Gantt (sprint-gantt); misma fuente de estado y predicado/anotacion"
+  - "Busqueda por task_key + texto parcial (titulo): resalta coincidencias y auto-expande secciones colapsadas con match; NO oculta el resto (sin narrowing duro)"
+  - "Fila de avatares para filtrar por asignado, multi-seleccion con overflow +N"
+  - "Filtros por epica (via parent_task_id->epica), tipo de tarea y rango de fechas; combinan en AND; chip Limpiar filtros"
+  - "Regla del 32 en filtro por asignado: subtarea asignada SIEMPRE visible; padre ajeno atenuado como contexto (resuelto en cliente sobre el set completo cargado)"
+  - "Filtrado client-side sobre allTasks() ya cargado; cero delta de API para el MVP"
+  - "Fuera de alcance: JQL (vision futura), etiquetas en filtros, filtrado/paginacion server-side, drag&drop (31), estimacion normalizada (34)"
+order_note:
+  - "depends_on: [30-backlog-sprints-agrupados, 32-jerarquia-subtareas]; apply tras cerrar 30 (secciones colapsables) y 32 (subtareas indentadas + contrato de contexto por asignado)"
+facts_verified:
+  - "Consecutivo 33 libre en openspec/changes/ y en openspec/changes/archive/ (archive solo tiene .gitkeep)"
+  - "GET /projects/{id}/tasks YA soporta filtros server-side: assignee_id (single UUID), task_type (igualdad exacta), due_from/due_to (rango), q (titulo/descripcion), status, priority, label_id (repetible OR), sprint_id, parent_task_id (tasks/router.py:39-101)"
+  - "assignee_id del endpoint es UUID unico, NO multi; multi-seleccion server-side exigiria hacerlo repetible como label_id (delta de API que el MVP evita al filtrar en cliente)"
+  - "q server-side cubre titulo/descripcion, NO task_key (tasks/router.py:55-57); la busqueda por clave del 33 es client-side"
+  - "NO existe columna epic_id en Task; epica<->historia se modela por parent_task_id + task_type=='epic' (tasks/models.py:72,92-93; create_task docstring router.py:112-118)"
+  - "Modulo search (GET /search) es busqueda global cross-entity (task/project/comment) por organizacion (search/router.py, service.py); NO es filtro en-contexto de un proyecto; sirve de referencia, no se reutiliza para la barra del 33"
+  - "El workspace carga TODAS las tareas (allTasks(), loadTasks:1205 segun 30/state.yaml); tras el 32 el set incluye subtareas -> todo padre esta en memoria y la regla de contexto es resoluble client-side sin refetch"
+  - "Backlog (project-workspace) y Gantt (sprint-gantt) consumen el mismo Task[]; el Gantt se embebe en el workspace (<sol-sprint-gantt [tasks]> project-workspace.component.ts:572-576) y agrupa por epica (GanttGroup.epic, sprint-gantt.component.ts:42-49)"
+  - "task_key tipo SDM-7 ya existe con contador atomico (tasks/models.py:140-143, OLA_4.md:131)"
+last_updated: 2026-07-20
+spec_notes:
+  - "DECISION CERRADA por el orquestador (supera la propuesta original 'sin capability'): filtro por asignado es SERVER-SIDE, reutilizando el contrato de contexto del 32 (is_context) con assignee_id extendido a repetible (multi-seleccion). Busqueda por texto/task_key, epica, tipo y rango de fechas siguen CLIENT-SIDE sobre allTasks() ya cargado, combinados en AND con el resultado server-side de asignados."
+  - "Capabilities actualizadas respecto a la propuesta: NEW frontend-task-filters (spec completo, feature filter-tasks compartida por backlog y Gantt); MODIFIED tasks (delta: assignee_id repetible en GET /projects/{id}/tasks + extension de is_context a union de asignados). Specs en openspec/changes/33-busqueda-filtros/specs/{frontend-task-filters,tasks}/spec.md."
+  - "Riesgo de secuenciacion: el delta de tasks se escribio como MODIFIED sobre el R4 actual de openspec/specs/tasks/spec.md (assignee_id singular, sin is_context, porque el cambio 32 aun no completo su propia fase spec -- spec:pending en 32/state.yaml). El delta asume que 32 se aplica/archiva antes que 33, dejando is_context ya mergeado en el spec principal antes de que el delta de tasks del 33 se reconcilie en su archive."
+  - "TDD backend REQUERIDO para el delta de tasks (assignee_id repetible + extension is_context a union de asignados); ya no aplica la nota anterior de 'sin TDD backend para MVP client-side'."
+  - "constraints/boundary/facts_verified de la fase proposal (arriba) documentan el supuesto ORIGINAL client-side para asignado y 'sin delta de API'; quedaron superados por la decision cerrada del orquestador para el filtro por asignado. Se dejan intactos por ser llaves de la fase proposal; recomendado reconciliarlos en una proxima edicion de proposal.md o en design."
+tasks_notes:
+  - "RECONCILIACION APLICADA (orquestador, fase tasks): el constraint no-api-delta-no-backend-tdd-for-mvp (fase proposal) quedo obsoleto -> corregido a api-delta-assignee-id-repeatable-with-backend-tdd. El constraint assignee-filter-honors-32-context-parent-rule-client-side tambien quedo obsoleto (contradecia la decision server-side cerrada en design/spec) -> corregido a assignee-filter-server-side-extends-32-context-rule-to-union. client-side-filtering-over-loaded-alltasks-mvp se acoto a client-side-filtering-for-text-epic-type-date-over-loaded-alltasks (el asignado ya no es client-side)."
+  - "capabilities.new: [frontend-task-filters] y capabilities.modified: [tasks] ya reflejaban la decision cerrada desde la fase spec; confirmadas sin cambios en esta fase."
+  - "Gate de secuenciacion reforzado en tasks.md: apply de 33 requiere 30 Y 32 completamente cerrados (apply+verify+archive+merge a preview) antes de iniciar Fase 1; ninguno de los dos tiene codigo aplicado en el arbol de trabajo a la fecha de este documento (confirmado por lectura directa de backend/app/modules/tasks/{router,service,repository}.py y frontend/src/widgets/project-workspace/project-workspace.component.ts)."
+  - "tasks.md: openspec/changes/33-busqueda-filtros/tasks.md — Fase 0 gate + Fase 1 backend TDD (assignee_id repetible OR + is_context sobre la union) + Fase 2 funcion pura applyTaskFilters + widget task-filter-bar + Fase 3 integracion Gantt + Fase 4 estados vacios/es-CO + Fase 5 suite completa. Review Workload Forecast: ~950-1150 lineas, High budget risk, single-pr con size:exception (decision needed before apply: Yes)."

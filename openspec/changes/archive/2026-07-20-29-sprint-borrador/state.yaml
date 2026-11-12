@@ -1,0 +1,54 @@
+change: 29-sprint-borrador
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - sprints
+target_capabilities:
+  - sprints
+constraints:
+  - tdd-cannot-start-without-dates
+  - tdd-autoname-consecutive-non-conventional
+  - strategy-driven-sprints-enabled-no-if-methodology
+  - no-schema-migration-status-is-freeform-string
+  - additive-only-backwards-compatible
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Sprint creable SOLO con nombre -> nace estado 'draft' sin fechas"
+  - "'draft' es valor nuevo del status String(20) validado en servicio (_ALLOWED_STATUSES); NO es enum de BD -> sin migracion de esquema; default de columna sigue 'active'"
+  - "Autonombre = base del ultimo sprint por created_at + consecutivo (PANDORA 2026-1 -> PANDORA 2026-2); sin previo -> '<CODE> Sprint 1' (projects.code)"
+  - "Autonombre es SUGERENCIA editable; NO se introduce unicidad de nombres de sprint"
+  - "Transicion draft->active via POST /sprints/{id}/start (valida fechas presentes; 422 en espanol si faltan); active->closed ya existe"
+  - "'Anadir fechas' reutiliza PATCH /sprints/{id}; draft solo aplica donde strategy.sprints_enabled (scrum)"
+  - "Fuera de alcance: controles de metodologia al iniciar (42), drag&drop (31), sprints agrupados (30), unicidad de nombres"
+order_note:
+  - "depends_on: [] tecnico; el apply se ordena tras cerrar la fase 4.1 (25 -> 26 -> 27 -> 28) por secuencia de la ola OLA 4"
+facts_verified:
+  - "Sprint.status = String(20) libre, valores 'active'|'closed', validado en service _ALLOWED_STATUSES; NO es SAEnum de BD (sprints/models.py:36-40, service.py:26)"
+  - "start_date/end_date ya nullable en modelo y en SprintCreate (sprints/models.py:30-35, schemas.py:15-16)"
+  - "create_sprint fija status='active' hardcodeado (sprints/service.py:68) -> cambiar a 'draft'"
+  - "No existe endpoint iniciar/start; solo /close (active->closed) (sprints/router.py, service.close_sprint)"
+  - "Gate de sprints ya usa get_strategy(project.methodology).sprints_enabled en _require_sprints_enabled (service.py:379-394); ScrumStrategy.sprints_enabled=True (methodology/scrum.py:27)"
+  - "projects.code = String(10) nullable, unico por org (projects/models.py:26,58) -> CLAVE del autonombre"
+  - "Repo list_for_project ordena por created_at desc (sprints/repository.py:51) -> base para 'ultimo sprint'"
+  - "Frontend: sprints tab en widgets/project-workspace/project-workspace.component.ts (form nombre/goal/fechas, badge active|closed, boton cerrar); workspace.service.ts con createSprint/updateSprint/closeSprint; i18n en assets/i18n/es-CO.json"
+  - "Existe openspec/specs/sprints/spec.md -> capability 'sprints' es modificada (delta)"
+  - "Consecutivo 29 libre en openspec/changes/ y en openspec/changes/archive/"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability: sprints (delta MODIFIED). Sin capability nueva."
+  - "Endpoints propuestos: POST /projects/{id}/sprints (nombre opcional -> autonombre, nace draft); GET sugerencia de proximo nombre; POST /sprints/{id}/start (draft->active, valida fechas); PATCH /sprints/{id} reutilizado para anadir fechas"

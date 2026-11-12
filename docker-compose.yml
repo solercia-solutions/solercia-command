@@ -1,3 +1,5 @@
+name: gestion_proyectos
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,8 +10,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/docker/initdb:/docker-entrypoint-initdb.d
+    # 5434 y no 5432: `sgsi-test-pg` (Postgres de pruebas de solercia_security)
+    # publica 0.0.0.0:5432 y el arranque fallaba con "port is already allocated".
+    # Se ata a 127.0.0.1 para no exponer la base a la red local.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d solercia"]
       interval: 5s
@@ -18,18 +23,50 @@ services:
 
   redis:
     image: redis:7-alpine
+    # 6380 en el host por la misma razón que Postgres: 6379 es el puerto por
+    # defecto y lo reclama cualquier Redis de otro producto. Dentro de la red de
+    # Docker los servicios siguen hablándose por `redis:6379`.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6380:6379"
 
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8081:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/solercia
       TEST_DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/solercia_test
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: dev-secret-change-me
+      INTEGRATIONS_FERNET_KEY: ${INTEGRATIONS_FERNET_KEY:?Define INTEGRATIONS_FERNET_KEY en .env; ver env.example}
+      # Off by default (change 42-purga-datos-demo): a fresh deploy never
+      # creates ana@/carlos@/diana@ or their demo projects/tasks/sprint.
+      SEED_DEMO_DATA: "false"
+      # LLM port (change 48-puerto-llm) — `fake` touches no network; see
+      # `env.example` for the activation blocks.
+      LLM_PROVIDER: "fake"
+      # Solercia Connect runtime on the user's machine (loopback :8765),
+      # reached from the container through `host.docker.internal` (declared
+      # in `extra_hosts` below so Linux resolves it too). The key comes from
+      # the shell/.env and is never written here; empty means "not configured".
+      SOLERCIA_CONNECT_BASE_URL: http://host.docker.internal:8765
+      SOLERCIA_CONNECT_API_KEY: ${SOLERCIA_CONNECT_API_KEY:-}
+      # SSO (OIDC, Keycloak) — off unless .env turns it on. A provider is
+      # configured only when its four OIDC_KEYCLOAK_* values are present;
+      # see docs/AUTH.md, section "Keycloak".
+      SSO_ENABLED: ${SSO_ENABLED:-false}
+      SSO_AUTO_PROVISION: ${SSO_AUTO_PROVISION:-false}
+      SSO_POST_LOGIN_REDIRECT: ${SSO_POST_LOGIN_REDIRECT:-http://localhost:4242/auth/callback}
+      OIDC_KEYCLOAK_ISSUER: ${OIDC_KEYCLOAK_ISSUER:-}
+      OIDC_KEYCLOAK_CLIENT_ID: ${OIDC_KEYCLOAK_CLIENT_ID:-}
+      OIDC_KEYCLOAK_CLIENT_SECRET: ${OIDC_KEYCLOAK_CLIENT_SECRET:-}
+      OIDC_KEYCLOAK_REDIRECT_URI: ${OIDC_KEYCLOAK_REDIRECT_URI:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      # Local Keycloak (profile `sso`): the browser and the backend must see
+      # the SAME issuer URL. Browsers resolve *.localhost to loopback; this
+      # line makes the container reach that host port too.
+      - "keycloak.localhost:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,9 +76,27 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "4200:4200"
+      - "4242:4242"
     depends_on:
       - backend
+
+  # Development-only identity provider, started with
+  # `docker compose --profile sso up -d keycloak`. It imports the
+  # `solercia-dev` realm (client and test user) from dev/keycloak/.
+  # Never use this service or its credentials outside a local machine.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.2
+    profiles: ["sso"]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://keycloak.localhost:8180
+      KC_HTTP_PORT: "8180"
+    ports:
+      - "127.0.0.1:8180:8180"
+    volumes:
+      - ./dev/keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   pgdata:

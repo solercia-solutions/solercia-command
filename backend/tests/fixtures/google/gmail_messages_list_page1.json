@@ -1,0 +1,8 @@
+{
+  "messages": [
+    { "id": "gmail-msg-1", "threadId": "gmail-thread-1" },
+    { "id": "gmail-msg-2", "threadId": "gmail-thread-2" }
+  ],
+  "resultSizeEstimate": 3,
+  "nextPageToken": "gmail-page-2-token"
+}

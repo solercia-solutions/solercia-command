@@ -1,0 +1,245 @@
+# UI alineada al shell de PANDORA — ODD
+
+## Objetivo
+
+Que el frontend de Solercia Command adopte `@solercia/ui` `^0.6.1` y se vea igual que el shell
+Angular de PANDORA (`pandora_front`), copiando sus patrones de UI, con el Theme Studio de la
+librería completo y un historial de versiones de tema por organización.
+
+## Problema y motivo
+
+El shell actual es una copia de boki-front anterior al porte de PANDORA y vive dentro de
+`AppComponent`. La librería está en 0.5.0, el tema por organización no tiene historial y la pantalla
+de apariencia es propia. Command necesita personalización fuerte por organización y un aspecto
+consistente con PANDORA.
+
+## Fuentes
+
+- Encargo: `pandora-docs/shared/user-stories/2026-06-05-MIGRACION-UI-PANDORA/2026-10-02-prompt-ui-solercia-command.md`.
+- Inventario bloque por bloque: `2026-10-02-inventario-ui-pandora-para-solercia-command.md` (misma carpeta).
+- Fuente de verdad visual: `IDARTES/pandora_proxy/pandora_front`, rama `feature/shared-migracion-angular-pandora`. Solo lectura.
+- Fuente para copiar el shell: worktree `SOLERCIA/solercia_flows/boki-front-worktrees/solercia-port-pandora-front`
+  (rama `feature/solercia-port-pandora-front`, nacida sobre la librería 0.4.0, sin fusionar). Solo lectura.
+- Librería: `solercia_flows/boki-front/projects/solercia/ui` (`CHANGELOG.md`, `docs/THEMING.md`, `docs/THEME-STUDIO.md` §3.2).
+
+## Alcance autorizado
+
+Autorizado por el usuario el 2026-10-02: «Arranca con todo para que quedemos alineados a Pandora_front».
+
+Dentro: librería a `^0.6.1`; configuración global como PANDORA; shell (layout, sidebar multinivel,
+menú móvil inferior, header, migas de pan, menú de usuario, panel de ayuda, logo, botón de tema);
+centro de alertas, diálogo de confirmación y estados de error, vacío y carga; Theme Studio con
+historial y restauración de versiones sobre un adaptador por organización; demostración de paridad.
+
+Fuera: puente legacy, telemetría y aviso de privacidad, selector y entrada de módulos, footer
+institucional, entidad por hostname, errores de soporte de la pasarela.
+
+## Decisiones
+
+- **Tailwind se queda en la versión 3.** La librería no exige Tailwind, los widgets del porte no usan
+  utilidades y la rama de porte corre sobre la 3. Migrar a la 4 tocaría 33 archivos sin cambio visual.
+- **Historial de versiones:** tabla nueva de solo inserción, migración `0028`, endpoints con cursor
+  de 20, restauración con versión de origen y captura inicial. Contrato de la librería:
+  `ThemeVersion {id, userName, userId, appliedAt, initialCapture, sourceVersionId}` y
+  `ThemeVersionPage {versions, next}`.
+- **Carga de logo fuera de alcance por ahora:** el contrato la marca como opcional y el
+  almacenamiento de archivos sigue sin decidir. El logo entra por URL.
+- **Se conservan** `OrgThemeSource` y `TenantThemeService` (organizaciones con UUID), el selector de
+  organización y la campana de notificaciones como acciones del header.
+- **`sol-alert-center` no está en la librería:** se copia de boki-front. El diálogo de confirmación y
+  la directiva de revelado sí vienen en la librería 0.6.1 y se usan desde ella.
+
+## Restricciones
+
+- Rama `feat/ui-shell-pandora`, creada sobre `feat/conexion-solercia-connect`. Commits por unidad de
+  trabajo, sin atribución a herramientas. Sin push sin autorización.
+- Ninguna operación destructiva sobre datos. La migración `0028` solo se prueba en una base
+  desechable; a la base real va únicamente con autorización expresa.
+- Un solo escritor activo a la vez.
+- Textos de interfaz en español colombiano con tuteo. Las llaves existentes del catálogo no se renombran.
+- Antes de cerrar cada pantalla se aplica la lista de verificación de UX.
+- Persistencia: se lee `agents/rules/solercia-persistence.md` antes de tocar repositorios o migraciones.
+
+## Modo de pruebas
+
+- Backend: TDD estricto (fuente: `openspec/config.yaml`, `rules.apply.tdd`). Runner:
+  `cd backend && pytest tests/<archivo> -v`, solo las pruebas del cambio. Nunca la suite completa
+  contra una base real.
+- Frontend: no hay runner de pruebas. Verificación con `npm run build`, `npm run lint` y navegador.
+
+## Entrega
+
+Estrategia `ask-on-risk`. Pronóstico: unas 6.000 líneas autoradas, muy por encima de 400. Cada tarea
+U01–U07 es una frontera de rebanada. La estrategia de cadena (`stacked-to-main` o
+`feature-branch-chain`) queda pendiente de la decisión del usuario cuando autorice push y PR.
+La revisión nativa está apagada (`gentle-ai review mode status`: off, decidido por la configuración global).
+
+## Tareas
+
+- [x] U00 Commits del trabajo pendiente en la rama base: 13 commits, `799396d`..`046f589`. Sin pruebas ejecutadas.
+- [x] U01 Subir `@solercia/ui` a `^0.6.1` y ajustar los cambios de contrato. Verifica: build y lint. Commit `3fe0afa`.
+- [x] U02 Configuración global como PANDORA: locale es-CO, recarga ante chunk faltante, tema por
+      defecto al arrancar, reglas `sol-*` de estilos, fuentes y favicon por tema, tema por defecto
+      completo, retiro de `assets/config/theme-config.json`. Verifica: build y lint. Commit `0d8dd69`.
+      Navegador pendiente (se verifica junto con U03).
+- [x] U03 Shell: página shell y widgets del porte, menú adaptado a `GET /auth/me/menus`.
+      Verifica: build y lint. Commits `04d71f6`, `6d9a265`, `f61f423`, `af58565`.
+      Navegador en 1440×900 y 390×844, claro y oscuro: pendiente (U07a).
+- [x] U04 Retroalimentación: centro de alertas, confirmación de la librería, estado de error,
+      páginas de error e interceptor de errores. Verifica: build y lint. Commits `545adc7`,
+      `0485645`, `81db97d`, `3c2c062`. Navegador pendiente (se verifica junto con U03).
+- [x] U05 Backend del historial de versiones de tema. Verifica: pruebas del cambio en rojo y luego
+      en verde. Commit `1608b75`. Migración `0028` probada solo en contenedor desechable; NO aplicada
+      a la base real (requiere autorización expresa).
+- [x] U06 Theme Studio: adaptador de `THEME_STUDIO_STORE`, página que reemplaza «Apariencia» y llaves
+      `sol.themeStudio.*`. Verifica: build y lint. Commits `4fe21e2`, `5bbb3f9`.
+      Navegador pendiente (U07a).
+- [x] U07a Verificación en navegador de U02–U06 sobre un entorno desechable (PostgreSQL temporal,
+      backend y frontend en puertos propios), sin tocar la base real. Corrige lo que aparezca.
+      Commits `69c9dd4`, `6d205e1`.
+- [x] U07 Paridad con PANDORA: capturas comparadas y documento de diferencias con su causa.
+      Verifica: build y lint. Commits `a524de7`, `c875c10` y el del arnés y el informe en
+      `docs/paridad-ui-pandora/`.
+
+## Criterios de aceptación
+
+- El build y el lint del frontend pasan en cada tarea.
+- Las capturas del shell, sidebar abierto y colapsado, menú de usuario, una tabla, un diálogo de
+  confirmación, estado de error y Theme Studio (inicial, historial, restauración) coinciden con las
+  de PANDORA con el mismo tema, o cada diferencia queda documentada con su causa.
+- El historial de versiones es de solo inserción y está aislado por organización.
+
+## Progreso y evidencia
+
+- 2026-10-02 U00: 13 commits locales verificados (`git log 1112731..HEAD`), sin atribución a
+  herramientas, árbol limpio salvo `.pi/`.
+- 2026-10-02 U01 (`3fe0afa`): librería resuelta en 0.6.1 desde el registro npm. Build exit 0 con la
+  misma advertencia de presupuesto inicial (1.06 MB → 1.08 MB); lint exit 0 sin problemas, antes y
+  después. Sin cambios de código: ninguna colisión entre los 35 selectores propios y los 59 de la
+  librería. Riesgo evaluado: baja; sin revisión nativa (apagada).
+  Pendiente de verificar en navegador: `sol-data-table` ahora colapsa a tarjetas por ancho del
+  contenedor (5 usos en `pages/admin/*`). Diferido a U02: `meta.logo` falta en el tema por defecto.
+
+- 2026-10-02 U02 (`0d8dd69`, 14 archivos): build exit 0 con la advertencia de presupuesto inicial
+  (1.11 MB; el aumento son las reglas `@font-face` que ahora se incrustan en `styles.css`); lint
+  exit 0 sin problemas. Sin verificación en navegador: los servicios locales estaban apagados.
+  Logo y favicon propios creados en `src/assets/logos/` a partir de la marca del header.
+  Efectos conocidos: el texto base pasa de 16 px a 14 px como en PANDORA; la librería no aplica
+  `meta.favicon` ni `meta.defaultMode` del tema por defecto (solo de temas de organización), así
+  que el favicon sale del `<link rel="icon">` de `index.html`. `component.table.variant` quedó sin
+  fijar, igual que en el tema por defecto de PANDORA. Riesgo evaluado: baja.
+- Cambio de orden: U04 va antes que U03 porque el panel de ayuda del shell depende del estado de
+  error y este del servicio de alertas.
+
+- 2026-10-02 U04 (`545adc7`, `0485645`, `81db97d`, `3c2c062`): build exit 0 con la advertencia de
+  presupuesto inicial (1.12 MB); lint exit 0 sin problemas. Sin verificación en navegador.
+  24 llamadas de toasts migradas a `AlertService` y `shared/lib/toast/` eliminado. Seis
+  confirmaciones puras migradas a `SolConfirmDialogComponent` (dependencias, menús, organizaciones,
+  roles, usuarios, conexiones). Rutas `no-autorizado`, `prohibido`, `error-servidor` y comodín a la
+  página no encontrada (antes redirigía a `projects`). Riesgo evaluado: media, diferida a la rebanada.
+  **Abierto para decisión del usuario:** el interceptor de errores quedó inactivo para las 110
+  llamadas actuales (todas llevan el token de exclusión porque sus pantallas ya muestran el error
+  en línea); solo actúa sobre llamadas nuevas. Activarlo por pantalla exige quitar su token y su
+  error en línea.
+  Hallazgos de UX sin aplicar: las confirmaciones migradas pierden el estado «Eliminando…»; las
+  alertas duran 5 s y no pausan con el cursor; 401 solo ofrece volver al inicio; el backend no envía
+  `X-Request-Id`, así que el código de seguimiento no aparece.
+
+- 2026-10-02 U03 (`04d71f6`, `6d9a265`, `f61f423`, `af58565`): build exit 0 con 2 advertencias
+  (presupuesto inicial 1.09 MB; nueva: estilos de `sidebar.component.ts` 5.57 kB contra el
+  presupuesto de 4 kB, PANDORA usa 6 kB); lint exit 0 sin problemas. Sin verificación en navegador.
+  El shell es la ruta padre de las vistas autenticadas; fuera quedan `login`, `auth/callback`, las
+  páginas de error y el comodín. Lo propio de Command vive en `pages/shell/ui/shell-page.component.ts`:
+  selector de organización, campana con sondeo de 60 s, importación de tareas, cierre de sesión y
+  enlaces de respaldo. Riesgo evaluado: media, diferida a la rebanada.
+  Diferencias frente a PANDORA: sidebar expandido por defecto y sin auto-cierre; menú de usuario sin
+  «Perfil» ni «Apariencia»; las páginas pierden el contenedor centrado de 80rem; el logo ya no
+  enlaza a `/projects`; el login queda sin header.
+  **Abierto para decisión del usuario:** canal de «Ayuda y soporte» (`SUPPORT_URL` es `null` y el
+  panel abre vacío); auto-cierre del sidebar.
+  Hallazgos de UX sin aplicar: en móvil el error del menú no se ve ni se reintenta; en modo riel no
+  se muestran vacío ni error; la rama activa no se expande al recargar.
+  Llaves huérfanas sin borrar: `nav.brandAria`, `nav.logout`, `nav.mobileNavAria`,
+  `nav.primaryNavAria`, `nav.sidebarCollapse`, `nav.sidebarExpand`, `nav.sidebarToggle`,
+  `nav.themeToDark`, `nav.themeToLight`.
+
+- 2026-10-02 U05 (`1608b75`, 11 archivos, +1742 −62, más de la mitad pruebas): TDD observado.
+  Rojo: `pytest tests/test_org_theme_versions.py -v` → 21 failed; el archivo de servicio falló en
+  colección. Verde: 55 passed en 14.40 s sobre los archivos del cambio y los existentes del tema y
+  de organización activa. Base de pruebas: contenedor desechable `solercia-ui-tmp-pg-u05`
+  (`postgres:16`, tmpfs, `127.0.0.1:55471`), detenido y ya inexistente. Riesgo evaluado: alta por
+  migración y permisos; sin revisión nativa (apagada).
+  Contrato (base `/api/v1`, solo administrador, organización activa):
+  `PUT /organizations/me/theme?source_version_id=<int>` responde `{data: tema, meta: {version}}`;
+  `GET /organizations/me/theme/versions?before=<int>` responde `{data: {versions, next}}`, 20 por
+  página; `GET /organizations/me/theme/versions/{id}` responde `{data: {…, theme}}`. Campos de
+  versión: `id`, `user_name`, `user_id`, `applied_at`, `initial_capture`, `source_version_id`.
+  Decisiones: llave `BIGINT` de identidad con cursor `id < before`; bloqueo de fila de la
+  organización para serializar; captura inicial única por índice parcial; `DELETE` no borra
+  historial y captura el tema si nunca se había registrado.
+  Sin prueba de migración en el repo: el patrón existente ejecuta `DROP DATABASE` y no se corrió;
+  la migración se verificó con subida, bajada y nueva subida dentro del contenedor desechable.
+  **Abierto para decisión del usuario:** tras restablecer (`DELETE`) el tema vigente es nulo y la
+  versión más reciente del historial ya no coincide con él.
+
+- 2026-10-02 U06 (`4fe21e2`, `5bbb3f9`): build exit 0 con 1 advertencia (presupuesto inicial
+  1.09 MB; la de estilos del sidebar desapareció al alinear `anyComponentStyle` con PANDORA); lint
+  exit 0 sin problemas. Sin verificación en navegador. `/settings/appearance` abre el Theme Studio
+  con la configuración de PANDORA; el pie usa el nombre de la organización activa. Se retiraron
+  `appearance-page.component.ts`, `theme-builder.ts` y `TenantThemeService.preview()/applySaved()`.
+  El auto-cierre del sidebar lo gobierna `meta.sidebar.autoCloseOnNavigate` (apagado por defecto).
+  Riesgo evaluado: media, diferida a la rebanada.
+  **Abierto para decisión del usuario:** la ruta no tiene guard de administrador (la pantalla
+  anterior tampoco): un no administrador ve el editor y recibe 403 al aplicar o abrir el historial;
+  «Restablecer» quedó sin interfaz; valor por defecto del auto-cierre.
+  Hallazgos de UX sin aplicar: textos de la librería en «usted» en `history.*` e `import.*`;
+  «entidad» en vez de «organización»; sin aviso de cambios sin guardar; pie de página, inicio de
+  sesión e indicador de carga se editan pero Command no los consume.
+  Llaves huérfanas sin borrar: todo el bloque `appearance.*`.
+
+- 2026-10-02 U07a (`69c9dd4`, `6d205e1`): recorrido en navegador sobre entorno desechable
+  (PostgreSQL `solercia-ui-tmp-pg-u07` en `127.0.0.1:55481`, Redis en `:55482`, backend `:58181`,
+  frontend `:54242`), todo detenido y sin restos; `alembic upgrade head` llegó a `0028` allí.
+  Visto y correcto en 1440×900 y 390×844: arranque sin errores ni 404, shell en claro y oscuro,
+  estados del menú, 15 rutas existentes sin desbordes, alertas, confirmación, páginas de error y
+  Theme Studio (aplicar, propagación, historial, restaurar, `tableStyle`, auto-cierre).
+  Corregido: el header tapaba 52 px del logo a 390 px (el selector de organización se reduce a su
+  avatar bajo 768 px); contraste del botón secundario en claro (2,6:1 → blanco).
+  Build exit 0 con 1 advertencia (1.09 MB); lint exit 0. Capturas fuera del repo.
+  Sin corregir: tras iniciar sesión el selector marca una organización y los datos son de otra
+  (`org-switcher.component.ts:82` cae a la primera por nombre; `backend/app/dependencies.py:177` a
+  la membresía más antigua; anterior a esta rama); el primer «Aplicar» normaliza el tema a los
+  presets del estudio (156 tokens); la librería rechaza importar `idartes.json` por
+  `primitives.breakpoint`; el logo de 180 px desborda la vista previa del estudio;
+  `GET /organizations/me/theme` se pide dos veces; 206 advertencias de traducción faltante de
+  `sol.themeStudio.*` en desarrollo.
+
+- 2026-10-02 U07 (`a524de7`, `c875c10` y el commit del arnés): los dos frontends servidos en local
+  (Command `:54311`, PANDORA `:54312` con proxy vacío), API interceptada en el navegador con datos
+  sintéticos, sin backend ni base de datos; procesos detenidos, puertos libres y `pandora_front`
+  sin cambios (`git status --short` vacío antes y después, HEAD `d4884a12`).
+  48 combinaciones de escena, viewport y modo: 40 comparadas en vivo, 6 que no aplican y 2 sin
+  referencia (error 403 en carga directa y modo oscuro). Método, tabla completa, diferencias con su
+  causa y clasificación: `docs/paridad-ui-pandora/README.md`; números en `resultados.json`.
+  0 % en logo, menú inferior, error 403 al llegar desde el shell, migas a 390 px y diálogo del
+  Theme Studio. Ruido entre dos corridas: 226 de 228 capturas idénticas.
+  Corregido: a 390 px con una sola organización el selector no se reducía a su avatar y tapaba el
+  logo (`styles.scss`); la nota del reloj de soporte no mostraba el desfase «(UTC−05:00)»
+  (`user-menu.component.ts`, `es-CO.json`).
+  Build exit 0 con 1 advertencia (1.09 MB); lint exit 0.
+  Sin corregir, documentado: los `<button>` heredan la tipografía por la hoja base de Tailwind 3 y
+  sus íconos quedan 1 px más arriba que en PANDORA; Command declara Inter 700 y PANDORA no, así que
+  la negrita 700 se ve más pesada en Command.
+  **Abierto para decisión del usuario (se suma a lo anterior):** entradas «Perfil» y «Apariencia»
+  del menú de usuario; estado inicial del sidebar (PANDORA colapsado, Command expandido).
+
+## Siguiente paso
+
+Decisiones abiertas del usuario (guard de administrador del Theme Studio, canal de ayuda, estado
+inicial y auto-cierre del sidebar, interfaz de restablecer, interceptor de errores, organización
+activa tras iniciar sesión, entradas del menú de usuario) y, con su autorización, push y PR.
+
+## Espejo
+
+Engram, tema `odd/ui-shell-pandora/tasks`: observación #5499 (guardada con `engram save`; el
+guardado por MCP falla por sesiones simultáneas). Resincronizar al cierre de cada tarea.

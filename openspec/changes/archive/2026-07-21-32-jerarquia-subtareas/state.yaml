@@ -1,0 +1,64 @@
+change: 32-jerarquia-subtareas
+artifact_store: hybrid
+depends_on:
+  - 30-backlog-sprints-agrupados
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done  # PASS — CRITICAL-1 resuelto en 5dd7729 (exclusion estructural de cdkDrag en padres de contexto, backlog y sprint); 2 WARNING no bloqueantes (WARNING-1, WARNING-2); ver "Verify de cierre" en verify-report.md
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - tasks
+target_capabilities:
+  - tasks
+constraints:
+  - client-composes-hierarchy-by-parent-task-id-no-backend-tree
+  - backend-supplies-subtasks-via-include-subtasks-lifts-top-level-only
+  - assignee-filter-must-surface-subtasks-of-foreign-parents-nonnegotiable
+  - context-parents-resolved-in-backend-flagged-is-context
+  - is-context-additive-default-false-taskread-untouched
+  - context-parent-not-counted-as-real-match-no-duplication
+  - no-n-plus-1-single-listing-groups-by-parent-task-id
+  - one-level-nesting-unchanged-no-sub-subtasks
+  - indentation-lives-inside-30-sections
+  - avatar-is-initial-circle-reuse-taskcardinitial-no-new-component
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Subtareas indentadas bajo su padre dentro de las secciones del cambio 30 (sprints + backlog), con clave (task_key), estado, estimacion y avatar (circulo de inicial)"
+  - "Regla innegociable: subtarea asignada a un usuario SIEMPRE aparece al filtrar por ese usuario aunque el padre sea de otro; el padre se muestra atenuado como contexto (is_context=true). Nada se oculta por posicion jerarquica"
+  - "Backend: modo include_subtasks levanta top_level_only para suministrar subtareas en el mismo listado; el cliente arma la indentacion agrupando por parent_task_id (sin fetch por padre)"
+  - "Backend: con assignee_id presente, segunda pasada trae padres de contexto de subtareas matcheadas cuyo padre no matchea, con is_context=true; si el padre ya matchea, is_context=false y no se duplica"
+  - "Campo aditivo is_context en TaskRead (default false); TaskRead intacto para consumidores previos"
+  - "Frontend: padre atenuado (no interactivo salvo abrir detalle en lectura) cuando llega solo como contexto"
+  - "Fuera de alcance: colapso/chevron por padre (subtareas siempre visibles), fila de avatares para filtrar (33), drag&drop de subtareas (31), estimation_display enriquecido (34), sub-subtareas (anidacion sigue en un nivel), agregados de seccion del 30 (intactos)"
+order_note:
+  - "depends_on: [30-backlog-sprints-agrupados]; la indentacion vive dentro de las secciones del 30, asi que su apply se ordena tras cerrar el 30"
+  - "Comparte seam con 31 (orden/DnD por task.order) y 33 (fila de avatares para filtrar por asignado que consumira este contrato de filtro)"
+facts_verified:
+  - "GET /projects/{id}/tasks fija top_level_only = (parent_task_id is None) (tasks/service.py:111) -> el listado plano OCULTA todas las subtareas; ?assignee_id=X mantiene top_level_only=True, asi que una subtarea asignada a X jamas se devuelve si el padre no matchea (GAP que la regla innegociable corrige)"
+  - "Repositorio ya soporta filtros parent_task_id, subtasks_only y top_level_only en list_for_project (tasks/repository.py:50-97) con paginacion opt-in (paginate)"
+  - "TaskRead ya expone parent_task_id, task_key, assignee_id, assignee_name, status, estimation_points/hours, order (tasks/schemas.py:95-148); patron de campo aditivo default-safe ya usado por el 30 (SprintListItem)"
+  - "Anidacion en un solo nivel: parent subtask -> 422 subtask_nesting_not_allowed (tasks/service.py:323-328); sin sub-subtareas"
+  - "GET /tasks/{id}/subtasks existe (router.py:211-221, service.list_subtasks)"
+  - "Frontend NO tiene componente de avatar (SolAvatar): el asignado se pinta como circulo de inicial via taskCardInitial() = primer caracter de assignee_name (project-workspace.component.ts:1132-1135)"
+  - "Frontend compone jerarquia en cliente: loadTasks() carga solo top-level y loadEpicChildren() trae hijas por epica con ?parent_task_id={epicId} (N consultas via forkJoin, project-workspace.component.ts:1205-1235); el 30 agrupa allTasks() por sprint_id en cliente"
+  - "backlogTasks() = allTasks() con sprint_id==null (project-workspace.component.ts:1023); la fila de asignado del backlog aun no existe en UI (llega con el 33)"
+  - "Consecutivo 32 libre en openspec/changes/ (activos: cycle2, 26, 27, 28, 29, 30, 34)"
+  - "Capability tasks tiene spec (openspec/specs/tasks/spec.md; R4 filtros combinables sprint_id/status/assignee_id, delta 10-busqueda-global) -> cambio 32 es delta MODIFIED sobre tasks; frontend es composicion (no spec-level nuevo)"
+last_updated: 2026-07-21
+spec_notes:
+  - "Capability: tasks (delta MODIFIED). Sin capability nueva."
+  - "Delta 1: GET /projects/{id}/tasks admite modo include_subtasks (o jerarquico) que levanta top_level_only y devuelve subtareas junto a las top-level"
+  - "Delta 2 (innegociable): con assignee_id, el listado DEBE incluir subtareas asignadas de padres ajenos y devolver esos padres como contexto (is_context=true), sin contarlos como match real ni duplicarlos"
+  - "Delta 3: campo aditivo is_context en TaskRead (default false)"
+  - "Frontend (indentacion, padre atenuado, avatar de inicial) es composicion de UI dentro de las secciones del 30; no es spec-level"

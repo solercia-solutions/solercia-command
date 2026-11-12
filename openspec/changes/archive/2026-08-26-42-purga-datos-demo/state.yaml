@@ -1,0 +1,107 @@
+change: 42-purga-datos-demo
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new:
+    - data-maintenance
+  modified:
+    - api-conventions
+    - multi-tenancy
+    - org-role-templates
+    - intake-classifier
+target_capabilities:
+  - data-maintenance
+  - api-conventions
+  - multi-tenancy
+  - org-role-templates
+  - intake-classifier
+constraints:
+  - seed-demo-data-flag-default-false
+  - flag-leido-en-tiempo-de-llamada-no-constante-de-modulo
+  - caso-de-uso-dueno-de-la-transaccion-repositorio-sin-commit
+  - dry-run-por-defecto-execute-explicito
+  - backup-file-obligatorio-verificado-antes-de-borrar
+  - borrado-fisico-solo-como-operacion-de-mantenimiento
+  - completada-es-la-ultima-columna-estado-terminal-posicional
+  - catalogo-org-role-templates-nunca-se-borra
+  - conector-fake-unico-borrable-jira-google-microsoft365-intactos
+  - fallo-cerrado-si-una-connected-account-pertenece-a-usuario-a-borrar
+  - sin-migracion-alembic-el-esquema-no-cambia
+  - idempotente-reejecutable
+  - tdd-estricto-pytest-savepoint
+boundary:
+  - "Compuerta de la semilla demo: SEED_DEMO_DATA=False en Settings, retorno temprano dentro de _ensure_demo_members (db_init.py:586) y _seed_demo_workitems (db_init.py:562); la semilla estructural (org Solercia, admin@, roles, menús, dependencias, alert_rules, ensure_system_templates) sigue siendo incondicional"
+  - "Casos de uso en backend/app/maintenance/ (purge.py, bootstrap.py) dueños de la transacción, más CLI delgada backend/scripts/purge_demo_data.py"
+  - "Purga física del alcance demo de hoja a raíz, incluidos los huérfanos sin FK: attachments (81), notifications (29), notification_deliveries, reminders (2), assets/asset_licenses/asset_tasks (1)"
+  - "Usuarios demo a borrar: ana@, carlos@, diana@, verify-smoke-11@ (nunca admin@solercia.com); organización Acme Consultores borrada, Solercia conservada"
+  - "Conectores: se borra únicamente provider='fake' y su cuenta soft-deleted; google, microsoft365 y jira se conservan (jira tiene la cuenta real «Cristian Camilo Calderon Tapia»). Sin flag --include-connectors"
+  - "Bootstrap idempotente: SDMUJER (area, planner, SDM), SEGURIDAD (proyecto, custom, SEG, padre SDMUJER), PANDORA (proyecto, kanban, PAN, padre SDMUJER) e intake_settings.default_project_id -> SEGURIDAD"
+  - "Tablero de SEGURIDAD con 7 columnas literales en este orden exacto: Sin iniciar, En curso, Diferida, Recurrente, Gestionada aparte, Removida, Completada (Completada ÚLTIMA)"
+  - "--purge-upload-files (opcional, apagado por defecto) borra SOLO los archivos de UPLOAD_DIR referenciados por las filas de attachments eliminadas; nunca un borrado genérico del directorio"
+  - "Invariantes post-ejecución impresas por el script y verificación manual de que un restart del backend no recrea datos demo"
+  - "Fuera de alcance: exclusión de Removida/Gestionada aparte del denominador de avance (diferida al cambio 44), importación del checklist, usuarios Jason/Santiago, planes, tasks.source/external_key (cambio 43), frontend y migraciones Alembic"
+module_decision:
+  - "Opción A1: la compuerta vive dentro de los helpers de db_init y lee settings.SEED_DEMO_DATA en tiempo de llamada; nunca ligada a una constante de módulo (settings es singleton cacheado, config.py:317-324, y la convención de pruebas es monkeypatch.setattr sobre el atributo)"
+  - "Opción B1: caso de uso en app/maintenance/ + CLI delgada, no endpoint HTTP (expondría una operación destructiva) ni migración Alembic de datos (rompe «migraciones = esquema» de dev-tooling R4/R5 y no admite dry-run)"
+  - "Opción C1: Completada como última columna. El estado terminal es posicional (allowed_statuses()[-1]) en tasks/service.py:854-864, sprints/service.py:271 y projects/repository.py:322-326; con el orden del plan, Removida sería «hecho». Cero cambios en Strategy, roll-up, dashboard y sprints"
+  - "Los proyectos se crean con ProjectService._create_project_unit (precedente org_role_templates/service.py:295) porque create_project fuerza project_kind=proyecto y SDMUJER es area (projects/service.py:117-119)"
+  - "Las 7 columnas se persisten al estilo BoardRepository.create_for_project (literales, order 0..6, sin commit). NUNCA BoardService.add_column: slugifica (boards/service.py:203) y hace commit por columna (:221), rompiendo la atomicidad"
+  - "Como seed_board ya crea un Board vacío y boards.project_id es UNIQUE, el bootstrap añade columnas al tablero existente de SEGURIDAD; no crea un segundo tablero"
+facts_verified:
+  - "seed_default() corre en cada arranque (main.py:104) tras alembic upgrade head (backend/docker/entrypoint.sh:8-9)"
+  - "_ensure_demo_members se invoca SIN condición (db_init.py:360): ana/carlos/diana reviven en cada arranque aunque existan tareas"
+  - "_seed_demo_workitems se dispara con COUNT(tasks) == 0 GLOBAL (db_init.py:367-369), sin filtro de organización ni is_active"
+  - "_seed_demo_tasks usa strategy.allowed_statuses() or ['todo','doing','done'] (db_init.py:692-693): en un tablero custom generaría estados inexistentes dentro de los proyectos reales"
+  - "_ensure_demo_projects devuelve los proyectos existentes si la organización ya tiene alguno activo (db_init.py:617-650): los proyectos reales serían el destino de las tareas demo"
+  - "CustomStrategy.default_columns() == [] y allowed_statuses() == [] (methodology/custom.py:12-16); los estados vivos salen de board_columns.status_key vía BoardAwareStrategy (methodology/board_aware.py:39-51)"
+  - "El denominador de avance excluye solo el literal cancelled (projects/repository.py:330), normativo en specs/project-hierarchy/spec.md:113"
+  - "status_key es inmutable tras crearse (boards/models.py:62-65), único por tablero (uq_board_column_status_key) y String(60); boards.project_id es UNIQUE (:36-37)"
+  - "org_role_templates y org_role_template_nodes son catálogo de sistema (organization_id IS NULL, is_system=true), exigidos por specs/org-role-templates/spec.md:29 y recreados por ensure_system_templates (org_role_templates/seeder.py:91-118)"
+  - "Tablas sin FK que no caen por CASCADE: attachments (target_type/target_id), notifications (target_type/target_id, dedup_key 'task_overdue:{id}'), notification_deliveries (SET NULL), reminders.task_id (SET NULL), projects.parent_project_id (SET NULL, obliga a borrar de hoja a raíz)"
+  - "connected_accounts.user_id es ON DELETE CASCADE (connectors/models.py:91-93): borrar usuarios podría destruir cuentas conectadas"
+  - "Base real 2026-08-26: conector fake (activo, cuenta fake-account-qa-demo-1 soft-deleted, dueño admin@) es demo; google y microsoft365 (sin cuentas) y jira (cuenta «Cristian Camilo Calderon Tapia», dueño admin@) son reales"
+  - "Base real 2026-08-26: ninguna connected_account pertenece a un usuario demo, así que el CASCADE desde users no destruye cuentas reales"
+  - "Conteos previos 2026-08-26: attachments 81 (todas target_type=task), notifications 29 (asset_license/sprint/task), notification_deliveries 0, reminders 2, alert_rules 7 (se conservan), org_role_template_instantiations 12, user_roles 6, board_columns 86, task_comments 73, task_history 145, 17 tareas asignadas a usuarios demo"
+  - "Base real 2026-08-26: único asset «Verify Test Asset» (org Solercia, responsable admin@, soft-deleted 2026-07-12) es artefacto de verificación; ≈1963 archivos en backend/uploads/"
+  - "pg_dump NO existe en la imagen del backend (backend/Dockerfile:10-12, python:3.12-slim que instala y elimina gcc): el respaldo se toma desde el host contra gestion_proyectos-postgres-1"
+  - "DATABASE_URL por defecto apunta a postgres:5432 (config.py:24), solo válido dentro de la red Docker; desde el host se requiere --database-url postgresql+asyncpg://app:app@127.0.0.1:5434/solercia (docker-compose.yml:16-17)"
+  - "backend/scripts/ NO existe: sería el primer script operativo del repo; el Makefile solo cubre calidad de frontend y delega el ciclo de vida en gestion.sh"
+  - "Harness de pruebas: session aislada por SAVEPOINT (conftest.py:87-110) resiste commits del código bajo prueba; precedente de probar la semilla con helpers privados en tests/test_menu_seed.py:13,26-29; precedente de parchear settings en tests/test_email_outbox.py:39; ningún test invoca seed_default() hoy"
+  - "intake_settings.default_project_id es FK ON DELETE SET NULL (intake/models.py:164-166); si queda nulo, IntakeService._ensure_default_project crea perezosamente el proyecto «Tareas Outlook» (intake/service.py:581-599)"
+dependency_gating:
+  - "Requiere la etapa 0 del plan de Ola 5 (línea base git de Command): rama feat/42-purga-datos-demo sobre el commit b5b0399, árbol limpio"
+  - "Dentro del cambio, la compuerta SEED_DEMO_DATA se despliega y se verifica con un restart real ANTES de ejecutar la purga; sin ella cualquier reinicio reintroduce datos demo en los proyectos reales"
+  - "El --execute exige un --backup-file existente y no vacío, producido por el pg_dump del runbook, y confirmación humana del reporte de dry-run"
+  - "Bloquea al cambio 43 (tareas-origen-externo) y, en cadena, al 44 (importación del checklist)"
+open_questions:
+  - "Avance sub-reportado entre el 42 y el 44: Removida y Gestionada aparte cuentan como pendientes en /projects/{id}/progress y en la vista ejecutiva (supuesto: aceptado y documentado como limitación conocida en la spec)"
+  - "≈1963 archivos en backend/uploads/ frente a 81 filas de attachments: destino de los no referenciados (supuesto: se quedan; limpieza fuera de alcance)"
+  - "Capacidad de demo tras la purga: SEED_DEMO_DATA=true sembraría estados inválidos en un tablero custom (supuesto: la demo queda apagada, se conserva el código y la prueba de doble sentido, sin arreglar la siembra)"
+  - "verify-smoke-11@solercia.com y «Verify Test Asset» se tratan como artefactos de verificación desechables (supuesto: sin valor de auditoría)"
+  - "Custodia del volcado de respaldo, que incluye datos reales y hashes de contraseña (supuesto: fuera del repositorio en SOLERCIA/backups/, sin cifrar, borrado manual tras cerrar la Ola 5)"
+last_updated: 2026-08-26
+tasks_notes:
+  - "tasks.md: 7 fases (0 gate, 1 compuerta, 2 purga, 3 bootstrap+invariantes+runner, 4 CLI+runbook, 5 ejecución manual, 6 cierre). Rebanadas feature-branch-chain: 1 (~150 líneas) -> 2a (~750) -> 2b (~830) -> 3 (~440), total ~2170, roza el presupuesto de sesión de 2000"
+  - "Inclusiones obligatorias del validador de diseño incorporadas: 1.4 (proyectos+tareas+sprint con flag encendido), 3.10 (fallo por cada invariante I1-I8), 4.1-4.2 (códigos de salida 0-4 sin BD vía fakes), 0.7/6.2 (test existente test_first_use_creates_default_project_and_second_use_reuses_it cubre el escenario perezoso sin bootstrap)"
+  - "Fase 6.4 deja explícito que la fusión de specs hacia openspec/specs/ es trabajo de sdd-archive, no de apply"
+spec_notes:
+  - "Capacidad nueva: data-maintenance (openspec/specs/data-maintenance/spec.md). Requisitos a especificar: compuerta SEED_DEMO_DATA con default false y semilla estructural incondicional; purga idempotente con dry-run por defecto y execute explícito; respaldo obligatorio verificado antes de cualquier borrado; borrado explícito de huérfanos sin FK; protección del catálogo de sistema y de los conectores reales; fallo cerrado si una connected_account pertenece a un usuario a borrar; bootstrap idempotente de SDMUJER/SEGURIDAD/PANDORA; tablero de 7 columnas con Completada última; intake_settings.default_project_id apuntado a SEGURIDAD; invariantes post-ejecución"
+  - "api-conventions: MODIFIED R4/R5 (la semilla demo queda condicionada por SEED_DEMO_DATA; la estructural sigue siendo incondicional) y su descripción :20; ADDED requisito que acota R3 (borrado suave) al dominio en tiempo de ejecución y autoriza el borrado físico como operación de mantenimiento con respaldo previo y confirmación explícita"
+  - "multi-tenancy: MODIFIED R4 (:31) — los miembros demo pasan a ser condicionales; la organización Solercia y el admin siguen siendo incondicionales"
+  - "org-role-templates: ADDED escenario — la purga borra las instancias de proyecto y su ledger (org_role_template_instantiations), nunca el catálogo de sistema, que ensure_system_templates recrea en cada arranque"
+  - "intake-classifier: ADDED escenario — con intake_settings.default_project_id ya apuntado, no se crea el proyecto perezoso «Tareas Outlook»"
+  - "SIN delta a projects, project-hierarchy, methodology-strategies, boards ni dashboard-executive: la opción C1 (Completada última) no toca la resolución del estado terminal ni el roll-up"
+  - "Escenarios Dado/Cuando/Entonces y palabras clave RFC 2119 (DEBE, DEBERÍA, PUEDE) según openspec/config.yaml"

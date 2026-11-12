@@ -3,8 +3,17 @@
 import re
 
 import pytest
+from httpx import AsyncClient
 
+from app.modules.organizations.models import Organization
 from app.modules.projects.service import _derive_code
+from app.modules.users.models import User
+from tests.conftest import skip_no_db
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — no DB needed
@@ -74,76 +83,66 @@ class TestTaskKeyParsing:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — require TEST_DATABASE_URL
+# Integration tests — shared in-process fixtures
 # ---------------------------------------------------------------------------
 
-try:
-    from tests.conftest import skip_no_db
-except ImportError:
-    skip_no_db = pytest.mark.skip(reason="conftest not found")
 
-
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_create_task_assigns_task_key() -> None:
-    """Creating a task returns a response with a non-null task_key."""
+async def test_create_task_assigns_task_key(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """Creating a task returns a non-null task_key equal to {project.code}-{task_number}."""
 
-    import os
+    _, token = user
 
-    import httpx
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Task Key Project", "methodology": "scrum"},
+        headers=_auth(token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project = project_response.json()["data"]
 
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        # List projects to get a valid project_id.
-        r = await client.get("/projects")
-        assert r.status_code == 200
-        projects = r.json()["data"]
-        assert projects, "No projects found — run seed first"
-
-        project_id = projects[0]["id"]
-
-        payload = {"title": "Test task key assignment"}
-        r = await client.post(f"/projects/{project_id}/tasks", json=payload)
-        assert r.status_code == 201, r.text
-        task = r.json()["data"]
-        assert task["task_number"] is not None
-        assert task["task_key"] is not None
-        code = task["task_key"].split("-")[0]
-        number = int(task["task_key"].split("-")[1])
-        assert number == task["task_number"]
-        assert code == projects[0]["code"]
+    response = await client.post(
+        f"/projects/{project['id']}/tasks",
+        json={"title": "Test task key assignment"},
+        headers=_auth(token),
+    )
+    assert response.status_code == 201, response.text
+    task = response.json()["data"]
+    assert task["task_number"] is not None
+    assert task["task_key"] == f"{project['code']}-{task['task_number']}"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_get_task_by_key() -> None:
-    """GET /tasks/by-key/{key} resolves the task created above."""
+async def test_get_task_by_key(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """GET /tasks/by-key/{key} resolves the task created with that key."""
 
-    import os
+    _, token = user
 
-    import httpx
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Resolve By Key Project", "methodology": "scrum"},
+        headers=_auth(token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["data"]["id"]
 
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
+    task_response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": "Resolve-by-key test"},
+        headers=_auth(token),
+    )
+    assert task_response.status_code == 201, task_response.text
+    created = task_response.json()["data"]
+    task_key = created["task_key"]
 
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        project_id = projects[0]["id"]
-
-        # Create a task to resolve.
-        r = await client.post(
-            f"/projects/{project_id}/tasks", json={"title": "Resolve-by-key test"}
-        )
-        assert r.status_code == 201
-        task_key = r.json()["data"]["task_key"]
-
-        # Resolve it.
-        r = await client.get(f"/tasks/by-key/{task_key}")
-        assert r.status_code == 200
-        resolved = r.json()["data"]
-        assert resolved["task_key"] == task_key
+    response = await client.get(f"/tasks/by-key/{task_key}", headers=_auth(token))
+    assert response.status_code == 200
+    resolved = response.json()["data"]
+    assert resolved["task_key"] == task_key
+    assert resolved["id"] == created["id"]

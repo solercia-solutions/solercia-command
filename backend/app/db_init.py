@@ -22,36 +22,83 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import every channel adapter so it registers itself in the hub (change 12).
 import app.email.outbox  # noqa: F401,E402
+
+# Import every integrations adapter so it registers itself in the core's
+# registry (change 14-integration-ports). `fake` stays registered
+# alongside real providers; `microsoft365` (change 15) and `google`
+# (change 16) are the first two real ones, changes 17-19 add the rest.
+import app.integrations.adapters.fake  # noqa: F401,E402
+import app.integrations.adapters.glpi  # noqa: F401,E402
+import app.integrations.adapters.google  # noqa: F401,E402
+import app.integrations.adapters.jira  # noqa: F401,E402
+import app.integrations.adapters.mcp  # noqa: F401,E402
+import app.integrations.adapters.microsoft365  # noqa: F401,E402
+import app.integrations.adapters.solercia_connect  # noqa: F401,E402
 import app.realtime.publisher  # noqa: F401,E402
+from app.config import settings
 from app.database import AsyncSessionLocal, Base, engine
 
 # Import ALL models so they register on the shared metadata.
 from app.methodology.factory import get_strategy
 from app.modules.activity.models import TaskHistory  # noqa: F401
+from app.modules.ai_settings.models import AiProviderSettings  # noqa: F401
 from app.modules.alert_rules.models import AlertRule  # noqa: F401
 from app.modules.assets.models import Asset, AssetLicense, AssetTask  # noqa: F401
 from app.modules.attachments.models import Attachment  # noqa: F401
+from app.modules.auth.models import FederatedIdentity  # noqa: F401
 from app.modules.boards.models import Board, BoardColumn  # noqa: F401
 from app.modules.checklists.models import ChecklistItem, TaskChecklist  # noqa: F401
 from app.modules.comments.models import TaskComment  # noqa: F401
+from app.modules.connectors.models import (  # noqa: F401
+    ConnectedAccount,
+    ConnectionCredentials,
+    Connector,
+)
 from app.modules.dependencies.models import Dependency  # noqa: F401
+from app.modules.glpi_sync.models import (  # noqa: F401
+    GlpiUnmatchedAssignee,
+    GlpiUnmatchedCase,
+    GlpiUserLink,
+)
+from app.modules.intake.models import (  # noqa: F401
+    IntakeItem,
+    IntakeRule,
+    IntakeRun,
+    IntakeSettings,
+)
 from app.modules.labels.models import Label, TaskLabel  # noqa: F401
 from app.modules.menus.models import Menu  # noqa: F401
 from app.modules.notifications.models import (  # noqa: F401
     Notification,
     NotificationPreference,
 )
+from app.modules.org_role_templates.models import (  # noqa: F401
+    OrgRoleTemplate,
+    OrgRoleTemplateInstantiation,
+    OrgRoleTemplateNode,
+)
+from app.modules.org_role_templates.seeder import ensure_system_templates
 from app.modules.organizations.models import (  # noqa: F401
     Organization,
     OrganizationMember,
 )
+from app.modules.plans.models import (  # noqa: F401
+    Plan,
+    PlanActivity,
+    PlanActivityLink,
+    PlanActivityReport,
+    TaskPlanActivity,
+)
 from app.modules.projects.models import Project  # noqa: F401
+from app.modules.reconciliation.models import IntakeProposal, TaskEmbedding  # noqa: F401
 from app.modules.reminders.models import Reminder, ReminderRule  # noqa: F401
 from app.modules.roles.models import (  # noqa: F401
     Role,
     RoleMenu,
     UserRole,
 )
+from app.modules.roles.seed_catalog import MENU_SEED, ROLE_MENU_SEED, ROLE_SEED
+from app.modules.scheduled_sync.models import ScheduledSyncRun  # noqa: F401
 from app.modules.sprints.models import Sprint  # noqa: F401
 from app.modules.task_links.models import TaskDependency  # noqa: F401
 from app.modules.tasks.models import Task  # noqa: F401
@@ -80,32 +127,13 @@ _DEPENDENCY_SEED: list[tuple[str, str]] = [
     ("Operaciones", "OPS"),
 ]
 
-# RBAC roles: (code, display name).
-_ROLE_SEED: list[tuple[str, str]] = [
-    ("ADMIN", "Administrador"),
-    ("MANAGER", "Líder"),
-    ("MEMBER", "Colaborador"),
-]
-
-# App-level activities (menus): (name, icon, path, parent_name, order).
-# Parents appear before their children so the parent id is available.
-_MENU_SEED: list[tuple[str, str, str | None, str | None, int]] = [
-    ("Proyectos", "folder-kanban", "/projects", None, 0),
-    ("Vista de jefe", "bar-chart-3", "/executive", None, 1),
-    ("Rendimiento", "trending-up", "/performance", None, 2),
-    ("Administración", "settings", None, None, 3),
-    ("Usuarios", "users", "/admin/users", "Administración", 0),
-    ("Roles", "shield", "/admin/roles", "Administración", 1),
-    ("Actividades", "list", "/admin/menus", "Administración", 2),
-    ("Dependencias", "building-2", "/admin/dependencies", "Administración", 3),
-]
-
-# Menu grants per role. "*" grants every menu.
-_ROLE_MENU_SEED: dict[str, str | list[str]] = {
-    "ADMIN": "*",
-    "MANAGER": ["Proyectos", "Vista de jefe", "Rendimiento"],
-    "MEMBER": ["Proyectos"],
-}
+# RBAC catalog (roles, global menus, grants per role) lives in
+# `app.modules.roles.seed_catalog`, shared with the new-organization bootstrap.
+# `_ensure_menus`/`_ensure_role_menus` run on every startup and only INSERT the
+# rows still missing, so new menu entries need no data migration.
+_ROLE_SEED = ROLE_SEED
+_MENU_SEED = MENU_SEED
+_ROLE_MENU_SEED = ROLE_MENU_SEED
 
 # Projects created only when the organization has none yet, so the board and
 # the executive view are populated out of the box.
@@ -308,6 +336,7 @@ async def seed_default() -> None:
         )
 
         await _ensure_alert_rules(session, organization)
+        await ensure_system_templates(session)
 
         task_count = await session.execute(select(func.count()).select_from(Task))
         if (task_count.scalar_one() or 0) == 0:
@@ -515,7 +544,14 @@ async def _seed_demo_workitems(
     Members and the admin already exist (ensured by :func:`seed_default`); this
     only creates the work-item demo data so the board, executive view, burndown
     and performance views are populated out of the box.
+
+    Gated by ``settings.SEED_DEMO_DATA`` (change 42-purga-datos-demo, design
+    D5): reads the flag at call time and returns early without creating
+    anything when it is off.
     """
+
+    if not settings.SEED_DEMO_DATA:
+        return
 
     assignees = members + [admin]
 
@@ -534,7 +570,15 @@ async def _ensure_demo_members(
     dependencies: dict[str, Dependency],
     roles: dict[str, Role],
 ) -> list[User]:
-    """Create demo users with split names, membership, dependency and roles."""
+    """Create demo users with split names, membership, dependency and roles.
+
+    Gated by ``settings.SEED_DEMO_DATA`` (change 42-purga-datos-demo, design
+    D5): reads the flag at call time and returns an empty list without
+    creating anything when it is off.
+    """
+
+    if not settings.SEED_DEMO_DATA:
+        return []
 
     members: list[User] = []
     for email, primer_nombre, primer_apellido, dep_name, role_codes in (

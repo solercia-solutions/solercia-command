@@ -1,8 +1,10 @@
 """Application settings loaded from environment variables."""
 
+import re
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +49,30 @@ class Settings(BaseSettings):
     # Relative paths resolve from the process working directory (inside /app in Docker).
     UPLOAD_DIR: str = "./uploads"
 
+    # Transient authenticated checklist preview; not public-upload readiness.
+    TASK_IMPORT_PREVIEW_ENABLED: bool = False
+
+    # Personal daily read endpoint rollout; opt in only after runtime validation.
+    DAILY_DASHBOARD_ENABLED: bool = False
+
+    # Explicit supervisor opt-in: suppress ALL startup seeding and scheduler
+    # work, without bypassing encryption, database readiness or authentication.
+    STARTUP_PROFILE: Literal["default", "local_restricted"] = "default"
+
+    # Demo seed gate (change 42-purga-datos-demo) — off by default so a fresh
+    # deploy never creates ana@/carlos@/diana@ or their demo projects/tasks/
+    # sprint. `db_init.py`'s `_ensure_demo_members`/`_seed_demo_workitems`
+    # read this attribute AT CALL TIME (never a module-level constant
+    # captured at import), so flipping it and restarting is enough to seed
+    # or keep purged the demo data. The structural seed (organization
+    # "Solercia", RBAC catalog, `admin@solercia.com`) runs regardless of
+    # this flag unless STARTUP_PROFILE="local_restricted" suppresses all seeding.
+    SEED_DEMO_DATA: bool = False
+
+    # Project hierarchy — maximum nesting depth (root = depth 1), configurable
+    # per change 21-project-hierarchy design.md Decision 3.
+    PROJECT_HIERARCHY_MAX_DEPTH: int = 5
+
     # Alert engine
     ALERT_SCHEDULER_INTERVAL_HOURS: int = 1
 
@@ -80,6 +106,339 @@ class Settings(BaseSettings):
     EMAIL_DIGEST_TZ: str = "America/Bogota"
     EMAIL_DISPATCH_INTERVAL_MINUTES: int = 5
     EMAIL_DIGEST_INTERVAL_MINUTES: int = 15
+
+    # Integrations engine (OAuth connectors, change 14-integration-ports).
+    # ``INTEGRATIONS_FERNET_KEY`` MUST be a urlsafe-base64 32-byte key (same
+    # shape ``cryptography.fernet.Fernet.generate_key()`` produces); this dev
+    # default is a valid key so the suite boots without a ``.env`` file —
+    # production overrides it via the environment, same convention as
+    # ``JWT_SECRET``.
+    INTEGRATIONS_FERNET_KEY: str = "GVraOHsbm9EGeG8TDBNGc8TRZZEzPeSVIkytJ7jZGd8="
+    OAUTH_STATE_TTL_SECONDS: int = 600
+    # Single-use authorize ticket (POST /connectors/{id}/authorize-ticket):
+    # short-lived on purpose — it only needs to survive the immediate
+    # browser navigation to GET .../authorize?ticket=, never a session.
+    OAUTH_AUTHORIZE_TICKET_TTL_SECONDS: int = 60
+    # Allowlist of redirect_uri values a caller may request for the OAuth
+    # authorize step (anti-SSRF/open-redirect, specs/connectors/spec.md).
+    # The same list gates the OPTIONAL `redirect_to` browser-return
+    # destination of `GET /connectors/{id}/authorize` (Conexiones page):
+    # /connections is listed for every local frontend port — 4200
+    # (docker-compose), 4242 and 4243 (local dev servers).
+    OAUTH_REDIRECT_ALLOWLIST: list[str] = [
+        "http://localhost:4200/settings/connectors",
+        "http://localhost:4200/connections",
+        "http://localhost:4242/connections",
+        "http://localhost:4243/connections",
+    ]
+
+    # SSO (OIDC) — second login method, change 20-sso-keycloak. Master switch
+    # off by default: with it False every /auth/sso/* route stays inert
+    # (sso-oidc R6). ``SSO_AUTO_PROVISION`` off by default: no local account
+    # is EVER created from an unrecognized SSO email unless explicitly
+    # opted in (sso-oidc R4). ``SSO_POST_LOGIN_REDIRECT`` is the ONE
+    # allowlisted SPA landing the callback 302s to after issuing the refresh
+    # cookie — the access token never travels in the URL (sso-oidc R7).
+    #
+    # Per-provider ``OIDC_{PROVIDER}_ISSUER/CLIENT_ID/CLIENT_SECRET/
+    # REDIRECT_URI`` are DELIBERATELY NOT declared as fixed Settings fields
+    # here: they are read directly from the environment by provider name in
+    # ``app/modules/auth/oidc/config.py`` (``load_provider_config(provider)``)
+    # so a second IdP is wired by adding new env vars alone, zero code
+    # changes (sso-oidc R6, "agregar un segundo proveedor OIDC NO DEBE
+    # requerir cambios de código").
+    SSO_ENABLED: bool = False
+    SSO_AUTO_PROVISION: bool = False
+    SSO_POST_LOGIN_REDIRECT: str = "http://localhost:4200/auth/callback"
+
+    # Microsoft 365 adapter (change 15-adapter-microsoft365) — first REAL
+    # provider over the 14's read-only ports, delegated OAuth (Entra ID).
+    # ``M365_TENANT`` defaults to the multi-tenant "organizations" endpoint;
+    # a fixed tenant ID overrides it per-deployment. Both base URLs MUST be
+    # ``https://`` — ``GraphClient`` fails fast otherwise (anti-SSRF/TLS
+    # obligatorio, design.md Threat Matrix).
+    M365_CLIENT_ID: str = ""
+    M365_CLIENT_SECRET: str = ""
+    M365_TENANT: str = "organizations"
+    M365_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"
+    M365_LOGIN_BASE_URL: str = "https://login.microsoftonline.com"
+    M365_TIMEOUT_SECONDS: float = 10.0
+    M365_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429: `_retry_after_seconds` NUNCA duerme más
+    # que esto, sin importar el `Retry-After` que devuelva Graph.
+    M365_MAX_BACKOFF_SECONDS: float = 30.0
+    M365_DEFAULT_SINCE_DAYS: int = 30
+    M365_CALENDAR_FUTURE_DAYS: int = 90
+    M365_MAX_PAGES: int = 20
+    M365_MAX_LIMIT: int = 200
+
+    # Google adapter (change 16-adapter-google) — the second real provider
+    # over the 14's read-only ports, Gmail/Calendar/Drive via a plain OAuth
+    # 2.0 authorization-code flow (not delegated-tenant like Entra ID).
+    # Every *_BASE_URL below MUST be ``https://`` — ``GoogleClient`` fails
+    # fast otherwise (anti-SSRF/TLS obligatorio, same guard as M365's
+    # `_require_https`). ``GOOGLE_OAUTH_REDIRECT_URI`` documents the
+    # expected callback for operators; the adapter itself always uses the
+    # explicit ``redirect_uri`` the 14's `IntegrationAdapter.authorize_url`
+    # protocol passes in, never this setting.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = "http://localhost:4200/settings/connectors"
+    GOOGLE_GMAIL_BASE_URL: str = "https://gmail.googleapis.com/gmail/v1"
+    GOOGLE_CALENDAR_BASE_URL: str = "https://www.googleapis.com/calendar/v3"
+    GOOGLE_DRIVE_BASE_URL: str = "https://www.googleapis.com/drive/v3"
+    GOOGLE_AUTHZ_BASE_URL: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    GOOGLE_TOKEN_BASE_URL: str = "https://oauth2.googleapis.com/token"
+    GOOGLE_USERINFO_BASE_URL: str = "https://openidconnect.googleapis.com/v1/userinfo"
+    GOOGLE_TIMEOUT_SECONDS: float = 10.0
+    GOOGLE_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429/403 rateLimitExceeded — mismo criterio que
+    # `M365_MAX_BACKOFF_SECONDS`.
+    GOOGLE_MAX_BACKOFF_SECONDS: float = 30.0
+    GOOGLE_DEFAULT_SINCE_DAYS: int = 30
+    # Límite efectivo que `_GooglePortBase._bounded_limit` usa cuando el
+    # caller NO pasa `limit` (los tres puertos Google resuelven este
+    # default adentro, sin tocar la firma del `Protocol`).
+    GOOGLE_DEFAULT_LIMIT: int = 50
+    GOOGLE_MAX_PAGES: int = 20
+    GOOGLE_MAX_LIMIT: int = 200
+
+    # GLPI adapter (change 17-adapter-glpi) — read-only tickets over GLPI's
+    # `apirest.php`, `credential_kind=api_token` (App-Token + user_token ->
+    # `initSession`). Unlike M365/Google, `base_url` is PER-CONNECTOR
+    # (`connectors.settings.base_url`, admin-configured) rather than a
+    # single fixed provider host — `GLPI_BASE_URL_ALLOWLIST` is the
+    # anti-SSRF guard (analogous to `OAUTH_REDIRECT_ALLOWLIST`): a
+    # connector's `base_url` MUST be a member of this list, checked BEFORE
+    # any request (`GlpiClient.__init__`, Threat Matrix).
+    GLPI_BASE_URL_ALLOWLIST: list[str] = ["http://localhost:8080/glpi/apirest.php"]
+    GLPI_TIMEOUT_SECONDS: float = 10.0
+    # `session_token` Redis TTL — MUST stay below GLPI's own server-side
+    # session lifetime (design.md Open Questions: confirmar contra la
+    # instancia destino); 3300s (55min) is a conservative default under
+    # GLPI's common 1h default.
+    GLPI_SESSION_TTL_SECONDS: int = 3300
+    GLPI_PAGE_SIZE: int = 100
+    GLPI_MAX_PAGES: int = 20
+    GLPI_MAX_RETRIES: int = 3
+    # Techo del backoff — mismo criterio que `M365_MAX_BACKOFF_SECONDS`/
+    # `GOOGLE_MAX_BACKOFF_SECONDS`, aplicado por `client.py`'s resilience
+    # boundary ante un 5xx transitorio de GLPI.
+    GLPI_MAX_BACKOFF_SECONDS: float = 30.0
+    # Campo GLPI portador del documento de identidad del asignado, usado
+    # por defecto cuando `connectors.settings.document_field` no lo
+    # especifica explícitamente (mapper.py, change 17 Lote 6).
+    GLPI_DEFAULT_DOCUMENT_FIELD: str = "registration_number"
+
+    # Solercia Connect adapter — lectura de correo, calendario y notas de
+    # reunión a través de un runtime local de Connect, por su contrato
+    # loopback. El registro de decisiones de plataforma
+    # (`docs/decisions/2026-08-23-solercia-platform-decisions.md` §2.2)
+    # prohíbe importar el repositorio hermano, así que la frontera es HTTP.
+    #
+    # Ese runtime escucha en loopback y sostiene la sesión viva de una
+    # persona (perfil de navegador o tokens OAuth). Apuntar a un host
+    # equivocado sería leer el buzón de alguien más, así que la allowlist es
+    # la guarda anti-SSRF, con el mismo criterio que `GLPI_BASE_URL_ALLOWLIST`.
+    # `host.docker.internal` cubre el caso normal: Command en contenedor,
+    # Connect en la máquina del usuario, que es donde vive la sesión.
+    SOLERCIA_CONNECT_BASE_URL_ALLOWLIST: list[str] = [
+        "http://127.0.0.1:8765",
+        "http://host.docker.internal:8765",
+    ]
+    SOLERCIA_CONNECT_TIMEOUT_SECONDS: float = 60.0
+    # Ventana de una lectura sin `since` (primera ingesta): Connect exige
+    # `start` y `end`, así que nunca se pide una ventana abierta.
+    SOLERCIA_CONNECT_DEFAULT_LOOKBACK_DAYS: int = 7
+    # Runtime único que Command registra desde la API (`POST /connectors/
+    # solercia-connect`): la URL debe pertenecer a la allowlist anterior —
+    # se valida al usarla, no al importar, para que un despliegue sin
+    # Connect arranque igual (§2.1 del registro de decisiones). La llave es
+    # la del runtime local, nunca una credencial del proveedor; `SecretStr`
+    # evita que un `repr(settings)` la escriba en un log.
+    SOLERCIA_CONNECT_BASE_URL: str = "http://host.docker.internal:8765"
+    SOLERCIA_CONNECT_API_KEY: SecretStr | None = None
+    SOLERCIA_CONNECT_DEFAULT_TARGET: str = "outlook"
+
+    # Jira adapter (change 18-adapter-jira) — read-only issue import over
+    # Jira Cloud's REST API v3 and CSV/XLSX export, `credential_kind=
+    # api_token` (email + API token, HTTP Basic, validated via `GET
+    # /rest/api/3/myself`). Solo-lectura; no persiste (design.md, "el
+    # storage y la conversión a Task son del 22").
+    #
+    # Guarda antibomba del parser de archivo (Lote 4): un CSV/XLSX que
+    # exceda CUALQUIERA de estos dos límites se rechaza con un error
+    # controlado ANTES de terminar de leerlo — nunca se procesa
+    # parcialmente (Threat Matrix, "Bomba de descompresión XLSX").
+    JIRA_FILE_MAX_ROWS: int = 50_000
+    JIRA_FILE_MAX_CELLS: int = 500_000
+    # Techo de bytes del upload crudo, rechazado (413) ANTES de parsear —
+    # mismo criterio que `attachments/service.py`'s `_MAX_UPLOAD_BYTES`.
+    JIRA_FILE_MAX_BYTES: int = 10 * 1024 * 1024
+    # Cliente HTTP de la vía API (Lote 5). A diferencia de GLPI
+    # (`GLPI_BASE_URL_ALLOWLIST`, una lista cerrada de instancias
+    # conocidas), un sitio Jira Cloud es por-tenant y prácticamente
+    # ilimitado (`https://<site>.atlassian.net`) — la frontera anti-SSRF
+    # aquí es un SUFIJO obligatorio en vez de una allowlist cerrada
+    # (design.md Threat Matrix, "host fuera de *.atlassian.net ->
+    # rechazado").
+    JIRA_BASE_URL_ALLOWED_SUFFIX: str = ".atlassian.net"
+    JIRA_TIMEOUT_SECONDS: float = 10.0
+    JIRA_PAGE_SIZE: int = 100
+    JIRA_MAX_PAGES: int = 20
+    JIRA_MAX_RETRIES: int = 3
+    # Techo del backoff ante 429 — mismo criterio que
+    # `GLPI_MAX_BACKOFF_SECONDS`/`M365_MAX_BACKOFF_SECONDS`.
+    JIRA_MAX_BACKOFF_SECONDS: float = 30.0
+
+    # MCP adapter (change 19-mcp-connector) — read-only client over the
+    # Model Context Protocol's Streamable HTTP transport, `credential_kind
+    # ∈ {api_token, none}` (a per-CONNECTOR choice, not fixed per-adapter
+    # like GLPI/Jira — see `IntegrationAdapter.credential_kinds`).
+    #
+    # Anti-SSRF (`adapters/mcp/ssrf.py`, MC-R7) is DEFAULT-DENY: unlike
+    # GLPI's `GLPI_BASE_URL_ALLOWLIST` (full base URLs), `MCP_HOST_ALLOWLIST`
+    # holds bare HOSTS — ANY host not literally present here is rejected,
+    # private range or not, BEFORE any DNS lookup is attempted. A host that
+    # IS present is explicitly trusted by the admin and may resolve to a
+    # private/reserved range on purpose (e.g. a local test server).
+    # `MCP_BLOCK_PRIVATE_NETWORKS` is kept for `Settings` shape/backward
+    # compatibility but is presently a no-op — see `ssrf.py`'s docstring.
+    MCP_HOST_ALLOWLIST: list[str] = ["localhost", "127.0.0.1"]
+    # Off by default (dev/test convenience) — production deployments MUST
+    # override this to False, same convention as `COOKIE_SECURE`.
+    MCP_ALLOW_HTTP: bool = True
+    MCP_BLOCK_PRIVATE_NETWORKS: bool = True
+    # `MCP_CONNECT_TIMEOUT_SECONDS` bounds ONLY the transport handshake +
+    # `initialize` (`session.open_session`); `MCP_TOTAL_TIMEOUT_SECONDS`
+    # bounds every SUBSEQUENT request on the same session
+    # (`ClientSession(..., read_timeout_seconds=...)`) — mirrors
+    # `GLPI_TIMEOUT_SECONDS`'s single-timeout shape, split in two because an
+    # ephemeral MCP session's `initialize` handshake and a `read_resource`
+    # call are separate round-trips with different failure semantics
+    # (MC-R3 vs MC-R6).
+    MCP_CONNECT_TIMEOUT_SECONDS: float = 10.0
+    MCP_TOTAL_TIMEOUT_SECONDS: float = 30.0
+    # Bounds ONLY the `getaddrinfo` lookup `validate_mcp_url` performs for an
+    # ALLOWLISTED host (`ssrf.py`) — a non-allowlisted host is rejected
+    # BEFORE any lookup, so this only guards against a hanging/malicious
+    # resolver for a host the admin already trusts.
+    MCP_DNS_TIMEOUT_SECONDS: float = 5.0
+    # `resources/list`/`tools/list` results are truncated to this many
+    # items — mirrors `GOOGLE_DEFAULT_LIMIT`/`GLPI_PAGE_SIZE`'s antibomba
+    # intent, applied client-side since MCP's list operations do not accept
+    # a caller-supplied page size (MC-R6).
+    MCP_MAX_LIST_ITEMS: int = 100
+    # `read_resource`/`call_tool` results exceeding this many bytes are
+    # rejected — the oversized content is NEVER mapped into the returned
+    # DTO (MC-R4; see `reader.py`'s docstring for the SDK's synchronous
+    # `resources/read` shape this tope is enforced against).
+    MCP_MAX_RESOURCE_BYTES: int = 1_048_576  # 1 MiB
+
+    # Intake classifier (change 22-intake-classifier) — storage + rules engine
+    # over the 14's read-only ports. ``INTAKE_DEFAULT_PROJECT_NAME`` seeds
+    # ``IntakeSettings.default_project_name`` the FIRST time an organization
+    # needs its lazy default project (design.md "Proyecto por defecto");
+    # `PATCH /intake/settings` overrides it per-organization afterwards.
+    # ``INTAKE_PULL_MAX_ITEMS`` bounds every `list_*` call a `POST
+    # /intake/pull` makes per account (same antibomba intent as
+    # `M365_MAX_PAGES`/`GLPI_PAGE_SIZE`) — pull is synchronous in the
+    # request, never a background job (design.md Architecture Decisions).
+    INTAKE_DEFAULT_PROJECT_NAME: str = "Tareas Outlook"
+    INTAKE_PULL_MAX_ITEMS: int = 50
+
+    # Checklist sync (C01) — the CSV/XLSX checklist the scheduled job applies
+    # with `app.modules.task_import.checklist_sync_service`. Empty path or
+    # empty organization slug = disabled. `CHECKLIST_SYNC_TAREAS_ROOT` is only
+    # LISTED (T-NN folder names), never read. The CSV wins over Command on the
+    # fields it imports while `CHECKLIST_SYNC_UPDATE_EXISTING` is true.
+    CHECKLIST_SYNC_PATH: str = ""
+    CHECKLIST_SYNC_TAREAS_ROOT: str = ""
+    CHECKLIST_SYNC_ORG_SLUG: str = ""
+    CHECKLIST_SYNC_ACTOR_EMAIL: str = ""
+    CHECKLIST_SYNC_UPDATE_EXISTING: bool = True
+
+    # Scheduled sync (C02) — `daily_sync` at each `HH:MM` of
+    # `SCHEDULED_SYNC_TIMES`, in the explicit zone `SCHEDULED_SYNC_TZ`. Its
+    # own flag, INDEPENDENT of `STARTUP_PROFILE` and `EMAIL_ENABLED`: in
+    # `local_restricted` these are the ONLY jobs registered (no alerts,
+    # reminders nor mail). A job missed while the machine slept still runs if
+    # it wakes within `SCHEDULED_SYNC_MISFIRE_GRACE_SECONDS`; piled-up runs
+    # coalesce into one.
+    SCHEDULED_SYNC_ENABLED: bool = False
+    SCHEDULED_SYNC_TIMES: str = "06:00,23:59"
+    SCHEDULED_SYNC_TZ: str = "America/Bogota"
+    SCHEDULED_SYNC_MISFIRE_GRACE_SECONDS: int = 3600
+
+    # Mail classification channel (C05) — step 3 of `daily_sync`. It
+    # PROPOSES (``intake_proposals``); it never changes a task. Each run
+    # looks back `RECONCILIATION_WINDOW_DAYS`, classifies at most
+    # `RECONCILIATION_MAX_THREADS_PER_RUN` threads (most recent first) and
+    # sends at most `RECONCILIATION_MAX_THREAD_CHARS` of each to the LLM.
+    # `AI_DEFAULT_NUM_CTX` is the context window requested from the default
+    # local preset (Ollama) when the organization saved no provider: a
+    # smaller window lowers RAM use.
+    RECONCILIATION_ENABLED: bool = True
+    RECONCILIATION_WINDOW_DAYS: int = 7
+    RECONCILIATION_MAX_THREADS_PER_RUN: int = 40
+    RECONCILIATION_MAX_THREAD_CHARS: int = 6000
+    RECONCILIATION_TOP_K: int = 5
+    RECONCILIATION_LLM_MAX_TOKENS: int = 600
+    # Channel v2 (E03): versioned rules per organization, 8 classes, prompt
+    # v2. `RECONCILIATION_RULES_PATH` is a rules JSON (same for every
+    # organization) or a directory with `<organization slug>.json`; empty →
+    # the bundled synthetic example. v1 stays the default.
+    RECONCILIATION_CHANNEL: Literal["v1", "v2"] = "v1"
+    RECONCILIATION_RULES_PATH: str = ""
+    # Candidates per unit in channel v2 (E08: k=5 beat k=8 on test macro-F1).
+    RECONCILIATION_V2_TOP_K: int = 5
+    AI_DEFAULT_NUM_CTX: int = 8192
+
+    @field_validator("SCHEDULED_SYNC_TIMES")
+    @classmethod
+    def _valid_sync_times(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",")]
+        for part in parts:
+            match = re.fullmatch(r"(\d{2}):(\d{2})", part)
+            if not match or int(match[1]) > 23 or int(match[2]) > 59:
+                raise ValueError(f"SCHEDULED_SYNC_TIMES no válido: «{part}» (usa HH:MM).")
+        return value
+
+    @field_validator("SCHEDULED_SYNC_TZ")
+    @classmethod
+    def _valid_sync_zone(cls, value: str) -> str:
+        import pytz  # APScheduler 3 resolves zone names through pytz.
+
+        try:
+            pytz.timezone(value)
+        except pytz.UnknownTimeZoneError as exc:
+            raise ValueError(f"SCHEDULED_SYNC_TZ no válida: «{value}».") from exc
+        return value
+
+    # LLM port (change 48-puerto-llm) — `LLM_PROVIDER` selects the active
+    # `app.ai.ports.LlmPort` adapter, read AT CALL TIME (mirrors
+    # `EMAIL_BACKEND="console"`). `LLM_BASE_URL_ALLOWLIST` is the anti-SSRF
+    # guard, validated before any request (design.md "Configuración").
+    # C04: the fixed preset URLs (`app.ai.presets`) are admitted too, and
+    # these `LLM_*` are only the SECOND source for an organization: its own
+    # `ai_provider_settings` row wins, and with `LLM_PROVIDER="fake"` the
+    # local Ollama preset is used (`app.modules.ai_settings.service`).
+    LLM_PROVIDER: str = "fake"
+    LLM_BASE_URL: str = ""
+    LLM_MODEL: str = ""
+    LLM_API_KEY: str = ""
+    LLM_TIMEOUT_SECONDS: float = 60.0
+    LLM_MAX_TOKENS: int = 1024
+    LLM_MAX_RETRIES: int = 2
+    LLM_MAX_BACKOFF_SECONDS: float = 30.0
+    LLM_JSON_MODE: str = "json_object"
+    LLM_ANTHROPIC_FALLBACKS: bool = False
+    LLM_BASE_URL_ALLOWLIST: list[str] = [
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:11434/v1",
+        "http://host.docker.internal:11434/v1",
+        "https://api.anthropic.com",
+    ]
 
 
 @lru_cache

@@ -125,11 +125,51 @@ async def get_actor_id(request: Request) -> uuid.UUID | None:
         return None
 
 
+#: Request header carrying the caller's chosen active organization
+#: (organizations-admin R4 / multi-tenancy R2 modified).
+ACTIVE_ORGANIZATION_HEADER = "X-Organization-Id"
+
+
 async def get_current_membership(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> OrganizationMember:
-    """Return the user's first organization membership (current tenant scope)."""
+    """Resolve the tenant scope for this request.
+
+    ``X-Organization-Id`` present and a valid membership of the caller ->
+    that membership. Present but not a membership (or not a UUID at all) ->
+    ``403`` (``not_a_member``) — NEVER ``404`` (would imply a lookup by id
+    happened) and NEVER ``200`` (would silently trust client input). Header
+    ABSENT -> unchanged fallback: the first membership by ``created_at``
+    (retro-compatible with every pre-existing test and client).
+    """
+
+    header_value = request.headers.get(ACTIVE_ORGANIZATION_HEADER)
+    if header_value is not None:
+        try:
+            organization_id = uuid.UUID(header_value)
+        except ValueError as exc:
+            raise AppException(
+                "No perteneces a esa organización.",
+                code="not_a_member",
+                status_code=403,
+            ) from exc
+
+        result = await db.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.user_id == user.id,
+                OrganizationMember.organization_id == organization_id,
+            )
+        )
+        membership = result.scalar_one_or_none()
+        if membership is None:
+            raise AppException(
+                "No perteneces a esa organización.",
+                code="not_a_member",
+                status_code=403,
+            )
+        return membership
 
     result = await db.execute(
         select(OrganizationMember)
@@ -161,6 +201,47 @@ def require_role(*roles: MemberRole):
         return membership
 
     return _checker
+
+
+async def require_org_admin(
+    organization_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> OrganizationMember:
+    """Enforce ``MemberRole.admin`` on the organization OF THE ROUTE.
+
+    Target-scoped (gotcha 1): authorization NEVER depends on the active
+    header/``get_current_membership`` — it always resolves the caller's
+    membership directly in ``organization_id`` (bound from the path
+    parameter of the same name by FastAPI's dependency injection). ``404``
+    when the caller has no membership there at all (does not reveal whether
+    the organization exists); ``403`` (``forbidden``) when they are a
+    member but not an ``admin``. Uses ``MemberRole.admin`` (membership
+    authority, granted by the bootstrap) — NOT the RBAC catalog
+    (``require_admin``), which is a separate system reserved for
+    menus/theme.
+    """
+
+    result = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.user_id == user.id,
+            OrganizationMember.organization_id == organization_id,
+        )
+    )
+    membership = result.scalar_one_or_none()
+    if membership is None:
+        raise AppException(
+            "La organización no existe o está inactiva.",
+            code="organization_not_found",
+            status_code=404,
+        )
+    if membership.role != MemberRole.admin:
+        raise AppException(
+            "No tienes permisos suficientes para realizar esta acción.",
+            code="forbidden",
+            status_code=403,
+        )
+    return membership
 
 
 async def _has_admin_role(

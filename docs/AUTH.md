@@ -1,4 +1,4 @@
-# Autenticación y autorización — Solercia Project Manager
+# Autenticación y autorización — Solercia Command
 
 Este documento describe cómo **inicia sesión** una persona usuaria, cómo se **mantiene** la
 sesión de forma segura (token de acceso de vida corta en el cuerpo + token de refresco en
@@ -128,6 +128,54 @@ Navegador                         Backend
   los menús que conceden sus roles (`role_menus`), anidado por `parent_id` y ordenado por
   `order`. El frontend usa esta respuesta para **construir la navegación**: solo muestra las
   actividades que el rol concede. Un usuario con rol `ADMIN` ve todas las actividades.
+
+### 2.5 Inicio de sesión con Keycloak (OIDC)
+
+Segundo método de inicio de sesión, junto al de correo y contraseña. Sigue el flujo
+*authorization code* con PKCE y termina en la **misma cookie de refresco** del login local:
+el token de acceso nunca viaja en la URL.
+
+1. El botón «Ingresar con SSO» lleva a `GET /api/v1/auth/sso/keycloak/login`, que
+   guarda `state`, `nonce` y `code_verifier` en Redis (5 minutos, un solo uso) y redirige a
+   Keycloak.
+2. Keycloak autentica y vuelve a `GET /api/v1/auth/sso/keycloak/callback`.
+3. El backend canjea el código, valida la firma del ID token con el JWKS del emisor y sus
+   claims `iss`, `aud`, `exp` y `nonce`.
+4. Resuelve la persona en este orden: vínculo existente `(issuer, subject)`; si no hay,
+   cuenta local con el mismo correo **verificado** (`email_verified=true`), que queda
+   vinculada; si tampoco hay, la crea solo con `SSO_AUTO_PROVISION=true`. En otro caso
+   responde 403 `sso_login_rejected`.
+5. Emite la cookie de refresco y redirige a `SSO_POST_LOGIN_REDIRECT`; el front la canjea
+   con `POST /auth/refresh`.
+
+| Variable | Ejemplo (Keycloak local) | Para qué |
+| --- | --- | --- |
+| `SSO_ENABLED` | `true` | Interruptor general; en `false` las rutas `/auth/sso/*` quedan inertes. |
+| `SSO_AUTO_PROVISION` | `false` | Crea cuentas a partir de correos desconocidos. Apagado por defecto. |
+| `SSO_POST_LOGIN_REDIRECT` | `http://localhost:4242/auth/callback` | Única ruta del front a la que vuelve el callback. |
+| `OIDC_KEYCLOAK_ISSUER` | `http://keycloak.localhost:8180/realms/solercia-dev` | Emisor; debe ser idéntico para el navegador y para el backend. |
+| `OIDC_KEYCLOAK_CLIENT_ID` | `solercia-command` | Cliente registrado en Keycloak. |
+| `OIDC_KEYCLOAK_CLIENT_SECRET` | `solercia-dev-client-secret` | Secreto del cliente confidencial. |
+| `OIDC_KEYCLOAK_REDIRECT_URI` | `http://localhost:8081/api/v1/auth/sso/keycloak/callback` | Debe estar registrada **exacta** en el cliente. |
+
+El proveedor solo se considera configurado cuando las cuatro variables `OIDC_KEYCLOAK_*`
+tienen valor. Otro proveedor OIDC se agrega con sus propias `OIDC_{PROVEEDOR}_*`, sin
+cambiar código.
+
+**Prueba local.** `docker compose --profile sso up -d keycloak` levanta Keycloak 26 en
+`http://keycloak.localhost:8180` (consola `admin`/`admin`) e importa el realm
+`dev/keycloak/solercia-dev-realm.json`, con el cliente `solercia-command` y dos personas:
+`admin@solercia.com` / `admin-sso-dev` (se vincula a la cuenta local del mismo correo) y
+`sin.cuenta@example.com` / `sin-cuenta-dev` (sin cuenta local: se rechaza). Copia el bloque
+SSO de `env.example` a `.env` y reinicia el backend. El nombre `keycloak.localhost`
+funciona porque los navegadores resuelven `*.localhost` a la máquina local y el compose lo
+mapea al host para el contenedor. Estas credenciales son solo de desarrollo.
+
+**En una entidad.** TI registra en su Keycloak un cliente propio para Solercia Command
+(confidencial, flujo estándar, PKCE S256) con la `redirect_uri` exacta del backend
+publicado, y entrega el issuer, el `client_id` y el secreto. No se reutiliza el cliente de
+otra aplicación. Las cuentas deben llegar con `email_verified=true`; si el directorio de la
+entidad no lo marca, el vínculo por correo se rechaza.
 
 ---
 

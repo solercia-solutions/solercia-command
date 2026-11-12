@@ -1,0 +1,84 @@
+# Entorno de evaluación «igual a producción» (E07a).
+#
+# Supuesto de servidor (hasta tener el diagnóstico real): VM VMware u Oracle, Intel Xeon 4 vCPU
+# con AVX2 y sin AVX-512, 16 GB de RAM, sin GPU, compartido con PANDORA. Presupuesto del modelo:
+# 4 CPU y 8 GB de RAM. Este compose limita Ollama exactamente a ese presupuesto.
+#
+# PLATFORM=linux/arm64 → nativo en la Mac (límite optimista).
+# PLATFORM=linux/amd64 → emulado en la Mac (límite pesimista); en el servidor x86 es nativo.
+#
+# Uso: ver eval/docker/README.md. Nunca toca el Ollama del host ni el compose principal.
+name: solercia-eval
+
+services:
+  ollama:
+    # Misma versión que el Ollama del host en E05 (0.35.1), fijada por digest del índice
+    # multiplataforma (amd64 + arm64). Verificado con `docker buildx imagetools inspect`.
+    # E08: Docker Desktop no guarda dos plataformas bajo el mismo digest de índice («cannot overwrite
+    # digest»); run_matrix.sh fija OLLAMA_IMAGE al manifiesto de la plataforma pedida.
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.1@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c}
+    platform: ${PLATFORM:-linux/arm64}
+    cpus: 4
+    # E08: sin cpuset el contenedor veía 8 CPU (nproc) con cuota de 4; con 0-3 ve 4, como la VM.
+    cpuset: "0-3"
+    mem_limit: 8g
+    # Sin swap adicional: si el modelo no cabe en 8 GB, falla igual que en el servidor.
+    memswap_limit: 8g
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: "30m"
+      OLLAMA_HOST: "0.0.0.0:11434"
+      # E08: Ollama 0.35 corre llama-server con caché de prompts en RAM (hasta 8 GiB) y puntos de
+      # control de contexto (~50 MiB cada uno con qwen3.5). Con 8 GB, qwen3.5:9b murió por OOM a
+      # los pocos minutos. llama-server lee LLAMA_ARG_* del entorno que hereda de Ollama.
+      LLAMA_ARG_CACHE_RAM: "${LLAMA_ARG_CACHE_RAM:-0}"
+      LLAMA_ARG_CACHE_PROMPT: "${LLAMA_ARG_CACHE_PROMPT:-true}"
+    ports:
+      # Puerto distinto del Ollama del host (11434) y solo en loopback.
+      - "127.0.0.1:${EVAL_OLLAMA_PORT:-11534}:11434"
+    volumes:
+      - ollama-eval-models:/root/.ollama
+    networks:
+      - default
+      - eval-internal
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: "no"
+
+  evaluator:
+    build:
+      context: ../..
+      dockerfile: eval/docker/Dockerfile.evaluator
+    image: solercia-eval-evaluator:local
+    platform: ${PLATFORM:-linux/arm64}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    user: "${EVAL_UID:-0}:${EVAL_GID:-0}"
+    environment:
+      HOME: /tmp
+      # Perfil «server»: sin GPU y 4 hilos, igual al presupuesto del servidor.
+      EVAL_PROFILE: server
+      EVAL_NUM_THREAD: "4"
+      EVAL_OLLAMA_URL: http://ollama:11434
+    volumes:
+      # Conjunto dorado y reglas en solo lectura; solo resultados/ es escribible.
+      - ${EVALUACIONES_DIR:?Define EVALUACIONES_DIR con la carpeta evaluaciones/}:/data:ro
+      - ${EVALUACIONES_DIR:?Define EVALUACIONES_DIR con la carpeta evaluaciones/}/resultados:/data/resultados
+    # Solo la red interna: el evaluador no tiene salida a internet (datos reales de correo).
+    networks:
+      - eval-internal
+    restart: "no"
+
+networks:
+  eval-internal:
+    internal: true
+
+volumes:
+  ollama-eval-models:
+    name: solercia-eval-ollama-models

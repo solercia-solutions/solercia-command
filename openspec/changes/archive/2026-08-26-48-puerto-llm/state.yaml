@@ -1,0 +1,118 @@
+change: 48-puerto-llm
+artifact_store: hybrid
+depends_on: []
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+spec_counts:
+  # Conteo autoritativo por encabezados en disco (rg '^### Requirement' / '^#### Scenario'), 2026-08-26
+  # Corrida correctiva de sdd-spec: json_schema -> output_schema (D1) y max_tokens opcional en el
+  # DTO / obligatorio en el alambre (D2), con un escenario nuevo para el invariante de Anthropic.
+  requirements: 12
+  scenarios: 30
+  by_domain:
+    llm-port: { requirements: 8, scenarios: 21 }
+    assistant-health: { requirements: 4, scenarios: 9 }
+capabilities:
+  new:
+    - llm-port
+    - assistant-health
+  modified: []
+target_capabilities:
+  - llm-port
+  - assistant-health
+constraints:
+  - llm-provider-default-fake-cero-red-por-defecto
+  - un-solo-adaptador-activo-por-proceso-elegido-por-settings
+  - settings-leido-en-tiempo-de-llamada-no-constante-de-modulo
+  - dtos-del-puerto-como-frozen-dataclasses-no-pydantic
+  - validacion-local-pydantic-obligatoria-parsed-solo-si-valido
+  - errores-como-appexception-con-code-estable
+  - reintentos-deterministas-acotados-nunca-decididos-por-el-modelo
+  - allowlist-cerrada-de-url-base-validada-en-el-constructor
+  - la-credencial-y-la-url-completa-nunca-se-loguean-ni-se-devuelven
+  - sdk-anthropic-opcional-en-ejecucion-import-perezoso
+  - ninguna-prueba-toca-la-red
+  - sin-persistencia-sin-modelos-sin-migraciones
+  - rbac-admin-manager-en-assistant-health
+  - la-sonda-de-salud-nunca-genera-texto-ni-gasta-tokens
+  - tdd-estricto-pytest
+boundary:
+  - "Núcleo neutro en backend/app/ai/: ports.py (LlmPort Protocol con async complete(LlmRequest) -> LlmResponse), errors.py (taxonomía tipada), registry.py (get_llm_port por settings.LLM_PROVIDER), adapters/{fake,openai_compatible,anthropic}.py y prompts/ con PROMPT_VERSION"
+  - "DTOs congelados: LlmMessage(role, content); LlmRequest(system, messages, output_schema=None, temperature, max_tokens, timeout_seconds=None); LlmResponse(text, parsed, usage, provider, model, prompt_version, latency_ms, finish_reason)"
+  - "Códigos de error estables: llm_unavailable 503, llm_auth_error 401, llm_rate_limited 503, llm_timeout 503, llm_invalid_output 502, llm_schema_mismatch 502, llm_content_filtered 422 (incluye refusal de Anthropic), llm_config_invalid 422"
+  - "Adaptador openai_compatible sobre httpx==0.28.1 con transporte y sleep inyectables, reintentos acotados por LLM_MAX_RETRIES/LLM_MAX_BACKOFF_SECONDS/Retry-After y forma de response_format configurable por LLM_JSON_MODE"
+  - "Adaptador anthropic sobre el SDK oficial AsyncAnthropic con import perezoso; timeout y max_retries delegados al SDK; sin backoff propio"
+  - "Bloque LLM_* al final de Settings (después de INTAKE_*, config.py:324) espejado en env.example y docker-compose.yml, con LLM_BASE_URL_ALLOWLIST cerrada"
+  - "Módulo backend/app/modules/assistant/ con GET /api/v1/assistant/health (router -> service -> puerto), require_role(admin, manager) y sobre {data, message}"
+  - "data del endpoint: provider, model, base_url_host (solo netloc), api_key_configured, timeout_seconds, max_tokens, structured_output_mode, reachability en {ok, unreachable, not_probed}, reachability_reason"
+  - "Sonda opt-in ?probe=true: GET {base_url}/models en openai_compatible; en anthropic solo valida configuración y reporta not_probed. Nunca genera texto"
+  - "Fuera de alcance: LlmClassifier y cualquier cambio en modules/intake/ (cambio 49), assistant_suggestions, casos de uso, prompts reales, streaming, embeddings, caché de prompts, frontend, persistencia y migraciones"
+module_decision:
+  - "Opción A1: factory por setting (calco de email/sender.py:85-90 y methodology/factory.py:20-37), no auto-registro en import (integrations/registry.py) porque el problema real es un único proveedor activo por proceso, no muchos buscados por nombre"
+  - "Opción B1: salida estructurada por adaptador más validación local obligatoria con Pydantic v2. El esquema JSON viaja como pista best-effort; la única garantía es la validación local, porque llama.cpp puede ignorar json_schema en silencio y Ollama no honra de forma consistente el sobre anidado de OpenAI"
+  - "Opción C2: sonda barata opt-in por query param, sin gastar tokens; por defecto es idéntica a C1 (solo configuración)"
+  - "Opción D2: lista blanca cerrada de URLs base validada en el constructor, con la forma de SOLERCIA_CONNECT_BASE_URL_ALLOWLIST (config.py:233-236); no la forma default-deny con fijado de IP de MCP, desproporcionada porque la URL la fija el operador"
+  - "Transporte por adaptador: httpx a mano en openai_compatible (no existe SDK oficial para Ollama/llama.cpp/LM Studio) y SDK oficial anthropic en el adaptador de nube. La unidad reemplazable es el adaptador detrás de LlmPort, no el transporte HTTP; la filosofía artesanal se honra manteniendo la dependencia opcional y aislada a un solo archivo. Desvía y ratifica la nota «httpx, sin SDKs pesados» de Engram #3686"
+  - "El adaptador anthropic NO reenvía temperature: temperature, top_p y top_k fueron eliminados en Claude Opus 5 / Fable 5 / Opus 4.8 / 4.7 y devuelven 400. El campo permanece en LlmRequest porque los runtimes locales sí lo honran"
+  - "LLM_ANTHROPIC_FALLBACKS=false: el rescate servidor-lado ante refusal queda apagado porque el producto solo pide clasificaciones cortas y un rechazo debe verse, no rescatarse en silencio"
+  - "LLM_TIMEOUT_SECONDS y no LLM_TIMEOUT_S: convención ya establecida por M365_TIMEOUT_SECONDS, GOOGLE_TIMEOUT_SECONDS, GLPI_TIMEOUT_SECONDS, SOLERCIA_CONNECT_TIMEOUT_SECONDS y JIRA_TIMEOUT_SECONDS. Ratifica la desviación respecto de Engram #3686"
+facts_verified:
+  - "backend/app/ai/ NO existe: el cambio crea el árbol desde cero (verificado con glob en la exploración)"
+  - "Precedente de un único adaptador activo elegido por entorno: email/sender.py:24-29 (Protocol EmailSender), :32-49 (ConsoleEmailSender, cero red), :85-90 (get_email_sender selecciona solo por settings.EMAIL_BACKEND)"
+  - "Precedente de DTO de frontera congelado: integrations/dtos.py:1-5 («a port response is a pure snapshot of provider data, never an ORM row») y ports.py:74-81 (AccessContext)"
+  - "Precedente de taxonomía tipada sobre AppException: integrations/adapters/jira/errors.py:78-136; handler que la convierte en {detail, code, status}: shared/exceptions.py:29-43"
+  - "Precedente de resiliencia httpx con transporte y sleep inyectables: microsoft365/client.py:131-170 y jira/client.py:195-228; techo de backoff en :215-225 y :230-240; log seguro con cuerpo truncado a 200 caracteres en :201-213 y :242-254"
+  - "Precedente de allowlist de URL base validada en el constructor: config.py:233-236 (SOLERCIA_CONNECT_BASE_URL_ALLOWLIST, incluye http://host.docker.internal:8765) y solercia_connect/client.py:53-66"
+  - "Punto de inserción de configuración: el bloque INTAKE_* termina en config.py:324 y get_settings/singleton viven en :327-334"
+  - "env.example y docker-compose.yml ya llevan el bloque SEED_DEMO_DATA del cambio 42 (env.example:17-21, docker-compose.yml:42-44); el bloque LLM_* se inserta después"
+  - "requirements.txt fija httpx==0.28.1 (:16) y pydantic==2.10.4 (:6); el archivo exige comentario justificativo verificado en vivo contra PyPI para cada dependencia nueva (:18-29, caso mcp==1.12.0)"
+  - "Contrato Anthropic (skill oficial claude-api de la sesión): max_tokens obligatorio; system de nivel superior; salida estructurada por output_config={format:{type:json_schema, schema:…}} con required y additionalProperties:false, o client.messages.parse(output_format=<modelo Pydantic>) que devuelve response.parsed_output; sin prefill"
+  - "Contrato Anthropic: thinking {type: adaptive} y budget_tokens eliminado (400 en Opus 5 / Fable 5 / 4.8 / 4.7); temperature, top_p y top_k también eliminados en esos modelos y devuelven 400"
+  - "Contrato Anthropic: stop_reason incluye refusal (HTTP 200, con stop_details.category y .explanation), max_tokens, end_turn, stop_sequence, tool_use y pause_turn"
+  - "Contrato Anthropic: excepciones tipadas AuthenticationError 401, PermissionDeniedError 403, NotFoundError 404, RateLimitError 429, InternalServerError >=500, APIConnectionError, APITimeoutError, APIStatusError base, con propiedad .type para granularidad fina"
+  - "Contrato Anthropic: el SDK reintenta por sí mismo conexión, 408, 409, 429 y >=500 con backoff exponencial (max_retries, por defecto 2) y acepta timeout; response._request_id es público pese al guion bajo"
+  - "anthropic 1.x está construido sobre httpx2, NO sobre httpx: anthropic.Timeout es httpx2.Timeout y un objeto del paquete httpx es rechazado o falla en tiempo de petición. El idioma httpx.MockTransport del repo no transfiere al adaptador anthropic"
+  - "Divergencia de salida estructurada entre backends compatibles con OpenAI: Ollama traduce response_format.type=json_object a format:json y no honra de forma consistente el sobre anidado json_schema; llama.cpp documenta el esquema al nivel superior y tiene defectos abiertos donde lo ignora en silencio; LM Studio documenta el estilo OpenAI"
+  - "RBAC: require_role(*roles) en dependencies.py:189-203; admin+manager es el patrón de todos los módulos de integración (glpi_sync/router.py:26, connectors/router.py:57, jira_import/router.py:27, intake/router.py:32-34)"
+  - "No existe helper compartido de sobre de respuesta: cada router construye el literal {data, message} (glpi_sync/router.py:41)"
+  - "Idioma de prueba sin red: Settings(**overrides) explícito y httpx.MockTransport inyectado (test_adapter_solercia_connect.py:29-35 y :70-83), con handler que lanza AssertionError si una URL rechazada llega al transporte (:86-100). Mismo patrón en 15 archivos de prueba"
+  - "pyproject.toml:52-60 no declara markers de pytest: un marcador de humo en vivo obligaría a añadir la clave, por eso el humo contra Ollama queda como paso manual del runbook"
+  - "Topología local: el backend corre en contenedor (docker-compose.yml:32-49, host 8081 -> 8000) y el runtime de IA escucha en el host; desde el contenedor la dirección es host.docker.internal, desde el venv es localhost. El compose no declara extra_hosts, así que en Linux host.docker.internal no resolvería"
+  - "Entorno del usuario: Ollama con qwen3.5:9b-q4_K_M, gpt-oss:20b y qwen3.6:35b-a3b descargados; llama-server instalado; variables ANTHROPIC_MODEL y OLLAMA_MODELS ya presentes (Engram #3709)"
+  - "Línea base de pruebas antes del cambio (commit fc97125, 2026-08-26, con TEST_DATABASE_URL configurada): 1411 pasadas / 3 fallidas preexistentes en tests/test_adapter_microsoft365.py (dependientes del reloj); sin la variable, skip_no_db salta 898 pruebas y esa corrida no sirve de referencia"
+dependency_gating:
+  - "Compuerta antes de cerrar el diseño de la rebanada 3: verificar en vivo contra PyPI el pin de anthropic y su compatibilidad con pydantic==2.10.4, con el rigor documentado en requirements.txt:18-29. Si no hay versión compatible, la rebanada cae a un cliente httpx a mano y se registra la excepción"
+  - "El diseño debe fijar la técnica exacta de doble para el adaptador anthropic, porque el SDK corre sobre httpx2 y httpx.MockTransport no aplica. Criterio irrenunciable: ninguna prueba toca la red"
+  - "Sin dependencias de otros cambios SDD. El 48 bloquea al 49 (clasificador-llm) y, en cadena, al 50 (triage-ui) y al 51 (borrador-cierre)"
+  - "La validación manual del runbook requiere Ollama corriendo en el host con qwen3.5:9b-q4_K_M descargado"
+open_questions:
+  - "Salida de datos hacia un tercero al activar LLM_PROVIDER=anthropic (supuesto: modo de excepción con habilitación explícita del operador; local primero, y la política de minimización del prompt se define en el 49)"
+  - "Comportamiento del producto en el 49 cuando el proveedor está caído (supuesto: degradación silenciosa a las reglas actuales; la visibilidad del estado vive solo en /assistant/health)"
+  - "Tope de gasto por tokens o alerta de coste como requisito de producto (supuesto: LLM_MAX_TOKENS por llamada es suficiente; un tope de consumo sería requisito del 49 en adelante)"
+  - "Auditoría de prompt y respuesta de cada sugerencia (supuesto: basta con provider/model/prompt_version; el 48 no persiste nada y el 49 decide qué guarda assistant_suggestions)"
+  - "Compromiso explícito de latencia o acierto del modelo local para clasificar correo (supuesto: no; el 48 solo garantiza la frontera y la calidad se mide en el 49 con datos reales)"
+last_updated: 2026-08-26
+tasks_notes:
+  - "tasks.md: 7 fases (0 gate, 1 núcleo, 2 openai_compatible, 3 anthropic, 4 assistant, 5 validación manual opcional contra Ollama, 6 suite completa+cierre). Rebanadas feature-branch-chain: 1 (~350 líneas, presupuesto 400) -> 2 (~550, presupuesto 700) -> 3 (~500-600, presupuesto 700) -> 4 (~400, presupuesto 500); presupuestos por rebanada, no acumulativos; 2 intentos máx. cada una"
+  - "Cobertura de escenarios: 30/30 (llm-port 21, assistant-health 9) mapeados a al menos una tarea de prueba nombrada dentro de tasks.md; varios escenarios comparten un mismo test (p. ej. R7 escenarios 1-2 en test_error_log_contains_status_and_200_chars_but_never_the_key_or_the_prompt; R1 escenarios 1-2 de assistant-health en test_admin_and_manager_get_200 parametrizado)"
+  - "Fase 0.6 deja constancia explícita de que agents/rules/solercia-persistence.md NO aplica pese a que modules/assistant/service.py coincide por patrón de ruta: sin repositorios, transacciones ni migraciones"
+  - "Fase 3.0 marca [MANUAL — orquestador] la reverificación en vivo del pin anthropic==1.0.0 contra PyPI como compuerta de inicio de la rebanada 3, previa a escribir pruebas"
+  - "Fase 5 (validación manual opcional contra Ollama) y Fase 6.7 (cadena de ramas) marcadas [MANUAL]/[orquestador], fuera del alcance de sdd-apply automatizado"
+spec_notes:
+  - "Capacidad nueva llm-port (openspec/specs/llm-port/spec.md). Requisitos a especificar: contrato del puerto con complete asíncrono y DTOs congelados; LLM_PROVIDER=fake por defecto con cero red; selección de un único adaptador activo con llm_config_invalid 422 ante valor desconocido; salida estructurada con validación local obligatoria y parsed solo si validó, con llm_schema_mismatch 502 en caso contrario; taxonomía completa de códigos y estados HTTP; reintentos deterministas acotados en el adaptador httpx y delegados al SDK en el adaptador anthropic; allowlist cerrada validada antes de cualquier petición; prohibición de registrar o devolver la credencial y la URL completa; PROMPT_VERSION disponible en la metadata de la respuesta"
+  - "Capacidad nueva assistant-health (openspec/specs/assistant-health/spec.md). Requisitos a especificar: GET /api/v1/assistant/health con require_role(admin, manager) y 403 para member/viewer; sobre {data, message}; campos exactos de data incluido base_url_host como netloc y api_key_configured como booleano; reachability en {ok, unreachable, not_probed} con reachability_reason legible; ?probe=true opt-in que nunca genera texto ni consume tokens; el cuerpo de la respuesta nunca contiene la clave ni la URL base completa"
+  - "Sin deltas a capacidades existentes: intake-classifier se modifica en el cambio 49, no aquí; integration-ports es un dominio distinto (conectores por nombre, no proveedor único por entorno)"
+  - "Escenarios Dado/Cuando/Entonces y palabras clave RFC 2119 (DEBE, DEBERÍA, PUEDE) según openspec/config.yaml"
+  - "Escenario obligatorio derivado del contrato oficial de Anthropic: un stop_reason igual a refusal llega con HTTP 200 y DEBE mapearse a llm_content_filtered 422, nunca tratarse como respuesta válida; un stop_reason igual a max_tokens DEBE ser error explícito y nunca un texto truncado presentado como completo"
+  - "Escenario obligatorio de aislamiento de dependencia: con LLM_PROVIDER distinto de anthropic, el paquete anthropic NO DEBE importarse (verificable sobre sys.modules)"

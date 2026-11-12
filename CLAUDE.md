@@ -1,8 +1,8 @@
-# Solercia Project Manager — CLAUDE.md
+# Solercia Command — CLAUDE.md
 
 ## Visión del producto
 
-Sistema de gestión de proyectos multi-tenant que reemplaza Planner y Jira en distintas entidades. Cada tenant (entidad) puede activar módulos según su necesidad:
+Solercia Command es un centro operativo de trabajo multi-tenant que puede reemplazar Planner y Jira en distintas entidades. Cada tenant (entidad) puede activar módulos según su necesidad:
 
 | Tenant | Reemplaza | Módulos clave |
 |--------|-----------|---------------|
@@ -30,14 +30,18 @@ El sistema NO se casa con una metodología por entidad. **Cada proyecto elige su
 
 Cada strategy expone: `default_columns()`, `allowed_statuses()`, `sprints_enabled`, `estimation_mode (none|points|hours|both)`, `has_backlog`. **Regla de oro**: la API y la UI leen el comportamiento DESDE la strategy, nunca con `if methodology == ...` regado por el código. Método nuevo = clase nueva, cero cambios en el resto.
 
-## Puertos y arranque (docker-compose)
+## Puertos y arranque (`./gestion.sh`)
+
+Puertos elegidos para no chocar con solercia_flows (4200, 3000, 8000, 5433, 9000/9001, 27017):
 
 | Servicio | Puerto host | Descripción |
 |----------|-------------|-------------|
-| frontend (node/Angular) | 4200 | UI |
-| backend (uvicorn/FastAPI) | 8000 | API + Swagger en `/docs` |
+| frontend (ng serve en el host) | 4242 | UI con recarga en caliente (`proxy.conf.local.json` → :8081) |
+| backend (uvicorn/FastAPI en Docker) | 8081 | API + Swagger en `/docs` (interno sigue siendo 8000; el 8080 lo ocupa traefik-idt) |
 | postgres | 5432 | Base de datos |
 | redis | 6379 | Cache / colas |
+
+`./gestion.sh on` levanta todo (Docker + front + túnel devtunnel en :4242 para acceso externo). El compose NO monta volúmenes de código: el contenedor frontend sirve el código de cuando se construyó la imagen, por eso en desarrollo el front corre en el host. Tras cambiar código backend: `./gestion.sh rebuild`.
 
 `docker compose up` levanta todo. API base: `http://localhost:8000/api/v1`. Tema claro/oscuro conmutable en la UI (hereda el sistema de tokens CSS + ThemeService de boki-front).
 
@@ -366,3 +370,7 @@ Asset
 18. WebSocket real-time
 19. Burndown chart
 20. Filtros avanzados y búsqueda global
+
+## Regla obligatoria de persistencia
+
+Antes de modificar repositorios, servicios/casos de uso, transacciones, migraciones o pruebas de persistencia, se DEBE leer `agents/rules/solercia-persistence.md` y el skill global que esta regla exige.

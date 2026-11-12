@@ -1,0 +1,79 @@
+change: 31-backlog-drag-drop
+artifact_store: hybrid
+depends_on:
+  - 30-backlog-sprints-agrupados
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - tasks
+target_capabilities:
+  - tasks
+constraints:
+  - reuse-existing-patch-tasks-id-sprint-id-and-order
+  - no-backend-delta-by-default-ui-enforced-rules
+  - angular-cdk-dragdrop-no-existing-dnd-to-reuse
+  - optimistic-update-with-rollback-on-error
+  - visible-drop-zone-highlight-valid-dim-invalid
+  - drop-rules-backlog-to-any-visible-sprint-draft-and-active
+  - drop-rules-sprint-to-sprint-only-both-draft
+  - never-drop-into-or-out-of-closed-sprint
+  - keyboard-fallback-move-to-context-menu-same-patch
+  - reuse-stable-section-ids-sprint-uuid-and-backlog-from-30
+  - backend-delta-only-if-reorder-or-move-guard-then-tdd
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "Drag & drop con Angular CDK (DragDropModule) en la vista agrupada de 30: cada seccion es un cdkDropList conectado; tarjetas cdkDrag"
+  - "Reglas de destino: backlog <-> cualquier sprint visible (draft y active); sprint <-> sprint solo si ambos draft; nunca hacia/desde closed"
+  - "Zona de drop visible: resaltar destinos validos, atenuar/deshabilitar invalidos durante el arrastre"
+  - "Actualizacion optimista con rollback ante error"
+  - "Persistencia via PATCH /tasks/{id} existente con {sprint_id, order}; sin endpoint nuevo por defecto"
+  - "Accesibilidad: menu contextual 'Mover a...' por tarjeta (ruta de teclado, mismo PATCH); drag por teclado de CDK como complemento"
+  - "Fuera de alcance: DnD del board kanban (sigue por botones + PATCH /tasks/{id}/column), busqueda/filtros (33), jerarquia subtareas (32), estimation_display (34), mover entre proyectos, avisos de scope change (42)"
+interpretation_note:
+  - "OLA_4 dice 'backlog <-> sprint y entre sprints no iniciados'. Interpretacion elegida: backlog<->sprint = cualquier sprint VISIBLE en la vista de 30 (active+draft; closed ocultos); entre-sprints = solo si ambos draft"
+  - "Tradeoff: permitir backlog->active agrega scope a sprint en curso (aviso llega en 42); la variante estricta (solo draft destino) es mas segura pero rompe el flujo Jira. Elegida la primera; frontera con 42 documentada"
+order_note:
+  - "depends_on: [30-backlog-sprints-agrupados]; el apply se ordena tras cerrar el ciclo de 30 por los ids estables sprint-<uuid>/backlog"
+facts_verified:
+  - "Consecutivo 31 LIBRE en openspec/changes/ y en openspec/changes/archive/ (activos: 25-30 y 34)"
+  - "NO existe drag & drop en el frontend: 0 usos de cdkDropList/cdkDrag/draggable/onDrop/dragstart en frontend/src (grep)"
+  - "@angular/cdk ^22.0.4 SI esta instalado (frontend/package.json:14) -> CDK DragDrop disponible sin nueva dependencia"
+  - "El board mueve tareas por botones de estado (updateTask({status}) project-workspace.component.ts:1277) + PATCH /tasks/{id}/column (router.py:176-195, service.move_task_column:504); NO por arrastre"
+  - "Mover sprint/backlog hoy = modal de tarea: updateTask({sprint_id}) (project-workspace.component.ts:1339,1354)"
+  - "PATCH /tasks/{id} (router.py:159-173, service.update_task:358) YA acepta sprint_id (con _verify_sprint) Y order en la misma llamada (service.py:440-458)"
+  - "_verify_sprint (service.py:822-841) solo valida que el sprint EXISTE en org/proyecto; NO valida status draft/active/closed -> reglas de destino no estan enforçadas server-side hoy"
+  - "Sprint.status es free-form 'active'|'closed' (sprints/models.py:36-39); el cambio 29 agrega 'draft' (sprint sin iniciar)"
+  - "Task.order existe y se usa para ordenar listados (repository.py:27,122 order_by Task.order.asc()); es patchable via update_task"
+  - "Vista de 30 deja ids estables sprint-<uuid>/backlog y ordena tareas por task.order como seams para 31 (30/design.md D7)"
+  - "Permisos: modulo tasks usa get_current_membership (org + rol); DnD reutiliza el mismo endpoint -> mismos permisos y aislamiento por organization_id"
+last_updated: 2026-07-20
+spec_notes:
+  - "Default: sin delta spec-level (reutiliza PATCH /tasks/{id}); Modified capabilities = None"
+  - "Condicional: si design adopta guard de movimiento server-side (rechazar destino invalido/closed) o endpoint reorder por lotes, capability 'tasks' pasa a Modified con delta + TDD (reglas de movimiento + orden)"
+  - "OLA_4 exige TDD de reglas de negocio; por eso el guard server-side se plantea como opcion recomendable a decidir en design/spec"
+  - "RECONCILIACION (fase tasks, orquestador): design.md D1 introdujo POST /tasks/reorder (mueve sprint_id + reindexa order en 1 transaccion) sin delta paralelo en spec. Se añadio el requisito ADDED 'Reordenamiento transaccional via POST /tasks/reorder' en specs/tasks/spec.md con 4 escenarios (happy: reindexa hermanos; error: sprint closed -> 422 sprint_closed; error: tarea de otra org -> 404; permisos sin cambio). capabilities.modified pasa a incluir 'tasks', confirmando la condicion ya prevista arriba"
+apply_notes:
+  - "Commit 1 (fe69d96): guard reject_closed en _verify_sprint, activo en update_task (Reconciliacion #2 de tasks.md) y en reorder_tasks; POST /tasks/reorder nuevo. TDD estricto, 14/14 verde (test_task_sprint_closed_guard.py + test_task_reorder.py + test_tasks_crud.py)."
+  - "Commit 2 (794bc3a): Angular CDK DragDrop sobre las secciones de 30. Reconciliacion #3 (en tasks.md): cdkDrag y el menu 'Mover a...' NO viven dentro de taskCardTpl (ese template tambien lo proyecta sol-kanban-board, cuyo sol-kanban-card ya aplica CdkDrag a su host via hostDirectives) sino en un wrapper nuevo exclusivo de la vista Backlog, para no arriesgar el D&D del tablero kanban ya existente."
+  - "Desviacion documentada en tasks.md 1.3: specs/tasks/spec.md describe el aislamiento cross-org del guard PATCH como 404; el codigo YA existente (sin cambios en este alcance) responde 422 invalid_sprint para cualquier sprint no encontrado en el org/proyecto del solicitante -- mismo efecto protector, codigo de estado distinto. Fuera de alcance de esta reconciliacion diferenciarlo."
+  - "Fase 3: suite completa backend 1345 passed (1337 baseline + 8 tests nuevos); build frontend y lint verdes. Sin commit 3 (sin hallazgos)."
+  - "Merge a preview diferido al orquestador por instruccion explicita de la invocacion de apply; esta sesion no toco main/preview. Rama feat/backlog-drag-drop lista para merge con los commits fe69d96 y 794bc3a."
+verify_notes:
+  - "Suite completa backend re-ejecutada de forma independiente: 1345 passed, 0 failed (373.86s). ruff/mypy limpios en archivos cambiados; frontend npm run build/lint verdes."
+  - "Reconciliacion documental: specs/tasks/spec.md, escenario 'Aislamiento de organizacion se mantiene' (guard PATCH), corregido de 404 a 422 code=invalid_sprint para reflejar el comportamiento real y preexistente de _verify_sprint (sin cambios de codigo en este alcance); el escenario equivalente de POST /tasks/reorder (404 sobre task_id cross-org via _require_task) ya era correcto y no se toco."
+  - "Dictamen commit fuera de alcance 5e98b18 (migra @solercia/ui del tarball al paquete npm 0.3.1): probado experimentalmente NO necesario para que compile el cambio 31 (build verde restaurando el tarball 0.3.0 y el export * original; arbol restaurado despues). WARNING de alcance: recomendado extraerlo a su propio cambio/PR. El workaround del export nombrado de SolDrawerComponent se probo correcto (todas las vistas reales -- projects, connections, project-workspace -- resuelven el drawer local; ng build AOT con [blur] confirma que ninguna vista quedo con el drawer publicado)."
+  - "frontend-backlog-dnd: 11/11 escenarios PARTIAL (sin test runner FE, mismo gap preexistente de 28/29/30), verificados por lectura de fuente + build AOT + eslint en verde. WARNING, no CRITICAL, consistente con el precedente del repo."
+  - "Verdict: PASS WITH WARNINGS. 0 CRITICAL. No bloquea sdd-archive."

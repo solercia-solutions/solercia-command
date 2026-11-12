@@ -1,0 +1,61 @@
+change: 36-proyectos-jerarquia-unificada
+artifact_store: hybrid
+depends_on:
+  - 27-plantillas-idempotentes
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - frontend-hierarchy-view
+target_capabilities:
+  - frontend-hierarchy-view
+constraints:
+  - frontend-primary
+  - reuse-project-tree-widget
+  - reuse-forest-composition
+  - no-backend-code-delta
+  - manual-scoping-preserved
+  - ui-copy-es-co-formal-tuteo
+boundary:
+  - "El arbol del cambio 24 pasa a ser la vista PRINCIPAL de Proyectos en /projects (no una vista aparte); la grilla plana queda como toggle 'solo hojas'"
+  - "Clic en nodo proyecto -> workspace de tareas (/projects/:id); nodo area -> expandir/colapsar"
+  - "Edicion inline de nombre/descripcion en el nodo via PATCH /projects/{id} (YA existe, guard admin/manager -> 403 para otros roles); control oculto sin permiso"
+  - "Distincion visual por project_kind (area|proyecto del cambio 27), junto al badge de metodologia existente"
+  - "Toggle 'solo hojas' = grilla secundaria via GET /projects?project_kind=proyecto (filtro del 27)"
+  - "Consolidar navegacion: /hierarchy redirige a /projects; una sola entrada de menu (db_init.py _MENU_SEED)"
+  - "Fuera de alcance: reparentar por drag&drop (PATCH /projects/{id}/parent existe, su UI se difiere), delta backend de permisos del rename, cambiar la reconciliacion del 27"
+module_decision:
+  - "Reutilizar widgets/project-tree + composicion de bosque de hierarchy.component como nucleo de /projects; NO reescribir el arbol"
+  - "Extender Project/TreeNodeVM (frontend) con project_kind y description; el backend YA los expone tras el 27"
+  - "Sin codigo backend nuevo: PATCH /projects/{id} y GET /projects?project_kind= ya existen; unico ajuste backend = consolidar el seed de menu"
+facts_verified:
+  - "Consecutivo 36 libre en openspec/changes/ (35-avance-esperado-vs-real existe; no hay 36)"
+  - "Grilla plana en frontend/src/pages/projects/projects.component.ts (ruta /projects); tarjetas navegan a /projects/:id; drawer de edicion ya usa PATCH /projects/:id (name/description/code) + PATCH /projects/:id/parent"
+  - "Arbol read-only del cambio 24: frontend/src/pages/hierarchy/hierarchy.component.ts (host de datos, compone bosque con GET /projects + GET /projects/:id/progress por raiz) + frontend/src/widgets/project-tree/{project-tree,project-tree-node}.component.ts (recursivo, ARIA tree, teclado)"
+  - "Nodo del arbol muestra: nombre, badge de metodologia, rollup done/total + progress-bar, link 'ir al proyecto' (/projects/:id), expandir/colapsar; NO edita ni distingue project_kind"
+  - "PATCH /projects/{id} YA edita name/description/code, guard require_role(admin, manager) -> 403 forbidden; rechazos: methodology_not_editable(422), project_code_taken(409), project_not_found(404) (backend/app/modules/projects/router.py:86-118)"
+  - "GET /projects?project_kind= filtro opcional lo aporta el cambio 27 (design Decision 5); project_kind (area|proyecto) se agrega a Project/ProjectRead en el 27"
+  - "Cambio 27 reconcilia por ledger (template_id+node_id), NUNCA por nombre; el rename preserva el nombre editado y solo reconcilia el lead (27 design Decision 1) -> renombrar NO rompe la reconciliacion"
+  - "frontend/src/entities/project/project.model.ts NO tiene aun project_kind; UpdateProjectPayload ya soporta name/description/code; TreeNodeVM no lleva project_kind ni description"
+  - "Menu sembrado en backend/app/db_init.py:_MENU_SEED: ('Proyectos','folder-kanban','/projects',...) y ('Jerarquia','list-tree','/hierarchy',...); _ensure_menus solo INSERTA filas faltantes (no elimina) -> consolidar requiere limpieza idempotente"
+  - "Rutas en frontend/src/app/app.routes.ts: /projects (ProjectsComponent), /projects/:id (ProjectWorkspaceComponent), /hierarchy (HierarchyComponent); '' redirige a projects"
+  - "Cambio 27 en estado apply: pending (proposal/spec/design/tasks done) -> 36 depende de que el 27 aplique para exponer project_kind"
+dependency_gating:
+  - "El apply del 36 NO arranca hasta que el 27 complete apply + verify + archive (project_kind y ?project_kind= deben existir en GET /projects); fallback visual 'proyecto' si el kind llega ausente"
+last_updated: 2026-07-20
+spec_notes:
+  - "Capability unica: frontend-hierarchy-view (delta MODIFIED) — de vista read-only a vista principal editable de Proyectos"
+  - "Sin spec nueva ni delta de capacidad backend: projects/project-hierarchy no cambian a nivel de requisito (PATCH y filtro ya especificados)"
+  - "Requisitos a especificar: /projects como vista principal tree-first; navegacion nodo->workspace por kind; edicion inline name/description con permiso admin/manager; distincion visual por project_kind; toggle 'solo hojas'; consolidacion de /hierarchy y menu; estados carga/vacio/error"

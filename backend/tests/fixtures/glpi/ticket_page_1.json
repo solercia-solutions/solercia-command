@@ -1,0 +1,18 @@
+[
+  {
+    "id": 101,
+    "name": "Impresora no imprime",
+    "content": "La impresora del piso 3 no responde.",
+    "status": 2,
+    "priority": 3,
+    "date": "2026-07-01 09:00:00"
+  },
+  {
+    "id": 102,
+    "name": "Acceso VPN caido",
+    "content": "No se puede conectar a la VPN corporativa.",
+    "status": 1,
+    "priority": 4,
+    "date": "2026-07-02 10:15:00"
+  }
+]

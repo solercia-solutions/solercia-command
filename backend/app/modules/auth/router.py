@@ -1,6 +1,8 @@
 """Authentication routes."""
 
-from fastapi import APIRouter, Depends, Request, Response, status
+import httpx
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -10,6 +12,8 @@ from app.dependencies import (
     get_current_user,
     load_accessible_menus,
 )
+from app.modules.auth.oidc import client as oidc_client_module
+from app.modules.auth.oidc.client import OidcTokenError
 from app.modules.auth.schemas import (
     LoginRequest,
     LoginResponse,
@@ -20,6 +24,13 @@ from app.modules.auth.service import (
     authenticate,
     build_user_read,
     primary_organization_id,
+)
+from app.modules.auth.sso_service import (
+    SsoDisabledError,
+    SsoLoginRejectedError,
+    SsoStateInvalidError,
+    sso_callback,
+    sso_login,
 )
 from app.modules.menus.schemas import MenuNode
 from app.modules.organizations.models import OrganizationMember
@@ -33,6 +44,8 @@ from app.shared.security import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_SSO_INERT_MESSAGE = "El inicio de sesión SSO no está disponible."
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -148,3 +161,101 @@ async def read_current_user_menus(
     """Return the nested menu tree the caller can access."""
 
     return await load_accessible_menus(db, user, membership.organization_id)
+
+
+def _sso_inert() -> AppException:
+    """404 for SSO_ENABLED=false or an unconfigured provider (sso-oidc R6).
+
+    Both causes render IDENTICALLY on purpose — a caller (or attacker)
+    probing ``/auth/sso/{provider}/login`` can never distinguish "SSO is
+    off" from "this provider name is wrong", same info-minimization
+    posture as the generic invalid-credentials message on local login.
+    """
+
+    return AppException(_SSO_INERT_MESSAGE, code="sso_disabled", status_code=404)
+
+
+@router.get("/sso/{provider}/login")
+async def sso_login_route(provider: str) -> RedirectResponse:
+    """Start the SSO flow (sso-oidc R1): 302 to the IdP with
+    ``state``/``nonce``/PKCE persisted in Redis. Any ``redirect_uri`` a
+    caller might supply is IGNORED — the OIDC ``redirect_uri`` is always
+    the provider's own fixed, env-configured value (design.md D5,
+    "allowlist de 1"), never client input."""
+
+    try:
+        authorize_url = await sso_login(provider, oidc_client_module.get_http_client())
+    except SsoDisabledError as exc:
+        raise _sso_inert() from exc
+
+    return RedirectResponse(url=authorize_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/sso/{provider}/callback")
+async def sso_callback_route(
+    provider: str,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Complete the SSO flow (sso-oidc R2-R5): validate state, exchange the
+    code, verify the ID token, resolve/provision the user, then set the
+    SAME refresh cookie local login uses and redirect to the SPA landing —
+    the access token NEVER travels in this URL (sso-oidc R7); the SPA
+    exchanges the cookie for one via ``POST /auth/refresh``.
+
+    An ``error`` from the IdP (e.g. ``access_denied``) is a controlled,
+    NON-exceptional outcome (sso-oidc R5): redirected to the SPA landing
+    with ``?error=...`` attached, never a JWT, never a raised 4xx — the
+    caller here is the user's own browser navigating back from the IdP,
+    not an API client that could act on a JSON error body.
+    """
+
+    try:
+        if error:
+            return RedirectResponse(
+                url=f"{settings.SSO_POST_LOGIN_REDIRECT}?error={error}",
+                status_code=status.HTTP_302_FOUND,
+            )
+
+        _, refresh_token, _ = await sso_callback(
+            db,
+            provider,
+            oidc_client_module.get_http_client(),
+            code=code,
+            state=state,
+            error=error,
+        )
+    except SsoDisabledError as exc:
+        raise _sso_inert() from exc
+    except SsoStateInvalidError as exc:
+        raise AppException(
+            "El inicio de sesión SSO expiró o ya fue utilizado. Intenta de nuevo.",
+            code="sso_state_invalid",
+            status_code=400,
+        ) from exc
+    except OidcTokenError as exc:
+        raise AppException(
+            "El proveedor de identidad devolvió una respuesta inválida.",
+            code="sso_id_token_invalid",
+            status_code=400,
+        ) from exc
+    except SsoLoginRejectedError as exc:
+        raise AppException(
+            "No fue posible iniciar sesión con esa cuenta.",
+            code="sso_login_rejected",
+            status_code=403,
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise AppException(
+            "No fue posible completar el inicio de sesión con el proveedor.",
+            code="sso_provider_error",
+            status_code=502,
+        ) from exc
+
+    redirect = RedirectResponse(
+        url=settings.SSO_POST_LOGIN_REDIRECT, status_code=status.HTTP_302_FOUND
+    )
+    _set_refresh_cookie(redirect, refresh_token)
+    return redirect

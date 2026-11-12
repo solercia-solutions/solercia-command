@@ -1,0 +1,19 @@
+{
+  "pandora": {
+    "capturas": 114,
+    "identicas": 112,
+    "maximoPct": 0,
+    "cambiaronDeTamano": [
+      "estudio-inicial__d1440__claro__estudio__pandora 1152x5277 → 1152x5283",
+      "estudio-inicial__d1440__claro__pandora 1440x5417 → 1440x5423"
+    ],
+    "conRuido": []
+  },
+  "command": {
+    "capturas": 114,
+    "identicas": 114,
+    "maximoPct": 0,
+    "cambiaronDeTamano": [],
+    "conRuido": []
+  }
+}

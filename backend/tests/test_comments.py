@@ -1,13 +1,33 @@
 """Tests for task comments and @-mention parsing (Feature #4 — comments part)."""
 
-import uuid
-
 import pytest
+from httpx import AsyncClient
 
-try:
-    from tests.conftest import skip_no_db
-except ImportError:
-    skip_no_db = pytest.mark.skip(reason="conftest not found")
+from app.modules.organizations.models import Organization
+from app.modules.users.models import User
+from tests.conftest import skip_no_db
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_task(client: AsyncClient, token: str, title: str) -> str:
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Comments Project", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["data"]["id"]
+
+    task_response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": title},
+        headers=_auth(token),
+    )
+    assert task_response.status_code == 201, task_response.text
+    return task_response.json()["data"]["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -48,67 +68,42 @@ class TestMentionParsing:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests
+# Integration tests — shared in-process fixtures
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_create_comment_with_mentions() -> None:
+async def test_create_comment_with_mentions(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
     """POST /tasks/{task_id}/comments stores mentioned_user_ids parsed from body."""
 
-    import os
+    author, token = user
+    task_id = await _create_task(client, token, "Comment test task")
+    mentioned_id = str(author.id)
 
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-    mentioned_id = str(uuid.uuid4())
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        projects = r.json()["data"]
-        project_id = projects[0]["id"]
-
-        r = await client.post(
-            f"/projects/{project_id}/tasks", json={"title": "Comment test task"}
-        )
-        assert r.status_code == 201
-        task_id = r.json()["data"]["id"]
-
-        body = f"Hey @{mentioned_id} please review this."
-        r = await client.post(
-            f"/tasks/{task_id}/comments", json={"body": body}
-        )
-        assert r.status_code == 201, r.text
-        comment = r.json()["data"]
-        assert comment["body"] == body
-        assert mentioned_id in comment["mentioned_user_ids"]
+    body = f"Hey @{mentioned_id} please review this."
+    response = await client.post(
+        f"/tasks/{task_id}/comments", json={"body": body}, headers=_auth(token)
+    )
+    assert response.status_code == 201, response.text
+    comment = response.json()["data"]
+    assert comment["body"] == body
+    assert mentioned_id in comment["mentioned_user_ids"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_create_comment_empty_body_rejected() -> None:
-    """POST /tasks/{task_id}/comments rejects an empty body with 422."""
+async def test_create_comment_empty_body_rejected(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """POST /tasks/{task_id}/comments rejects a whitespace-only body with 422."""
 
-    import os
+    _, token = user
+    task_id = await _create_task(client, token, "Task for empty comment")
 
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        project_id = r.json()["data"][0]["id"]
-        r = await client.post(
-            f"/projects/{project_id}/tasks", json={"title": "Task for empty comment"}
-        )
-        task_id = r.json()["data"]["id"]
-
-        r = await client.post(
-            f"/tasks/{task_id}/comments", json={"body": "   "}
-        )
-        assert r.status_code == 422
+    response = await client.post(
+        f"/tasks/{task_id}/comments", json={"body": "   "}, headers=_auth(token)
+    )
+    assert response.status_code == 422

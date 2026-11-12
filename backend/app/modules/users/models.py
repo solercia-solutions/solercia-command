@@ -3,7 +3,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, Uuid, func
+from sqlalchemy import ForeignKey, Index, String, Uuid, func, text
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,18 @@ class User(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
     """
 
     __tablename__ = "users"
+    __table_args__ = (
+        # PARTIAL unique index (change 17-adapter-glpi, UH-R1): many NULLs
+        # coexist freely, only a non-NULL duplicate is rejected. Declared
+        # here (not just in migration 0017) so `Base.metadata.create_all`
+        # (the test suite's schema path) enforces it too.
+        Index(
+            "uq_users_numero_documento",
+            "numero_documento",
+            unique=True,
+            postgresql_where=text("numero_documento IS NOT NULL"),
+        ),
+    )
 
     email: Mapped[str] = mapped_column(
         String(255),
@@ -44,7 +56,21 @@ class User(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, Base):
         nullable=True,
         index=True,
     )
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable since change 20-sso-keycloak: a user created/linked ONLY via
+    # SSO (auto-provisioned, sso-oidc R4) never gets a local password. Local
+    # credential login (``authenticate``, auth/service.py) rejects a NULL
+    # hash with the same generic invalid-credentials message (auth R4) —
+    # never a distinct error that would leak which login method the account
+    # uses.
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # National ID document (change 17-adapter-glpi, user-homologation spec,
+    # UH-R1). Nullable; unique GLOBALLY (same scope as `email`) via a
+    # PARTIAL index (`WHERE numero_documento IS NOT NULL`, migration 0017)
+    # since `User` has no `TenantMixin` in the real codebase — it is not
+    # org-scoped, so a per-organization unique constraint is not possible.
+    # Second deterministic level of the GLPI assignee-matching cascade
+    # (email -> numero_documento -> name).
+    numero_documento: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Read-only view of the user's RBAC roles, resolved through user_roles.
     roles: Mapped[list["Role"]] = relationship(

@@ -1,4 +1,4 @@
-# Modelo de datos — Solercia Project Manager
+# Modelo de datos — Solercia Command
 
 Este documento es el **mapa de referencia del esquema** de la base de datos. Reúne en un
 solo lugar todas las tablas del MVP —las del clúster de **administración y gestión de

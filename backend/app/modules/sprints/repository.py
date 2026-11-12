@@ -53,6 +53,29 @@ class SprintRepository:
         rows = result.scalars().all()
         return rows, len(rows)
 
+    async def last_for_project(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> Sprint | None:
+        """Return the most recently created sprint of the project, or ``None``.
+
+        Used to seed the auto-naming suggestion (``next_sprint_name``): ANY
+        status counts (not just ``active``), so a ``draft``/``closed`` sprint
+        can still be the base for the next suggested name.
+        """
+
+        result = await self.db.execute(
+            select(Sprint)
+            .join(Project, Project.id == Sprint.project_id)
+            .where(
+                Sprint.project_id == project_id,
+                Project.organization_id == organization_id,
+                Sprint.is_active.is_(True),
+            )
+            .order_by(Sprint.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get(
         self, organization_id: uuid.UUID, sprint_id: uuid.UUID
     ) -> Sprint | None:
@@ -213,6 +236,35 @@ class SprintRepository:
             )
         )
         return int(result.scalar_one() or 0)
+
+    async def aggregate_tasks_by_sprint(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> dict[uuid.UUID | None, tuple[int, float]]:
+        """Return ``{sprint_id: (story_count, estimation_hours_sum)}`` for the project.
+
+        A SINGLE grouped query (``GROUP BY sprint_id``) covers every sprint of
+        the project AND the backlog in one pass — the row with ``sprint_id IS
+        NULL`` is the backlog aggregate. Deleted tasks (``is_active=False``)
+        are excluded; ``estimation_hours`` is coalesced to 0 so a sprint/backlog
+        without hours never contributes ``NULL`` to the sum (change
+        30-backlog-sprints-agrupados, design.md D1 — no N+1).
+        """
+
+        result = await self.db.execute(
+            select(
+                Task.sprint_id,
+                func.count(Task.id),
+                func.coalesce(func.sum(Task.estimation_hours), 0),
+            )
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Task.project_id == project_id,
+                Project.organization_id == organization_id,
+                Task.is_active.is_(True),
+            )
+            .group_by(Task.sprint_id)
+        )
+        return {row[0]: (row[1], float(row[2])) for row in result}
 
     async def create(self, sprint: Sprint) -> Sprint:
         """Persist a new sprint and return the refreshed instance."""

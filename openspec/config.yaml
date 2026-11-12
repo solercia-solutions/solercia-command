@@ -2,17 +2,17 @@
 schema: spec-driven
 
 context: |
-  Sistema de gestión de proyectos multi-tenant (reemplaza Planner/Jira).
+  Solercia Command: centro operativo de trabajo multi-tenant (reemplaza Planner/Jira).
   Backend: FastAPI (Python 3.12), SQLAlchemy 2.0 async, asyncpg, Alembic, Pydantic v2.
   Arquitectura backend: router -> service -> repository, patrón Strategy por metodología.
-  Frontend: Angular 20 (FSD), Tailwind — CONGELADO hasta migrar a @solercia/ui compartida.
+  Frontend: Angular 22 (FSD), Tailwind — consumiendo @solercia/ui@0.1.0 — DESCONGELADO (migración PR5 07-e9).
   Multi-tenant: row-level con columna organization_id + resolución de tenant vía JWT.
   Testing backend: pytest + pytest-asyncio + httpx.AsyncClient, en backend/tests/.
   Modo TDD estricto activo para todo cambio nuevo (ver rules.apply.tdd).
 
 rules:
   proposal:
-    - "Alcance limitado a backend/. El frontend está congelado (constraint frontend-frozen): no proponer cambios de interfaz hasta liberar la migración a @solercia/ui."
+    - "Backend/ y frontend/ están habilitados. El frontend ya consume @solercia/ui@0.1.0 (constraint frontend-frozen LEVANTADO en la migración PR5 07-e9): se pueden proponer cambios de interfaz sobre el design system compartido."
     - Incluir plan de rollback para cambios riesgosos (migraciones, autenticación, multi-tenancy).
   specs:
     - Usar escenarios en formato Dado/Cuando/Entonces (Given/When/Then).

@@ -23,6 +23,20 @@ class ProjectStatus(str, Enum):
     archived = "archived"
 
 
+class ProjectKind(str, Enum):
+    """Topological kind of a ``Project`` (change 27-plantillas-idempotentes).
+
+    ``area`` — a container node with at least one child in an org-role-
+    template tree (design.md Decision 2). ``proyecto`` — a leaf node, a
+    single-node template, or any project created via the plain
+    ``POST /projects`` flow (never a container) — see specs/projects/spec.md
+    (delta), "Campo project_kind en Project".
+    """
+
+    area = "area"
+    proyecto = "proyecto"
+
+
 class TaskStatus(str, Enum):
     """Generic task status used by board columns."""
 
@@ -151,9 +165,92 @@ class DeliveryStatus(str, Enum):
 EmailOutboxStatus = DeliveryStatus
 
 
+class ConnectorStatus(str, Enum):
+    """Lifecycle status of a ``Connector`` (provider configuration)."""
+
+    active = "active"
+    inactive = "inactive"
+    error = "error"
+
+
+class AccountStatus(str, Enum):
+    """Lifecycle status of a ``ConnectedAccount``, anchored to OAuth: ``expired``
+    means the access token expired (a refresh token may still be available),
+    ``revoked`` means the user or the provider revoked consent, ``error``
+    means the last token exchange/refresh failed.
+    """
+
+    active = "active"
+    expired = "expired"
+    revoked = "revoked"
+    error = "error"
+
+
 class DigestFrequency(str, Enum):
     """How often a user wants their non-urgent notifications summarized (D4/D7)."""
 
     none = "none"
     daily = "daily"
     weekly = "weekly"
+
+
+class MatchMethod(str, Enum):
+    """How a ``glpi_user_links`` row was confirmed (change 17-adapter-glpi,
+    user-homologation spec, cascada correo→documento→nombre). ``email`` and
+    ``document`` auto-confirm; ``name`` NEVER does (it only feeds the
+    ``glpi_unmatched_assignees`` queue as a suggestion); ``manual`` is an
+    admin/manager resolving a queue entry.
+    """
+
+    email = "email"
+    document = "document"
+    name = "name"
+    manual = "manual"
+
+
+class UnmatchedStatus(str, Enum):
+    """Lifecycle status of a ``glpi_unmatched_assignees`` queue header
+    (change 17-adapter-glpi, user-homologation spec)."""
+
+    pending = "pending"
+    resolved = "resolved"
+    ignored = "ignored"
+
+
+class IntakeItemType(str, Enum):
+    """Taxonomy of an ``IntakeItem`` (change 22-intake-classifier), mapped
+    1:1 to the 5 read capabilities of ``app/integrations/ports.py``'s
+    ``Capability`` — issue-tracker providers without a dedicated capability
+    (e.g. GLPI, Jira) enter as ``ticket``.
+    """
+
+    email = "email"
+    calendar_event = "calendar_event"
+    external_task = "external_task"
+    meeting_note = "meeting_note"
+    ticket = "ticket"
+
+
+class IntakeItemStatus(str, Enum):
+    """Lifecycle status of an ``IntakeItem`` (change 22-intake-classifier).
+
+    ``pending`` — awaiting classification or sitting in manual triage.
+    ``converted`` — a ``Task`` was created (automatic or manual).
+    ``ignored`` — a matching rule explicitly declared ``convert_to_task=false``
+    (NEVER reaches the triage queue). ``error`` — reserved for a future
+    ingestion failure state, not raised by this change.
+    """
+
+    pending = "pending"
+    converted = "converted"
+    ignored = "ignored"
+    error = "error"
+
+
+class IntakeRunStatus(str, Enum):
+    """Lifecycle status of an ``IntakeRun`` (change 22-intake-classifier) —
+    one row per connector/account processed by a ``POST /intake/pull``."""
+
+    running = "running"
+    completed = "completed"
+    error = "error"

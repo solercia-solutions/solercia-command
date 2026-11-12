@@ -1,20 +1,12 @@
 """``EmailSender`` port + adapters (D1, D8) — the domain never talks SMTP.
 
-``console`` (default backend, zero dependencies, captures in memory — the
-test suite and local dev never touch the network unless ``EMAIL_BACKEND`` is
-explicitly set to ``smtp``) and ``smtp`` (``aiosmtplib``, the ONLY module in
-the codebase allowed to depend on it). Swapping ``EMAIL_BACKEND`` never
-requires touching outbox/digest/preferences code — only ``get_email_sender``
-changes which concrete adapter it returns. A future managed provider
-(SES/SendGrid/Resend) is a new adapter implementing the same ``EmailSender``
-protocol, zero changes elsewhere.
+``console`` is a network-free fake that captures messages in memory.
+``smtp`` is temporarily blocked unconditionally, including direct adapter use.
+No configuration or credentials enable delivery; approval is not implemented.
 """
 
 import logging
-from email.message import EmailMessage
 from typing import Protocol
-
-import aiosmtplib
 
 from app.config import settings
 
@@ -32,10 +24,7 @@ class EmailSender(Protocol):
 class ConsoleEmailSender:
     """Captures outgoing email in memory and logs it — zero network I/O.
 
-    Used whenever ``EMAIL_BACKEND=console`` (the default): guarantees the
-    test suite and local development never reach a real SMTP server unless
-    ``smtp`` is configured explicitly (design.md, "EMAIL_BACKEND default
-    console").
+    This fake never delivers email, regardless of SMTP configuration.
     """
 
     def __init__(self) -> None:
@@ -50,35 +39,25 @@ class ConsoleEmailSender:
         logger.info("Correo capturado (console backend): para=%s asunto=%s", to, subject)
 
 
+class EmailApprovalRequiredError(RuntimeError):
+    """Real email is blocked pending an explicit approval workflow."""
+
+    def __init__(self) -> None:
+        super().__init__("Envío SMTP bloqueado: se requiere aprobación explícita.")
+
+
 class SmtpEmailSender:
-    """Sends real email via SMTP (``aiosmtplib``) — the only adapter with that dependency."""
+    """Temporary unconditional barrier, not an approval workflow."""
 
     async def send(
         self, to: str, subject: str, text_body: str, html_body: str | None = None
     ) -> None:
-        message = EmailMessage()
-        message["From"] = f"{settings.FROM_NAME} <{settings.FROM_EMAIL}>"
-        message["To"] = to
-        message["Subject"] = subject
-        message.set_content(text_body)
-        if html_body is not None:
-            message.add_alternative(html_body, subtype="html")
-
-        await aiosmtplib.send(
-            message,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER or None,
-            password=settings.SMTP_PASSWORD or None,
-            start_tls=settings.SMTP_USE_TLS,
-        )
+        raise EmailApprovalRequiredError()
 
 
 # Console adapter singleton (per-process): lets callers that only have access
 # to ``get_email_sender()`` — jobs, tests — inspect ``.sent`` after a send
-# happened elsewhere in the same process. The SMTP adapter is stateless, so it
-# is instantiated fresh on every call; it always reads current ``settings``
-# at send time regardless.
+# happened elsewhere in the same process. SMTP instances always deny delivery.
 _console_sender = ConsoleEmailSender()
 
 

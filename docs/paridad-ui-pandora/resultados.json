@@ -1,0 +1,2825 @@
+{
+  "generado": "2026-10-02T18:19:56.561Z",
+  "umbralPixelmatch": 0.1,
+  "origenes": {
+    "pandora": "http://localhost:54312",
+    "command": "http://localhost:54311"
+  },
+  "incidencias": {
+    "sinSimular": [],
+    "bloqueadas": [],
+    "consola": []
+  },
+  "resultados": [
+    {
+      "escena": "shell",
+      "titulo": "Shell completo con tabla",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.4765,
+        "px": 32095,
+        "pctAreaComun": 2.4765,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "encabezado": {
+          "pct": 1.8762,
+          "px": 1513,
+          "pctAreaComun": 1.8762,
+          "pandora": [
+            1440,
+            56
+          ],
+          "command": [
+            1440,
+            56
+          ]
+        },
+        "logo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            37,
+            33
+          ],
+          "command": [
+            37,
+            33
+          ]
+        },
+        "sidebar": {
+          "pct": 1.5916,
+          "px": 3224,
+          "pctAreaComun": 1.5916,
+          "pandora": [
+            240,
+            844
+          ],
+          "command": [
+            240,
+            844
+          ]
+        },
+        "tabla": {
+          "pct": 26.1392,
+          "px": 160198,
+          "pctAreaComun": 3.2169,
+          "pandora": [
+            1152,
+            532
+          ],
+          "command": [
+            1152,
+            406
+          ]
+        }
+      },
+      "estilos": {
+        "header.sol-header": {},
+        "sol-brand-logo img": {},
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-sidebar__label": {},
+        ".sol-sidebar__toggle": {
+          "font-family": [
+            "Arial",
+            "Inter, system-ui, -apple-system, sans-serif"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-layout-main": {
+          "height": [
+            "864px",
+            "900px"
+          ]
+        },
+        ".sol-user-menu__trigger": {
+          "display": [
+            "inline-flex",
+            "flex"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-data-table__wrapper": {},
+        ".sol-data-table__th": {
+          "width": [
+            "148px",
+            "252.375px"
+          ]
+        },
+        ".sol-data-table__td": {
+          "width": [
+            "148px",
+            "252.375px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "shell",
+      "titulo": "Shell completo con tabla",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.3137,
+        "px": 42945,
+        "pctAreaComun": 3.3137,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "encabezado": {
+          "pct": 1.8465,
+          "px": 1489,
+          "pctAreaComun": 1.8465,
+          "pandora": [
+            1440,
+            56
+          ],
+          "command": [
+            1440,
+            56
+          ]
+        },
+        "logo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            37,
+            33
+          ],
+          "command": [
+            37,
+            33
+          ]
+        },
+        "sidebar": {
+          "pct": 1.4687,
+          "px": 2975,
+          "pctAreaComun": 1.4687,
+          "pandora": [
+            240,
+            844
+          ],
+          "command": [
+            240,
+            844
+          ]
+        },
+        "tabla": {
+          "pct": 26.2716,
+          "px": 161009,
+          "pctAreaComun": 3.3903,
+          "pandora": [
+            1152,
+            532
+          ],
+          "command": [
+            1152,
+            406
+          ]
+        }
+      },
+      "estilos": {
+        "header.sol-header": {},
+        "sol-brand-logo img": {},
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-sidebar__label": {},
+        ".sol-sidebar__toggle": {
+          "font-family": [
+            "Arial",
+            "Inter, system-ui, -apple-system, sans-serif"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-layout-main": {
+          "height": [
+            "864px",
+            "900px"
+          ]
+        },
+        ".sol-user-menu__trigger": {
+          "display": [
+            "inline-flex",
+            "flex"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-data-table__wrapper": {},
+        ".sol-data-table__th": {
+          "width": [
+            "148px",
+            "252.375px"
+          ]
+        },
+        ".sol-data-table__td": {
+          "width": [
+            "148px",
+            "252.375px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "shell",
+      "titulo": "Shell completo con tabla",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 14.1386,
+        "px": 51005,
+        "pctAreaComun": 5.8983,
+        "pandora": [
+          390,
+          925
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "encabezado": {
+          "pct": 3.9881,
+          "px": 871,
+          "pctAreaComun": 3.9881,
+          "pandora": [
+            390,
+            56
+          ],
+          "command": [
+            390,
+            56
+          ]
+        },
+        "logo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            30,
+            27
+          ],
+          "command": [
+            30,
+            27
+          ]
+        },
+        "menu-inferior": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            390,
+            58
+          ],
+          "command": [
+            390,
+            58
+          ]
+        },
+        "tabla": {
+          "pct": 29.4629,
+          "px": 53266,
+          "pctAreaComun": 6.0126,
+          "pandora": [
+            358,
+            505
+          ],
+          "command": [
+            358,
+            379
+          ]
+        }
+      },
+      "estilos": {
+        "header.sol-header": {},
+        "sol-brand-logo img": {},
+        ".sol-layout-main": {
+          "height": [
+            "924.797px",
+            "844px"
+          ]
+        },
+        ".sol-user-menu__trigger": {
+          "display": [
+            "inline-flex",
+            "flex"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-data-table__card": {},
+        "nav.sol-bottom-nav": {},
+        ".sol-bottom-nav__item": {
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-bottom-nav__label": {}
+      }
+    },
+    {
+      "escena": "shell",
+      "titulo": "Shell completo con tabla",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 15.1775,
+        "px": 54753,
+        "pctAreaComun": 7.037,
+        "pandora": [
+          390,
+          925
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "encabezado": {
+          "pct": 3.3791,
+          "px": 738,
+          "pctAreaComun": 3.3791,
+          "pandora": [
+            390,
+            56
+          ],
+          "command": [
+            390,
+            56
+          ]
+        },
+        "logo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            30,
+            27
+          ],
+          "command": [
+            30,
+            27
+          ]
+        },
+        "menu-inferior": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            390,
+            58
+          ],
+          "command": [
+            390,
+            58
+          ]
+        },
+        "tabla": {
+          "pct": 29.5232,
+          "px": 53375,
+          "pctAreaComun": 6.0929,
+          "pandora": [
+            358,
+            505
+          ],
+          "command": [
+            358,
+            379
+          ]
+        }
+      },
+      "estilos": {
+        "header.sol-header": {},
+        "sol-brand-logo img": {},
+        ".sol-layout-main": {
+          "height": [
+            "924.797px",
+            "844px"
+          ]
+        },
+        ".sol-user-menu__trigger": {
+          "display": [
+            "inline-flex",
+            "flex"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-data-table__card": {},
+        "nav.sol-bottom-nav": {},
+        ".sol-bottom-nav__item": {
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        },
+        ".sol-bottom-nav__label": {}
+      }
+    },
+    {
+      "escena": "sidebar-abierto",
+      "titulo": "Sidebar abierto con tres niveles",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.7648,
+        "px": 22872,
+        "pctAreaComun": 1.7648,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "sidebar": {
+          "pct": 1.5916,
+          "px": 3224,
+          "pctAreaComun": 1.5916,
+          "pandora": [
+            240,
+            844
+          ],
+          "command": [
+            240,
+            844
+          ]
+        }
+      },
+      "estilos": {
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-sidebar__children-inner .sol-sidebar__item": {},
+        ".sol-sidebar__chevron": {}
+      }
+    },
+    {
+      "escena": "sidebar-abierto",
+      "titulo": "Sidebar abierto con tres niveles",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.5044,
+        "px": 32457,
+        "pctAreaComun": 2.5044,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "sidebar": {
+          "pct": 1.4687,
+          "px": 2975,
+          "pctAreaComun": 1.4687,
+          "pandora": [
+            240,
+            844
+          ],
+          "command": [
+            240,
+            844
+          ]
+        }
+      },
+      "estilos": {
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-sidebar__children-inner .sol-sidebar__item": {},
+        ".sol-sidebar__chevron": {}
+      }
+    },
+    {
+      "escena": "sidebar-abierto",
+      "titulo": "Sidebar abierto con tres niveles",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "no aplica",
+      "motivo": "A 390 px el sidebar no se pinta: lo reemplaza el menú inferior."
+    },
+    {
+      "escena": "sidebar-abierto",
+      "titulo": "Sidebar abierto con tres niveles",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "no aplica",
+      "motivo": "A 390 px el sidebar no se pinta: lo reemplaza el menú inferior."
+    },
+    {
+      "escena": "sidebar-colapsado",
+      "titulo": "Sidebar colapsado",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.5484,
+        "px": 20067,
+        "pctAreaComun": 1.5484,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "sidebar": {
+          "pct": 0.6979,
+          "px": 377,
+          "pctAreaComun": 0.6979,
+          "pandora": [
+            64,
+            844
+          ],
+          "command": [
+            64,
+            844
+          ]
+        }
+      },
+      "estilos": {
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-layout-main": {
+          "height": [
+            "864px",
+            "900px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "sidebar-colapsado",
+      "titulo": "Sidebar colapsado",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.3775,
+        "px": 30812,
+        "pctAreaComun": 2.3775,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "sidebar": {
+          "pct": 0.6387,
+          "px": 345,
+          "pctAreaComun": 0.6387,
+          "pandora": [
+            64,
+            844
+          ],
+          "command": [
+            64,
+            844
+          ]
+        }
+      },
+      "estilos": {
+        "aside.sol-sidebar": {},
+        ".sol-sidebar__item": {},
+        ".sol-layout-main": {
+          "height": [
+            "864px",
+            "900px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "sidebar-colapsado",
+      "titulo": "Sidebar colapsado",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "no aplica",
+      "motivo": "A 390 px el sidebar no se pinta: lo reemplaza el menú inferior."
+    },
+    {
+      "escena": "sidebar-colapsado",
+      "titulo": "Sidebar colapsado",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "no aplica",
+      "motivo": "A 390 px el sidebar no se pinta: lo reemplaza el menú inferior."
+    },
+    {
+      "escena": "menu-movil-mas",
+      "titulo": "Menú móvil inferior y hoja «Más»",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "no aplica",
+      "motivo": "A 1440 px el menú inferior no se pinta: navega el sidebar."
+    },
+    {
+      "escena": "menu-movil-mas",
+      "titulo": "Menú móvil inferior y hoja «Más»",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "no aplica",
+      "motivo": "A 1440 px el menú inferior no se pinta: navega el sidebar."
+    },
+    {
+      "escena": "menu-movil-mas",
+      "titulo": "Menú móvil inferior y hoja «Más»",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0.3837,
+        "px": 1263,
+        "pctAreaComun": 0.3837,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "menu-inferior": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            390,
+            58
+          ],
+          "command": [
+            390,
+            58
+          ]
+        },
+        "hoja": {
+          "pct": 0.1129,
+          "px": 342,
+          "pctAreaComun": 0.1129,
+          "pandora": [
+            390,
+            777
+          ],
+          "command": [
+            390,
+            777
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-bottom-nav__sheet-item": {},
+        ".sol-bottom-nav__sheet-label": {},
+        "sol-bottom-nav sol-drawer [role=\"dialog\"]": {}
+      }
+    },
+    {
+      "escena": "menu-movil-mas",
+      "titulo": "Menú móvil inferior y hoja «Más»",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0.1057,
+        "px": 348,
+        "pctAreaComun": 0.1057,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "menu-inferior": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            390,
+            58
+          ],
+          "command": [
+            390,
+            58
+          ]
+        },
+        "hoja": {
+          "pct": 0.1125,
+          "px": 341,
+          "pctAreaComun": 0.1125,
+          "pandora": [
+            390,
+            777
+          ],
+          "command": [
+            390,
+            777
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-bottom-nav__sheet-item": {},
+        ".sol-bottom-nav__sheet-label": {},
+        "sol-bottom-nav sol-drawer [role=\"dialog\"]": {}
+      }
+    },
+    {
+      "escena": "menu-usuario",
+      "titulo": "Menú de usuario abierto",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.5708,
+        "px": 20357,
+        "pctAreaComun": 1.5708,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "disparador": {
+          "pct": 0.8483,
+          "px": 43,
+          "pctAreaComun": 0.8483,
+          "pandora": [
+            137,
+            37
+          ],
+          "command": [
+            137,
+            37
+          ]
+        },
+        "panel": {
+          "pct": 20.3677,
+          "px": 17539,
+          "pctAreaComun": 0.7914,
+          "pandora": [
+            288,
+            299
+          ],
+          "command": [
+            288,
+            240
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-user-menu__panel": {
+          "position": [
+            "static",
+            "absolute"
+          ],
+          "height": [
+            "298px",
+            "239px"
+          ],
+          "z-index": [
+            "auto",
+            "1000"
+          ]
+        },
+        ".sol-user-menu__header": {},
+        ".sol-user-menu__header-name": {},
+        ".sol-user-menu__badge": {},
+        ".sol-user-menu__support-time": {},
+        ".sol-user-menu__item": {},
+        ".sol-user-menu__name-line": {},
+        ".sol-user-menu__chevron": {
+          "height": [
+            "19px",
+            "21px"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "menu-usuario",
+      "titulo": "Menú de usuario abierto",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.2619,
+        "px": 29314,
+        "pctAreaComun": 2.2619,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "disparador": {
+          "pct": 0.868,
+          "px": 44,
+          "pctAreaComun": 0.868,
+          "pandora": [
+            137,
+            37
+          ],
+          "command": [
+            137,
+            37
+          ]
+        },
+        "panel": {
+          "pct": 20.3781,
+          "px": 17548,
+          "pctAreaComun": 0.8044,
+          "pandora": [
+            288,
+            299
+          ],
+          "command": [
+            288,
+            240
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-user-menu__panel": {
+          "position": [
+            "static",
+            "absolute"
+          ],
+          "height": [
+            "298px",
+            "239px"
+          ],
+          "z-index": [
+            "auto",
+            "1000"
+          ]
+        },
+        ".sol-user-menu__header": {},
+        ".sol-user-menu__header-name": {},
+        ".sol-user-menu__badge": {},
+        ".sol-user-menu__support-time": {},
+        ".sol-user-menu__item": {},
+        ".sol-user-menu__name-line": {},
+        ".sol-user-menu__chevron": {
+          "height": [
+            "19px",
+            "21px"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "menu-usuario",
+      "titulo": "Menú de usuario abierto",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 4.6391,
+        "px": 15270,
+        "pctAreaComun": 4.6391,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "disparador": {
+          "pct": 1.4706,
+          "px": 45,
+          "pctAreaComun": 1.4706,
+          "pandora": [
+            68,
+            45
+          ],
+          "command": [
+            68,
+            45
+          ]
+        },
+        "panel": {
+          "pct": 20.3677,
+          "px": 17539,
+          "pctAreaComun": 0.7914,
+          "pandora": [
+            288,
+            299
+          ],
+          "command": [
+            288,
+            240
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-user-menu__panel": {
+          "position": [
+            "static",
+            "absolute"
+          ],
+          "height": [
+            "298px",
+            "239px"
+          ],
+          "z-index": [
+            "auto",
+            "1000"
+          ]
+        },
+        ".sol-user-menu__header": {},
+        ".sol-user-menu__header-name": {},
+        ".sol-user-menu__badge": {},
+        ".sol-user-menu__support-time": {},
+        ".sol-user-menu__item": {},
+        ".sol-user-menu__chevron": {
+          "height": [
+            "19px",
+            "21px"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "menu-usuario",
+      "titulo": "Menú de usuario abierto",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 4.9402,
+        "px": 16261,
+        "pctAreaComun": 4.9402,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "disparador": {
+          "pct": 1.5033,
+          "px": 46,
+          "pctAreaComun": 1.5033,
+          "pandora": [
+            68,
+            45
+          ],
+          "command": [
+            68,
+            45
+          ]
+        },
+        "panel": {
+          "pct": 20.3804,
+          "px": 17550,
+          "pctAreaComun": 0.8073,
+          "pandora": [
+            288,
+            299
+          ],
+          "command": [
+            288,
+            240
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-user-menu__panel": {
+          "position": [
+            "static",
+            "absolute"
+          ],
+          "height": [
+            "298px",
+            "239px"
+          ],
+          "z-index": [
+            "auto",
+            "1000"
+          ]
+        },
+        ".sol-user-menu__header": {},
+        ".sol-user-menu__header-name": {},
+        ".sol-user-menu__badge": {},
+        ".sol-user-menu__support-time": {},
+        ".sol-user-menu__item": {},
+        ".sol-user-menu__chevron": {
+          "height": [
+            "19px",
+            "21px"
+          ],
+          "font-size": [
+            "13.3333px",
+            "14px"
+          ],
+          "line-height": [
+            "normal",
+            "21px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "migas",
+      "titulo": "Migas de pan",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0.9671,
+        "px": 12534,
+        "pctAreaComun": 0.9671,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "migas": {
+          "pct": 21.9835,
+          "px": 10130,
+          "pctAreaComun": 2.4794,
+          "pandora": [
+            1152,
+            40
+          ],
+          "command": [
+            1152,
+            32
+          ]
+        }
+      },
+      "estilos": {
+        "nav.sol-breadcrumb": {
+          "height": [
+            "40px",
+            "32px"
+          ]
+        },
+        ".sol-breadcrumb__item": {},
+        ".sol-breadcrumb__link": {
+          "soloEn": "pandora"
+        }
+      }
+    },
+    {
+      "escena": "migas",
+      "titulo": "Migas de pan",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.5258,
+        "px": 19775,
+        "pctAreaComun": 1.5258,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "migas": {
+          "pct": 22.0269,
+          "px": 10150,
+          "pctAreaComun": 2.5336,
+          "pandora": [
+            1152,
+            40
+          ],
+          "command": [
+            1152,
+            32
+          ]
+        }
+      },
+      "estilos": {
+        "nav.sol-breadcrumb": {
+          "height": [
+            "40px",
+            "32px"
+          ]
+        },
+        ".sol-breadcrumb__item": {},
+        ".sol-breadcrumb__link": {
+          "soloEn": "pandora"
+        }
+      }
+    },
+    {
+      "escena": "migas",
+      "titulo": "Migas de pan",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.8918,
+        "px": 6227,
+        "pctAreaComun": 1.8918,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "migas": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            358,
+            44
+          ],
+          "command": [
+            358,
+            44
+          ]
+        }
+      },
+      "estilos": {
+        "nav.sol-breadcrumb": {},
+        ".sol-breadcrumb__item": {},
+        ".sol-breadcrumb__link": {
+          "soloEn": "pandora"
+        }
+      }
+    },
+    {
+      "escena": "migas",
+      "titulo": "Migas de pan",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.3077,
+        "px": 7596,
+        "pctAreaComun": 2.3077,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "migas": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            358,
+            44
+          ],
+          "command": [
+            358,
+            44
+          ]
+        }
+      },
+      "estilos": {
+        "nav.sol-breadcrumb": {},
+        ".sol-breadcrumb__item": {},
+        ".sol-breadcrumb__link": {
+          "soloEn": "pandora"
+        }
+      }
+    },
+    {
+      "escena": "confirmacion",
+      "titulo": "Diálogo de confirmación",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.9688,
+        "px": 38476,
+        "pctAreaComun": 2.9688,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 15.3227,
+          "px": 13180,
+          "pctAreaComun": 6.563,
+          "pandora": [
+            448,
+            174
+          ],
+          "command": [
+            448,
+            192
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-confirm-overlay": {},
+        ".sol-confirm-panel": {
+          "height": [
+            "174px",
+            "192px"
+          ]
+        },
+        ".sol-confirm-title": {
+          "width": [
+            "162.328px",
+            "123.953px"
+          ]
+        },
+        ".sol-confirm-message": {
+          "height": [
+            "18px",
+            "36px"
+          ]
+        },
+        ".sol-confirm-icon": {},
+        ".sol-confirm-btn--danger": {
+          "width": [
+            "89.7969px",
+            "77.6406px"
+          ]
+        },
+        ".sol-confirm-btn--cancel": {}
+      }
+    },
+    {
+      "escena": "confirmacion",
+      "titulo": "Diálogo de confirmación",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 1.521,
+        "px": 19712,
+        "pctAreaComun": 1.521,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 15.4181,
+          "px": 13262,
+          "pctAreaComun": 6.6682,
+          "pandora": [
+            448,
+            174
+          ],
+          "command": [
+            448,
+            192
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-confirm-overlay": {},
+        ".sol-confirm-panel": {
+          "height": [
+            "174px",
+            "192px"
+          ]
+        },
+        ".sol-confirm-title": {
+          "width": [
+            "162.328px",
+            "123.953px"
+          ]
+        },
+        ".sol-confirm-message": {
+          "height": [
+            "18px",
+            "36px"
+          ]
+        },
+        ".sol-confirm-icon": {},
+        ".sol-confirm-btn--danger": {
+          "width": [
+            "89.7969px",
+            "77.6406px"
+          ]
+        },
+        ".sol-confirm-btn--cancel": {}
+      }
+    },
+    {
+      "escena": "confirmacion",
+      "titulo": "Diálogo de confirmación",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 30.6423,
+        "px": 131097,
+        "pctAreaComun": 9.8514,
+        "pandora": [
+          390,
+          1097
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 25.9233,
+          "px": 19598,
+          "pctAreaComun": 10.5971,
+          "pandora": [
+            360,
+            174
+          ],
+          "command": [
+            360,
+            210
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-confirm-overlay": {},
+        ".sol-confirm-panel": {
+          "height": [
+            "174px",
+            "210px"
+          ]
+        },
+        ".sol-confirm-title": {
+          "width": [
+            "162.328px",
+            "123.953px"
+          ]
+        },
+        ".sol-confirm-message": {
+          "height": [
+            "18px",
+            "54px"
+          ]
+        },
+        ".sol-confirm-icon": {},
+        ".sol-confirm-btn--danger": {
+          "width": [
+            "89.7969px",
+            "77.6406px"
+          ]
+        },
+        ".sol-confirm-btn--cancel": {}
+      }
+    },
+    {
+      "escena": "confirmacion",
+      "titulo": "Diálogo de confirmación",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 27.9644,
+        "px": 119640,
+        "pctAreaComun": 6.3708,
+        "pandora": [
+          390,
+          1097
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 26.0979,
+          "px": 19730,
+          "pctAreaComun": 10.8078,
+          "pandora": [
+            360,
+            174
+          ],
+          "command": [
+            360,
+            210
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-confirm-overlay": {},
+        ".sol-confirm-panel": {
+          "height": [
+            "174px",
+            "210px"
+          ]
+        },
+        ".sol-confirm-title": {
+          "width": [
+            "162.328px",
+            "123.953px"
+          ]
+        },
+        ".sol-confirm-message": {
+          "height": [
+            "18px",
+            "54px"
+          ]
+        },
+        ".sol-confirm-icon": {},
+        ".sol-confirm-btn--danger": {
+          "width": [
+            "89.7969px",
+            "77.6406px"
+          ]
+        },
+        ".sol-confirm-btn--cancel": {}
+      }
+    },
+    {
+      "escena": "error-403",
+      "titulo": "Página de error 403 (llegada desde el shell)",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0,
+        "px": 0,
+        "pctAreaComun": 0,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            292,
+            232
+          ],
+          "command": [
+            292,
+            232
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {},
+        ".sol-error-estado__code": {},
+        ".sol-error-estado__title": {},
+        ".sol-error-estado__message": {},
+        ".sol-error-estado__actions": {}
+      }
+    },
+    {
+      "escena": "error-403",
+      "titulo": "Página de error 403 (llegada desde el shell)",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0,
+        "px": 0,
+        "pctAreaComun": 0,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            292,
+            232
+          ],
+          "command": [
+            292,
+            232
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {},
+        ".sol-error-estado__code": {},
+        ".sol-error-estado__title": {},
+        ".sol-error-estado__message": {},
+        ".sol-error-estado__actions": {}
+      }
+    },
+    {
+      "escena": "error-403",
+      "titulo": "Página de error 403 (llegada desde el shell)",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0,
+        "px": 0,
+        "pctAreaComun": 0,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            292,
+            192
+          ],
+          "command": [
+            292,
+            192
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {},
+        ".sol-error-estado__code": {},
+        ".sol-error-estado__title": {},
+        ".sol-error-estado__message": {},
+        ".sol-error-estado__actions": {}
+      }
+    },
+    {
+      "escena": "error-403",
+      "titulo": "Página de error 403 (llegada desde el shell)",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0,
+        "px": 0,
+        "pctAreaComun": 0,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            292,
+            192
+          ],
+          "command": [
+            292,
+            192
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {},
+        ".sol-error-estado__code": {},
+        ".sol-error-estado__title": {},
+        ".sol-error-estado__message": {},
+        ".sol-error-estado__actions": {}
+      }
+    },
+    {
+      "escena": "error-403-directa",
+      "titulo": "Página de error 403 (carga directa)",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 0.7877,
+        "px": 10209,
+        "pctAreaComun": 0.7877,
+        "pandora": [
+          1440,
+          900
+        ],
+        "command": [
+          1440,
+          900
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 15.0759,
+          "px": 10213,
+          "pctAreaComun": 15.0759,
+          "pandora": [
+            292,
+            232
+          ],
+          "command": [
+            292,
+            232
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ]
+        },
+        ".sol-error-estado__code": {
+          "width": [
+            "188.359px",
+            "174.375px"
+          ],
+          "color": [
+            "rgb(26, 82, 118)",
+            "rgb(79, 70, 229)"
+          ],
+          "font-family": [
+            "Inter, system-ui, -apple-system, sans-serif",
+            "Manrope, Inter, system-ui, sans-serif"
+          ]
+        },
+        ".sol-error-estado__title": {
+          "width": [
+            "210.562px",
+            "205.125px"
+          ],
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ],
+          "font-family": [
+            "Inter, system-ui, -apple-system, sans-serif",
+            "Manrope, Inter, system-ui, sans-serif"
+          ]
+        },
+        ".sol-error-estado__message": {
+          "color": [
+            "rgb(148, 163, 184)",
+            "rgb(138, 153, 179)"
+          ]
+        },
+        ".sol-error-estado__actions": {
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "error-403-directa",
+      "titulo": "Página de error 403 (carga directa)",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "sin referencia",
+      "motivo": "En carga directa no hay botón de tema y el tema de PANDORA impone el modo claro; no hay captura oscura comparable."
+    },
+    {
+      "escena": "error-403-directa",
+      "titulo": "Página de error 403 (carga directa)",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.0273,
+        "px": 6673,
+        "pctAreaComun": 2.0273,
+        "pandora": [
+          390,
+          844
+        ],
+        "command": [
+          390,
+          844
+        ]
+      },
+      "regiones": {
+        "estado": {
+          "pct": 11.9096,
+          "px": 6677,
+          "pctAreaComun": 11.9096,
+          "pandora": [
+            292,
+            192
+          ],
+          "command": [
+            292,
+            192
+          ]
+        }
+      },
+      "estilos": {
+        ".sol-error-estado": {
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ]
+        },
+        ".sol-error-estado__code": {
+          "width": [
+            "109.875px",
+            "101.719px"
+          ],
+          "color": [
+            "rgb(26, 82, 118)",
+            "rgb(79, 70, 229)"
+          ],
+          "font-family": [
+            "Inter, system-ui, -apple-system, sans-serif",
+            "Manrope, Inter, system-ui, sans-serif"
+          ]
+        },
+        ".sol-error-estado__title": {
+          "width": [
+            "210.562px",
+            "205.125px"
+          ],
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ],
+          "font-family": [
+            "Inter, system-ui, -apple-system, sans-serif",
+            "Manrope, Inter, system-ui, sans-serif"
+          ]
+        },
+        ".sol-error-estado__message": {
+          "color": [
+            "rgb(148, 163, 184)",
+            "rgb(138, 153, 179)"
+          ]
+        },
+        ".sol-error-estado__actions": {
+          "color": [
+            "rgb(15, 23, 42)",
+            "rgb(10, 15, 28)"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "error-403-directa",
+      "titulo": "Página de error 403 (carga directa)",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "sin referencia",
+      "motivo": "En carga directa no hay botón de tema y el tema de PANDORA impone el modo claro; no hay captura oscura comparable."
+    },
+    {
+      "escena": "estudio-inicial",
+      "titulo": "Theme Studio inicial",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.7511,
+        "px": 214840,
+        "pctAreaComun": 1.9192,
+        "pandora": [
+          1440,
+          5423
+        ],
+        "command": [
+          1440,
+          5377
+        ]
+      },
+      "regiones": {
+        "estudio": {
+          "pct": 2.5766,
+          "px": 156810,
+          "pctAreaComun": 2.3918,
+          "pandora": [
+            1152,
+            5283
+          ],
+          "command": [
+            1152,
+            5273
+          ]
+        }
+      },
+      "estilos": {
+        ".controls .control-card": {
+          "height": [
+            "469px",
+            "439px"
+          ]
+        },
+        ".controls": {
+          "height": [
+            "5075px",
+            "5064.5px"
+          ]
+        },
+        "sol-theme-studio": {
+          "height": [
+            "5283px",
+            "5272.5px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "estudio-inicial",
+      "titulo": "Theme Studio inicial",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.8466,
+        "px": 222291,
+        "pctAreaComun": 2.0154,
+        "pandora": [
+          1440,
+          5423
+        ],
+        "command": [
+          1440,
+          5377
+        ]
+      },
+      "regiones": {
+        "estudio": {
+          "pct": 2.7026,
+          "px": 164480,
+          "pctAreaComun": 2.5181,
+          "pandora": [
+            1152,
+            5283
+          ],
+          "command": [
+            1152,
+            5273
+          ]
+        }
+      },
+      "estilos": {
+        ".controls .control-card": {
+          "height": [
+            "469px",
+            "439px"
+          ]
+        },
+        ".controls": {
+          "height": [
+            "5075px",
+            "5064.5px"
+          ]
+        },
+        "sol-theme-studio": {
+          "height": [
+            "5283px",
+            "5272.5px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "estudio-inicial",
+      "titulo": "Theme Studio inicial",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 4.1244,
+        "px": 97395,
+        "pctAreaComun": 3.9658,
+        "pandora": [
+          390,
+          6045
+        ],
+        "command": [
+          390,
+          6055
+        ]
+      },
+      "regiones": {
+        "estudio": {
+          "pct": 4.5502,
+          "px": 96255,
+          "pctAreaComun": 4.3883,
+          "pandora": [
+            358,
+            5899
+          ],
+          "command": [
+            358,
+            5909
+          ]
+        }
+      },
+      "estilos": {
+        ".controls .control-card": {
+          "height": [
+            "487px",
+            "475px"
+          ]
+        },
+        ".controls": {
+          "height": [
+            "5673px",
+            "5682.5px"
+          ]
+        },
+        "sol-theme-studio": {
+          "height": [
+            "5899px",
+            "5908.5px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "estudio-inicial",
+      "titulo": "Theme Studio inicial",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 4.6092,
+        "px": 108845,
+        "pctAreaComun": 4.4514,
+        "pandora": [
+          390,
+          6045
+        ],
+        "command": [
+          390,
+          6055
+        ]
+      },
+      "regiones": {
+        "estudio": {
+          "pct": 5.0898,
+          "px": 107671,
+          "pctAreaComun": 4.9289,
+          "pandora": [
+            358,
+            5899
+          ],
+          "command": [
+            358,
+            5909
+          ]
+        }
+      },
+      "estilos": {
+        ".controls .control-card": {
+          "height": [
+            "487px",
+            "475px"
+          ]
+        },
+        ".controls": {
+          "height": [
+            "5673px",
+            "5682.5px"
+          ]
+        },
+        "sol-theme-studio": {
+          "height": [
+            "5899px",
+            "5908.5px"
+          ]
+        }
+      }
+    },
+    {
+      "escena": "estudio-historial",
+      "titulo": "Theme Studio con el historial abierto",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.6354,
+        "px": 217869,
+        "pctAreaComun": 1.849,
+        "pandora": [
+          1440,
+          5741
+        ],
+        "command": [
+          1440,
+          5695
+        ]
+      },
+      "regiones": {
+        "historial": {
+          "pct": 0.6673,
+          "px": 3029,
+          "pctAreaComun": 0.6673,
+          "pandora": [
+            1152,
+            394
+          ],
+          "command": [
+            1152,
+            394
+          ]
+        },
+        "estudio": {
+          "pct": 2.4772,
+          "px": 159839,
+          "pctAreaComun": 2.3028,
+          "pandora": [
+            1152,
+            5601
+          ],
+          "command": [
+            1152,
+            5591
+          ]
+        }
+      },
+      "estilos": {
+        "section.history-panel": {},
+        ".history-list li": {}
+      }
+    },
+    {
+      "escena": "estudio-historial",
+      "titulo": "Theme Studio con el historial abierto",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 2.7252,
+        "px": 225296,
+        "pctAreaComun": 1.9395,
+        "pandora": [
+          1440,
+          5741
+        ],
+        "command": [
+          1440,
+          5695
+        ]
+      },
+      "regiones": {
+        "historial": {
+          "pct": 0.6625,
+          "px": 3007,
+          "pctAreaComun": 0.6625,
+          "pandora": [
+            1152,
+            394
+          ],
+          "command": [
+            1152,
+            394
+          ]
+        },
+        "estudio": {
+          "pct": 2.5957,
+          "px": 167485,
+          "pctAreaComun": 2.4215,
+          "pandora": [
+            1152,
+            5601
+          ],
+          "command": [
+            1152,
+            5591
+          ]
+        }
+      },
+      "estilos": {
+        "section.history-panel": {},
+        ".history-list li": {}
+      }
+    },
+    {
+      "escena": "estudio-historial",
+      "titulo": "Theme Studio con el historial abierto",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.8678,
+        "px": 101097,
+        "pctAreaComun": 3.7242,
+        "pandora": [
+          390,
+          6692
+        ],
+        "command": [
+          390,
+          6702
+        ]
+      },
+      "regiones": {
+        "historial": {
+          "pct": 1.1892,
+          "px": 3078,
+          "pctAreaComun": 1.1892,
+          "pandora": [
+            358,
+            723
+          ],
+          "command": [
+            358,
+            723
+          ]
+        },
+        "estudio": {
+          "pct": 4.2959,
+          "px": 100826,
+          "pctAreaComun": 4.1497,
+          "pandora": [
+            358,
+            6546
+          ],
+          "command": [
+            358,
+            6556
+          ]
+        }
+      },
+      "estilos": {
+        "section.history-panel": {},
+        ".history-list li": {}
+      }
+    },
+    {
+      "escena": "estudio-historial",
+      "titulo": "Theme Studio con el historial abierto",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 4.3056,
+        "px": 112538,
+        "pctAreaComun": 4.1626,
+        "pandora": [
+          390,
+          6692
+        ],
+        "command": [
+          390,
+          6702
+        ]
+      },
+      "regiones": {
+        "historial": {
+          "pct": 1.1764,
+          "px": 3045,
+          "pctAreaComun": 1.1764,
+          "pandora": [
+            358,
+            723
+          ],
+          "command": [
+            358,
+            723
+          ]
+        },
+        "estudio": {
+          "pct": 4.7818,
+          "px": 112232,
+          "pctAreaComun": 4.6364,
+          "pandora": [
+            358,
+            6546
+          ],
+          "command": [
+            358,
+            6556
+          ]
+        }
+      },
+      "estilos": {
+        "section.history-panel": {},
+        ".history-list li": {}
+      }
+    },
+    {
+      "escena": "estudio-restaurada",
+      "titulo": "Theme Studio tras restaurar una versión",
+      "viewport": "d1440",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.014,
+        "px": 251776,
+        "pctAreaComun": 2.2388,
+        "pandora": [
+          1440,
+          5801
+        ],
+        "command": [
+          1440,
+          5755
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            448,
+            192
+          ],
+          "command": [
+            448,
+            192
+          ]
+        },
+        "alerta": {
+          "pct": 0.1688,
+          "px": 27,
+          "pctAreaComun": 0.1688,
+          "pandora": [
+            400,
+            40
+          ],
+          "command": [
+            400,
+            40
+          ]
+        },
+        "estudio": {
+          "pct": 2.9108,
+          "px": 189828,
+          "pctAreaComun": 2.739,
+          "pandora": [
+            1152,
+            5661
+          ],
+          "command": [
+            1152,
+            5651
+          ]
+        },
+        "historial": {
+          "pct": 0.6922,
+          "px": 3620,
+          "pctAreaComun": 0.6922,
+          "pandora": [
+            1152,
+            454
+          ],
+          "command": [
+            1152,
+            454
+          ]
+        }
+      },
+      "estilos": {}
+    },
+    {
+      "escena": "estudio-restaurada",
+      "titulo": "Theme Studio tras restaurar una versión",
+      "viewport": "d1440",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.014,
+        "px": 251776,
+        "pctAreaComun": 2.2388,
+        "pandora": [
+          1440,
+          5801
+        ],
+        "command": [
+          1440,
+          5755
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            448,
+            192
+          ],
+          "command": [
+            448,
+            192
+          ]
+        },
+        "alerta": {
+          "pct": 0.1688,
+          "px": 27,
+          "pctAreaComun": 0.1688,
+          "pandora": [
+            400,
+            40
+          ],
+          "command": [
+            400,
+            40
+          ]
+        },
+        "estudio": {
+          "pct": 2.9108,
+          "px": 189828,
+          "pctAreaComun": 2.739,
+          "pandora": [
+            1152,
+            5661
+          ],
+          "command": [
+            1152,
+            5651
+          ]
+        },
+        "historial": {
+          "pct": 0.6922,
+          "px": 3620,
+          "pctAreaComun": 0.6922,
+          "pandora": [
+            1152,
+            454
+          ],
+          "command": [
+            1152,
+            454
+          ]
+        }
+      },
+      "estilos": {}
+    },
+    {
+      "escena": "estudio-restaurada",
+      "titulo": "Theme Studio tras restaurar una versión",
+      "viewport": "m390",
+      "modo": "claro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.7282,
+        "px": 99118,
+        "pctAreaComun": 3.5867,
+        "pandora": [
+          390,
+          6807
+        ],
+        "command": [
+          390,
+          6817
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            360,
+            210
+          ],
+          "command": [
+            360,
+            210
+          ]
+        },
+        "alerta": {
+          "pct": 0.1519,
+          "px": 22,
+          "pctAreaComun": 0.1519,
+          "pandora": [
+            362,
+            40
+          ],
+          "command": [
+            362,
+            40
+          ]
+        },
+        "estudio": {
+          "pct": 4.0944,
+          "px": 97784,
+          "pctAreaComun": 3.9505,
+          "pandora": [
+            358,
+            6661
+          ],
+          "command": [
+            358,
+            6671
+          ]
+        },
+        "historial": {
+          "pct": 0.2987,
+          "px": 896,
+          "pctAreaComun": 0.2987,
+          "pandora": [
+            358,
+            838
+          ],
+          "command": [
+            358,
+            838
+          ]
+        }
+      },
+      "estilos": {}
+    },
+    {
+      "escena": "estudio-restaurada",
+      "titulo": "Theme Studio tras restaurar una versión",
+      "viewport": "m390",
+      "modo": "oscuro",
+      "estado": "comparada en vivo",
+      "fuenteInter": {
+        "pandora": true,
+        "command": true
+      },
+      "pagina": {
+        "pct": 3.7282,
+        "px": 99118,
+        "pctAreaComun": 3.5867,
+        "pandora": [
+          390,
+          6807
+        ],
+        "command": [
+          390,
+          6817
+        ]
+      },
+      "regiones": {
+        "dialogo": {
+          "pct": 0,
+          "px": 0,
+          "pctAreaComun": 0,
+          "pandora": [
+            360,
+            210
+          ],
+          "command": [
+            360,
+            210
+          ]
+        },
+        "alerta": {
+          "pct": 0.1519,
+          "px": 22,
+          "pctAreaComun": 0.1519,
+          "pandora": [
+            362,
+            40
+          ],
+          "command": [
+            362,
+            40
+          ]
+        },
+        "estudio": {
+          "pct": 4.0944,
+          "px": 97784,
+          "pctAreaComun": 3.9505,
+          "pandora": [
+            358,
+            6661
+          ],
+          "command": [
+            358,
+            6671
+          ]
+        },
+        "historial": {
+          "pct": 0.2987,
+          "px": 896,
+          "pctAreaComun": 0.2987,
+          "pandora": [
+            358,
+            838
+          ],
+          "command": [
+            358,
+            838
+          ]
+        }
+      },
+      "estilos": {}
+    }
+  ]
+}

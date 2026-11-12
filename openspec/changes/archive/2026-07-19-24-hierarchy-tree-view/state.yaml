@@ -1,0 +1,31 @@
+change: 24-hierarchy-tree-view
+artifact_store: hybrid
+depends_on:
+  - 13-ui-component-audit
+  - 21-project-hierarchy
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new:
+    - frontend-hierarchy-view
+  modified: []
+target_capabilities:
+  - frontend-hierarchy-view
+constraints:
+  - frontend-only
+  - consumes-solercia-ui
+  - read-only-navigation
+last_updated: 2026-07-19
+apply_gating:
+  - "21-project-hierarchy debe completar apply + verify + archive antes de iniciar el apply del 24 (Fase 0, tarea 0.1 de tasks.md)"

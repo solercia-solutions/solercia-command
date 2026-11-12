@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,7 @@ from app.modules.projects.repository import ProjectRepository
 from app.modules.tasks.models import Task
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.schemas import MemberRead, TaskCreate, TaskRead, TaskUpdate
+from app.modules.tasks.sources import validate_task_source
 from app.shared.enums import EstimationMode, Priority
 from app.shared.exceptions import AppException
 from app.shared.pagination import PaginationParams
@@ -34,6 +36,24 @@ if TYPE_CHECKING:
 
 # Regex to parse a human task key like "SDM-7" or "PLT2-123".
 _KEY_RE = re.compile(r"^([A-Z0-9]{2,10})-(\d+)$", re.IGNORECASE)
+
+# Calendar zone for the task ``year`` filter and ``/tasks/years``: the
+# organizations served today operate in Colombia (same zone as the email
+# digest and the checklist import). Half-open range [1-ene, 1-ene+1).
+TASK_YEAR_TIMEZONE = "America/Bogota"
+
+
+def task_year_bounds(year: int | None) -> tuple[datetime | None, datetime | None]:
+    """Translate a calendar ``year`` into the half-open aware range in Bogotá.
+
+    Shared by the task filter and the project listing (``GET /projects?year=``)
+    so both use the same calendar.
+    """
+
+    if year is None:
+        return None, None
+    zone = ZoneInfo(TASK_YEAR_TIMEZONE)
+    return datetime(year, 1, 1, tzinfo=zone), datetime(year + 1, 1, 1, tzinfo=zone)
 
 
 class TaskService:
@@ -77,6 +97,12 @@ class TaskService:
         due_from: date | None = None,
         due_to: date | None = None,
         q: str | None = None,
+        year: int | None = None,
+        source: str | None = None,
+        external_key: str | None = None,
+        task_type: str | None = None,
+        parent_task_id: uuid.UUID | None = None,
+        include_subtasks: bool = False,
         pagination: PaginationParams | None = None,
     ) -> tuple[list[TaskRead], int]:
         """Return the project's top-level tasks honoring the optional filters.
@@ -84,9 +110,27 @@ class TaskService:
         Returns ``(tasks, total)`` — see ``TaskRepository.list_for_project``.
         Raises a ``422`` when ``due_from`` is after ``due_to`` (change
         10-busqueda-global, R8) before ever touching the repository.
+
+        ``task_type`` filters by exact equality. ``parent_task_id`` returns
+        the direct children of that task; since children are by definition
+        NOT top-level, this filter disables the default top-level-only
+        restriction of the listing.
+
+        ``include_subtasks`` (change 32-jerarquia-subtareas, D1) also lifts
+        the top-level-only restriction, returning subtasks flat alongside
+        top-level tasks (no tree). When ``assignee_id`` is present — with or
+        without ``include_subtasks`` — the top-level restriction is ALSO
+        lifted for that same first pass (D2): a subtask assigned to that
+        user must be able to match even though it is not top-level. A second
+        pass then resolves the **context parents** of matched subtasks whose
+        own parent did not match the filter: those parents are appended to
+        the result flagged ``is_context=True`` and are NOT counted in
+        ``total`` (deduplicated — a parent that already matched by itself
+        keeps ``is_context=False`` and is never re-added).
         """
 
         self._validate_due_range(due_from, due_to)
+        created_from, created_before = self._year_bounds(year)
         project = await self._require_project(organization_id, project_id)
         tasks, total = await self.repo.list_for_project(
             organization_id,
@@ -99,14 +143,53 @@ class TaskService:
             due_from=due_from,
             due_to=due_to,
             q=q,
-            top_level_only=True,
+            created_from=created_from,
+            created_before=created_before,
+            source=source,
+            external_key=external_key,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            top_level_only=(
+                parent_task_id is None and not include_subtasks and assignee_id is None
+            ),
             pagination=pagination,
         )
+
+        context_parents: Sequence[Task] = ()
+        if assignee_id is not None:
+            matched_ids = {task.id for task in tasks}
+            missing_parent_ids = {
+                task.parent_task_id
+                for task in tasks
+                if task.parent_task_id is not None and task.parent_task_id not in matched_ids
+            }
+            if missing_parent_ids:
+                context_parents = await self.repo.get_by_ids(
+                    organization_id, project_id, missing_parent_ids
+                )
+
         name_map = await self._assignee_name_map(organization_id)
-        reads = [
-            self._to_read(task, name_map, project_code=project.code) for task in tasks
+        reads = [self._to_read(task, name_map, project_code=project.code) for task in tasks] + [
+            self._to_read(parent, name_map, project_code=project.code, is_context=True)
+            for parent in context_parents
         ]
         return reads, total
+
+    async def list_task_years(
+        self, organization_id: uuid.UUID, project_id: uuid.UUID
+    ) -> list[int]:
+        """Return the creation years (Bogotá calendar) with active tasks, newest first."""
+
+        await self._require_project(organization_id, project_id)
+        return await self.repo.list_created_years(
+            organization_id, project_id, timezone=TASK_YEAR_TIMEZONE
+        )
+
+    @staticmethod
+    def _year_bounds(year: int | None) -> tuple[datetime | None, datetime | None]:
+        """Translate a calendar ``year`` into the half-open aware range in Bogotá."""
+
+        return task_year_bounds(year)
 
     @staticmethod
     def _validate_due_range(due_from: date | None, due_to: date | None) -> None:
@@ -119,9 +202,7 @@ class TaskService:
                 status_code=422,
             )
 
-    async def get_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> TaskRead:
+    async def get_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> TaskRead:
         """Return a single task (with subtask progress) or raise a 404."""
 
         task = await self._require_task(organization_id, task_id)
@@ -139,9 +220,7 @@ class TaskService:
 
         return read
 
-    async def get_task_by_key(
-        self, organization_id: uuid.UUID, key: str
-    ) -> TaskRead:
+    async def get_task_by_key(self, organization_id: uuid.UUID, key: str) -> TaskRead:
         """Resolve a human task key (e.g. 'SDM-7') within the organization.
 
         Parses the key into project code + task number, then fetches both the
@@ -166,9 +245,7 @@ class TaskService:
                 status_code=404,
             )
 
-        task = await self.repo.get_by_project_and_number(
-            organization_id, project.id, task_number
-        )
+        task = await self.repo.get_by_project_and_number(organization_id, project.id, task_number)
         if task is None:
             raise AppException(
                 f"La tarea '{key}' no existe o no tienes acceso a ella.",
@@ -187,9 +264,7 @@ class TaskService:
 
         return read
 
-    async def list_subtasks(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> list[TaskRead]:
+    async def list_subtasks(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> list[TaskRead]:
         """Return the direct subtasks of a task."""
 
         task = await self._require_task(organization_id, task_id)
@@ -209,21 +284,31 @@ class TaskService:
         data: TaskCreate,
         *,
         actor_id: uuid.UUID | None = None,
+        external_origin: tuple[str, str] | None = None,
     ) -> TaskRead:
         """Validate against the methodology Strategy and persist a new task.
 
-        When ``data.parent_task_id`` is set the service enforces the subtask
-        business rules: task_type is coerced to 'subtask' and estimation_points
-        are rejected (to avoid double-counting story points in velocity).
+        When ``data.parent_task_id`` is set the parent rules depend on the
+        parent's ``task_type``:
+
+        - Parent ``epic`` — the child KEEPS its requested ``task_type``
+          (default ``task``) and MAY carry ``estimation_points``; a nested
+          ``epic`` is rejected (``epic_nesting_not_allowed``, an epic can
+          never have a parent).
+        - Any other parent — the child is coerced to ``subtask`` and
+          ``estimation_points`` are rejected (to avoid double-counting story
+          points in velocity). A ``subtask`` parent is always rejected
+          (``subtask_nesting_not_allowed``): a subtask can never be a parent.
         """
 
         project = await self._require_project(organization_id, project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        # -- Subtask validation -------------------------------------------
-        is_subtask = data.parent_task_id is not None
-        if is_subtask:
-            assert data.parent_task_id is not None  # narrows for the type checker
+        # -- Parent/child validation ---------------------------------------
+        requested_type = data.task_type or "task"
+        is_subtask = False
+        task_type = requested_type
+        if data.parent_task_id is not None:
             # Verify the parent belongs to the same project and organization.
             parent = await self.repo.get(organization_id, data.parent_task_id)
             if parent is None or parent.project_id != project_id:
@@ -232,13 +317,8 @@ class TaskService:
                     code="invalid_parent_task",
                     status_code=422,
                 )
-            if parent.parent_task_id is not None:
-                raise AppException(
-                    "No se pueden crear sub-subtareas (máximo un nivel de anidación).",
-                    code="subtask_nesting_not_allowed",
-                    status_code=422,
-                )
-            if data.estimation_points is not None:
+            task_type, is_subtask = self._resolve_child_type(parent, requested_type)
+            if is_subtask and data.estimation_points is not None:
                 raise AppException(
                     "Las subtareas no admiten puntos de historia para evitar "
                     "el doble conteo del velocity.",
@@ -246,17 +326,28 @@ class TaskService:
                     status_code=422,
                 )
 
-        task_type = "subtask" if is_subtask else (data.task_type or "task")
-
         status, board_column_id = await self._resolve_create_status_and_column(
             project_id, strategy, data.status, data.board_column_id
         )
         if not is_subtask:
-            self._validate_estimation(
-                strategy, data.estimation_points, data.estimation_hours
-            )
+            self._validate_estimation(strategy, data.estimation_points, data.estimation_hours)
         await self._verify_assignee(organization_id, data.assignee_id)
         await self._verify_sprint(organization_id, project_id, data.sprint_id)
+
+        anchor_source: str | None = None
+        anchor_key: str | None = None
+        if external_origin is not None:
+            anchor_source, anchor_key = external_origin
+            validate_task_source(anchor_source)
+            existing = await self.repo.get_by_external_key(
+                organization_id, anchor_source, anchor_key
+            )
+            if existing is not None:
+                raise AppException(
+                    "Ya existe una tarea activa con esa procedencia externa en esta organización.",
+                    code="task_external_anchor_conflict",
+                    status_code=409,
+                )
 
         # Allocate task_number atomically (UPDATE ... RETURNING in same txn).
         task_number = await self.repo.allocate_task_number(project_id)
@@ -278,12 +369,59 @@ class TaskService:
             start_date=data.start_date,
             completed_at=self._resolve_completed_at(strategy, status, None),
             task_number=task_number,
+            source=anchor_source,
+            external_key=anchor_key,
             created_by=actor_id,
             updated_by=actor_id,
         )
         task = await self.repo.create(task)
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
+
+    # Task types a child of an epic may declare. Anything else is rejected:
+    # before epics-as-parents EVERY child was coerced to 'subtask', so no
+    # arbitrary string could ever hang from a parent — the whitelist keeps
+    # that property. Top-level tasks keep their free-string task_type
+    # (pre-existing behavior, out of scope here).
+    _EPIC_CHILD_TYPES = frozenset({"task", "story", "bug", "subtask"})
+
+    @classmethod
+    def _resolve_child_type(cls, parent: Task, requested_type: str) -> tuple[str, bool]:
+        """Resolve ``(task_type, is_subtask)`` for a child of ``parent``.
+
+        - Parent ``subtask`` → 422 ``subtask_nesting_not_allowed``: a subtask
+          can never be a parent, regardless of the requested type.
+        - Parent ``epic`` → the child keeps its requested type, restricted to
+          :attr:`_EPIC_CHILD_TYPES` (422 ``invalid_task_type`` otherwise) and
+          never a nested ``epic`` (422 ``epic_nesting_not_allowed``). An
+          explicit ``subtask`` request still behaves as a REAL subtask
+          (``is_subtask=True``) so the "subtasks never carry points"
+          invariant stays airtight.
+        - Any other parent → coerced to ``subtask`` (``is_subtask=True``).
+        """
+
+        if parent.task_type == "subtask":
+            raise AppException(
+                "No se pueden crear sub-subtareas (máximo un nivel de anidación).",
+                code="subtask_nesting_not_allowed",
+                status_code=422,
+            )
+        if parent.task_type == "epic":
+            if requested_type == "epic":
+                raise AppException(
+                    "Una épica no puede anidarse bajo otra épica.",
+                    code="epic_nesting_not_allowed",
+                    status_code=422,
+                )
+            if requested_type not in cls._EPIC_CHILD_TYPES:
+                raise AppException(
+                    "El tipo de tarea no es válido para una hija de épica. "
+                    "Tipos permitidos: task, story, bug, subtask.",
+                    code="invalid_task_type",
+                    status_code=422,
+                )
+            return requested_type, requested_type == "subtask"
+        return "subtask", True
 
     # Fields tracked for TaskHistory (activity-history.md, "Captura automática
     # en mutaciones de usuario" — the exact set the spec requires; notably no
@@ -295,6 +433,21 @@ class TaskService:
         "estimation_hours",
         "sprint_id",
         "priority",
+    )
+
+    # PATCH-only allowlist: all TaskUpdate fields plus the two derived values.
+    # Keep reorder's historical six-field contract above unchanged.
+    _UPDATE_HISTORY_TRACKED_FIELDS = _HISTORY_TRACKED_FIELDS + (
+        "title",
+        "description",
+        "task_type",
+        "due_date",
+        "start_date",
+        "order",
+        "risk_flag",
+        "risk_reason",
+        "board_column_id",
+        "completed_at",
     )
 
     async def update_task(
@@ -319,9 +472,7 @@ class TaskService:
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        snapshot = {
-            field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS
-        }
+        snapshot = {field: getattr(task, field) for field in self._UPDATE_HISTORY_TRACKED_FIELDS}
 
         changes = data.model_dump(exclude_unset=True)
 
@@ -329,9 +480,7 @@ class TaskService:
             from app.modules.boards.repository import BoardRepository
             from app.modules.boards.service import BoardService
 
-            board = await BoardRepository(self.repo.db).get_board_with_columns(
-                task.project_id
-            )
+            board = await BoardRepository(self.repo.db).get_board_with_columns(task.project_id)
             columns = board.columns if board is not None else []
             target = self._resolve_column_for_status(columns, changes["status"])
             # Same WIP-enforcing code path as PATCH /tasks/{id}/column
@@ -341,15 +490,28 @@ class TaskService:
             task = await BoardService(self.repo.db).move_to_column(
                 task, target, actor_id=actor_id, enforce_wip=True, commit=False
             )
-            task.completed_at = self._resolve_completed_at(
-                strategy, task.status, task.completed_at
-            )
+            task.completed_at = self._resolve_completed_at(strategy, task.status, task.completed_at)
 
-        # Reject estimation_points update on subtasks.
-        if "estimation_points" in changes and task.parent_task_id is not None:
+        # Guard on the EFFECTIVE type/points the row would END with —
+        # ``task_type`` itself is applied later in the setattr loop, so
+        # reading only the pre-mutation type would let a combined
+        # ``{"task_type": "subtask", "estimation_points": N}`` (or a flip to
+        # subtask on a task that already has points) bypass the rule. An
+        # explicit ``task_type: null`` falls back to the current type.
+        effective_type = changes.get("task_type") or task.task_type
+        effective_points = changes.get("estimation_points", task.estimation_points)
+        if effective_type == "subtask" and effective_points is not None:
             raise AppException(
                 "Las subtareas no admiten puntos de historia.",
                 code="subtask_points_not_allowed",
+                status_code=422,
+            )
+        # Same create-side invariant on update: an epic can never have a
+        # parent, so a child task can never FLIP its type to 'epic'.
+        if effective_type == "epic" and task.parent_task_id is not None:
+            raise AppException(
+                "Una épica no puede tener tarea padre.",
+                code="epic_nesting_not_allowed",
                 status_code=422,
             )
 
@@ -366,7 +528,10 @@ class TaskService:
 
         if "sprint_id" in changes:
             await self._verify_sprint(
-                organization_id, task.project_id, changes["sprint_id"]
+                organization_id,
+                task.project_id,
+                changes["sprint_id"],
+                reject_closed=True,
             )
             task.sprint_id = changes["sprint_id"]
 
@@ -384,9 +549,7 @@ class TaskService:
             if field in changes:
                 setattr(task, field, changes[field])
 
-        await self._record_history_diff(
-            organization_id, task, snapshot, actor_id=actor_id
-        )
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
 
         task.updated_by = actor_id
         task = await self.repo.save(task)
@@ -424,6 +587,12 @@ class TaskService:
 
         if value is None:
             return None
+        if isinstance(value, datetime):
+            # Normalize only the audit representation, never the stored value.
+            # Legacy naive values retain their unknown timezone explicitly.
+            if value.utcoffset() is not None:
+                value = value.astimezone(UTC)
+            return value.isoformat()
         if hasattr(value, "value"):  # Enum members (e.g. Priority)
             return str(value.value)
         return str(value)
@@ -453,9 +622,7 @@ class TaskService:
         project = await self._require_project(organization_id, task.project_id)
         strategy = await resolve_board_strategy(project, self.repo.db)
 
-        board = await BoardRepository(self.repo.db).get_board_with_columns(
-            project.id
-        )
+        board = await BoardRepository(self.repo.db).get_board_with_columns(project.id)
         columns = board.columns if board is not None else []
         target = next((c for c in columns if c.id == board_column_id), None)
         if target is None:
@@ -465,32 +632,80 @@ class TaskService:
                 status_code=422,
             )
 
+        snapshot = {
+            field: getattr(task, field)
+            for field in ("status", "board_column_id", "completed_at")
+        }
         task = await BoardService(self.repo.db).move_to_column(
             task, target, actor_id=actor_id, enforce_wip=True, commit=False
         )
-        task.completed_at = self._resolve_completed_at(
-            strategy, task.status, task.completed_at
-        )
+        task.completed_at = self._resolve_completed_at(strategy, task.status, task.completed_at)
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
         task = await self.repo.save(task)
 
         name_map = await self._assignee_name_map(organization_id)
         return self._to_read(task, name_map, project_code=project.code)
 
-    async def delete_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> None:
-        """Soft-delete a task."""
+    async def reorder_tasks(
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        sprint_id: uuid.UUID | None,
+        ordered_task_ids: Sequence[uuid.UUID],
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> TaskRead:
+        """Move ``task_id`` to ``sprint_id`` and reindex the destination
+        container's ``order`` from ``ordered_task_ids`` in ONE transaction
+        (design.md D1, ``POST /tasks/reorder``).
+
+        Same ``closed``-sprint guard as ``update_task``
+        (``_verify_sprint(reject_closed=True)``). ``order`` is not part of
+        ``_HISTORY_TRACKED_FIELDS`` so the reindex never spams
+        ``TaskHistory``; only the ``sprint_id`` change (if any) records one
+        row, via the same ``_record_history_diff`` snapshot/diff path as
+        ``update_task``.
+        """
 
         task = await self._require_task(organization_id, task_id)
+        project = await self._require_project(organization_id, task.project_id)
+
+        snapshot = {field: getattr(task, field) for field in self._HISTORY_TRACKED_FIELDS}
+
+        await self._verify_sprint(organization_id, task.project_id, sprint_id, reject_closed=True)
+        task.sprint_id = sprint_id
+        task.updated_by = actor_id
+
+        await self.repo.reassign_order_for_container(
+            organization_id, task.project_id, ordered_task_ids
+        )
+
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
+
+        task = await self.repo.save(task)
+        name_map = await self._assignee_name_map(organization_id)
+        return self._to_read(task, name_map, project_code=project.code)
+
+    async def delete_task(
+        self,
+        organization_id: uuid.UUID,
+        task_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+    ) -> None:
+        """Soft-delete a task, staging lifecycle history before the legacy save."""
+
+        task = await self._require_task(organization_id, task_id)
+        snapshot = {field: getattr(task, field) for field in ("is_active", "deleted_at")}
         task.is_active = False
         task.deleted_at = datetime.now(UTC)
+        task.updated_by = actor_id
+        await self._record_history_diff(organization_id, task, snapshot, actor_id=actor_id)
         await self.repo.save(task)
 
     # -- helpers -----------------------------------------------------------
 
-    async def _require_project(
-        self, organization_id: uuid.UUID, project_id: uuid.UUID
-    ) -> Project:
+    async def _require_project(self, organization_id: uuid.UUID, project_id: uuid.UUID) -> Project:
         project = await self.projects.get(organization_id, project_id)
         if project is None:
             raise AppException(
@@ -500,9 +715,7 @@ class TaskService:
             )
         return project
 
-    async def _require_task(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task:
+    async def _require_task(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task:
         task = await self.repo.get(organization_id, task_id)
         if task is None:
             raise AppException(
@@ -513,9 +726,7 @@ class TaskService:
         return task
 
     @staticmethod
-    def _resolve_column_for_status(
-        columns: Sequence["BoardColumn"], status: str
-    ) -> "BoardColumn":
+    def _resolve_column_for_status(columns: Sequence["BoardColumn"], status: str) -> "BoardColumn":
         """Find the column whose ``status_key`` equals ``status`` among ``columns``.
 
         Raises 422 ``board_has_no_columns`` when the board has none, or 422
@@ -565,9 +776,7 @@ class TaskService:
 
         from app.modules.boards.repository import BoardRepository
 
-        board = await BoardRepository(self.repo.db).get_board_with_columns(
-            project_id
-        )
+        board = await BoardRepository(self.repo.db).get_board_with_columns(project_id)
         columns = board.columns if board is not None else []
 
         if board_column_id is not None:
@@ -600,9 +809,7 @@ class TaskService:
         total, done = await self.repo.get_subtask_counts(task_id, allowed[-1])
         return (done / total) if total > 0 else None
 
-    async def _blocking_state(
-        self, task_id: uuid.UUID
-    ) -> tuple[bool, list["BlockerRef"]]:
+    async def _blocking_state(self, task_id: uuid.UUID) -> tuple[bool, list["BlockerRef"]]:
         """Return ``(is_blocked, blockers)`` for a single-task read (design.md,
         "Enriquecer el detalle sin N+1"). Deferred import: `tasks` never
         depends on `task_links` at module level (design.md C4).
@@ -611,9 +818,7 @@ class TaskService:
         from app.modules.task_links.repository import TaskDependencyRepository
         from app.modules.task_links.schemas import BlockerRef
 
-        rows = await TaskDependencyRepository(self.repo.db).get_incomplete_blockers(
-            task_id
-        )
+        rows = await TaskDependencyRepository(self.repo.db).get_incomplete_blockers(task_id)
         blockers = [BlockerRef(task_id=tid, title=title) for tid, title in rows]
         return (len(blockers) > 0, blockers)
 
@@ -643,9 +848,7 @@ class TaskService:
 
         from app.modules.checklists.service import ChecklistService
 
-        done, total = await ChecklistService(self.repo.db).get_checklist_progress(
-            task_id
-        )
+        done, total = await ChecklistService(self.repo.db).get_checklist_progress(task_id)
         return (done / total) if total > 0 else None
 
     @staticmethod
@@ -751,25 +954,39 @@ class TaskService:
         organization_id: uuid.UUID,
         project_id: uuid.UUID,
         sprint_id: uuid.UUID | None,
+        *,
+        reject_closed: bool = False,
     ) -> None:
+        """Validate that ``sprint_id`` exists in this org/project.
+
+        When ``reject_closed`` is ``True`` also rejects a destination sprint
+        whose ``status == 'closed'`` with ``422 sprint_closed`` (D3, change
+        31-backlog-drag-drop). Per the Reconciliación #2 in tasks.md, this
+        guard applies to `update_task` (the PATCH the detail modal uses) in
+        addition to `reorder_tasks`, so the same server-side integrity rule
+        protects every consumer of the endpoint.
+        """
+
         if sprint_id is None:
             return
         from app.modules.sprints.repository import SprintRepository
 
         sprint_repo = SprintRepository(self.repo.db)
-        sprint = await sprint_repo.get_for_project(
-            organization_id, project_id, sprint_id
-        )
+        sprint = await sprint_repo.get_for_project(organization_id, project_id, sprint_id)
         if sprint is None:
             raise AppException(
                 "El sprint indicado no existe en este proyecto.",
                 code="invalid_sprint",
                 status_code=422,
             )
+        if reject_closed and sprint.status == "closed":
+            raise AppException(
+                "No puedes mover tareas a un sprint cerrado.",
+                code="sprint_closed",
+                status_code=422,
+            )
 
-    async def _assignee_name_map(
-        self, organization_id: uuid.UUID
-    ) -> dict[uuid.UUID, str]:
+    async def _assignee_name_map(self, organization_id: uuid.UUID) -> dict[uuid.UUID, str]:
         members = await self.repo.list_org_members(organization_id)
         return {user.id: user.full_name for user, _ in members}
 
@@ -779,11 +996,11 @@ class TaskService:
         name_map: dict[uuid.UUID, str],
         *,
         project_code: str | None = None,
+        is_context: bool = False,
     ) -> TaskRead:
-        task.assignee_name = (
-            name_map.get(task.assignee_id) if task.assignee_id else None
-        )
+        task.assignee_name = name_map.get(task.assignee_id) if task.assignee_id else None
         read = TaskRead.model_validate(task)
         if project_code and task.task_number is not None:
             read.task_key = f"{project_code}-{task.task_number}"
+        read.is_context = is_context
         return read

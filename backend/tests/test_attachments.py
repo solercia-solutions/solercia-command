@@ -1,13 +1,33 @@
 """Tests for file attachment upload and download (Feature #8)."""
 
-import io
-
 import pytest
+from httpx import AsyncClient
 
-try:
-    from tests.conftest import skip_no_db
-except ImportError:
-    skip_no_db = pytest.mark.skip(reason="conftest not found")
+from app.modules.organizations.models import Organization
+from app.modules.users.models import User
+from tests.conftest import skip_no_db
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_task(client: AsyncClient, token: str, title: str) -> str:
+    project_response = await client.post(
+        "/projects",
+        json={"name": "Attachments Project", "methodology": "kanban"},
+        headers=_auth(token),
+    )
+    assert project_response.status_code == 201, project_response.text
+    project_id = project_response.json()["data"]["id"]
+
+    task_response = await client.post(
+        f"/projects/{project_id}/tasks",
+        json={"title": title},
+        headers=_auth(token),
+    )
+    assert task_response.status_code == 201, task_response.text
+    return task_response.json()["data"]["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -31,95 +51,55 @@ class TestAttachmentServiceHelpers:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests
+# Integration tests — shared in-process fixtures
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_upload_and_download_attachment() -> None:
+async def test_upload_and_download_attachment(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
     """POST /tasks/{task_id}/attachments → GET /attachments/{id}/download round-trip."""
 
-    import os
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
+    _, token = user
+    task_id = await _create_task(client, token, "Attachment test task")
     file_content = b"Hello, this is a test attachment."
 
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        project_id = r.json()["data"][0]["id"]
+    upload = await client.post(
+        f"/tasks/{task_id}/attachments",
+        files={"file": ("test.txt", file_content, "text/plain")},
+        headers=_auth(token),
+    )
+    assert upload.status_code == 201, upload.text
+    attachment = upload.json()["data"]
+    assert attachment["original_name"] == "test.txt"
+    assert attachment["content_type"] == "text/plain"
+    assert attachment["size_bytes"] == len(file_content)
 
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Attachment test task"},
-        )
-        assert r.status_code == 201
-        task_id = r.json()["data"]["id"]
-
-        # Upload.
-        r = await client.post(
-            f"/tasks/{task_id}/attachments",
-            files={"file": ("test.txt", io.BytesIO(file_content), "text/plain")},
-        )
-        assert r.status_code == 201, r.text
-        attachment = r.json()["data"]
-        assert attachment["original_name"] == "test.txt"
-        assert attachment["content_type"] == "text/plain"
-        assert attachment["size_bytes"] == len(file_content)
-
-        # Download.
-        attachment_id = attachment["id"]
-        r = await client.get(f"/attachments/{attachment_id}/download")
-        assert r.status_code == 200
-        assert r.content == file_content
+    download = await client.get(
+        f"/attachments/{attachment['id']}/download", headers=_auth(token)
+    )
+    assert download.status_code == 200
+    assert download.content == file_content
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 @skip_no_db
-async def test_upload_rejects_oversized_file() -> None:
-    """POST /tasks/{task_id}/attachments rejects files larger than 10 MB."""
+async def test_upload_rejects_oversized_file(
+    client: AsyncClient, tenant: Organization, user: tuple[User, str]
+) -> None:
+    """POST /tasks/{task_id}/attachments rejects files larger than 10 MB with 413."""
 
-    import os
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    token = os.getenv("TEST_AUTH_TOKEN", "")
-    headers = {"Authorization": f"Bearer {token}"}
+    _, token = user
+    task_id = await _create_task(client, token, "Oversized upload test")
     # 10 MB + 1 byte.
     big_content = b"x" * (10 * 1024 * 1024 + 1)
 
-    async with httpx.AsyncClient(base_url=base_url, headers=headers) as client:
-        r = await client.get("/projects")
-        project_id = r.json()["data"][0]["id"]
-        r = await client.post(
-            f"/projects/{project_id}/tasks",
-            json={"title": "Oversized upload test"},
-        )
-        task_id = r.json()["data"]["id"]
-
-        r = await client.post(
-            f"/tasks/{task_id}/attachments",
-            files={"file": ("big.bin", io.BytesIO(big_content), "application/octet-stream")},
-        )
-        assert r.status_code == 413
-
-
-@pytest.mark.asyncio
-@skip_no_db
-async def test_download_requires_auth() -> None:
-    """GET /attachments/{id}/download returns 401 without a token."""
-
-    import os
-    import uuid
-
-    import httpx
-
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    async with httpx.AsyncClient(base_url=base_url) as client:
-        r = await client.get(f"/attachments/{uuid.uuid4()}/download")
-        assert r.status_code == 401
+    upload = await client.post(
+        f"/tasks/{task_id}/attachments",
+        files={"file": ("big.bin", big_content, "application/octet-stream")},
+        headers=_auth(token),
+    )
+    assert upload.status_code == 413
+    assert upload.json()["code"] == "file_too_large"

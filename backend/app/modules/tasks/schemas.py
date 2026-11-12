@@ -16,9 +16,12 @@ class TaskCreate(BaseModel):
     ``status`` is optional; the service defaults it to the first allowed status
     of the project methodology and validates any provided value.
 
-    Pass ``parent_task_id`` to create a subtask. When ``parent_task_id`` is set
-    the service enforces ``task_type='subtask'`` and rejects ``estimation_points``
-    (story points are not counted for subtasks to avoid double-counting velocity).
+    Pass ``parent_task_id`` to create a child task. When the parent is an
+    ``epic`` the child keeps its requested ``task_type`` (default ``task``;
+    never a nested ``epic``) and may carry ``estimation_points``. Under any
+    other parent the service enforces ``task_type='subtask'`` and rejects
+    ``estimation_points`` (story points are not counted for subtasks to avoid
+    double-counting velocity).
     """
 
     title: str = Field(min_length=1, max_length=200)
@@ -122,6 +125,8 @@ class TaskRead(BaseModel):
     task_number: int | None = None
     # Human-readable composite key (e.g. "SDM-7"). Set transiently by service.
     task_key: str | None = None
+    source: str | None = None
+    external_key: str | None = None
     # Ratio of done subtasks to total subtasks [0.0, 1.0].
     # None when the task has no subtasks; only populated on single-task reads.
     subtask_progress: float | None = None
@@ -143,12 +148,30 @@ class TaskRead(BaseModel):
     # the task (checklists.md R7). None when the task has no checklist items.
     # Only populated on single-task reads (same pattern as subtask_progress).
     checklist_progress: float | None = None
+    # Additive field (change 32-jerarquia-subtareas): true only under
+    # `assignee_id` — the row is a foreign parent returned as context (its
+    # subtask matched the assignee filter, the parent did not), never a real
+    # match. Default false keeps every previous consumer of TaskRead intact.
+    is_context: bool = False
 
 
 class TaskColumnMove(BaseModel):
     """Payload to move a task to a different board column (canonical move)."""
 
     board_column_id: uuid.UUID
+
+
+class TaskReorder(BaseModel):
+    """Payload for ``POST /tasks/reorder`` (change 31-backlog-drag-drop, D1).
+
+    Moves ``task_id`` to ``sprint_id`` (``None`` = Backlog) and reindexes the
+    ``order`` field of every task in ``ordered_task_ids`` — the destination
+    container's final order after the drop — in a single transaction.
+    """
+
+    task_id: uuid.UUID
+    sprint_id: uuid.UUID | None = None
+    ordered_task_ids: list[uuid.UUID]
 
 
 class MemberRead(BaseModel):

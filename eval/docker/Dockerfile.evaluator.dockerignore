@@ -1,0 +1,6 @@
+*
+!backend/app
+!backend/scripts
+!eval/docker/requirements.evaluator.txt
+**/__pycache__
+**/*.pyc

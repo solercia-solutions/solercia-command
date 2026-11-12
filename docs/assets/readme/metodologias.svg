@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 960 440" role="img" aria-labelledby="title desc">
+  <title id="title">Metodologías de proyecto en Solercia Command</title>
+  <desc id="desc">Planner, Kanban, Scrum y Personalizada. Cada metodología define las columnas iniciales del tablero, si hay sprints y backlog, y el modo de estimación.</desc>
+  <defs>
+    <style>
+      text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+      .bg{fill:#f8fafc;stroke:#e2e8f0}
+      .h{fill:#0f172a;font-size:22px;font-weight:700}
+      .sub{fill:#475569;font-size:13px}
+      .t{fill:#0f172a;font-size:17px;font-weight:700}
+      .v{fill:#0f172a;font-size:13px;font-weight:600}
+      .s{fill:#475569;font-size:12px}
+      .k{fill:#64748b;font-size:10.5px;font-weight:700;letter-spacing:.08em}
+      .card{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5}
+      .chip{fill:#f1f5f9;stroke:#e2e8f0}
+      .free{fill:none;stroke:#94a3b8;stroke-dasharray:5 4}
+      .b1{fill:#0ea5e9}.b2{fill:#10b981}.b3{fill:#6366f1}.b4{fill:#f59e0b}
+      @media (prefers-color-scheme:dark){
+        .bg{fill:#0d1117;stroke:#30363d}
+        .h,.t,.v{fill:#e6edf3}
+        .sub,.s{fill:#9da7b3}
+        .k{fill:#8b949e}
+        .card{fill:#161b22;stroke:#30363d}
+        .chip{fill:#21262d;stroke:#30363d}
+        .free{stroke:#6e7681}
+        .b1{fill:#38bdf8}.b2{fill:#34d399}.b3{fill:#818cf8}.b4{fill:#fbbf24}
+      }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="439" rx="16"/>
+  <text class="h" x="32" y="44">Una metodología por proyecto</text>
+  <text class="sub" x="32" y="66">Se elige al crear el proyecto y define el tablero, los estados, los sprints y la estimación.</text>
+
+  <!-- Planner -->
+  <rect class="card" x="32" y="92" width="200" height="320" rx="12"/>
+  <rect class="b1" x="32" y="92" width="200" height="6" rx="3"/>
+  <text class="t" x="48" y="128">Planner</text>
+  <text class="s" x="48" y="148">Tres estados lineales</text>
+  <text class="k" x="48" y="178">COLUMNAS</text>
+  <rect class="chip" x="48" y="188" width="168" height="26" rx="6"/><text class="s" x="60" y="205">Sin iniciar</text>
+  <rect class="chip" x="48" y="220" width="168" height="26" rx="6"/><text class="s" x="60" y="237">En curso</text>
+  <rect class="chip" x="48" y="252" width="168" height="26" rx="6"/><text class="s" x="60" y="269">Completada</text>
+  <text class="k" x="48" y="350">SPRINTS</text><text class="v" x="48" y="370">No</text>
+  <text class="k" x="130" y="350">ESTIMACIÓN</text><text class="v" x="130" y="370">Ninguna</text>
+
+  <!-- Kanban -->
+  <rect class="card" x="264" y="92" width="200" height="320" rx="12"/>
+  <rect class="b2" x="264" y="92" width="200" height="6" rx="3"/>
+  <text class="t" x="280" y="128">Kanban</text>
+  <text class="s" x="280" y="148">Flujo continuo</text>
+  <text class="k" x="280" y="178">COLUMNAS</text>
+  <rect class="chip" x="280" y="188" width="168" height="26" rx="6"/><text class="s" x="292" y="205">Backlog</text>
+  <rect class="chip" x="280" y="220" width="168" height="26" rx="6"/><text class="s" x="292" y="237">Doing</text>
+  <rect class="chip" x="280" y="252" width="168" height="26" rx="6"/><text class="s" x="292" y="269">Done</text>
+  <text class="k" x="280" y="350">SPRINTS</text><text class="v" x="280" y="370">No</text>
+  <text class="k" x="362" y="350">ESTIMACIÓN</text><text class="v" x="362" y="370">Horas</text>
+  <text class="s" x="362" y="390">opcional</text>
+
+  <!-- Scrum -->
+  <rect class="card" x="496" y="92" width="200" height="320" rx="12"/>
+  <rect class="b3" x="496" y="92" width="200" height="6" rx="3"/>
+  <text class="t" x="512" y="128">Scrum</text>
+  <text class="s" x="512" y="148">Backlog, sprints y burndown</text>
+  <text class="k" x="512" y="178">COLUMNAS</text>
+  <rect class="chip" x="512" y="188" width="168" height="26" rx="6"/><text class="s" x="524" y="205">To Do</text>
+  <rect class="chip" x="512" y="220" width="168" height="26" rx="6"/><text class="s" x="524" y="237">In Progress</text>
+  <rect class="chip" x="512" y="252" width="168" height="26" rx="6"/><text class="s" x="524" y="269">In Review</text>
+  <rect class="chip" x="512" y="284" width="168" height="26" rx="6"/><text class="s" x="524" y="301">Done</text>
+  <text class="k" x="512" y="350">SPRINTS</text><text class="v" x="512" y="370">Sí</text>
+  <text class="s" x="512" y="390">con backlog</text>
+  <text class="k" x="594" y="350">ESTIMACIÓN</text><text class="v" x="594" y="370">Puntos</text>
+  <text class="s" x="594" y="390">y horas</text>
+
+  <!-- Custom -->
+  <rect class="card" x="728" y="92" width="200" height="320" rx="12"/>
+  <rect class="b4" x="728" y="92" width="200" height="6" rx="3"/>
+  <text class="t" x="744" y="128">Personalizada</text>
+  <text class="s" x="744" y="148">Parte de un tablero vacío</text>
+  <text class="k" x="744" y="178">COLUMNAS</text>
+  <rect class="free" x="744" y="188" width="168" height="26" rx="6"/><text class="s" x="756" y="205">Las que definas</text>
+  <rect class="free" x="744" y="220" width="168" height="26" rx="6"/><text class="s" x="756" y="237">con tus propios estados</text>
+  <rect class="free" x="744" y="252" width="168" height="26" rx="6"/><text class="s" x="756" y="269">…</text>
+  <text class="k" x="744" y="350">SPRINTS</text><text class="v" x="744" y="370">No</text>
+  <text class="k" x="826" y="350">ESTIMACIÓN</text><text class="v" x="826" y="370">Ninguna</text>
+</svg>

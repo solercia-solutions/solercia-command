@@ -1,0 +1,51 @@
+change: 27-plantillas-idempotentes
+artifact_store: hybrid
+depends_on:
+  - 25-multiempresa-scoping
+phases:
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+artifacts:
+  proposal: true
+  specs: true
+  design: true
+  tasks: true
+capabilities:
+  new: []
+  modified:
+    - org-role-templates
+    - projects
+target_capabilities:
+  - org-role-templates
+  - projects
+constraints:
+  - backend-only
+  - tdd-idempotency-contracts
+  - alembic-migration-required
+  - reversible-migrations
+  - manual-scoping-preserved
+boundary:
+  - "26-admin-empresas NO es prerrequisito tecnico de este cambio; solo 25-multiempresa-scoping lo es (aislamiento por organization_id blindado antes de reconciliar/limpiar datos)"
+  - "Entidad Team, UI/frontend, calendario laboral (28) y edicion de nombre en la vista jerarquica (36) quedan fuera de alcance"
+bug_reference:
+  - "Idempotencia acoplada a lead_user_id: UNIQUE(organization_id, template_id, node_id, lead_user_id) en backend/app/modules/org_role_templates/models.py:110-118"
+  - "ledger_for filtra por lead_user_id en backend/app/modules/org_role_templates/repository.py:92-112 (WHERE en :109)"
+  - "Flujo de duplicacion: backend/app/modules/org_role_templates/service.py:122-189 (instantiate) -> _reconcile_and_commit :191-257"
+last_updated: 2026-07-20T17:26:30Z
+apply_summary:
+  migrations: [0022_add_project_kind, 0023_dedup_ledger_reconcile_trees]
+  suite_full: "1271 passed (baseline 1249 + 22 new)"
+  migration_cycle: "upgrade head / downgrade -2 / upgrade head verified on a disposable db"
+verify_summary:
+  verdict: pass
+  critical: 0
+  warning: 3
+  suggestion: 1
+  suite_full: "1272 passed, 0 failed (1271 previous + 1 new closure-fix test)"
+  closure_fix_commit: "5fe9731a9b7c4441f3bfeba70e0f1b817c8d10fd"
+  closure_note: "CRITICAL resolved: _raise_if_irreconcilable_conflict rejects reinstantiation with 409 template_tree_conflict when a soft-deleted container node still has active children, detected read-only before any write. specs/org-role-templates/spec.md reconciled to the concrete implemented scenario. 3 WARNING + 1 SUGGESTION remain as documented non-blocking tech debt."

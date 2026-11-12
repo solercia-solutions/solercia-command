@@ -1,0 +1,70 @@
+change: 47-solercia-connect-operativo
+artifact_store: hybrid
+depends_on: []
+supersedes:
+  - 38-oauth-ms-google
+amends:
+  - 39-conector-capacidades
+conflicts_with: []
+phases:
+  proposal: done
+  spec: done
+  design: blocked
+  tasks: pending
+  apply: pending
+  verify: pending
+  archive: pending
+artifacts:
+  proposal: true
+  design: true
+  specs: true
+  tasks: false
+capabilities:
+  new:
+    - solercia-connect-connection-lifecycle
+  modified:
+    - connectors
+target_capabilities:
+  - connectors
+  - solercia-connect-connection-lifecycle
+constraints:
+  - official-api-first
+  - explicit-per-attempt-browser-fallback
+  - command-never-handles-provider-secrets
+  - target-aware-bindings
+  - typed-versioned-cross-repository-contract
+  - host-run-connect-runtime
+  - stacked-transient-toasts
+boundary:
+  - "Outlook connection and durable route/status are the first operational slice."
+  - "Cadence and capability execution remain a dependent follow-up."
+  - "OneDrive/TAREAS ingestion is out of scope."
+design_gate:
+  status: failed
+  attempts: 6
+  manual_correction_round: 4
+  reasons:
+    - command-lifecycle-read-fallback-availability-contradiction
+  resolved_reasons:
+    - target-aware-connected-account-migration-contract-incomplete
+    - bounded-session-replay-cancel-bounds-inconsistent
+    - audit-and-secret-redaction-contract-incomplete
+    - repository-transaction-ownership-migration-unspecified
+    - session-store-hygiene-unspecified
+    - lifecycle-http-operation-contract-incomplete
+    - sqlite-session-store-schema-and-atomic-admission-incomplete
+    - terminal-retention-and-replay-contract-contradictory
+    - tenant-scoped-create-connector-idempotency-incomplete
+    - command-http-facade-topology-unspecified
+    - microsoft365-adapter-routing-and-oauth-migration-unspecified
+    - connect-adr-and-security-amendment-missing
+    - session-store-physical-security-controls-incomplete
+    - audit-persistence-and-purge-design-incomplete
+    - sdd-design-structure-and-threat-matrix-incomplete
+    - fallback-capability-server-side-transport-unspecified
+    - migration-0026-physical-reversibility-not-restored
+    - runtime-config-host-routing-file-map-incomplete
+    - toast-runtime-file-map-invalid
+    - testing-strategy-incomplete
+  continuation: "Automatic correction budget exhausted after round-4 validation; do not create sdd-tasks until the response allowlist contradiction is explicitly corrected and revalidated."
+last_updated: 2026-09-01

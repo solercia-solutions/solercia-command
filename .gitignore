@@ -39,6 +39,11 @@ pgdata/
 # --- Tooling / agent artifacts ---
 .atl/
 .playwright-mcp/
+.dev-pids/
+.codegraph/
+
+# --- Strategic / confidential docs (never commit) ---
+docs/estrategia/
 
 # --- Uploaded files ---
 backend/uploads/

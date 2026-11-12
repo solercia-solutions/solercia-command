@@ -1,127 +1,152 @@
+/* Fuentes base de la marca. Las del tema activo (`meta.fonts`) las inyecta
+   ThemeService en un <link> propio; este import garantiza el par base aun con
+   un tema de organización que no declare fuentes. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   Solercia design tokens (--sp-*) — STATIC FALLBACK / first paint.
-   ThemeService re-applies these from assets/themes/default.json at
-   runtime (and can swap them per tenant). Keep this in sync with
-   default.json: colors are RGB channels for alpha support, the rest
-   are raw CSS values.
+   Fallback de tema (--sol-*) — se aplica solo si el JSON del tema aún no
+   cargó. El theming vivo lo gobierna @solercia/ui: `ThemeService`
+   (via provideTheme) emite los tokens --sol-* sobre :root y gestiona el
+   toggle claro/oscuro (clase `.dark` en <html>/<body>). Este bloque DEBE
+   ser espejo de resolveCssVars(solercia-default.theme.json, 'light') (la
+   semántica clara de la identidad índigo por defecto) para evitar un
+   parpadeo antes del primer emit.
+   Las utilidades Tailwind de marca (tailwind.config.js) leen estos mismos
+   tokens, así que el modo oscuro y el retheme por tenant fluyen solos.
    ============================================================ */
 :root {
-  /* color */
-  --sp-brand: 79 70 229;
-  --sp-brand-fg: 255 255 255;
-  --sp-brand-hover: 67 56 202;
-  --sp-brand-soft: 238 242 255;
-  --sp-brand-soft-fg: 67 56 202;
+  --sol-color-primary: #4F46E5;
+  --sol-color-primary-contrast: #FFFFFF;
+  --sol-color-secondary: #7C3AED;
+  --sol-color-accent: #F59E0B;
+  --sol-color-success: #0E9F6E;
+  --sol-color-warning: #D97706;
+  --sol-color-danger: #E02424;
+  --sol-color-info: #2563EB;
+  --sol-color-text-primary: #0A0F1C;
+  --sol-color-text-secondary: #647189;
+  --sol-color-text-muted: #8A99B3;
 
-  --sp-page: 244 246 251;
-  --sp-surface: 255 255 255;
-  --sp-elevated: 255 255 255;
-  --sp-sunken: 237 241 248;
+  --sol-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --sol-font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sol-font-display: 'Manrope', 'Inter', system-ui, sans-serif;
+  --sol-font-size-base: 14px;
+  --sol-font-size-sm: 12px;
+  --sol-font-size-lg: 16px;
+  --sol-font-size-xl: 20px;
+  --sol-font-weight-normal: 400;
+  --sol-font-weight-bold: 600;
+  --sol-line-height: 1.5;
 
-  --sp-text: 11 18 32;
-  --sp-muted: 90 107 133;
-  --sp-subtle: 138 153 179;
+  --sol-border-radius-sm: 8px;
+  --sol-border-radius-md: 10px;
+  --sol-border-radius-lg: 14px;
+  --sol-border-radius-full: 9999px;
+  --sol-border-width-default: 1px;
+  --sol-border-color-default: #E5E9F2;
 
-  --sp-border: 229 233 242;
-  --sp-border-strong: 211 218 232;
+  --sol-size-input-height: 36px;
+  --sol-size-button-height: 36px;
+  --sol-size-component-sm: 32px;
+  --sol-size-component-md: 36px;
+  --sol-size-component-lg: 40px;
+  --sol-size-sidebar-width: 240px;
+  --sol-size-header-height: 64px;
 
-  --sp-success: 14 159 110;
-  --sp-success-soft: 227 245 238;
-  --sp-success-soft-fg: 4 120 87;
-  --sp-warning: 217 119 6;
-  --sp-warning-soft: 253 240 227;
-  --sp-warning-soft-fg: 180 83 9;
-  --sp-danger: 224 36 36;
-  --sp-danger-soft: 253 235 235;
-  --sp-danger-soft-fg: 185 28 28;
-  --sp-info: 37 99 235;
-  --sp-accent: 124 58 237;
-  --sp-ring: 99 102 241;
+  --sol-space-xs: 4px;
+  --sol-space-sm: 8px;
+  --sol-space-md: 16px;
+  --sol-space-lg: 24px;
+  --sol-space-xl: 32px;
 
-  /* radius */
-  --sp-radius-sm: 8px;
-  --sp-radius-md: 10px;
-  --sp-radius-lg: 14px;
-  --sp-radius-xl: 18px;
-  --sp-radius-2xl: 24px;
-  --sp-radius-full: 9999px;
+  --sol-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --sol-shadow-md: 0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --sol-shadow-lg: 0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10);
+  --sol-shadow-card: 0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
 
-  /* shadow */
-  --sp-shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --sp-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
-  --sp-shadow-md: 0 6px 16px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
-  --sp-shadow-lg: 0 16px 36px -10px rgba(15, 23, 42, 0.16), 0 6px 14px -8px rgba(15, 23, 42, 0.10);
-  --sp-shadow-xl: 0 28px 60px -16px rgba(15, 23, 42, 0.22);
+  --sol-z-dropdown: 1000;
+  --sol-z-modal: 1050;
+  --sol-z-tooltip: 1100;
 
-  /* typography */
-  --sp-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --sp-font-display: 'Manrope', 'Inter', system-ui, sans-serif;
-  --sp-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sol-bg-page: #F4F6FB;
+  --sol-bg-surface: #FFFFFF;
+  --sol-bg-sunken: #F4F6FB;
+  --sol-bg-overlay: rgba(10, 15, 28, 0.5);
 
   /* motion */
-  --sp-motion-fast: 120ms;
-  --sp-motion-base: 200ms;
-  --sp-motion-slow: 320ms;
-  --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --sol-dur-slow: 480ms;
+  --sol-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-.dark {
-  --sp-brand: 99 102 241;
-  --sp-brand-fg: 255 255 255;
-  --sp-brand-hover: 129 140 248;
-  --sp-brand-soft: 32 38 74;
-  --sp-brand-soft-fg: 199 210 254;
-
-  --sp-page: 10 15 28;
-  --sp-surface: 19 26 43;
-  --sp-elevated: 27 36 56;
-  --sp-sunken: 14 20 36;
-
-  --sp-text: 230 235 244;
-  --sp-muted: 147 161 184;
-  --sp-subtle: 100 113 137;
-
-  --sp-border: 37 48 74;
-  --sp-border-strong: 54 66 95;
-
-  --sp-success: 52 211 153;
-  --sp-success-soft: 16 36 30;
-  --sp-success-soft-fg: 110 231 183;
-  --sp-warning: 251 191 36;
-  --sp-warning-soft: 42 33 16;
-  --sp-warning-soft-fg: 252 211 77;
-  --sp-danger: 248 113 113;
-  --sp-danger-soft: 44 22 24;
-  --sp-danger-soft-fg: 252 165 165;
-  --sp-info: 96 165 250;
-  --sp-accent: 167 139 250;
-  --sp-ring: 129 140 248;
-
-  /* shadow (deeper on dark surfaces) */
-  --sp-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.40);
-  --sp-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.50), 0 1px 2px -1px rgba(0, 0, 0, 0.40);
-  --sp-shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.60), 0 3px 8px -4px rgba(0, 0, 0, 0.50);
-  --sp-shadow-lg: 0 18px 40px -12px rgba(0, 0, 0, 0.70), 0 6px 14px -8px rgba(0, 0, 0, 0.55);
-  --sp-shadow-xl: 0 30px 64px -16px rgba(0, 0, 0, 0.75);
-}
-
-html,
-body {
-  height: 100%;
-}
-
-body {
+/* ========================================
+   Global reset
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
-  font-family: var(--sp-font-sans);
-  background-color: rgb(var(--sp-page));
-  color: rgb(var(--sp-text));
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  font-family: var(--sol-font-family);
+  font-size: var(--sol-font-size-base);
+  line-height: var(--sol-line-height);
+  color: var(--sol-color-text-primary);
+  background-color: var(--sol-bg-page);
+  /* v2: transición del retheme animado al cambiar de tema/modo (la textura misma
+     vive en body::before — ver bloque de abajo). */
+  transition: background-color 0.45s var(--sol-ease, ease);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Textura de página del tema (solo gradients, sanitizada en ThemeService) en una capa FIJA
+   al viewport, no pintada sobre el propio body: con `html, body { height: 100% }` de arriba,
+   el background-image del body se posicionaba/tileaba contra el alto real del DOCUMENTO (que
+   puede exceder el viewport con contenido largo), repitiéndose en cada franja de scroll con
+   costura visible — más grave en texturas como "glow"/"corners", que usan tamaños de elipse en
+   px absolutos anclados a una esquina, y en "vignette", que asume un único óvalo al 120% del
+   área. position: fixed + inset: 0 desacopla la textura del alto del documento: se pinta UNA
+   sola vez, del tamaño exacto del viewport, sin scrollear con el contenido.
+   z-index: -1 + isolation: isolate (en body, arriba) la deja por debajo de todo el contenido y
+   por encima únicamente del propio background-color del body (que sigue pintándose en body). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--sol-bg-page-texture, none);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+/* ========================================
+   Titulares de página (theming v2)
+   Carácter tipográfico del tema: fuente display, peso, tracking y mayúsculas.
+   Los selectores h1./h2. ganan por especificidad a los estilos de cada page.
+   ======================================== */
+h1.sol-display,
+h2.sol-display,
+.sol-display {
+  font-family: var(--sol-font-display, var(--sol-font-family));
+  font-weight: var(--sol-display-weight, var(--sol-font-weight-bold, 600));
+  letter-spacing: var(--sol-display-tracking, 0em);
+  text-transform: var(--sol-display-transform, none);
 }
 
 /* Tabular figures for dashboard metrics so numbers don't jiggle. */
@@ -130,33 +155,8 @@ body {
   font-feature-settings: 'tnum' 1;
 }
 
-:focus-visible {
-  outline: 2px solid rgb(var(--sp-ring));
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
 ::selection {
-  background: rgb(var(--sp-brand) / 0.18);
-}
-
-/* Slim custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgb(var(--sp-subtle) / 0.45);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--sp-subtle) / 0.7);
-  background-clip: padding-box;
+  background: color-mix(in srgb, var(--sol-color-primary) 18%, transparent);
 }
 
 /* Entry animation — one tasteful reveal on route content.
@@ -164,7 +164,7 @@ body {
    translateY(0)) turns this element into the containing block for
    position:fixed descendants, which would push modals/overlays out of the
    viewport. Default fill-mode reverts to no transform once the run ends. */
-@keyframes sp-fade-in {
+@keyframes sol-fade-in {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -174,34 +174,300 @@ body {
     transform: translateY(0);
   }
 }
-.sp-animate-in {
-  animation: sp-fade-in var(--sp-motion-slow) var(--sp-ease);
+.sol-animate-in {
+  animation: sol-fade-in var(--sol-dur-slow, 320ms) var(--sol-ease, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
-/* Open animations for overlays (modal backdrop/panel, dropdown panel).
-   Token-driven; no fill-mode so no transform lingers after the run. */
-@keyframes bk-backdrop-in {
+/* ========================================
+   Motion v2 (Paso 3) — keyframes globales compartidos
+   Los keyframes NO llevan duración/easing: eso lo aportan los tokens
+   (--sol-dur-*, --sol-ease-*) en cada punto de uso. Con intensity "none"
+   o prefers-reduced-motion las duraciones emitidas son ~1ms y
+   --sol-reveal-dist es 0 → sin movimiento perceptible.
+   Cada keyframe de reveal tiene un duplicado "B" idéntico: alternar
+   nombre base ↔ B reinicia la animación (replay al filtrar).
+   ======================================== */
+@keyframes solRevealRise {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes solRevealRiseB {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes solRevealFade {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
-@keyframes bk-modal-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+@keyframes solRevealFadeB {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-@keyframes bk-pop-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+
+/* Pensado para easing con rebote (--sol-ease-entrance del tema). */
+@keyframes solRevealPop {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.bk-anim-backdrop {
-  animation: bk-backdrop-in var(--sp-motion-base) var(--sp-ease);
+@keyframes solRevealPopB {
+  from { opacity: 0; transform: translateY(var(--sol-reveal-dist, 12px)) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.bk-anim-modal {
-  animation: bk-modal-in var(--sp-motion-base) var(--sp-ease);
-  transform-origin: center;
+
+/* Deslizamiento horizontal de entrada (usa --sol-reveal-dist como recorrido en X). */
+@keyframes solRevealSlide {
+  from { opacity: 0; transform: translateX(calc(-1 * var(--sol-reveal-dist, 12px))); }
+  to   { opacity: 1; transform: translateX(0); }
 }
-.bk-anim-pop {
-  animation: bk-pop-in var(--sp-motion-fast) var(--sp-ease);
-  transform-origin: top;
+@keyframes solRevealSlideB {
+  from { opacity: 0; transform: translateX(calc(-1 * var(--sol-reveal-dist, 12px))); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Zoom de entrada: escala desde 0.94 con un leve desplazamiento vertical. */
+@keyframes solRevealZoom {
+  from { opacity: 0; transform: scale(0.94) translateY(calc(var(--sol-reveal-dist, 12px) * 0.4)); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes solRevealZoomB {
+  from { opacity: 0; transform: scale(0.94) translateY(calc(var(--sol-reveal-dist, 12px) * 0.4)); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Anillo que se expande y se desvanece (badges/celebración — Paso 7). */
+@keyframes solPing {
+  from { transform: scale(1); opacity: 0.7; }
+  to   { transform: scale(2.2); opacity: 0; }
+}
+
+/* Barrido de gradiente para skeletons (Paso 5): el consumidor define
+   background-image + background-size; aquí solo se anima la posición. */
+@keyframes solShimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+/* ========================================
+   Celebración (Paso 7) — widgets/celebration
+   Confeti con caída 3D (el contenedor aporta perspective: 700px) y burst
+   de emojis central. --sway es la deriva lateral por pieza (±110px),
+   generada en TS al montar. Duración/delay también por pieza (inline).
+   ======================================== */
+@keyframes solConfettiFall {
+  from {
+    transform: translate3d(0, -14vh, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(var(--sway, 0px), 110vh, 60px)
+      rotateX(1080deg) rotateY(720deg) rotateZ(420deg);
+    opacity: 0.85;
+  }
+}
+
+/* Emoji: entra desde abajo en escala 0.2, rebota a 1.3 y sale hacia arriba. */
+@keyframes solBurst {
+  0%   { transform: translate(-50%, 70px) scale(0.2); opacity: 0; }
+  28%  { transform: translate(-50%, -12px) scale(1.3); opacity: 1; }
+  52%  { transform: translate(-50%, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -110px) scale(0.85); opacity: 0; }
+}
+
+/* ========================================
+   Reveal al hacer scroll — estado que agrega [solReveal] (@solercia/ui)
+   - El keyframe lo elige el tema vía --sol-reveal-name.
+   - Fill "backwards": cubre el delay del stagger con el estado "from" y al
+     terminar devuelve el control a los estilos normales (no pisa el
+     transform de hover-lift de cards ni rompe descendientes position:fixed,
+     cosa que pasaría con un fill "both"/"forwards" permanente).
+   - Stagger: ~60ms por índice con los defaults (--sol-dur-fast 120ms / 2),
+     escalado por intensity/reduced-motion porque sale del token.
+   ======================================== */
+.sol-reveal-in {
+  animation: var(--sol-reveal-name, solRevealFade) var(--sol-dur-slow, 480ms) var(--sol-ease-entrance, ease-out) backwards;
+  animation-delay: calc(var(--sol-reveal-index, 0) * var(--sol-dur-fast, 120ms) / 2);
+}
+
+/* Replay: la directiva deriva --sol-reveal-name-b (nombre base + "B") y
+   alterna esta clase para reiniciar la animación sin clonar nodos. */
+.sol-reveal-in--replay {
+  animation-name: var(--sol-reveal-name-b, solRevealFadeB);
+}
+
+/* Accessible focus */
+:focus-visible {
+  outline: 2px solid var(--sol-color-primary);
+  outline-offset: 2px;
+}
+
+/* Screen reader only */
+.sol-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ========================================
+   Scrollbars — thin, theme-tinted. Firefox via scrollbar-width/scrollbar-color;
+   WebKit/Blink via the ::-webkit-scrollbar pseudo-elements. A translucent
+   color-mix() over the secondary text color reads correctly on every
+   light/dark variant a tenant theme can define, with no separate dark-mode
+   override needed.
+   ======================================== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--sol-color-text-secondary, #6b7280) 35%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--sol-color-text-secondary, #6b7280) 35%, transparent);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--sol-color-text-secondary, #6b7280) 55%, transparent);
+}
+
+/* ------------------------------------------------------------------------
+   Presets de tabla del tema en las tablas `sol-data-table` de @solercia/ui.
+   AppComponent fija `data-sol-table="<preset>"` sobre <html> a partir de
+   `meta.tableStyle` del tema activo, y estas reglas pintan exactamente lo que
+   muestra el preview del Theme Studio. Los tokens `--sol-table-*` derivan de
+   la paleta viva, así que reaccionan a claro/oscuro sin bloque propio.
+   Especificidad (0,2,1) o más contra las reglas emuladas de la librería
+   (0,2,0): ganan sin !important.
+   ------------------------------------------------------------------------ */
+:root {
+  --sol-table-header-bg: color-mix(in srgb, var(--sol-color-primary, #4F46E5) 8%, var(--sol-bg-surface, #FFFFFF));
+  --sol-table-header-strong-bg: color-mix(in srgb, var(--sol-color-primary, #4F46E5) 16%, var(--sol-bg-surface, #FFFFFF));
+  --sol-table-zebra: color-mix(in srgb, var(--sol-color-text-primary, #0A0F1C) 4%, transparent);
+  --sol-table-band: color-mix(in srgb, var(--sol-color-primary, #4F46E5) 7%, transparent);
+  --sol-table-cell-border: var(--sol-border-color-default, #E5E9F2);
+  --sol-table-hover: color-mix(in srgb, var(--sol-color-text-primary, #0A0F1C) 6%, transparent);
+}
+
+/* Base con preset activo: cabecera con el tinte del tema, texto secundario,
+   mayúsculas compactas. */
+html[data-sol-table] .sol-data-table__th {
+  background: var(--sol-table-header-bg);
+  color: var(--sol-color-text-secondary);
+  font-size: var(--sol-font-size-sm, 12px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+html[data-sol-table] .sol-data-table__tr {
+  border-bottom: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+}
+/* Filas alternas: todos los presets menos "clean" las llevan (igual que el preview). */
+html[data-sol-table]:not([data-sol-table="clean"]) .sol-data-table__table > tbody > .sol-data-table__tr:nth-of-type(odd) {
+  background: var(--sol-table-zebra);
+}
+/* banded — banda cada tercera fila, encima de la zebra. */
+html[data-sol-table="banded"] .sol-data-table__table > tbody > .sol-data-table__tr:nth-of-type(3n) {
+  background: var(--sol-table-band);
+}
+/* Hover: el atributo repetido iguala la especificidad de las reglas de fila de
+   arriba (0,5,2) y gana por orden, para que el hover se vea también sobre las
+   filas con tinte. */
+html[data-sol-table][data-sol-table] .sol-data-table__table > tbody > .sol-data-table__tr:hover {
+  background: var(--sol-table-hover);
+}
+/* bordered — rejilla completa, incluida la última fila (la librería le quita el
+   borde inferior con una regla (0,5,0); esta la iguala en clases y gana). */
+html[data-sol-table="bordered"] .sol-data-table__table {
+  border: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+}
+html[data-sol-table="bordered"] .sol-data-table__th,
+html[data-sol-table="bordered"] .sol-data-table__td,
+html[data-sol-table="bordered"] .sol-data-table__table .sol-data-table__tr:last-child > .sol-data-table__td {
+  border: var(--sol-border-width-default, 1px) solid var(--sol-table-cell-border);
+}
+/* emphasis-header — cabecera con tinte más marcado y texto en el color primario. */
+html[data-sol-table="emphasis-header"] .sol-data-table__th {
+  background: var(--sol-table-header-strong-bg);
+  color: var(--sol-color-primary);
+}
+
+/* ------------------------------------------------------------------------
+   Loader/spinner del tema en el shell. AppComponent escribe
+   `--sol-loader-image`, `--sol-loader-animation-name` y `data-sol-loader`
+   sobre <html> desde `meta.loader` del tema activo, y cualquier elemento
+   `.sol-loader__spinner` se pinta como el spinner configurado (anillo por
+   tokens, o la imagen del tenant si la hay).
+   ------------------------------------------------------------------------ */
+:root {
+  --sol-loader-color: var(--sol-color-primary, #4F46E5);
+  --sol-loader-track: color-mix(in srgb, var(--sol-color-text-primary, #0A0F1C) 14%, transparent);
+  --sol-loader-size: 44px;
+  --sol-loader-animation-duration: 0.8s;
+}
+@keyframes sol-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sol-loader-pulse {
+  0%, 100% { transform: scale(0.72); opacity: 0.55; }
+  50% { transform: scale(1); opacity: 1; }
+}
+@keyframes sol-loader-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+}
+.sol-loader__spinner {
+  display: inline-block;
+  width: var(--sol-loader-size, 44px);
+  height: var(--sol-loader-size, 44px);
+  border-radius: var(--sol-border-radius-full, 9999px);
+  border: 3px solid var(--sol-loader-track);
+  border-top-color: var(--sol-loader-color);
+  background-image: var(--sol-loader-image, none);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  animation: var(--sol-loader-animation-name, sol-loader-spin) var(--sol-loader-animation-duration, 0.8s) linear infinite;
+}
+/* Con imagen del tenant el anillo estorba: queda solo la imagen animada. */
+html[style*="--sol-loader-image"] .sol-loader__spinner {
+  border-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sol-loader__spinner {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   Selector de organización en el header móvil. Bajo el corte de 768px el
+   header no tiene ancho para el logo, el botón de tema, el selector, la
+   campana y el menú de usuario a la vez: con el nombre visible, las
+   acciones tapan el logo. El disparador se reduce a su avatar: conserva su
+   rótulo accesible, y el nombre y el rol se leen al abrir el panel.
+   Con una sola organización la librería pinta la variante estática (sin
+   disparador ni panel), que desborda igual: también queda en su avatar, que
+   lleva el nombre como rótulo accesible.
+   Especificidad (0,2,1) contra la regla emulada de la librería (0,2,0):
+   gana sin !important.
+   ------------------------------------------------------------------------ */
+@media (max-width: 767px) {
+  sol-org-switcher .sol-scope-switcher__trigger .sol-scope-switcher__labels,
+  sol-org-switcher .sol-scope-switcher__static .sol-scope-switcher__labels {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,247 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { apiBase } from '@shared/api/api.config';
+import { skipGlobalErrorHandling } from '@shared/api/error-handling.context';
+import {
+  BurndownResponse,
+  CreateSprintPayload,
+  CreateTaskPayload,
+  MemberListResponse,
+  SprintClosePayload,
+  SprintCloseResponse,
+  SprintItemResponse,
+  SprintListResponse,
+  SprintSuggestedNameResponse,
+  TaskItemResponse,
+  TaskListResponse,
+  TaskReorderPayload,
+  UpdateSprintPayload,
+  UpdateTaskPayload,
+  VelocityResponse,
+} from './workspace.model';
+
+/** Optional filters for the project task list. */
+export interface TaskQuery {
+  sprint_id?: string;
+  status?: string;
+  assignee_id?: string;
+  /** Exact task type (e.g. 'epic'). */
+  task_type?: string;
+  /** Direct children of a task (epic → stories/tasks). */
+  parent_task_id?: string;
+  /** Include subtasks flat alongside top-level tasks in the same listing
+   * (change 32-jerarquia-subtareas); omitted/false preserves the previous
+   * top-level-only listing (board/Gantt). */
+  include_subtasks?: boolean;
+  /** Calendar year of `created_at` (America/Bogota); omitted = every year. */
+  year?: number;
+  /** Exact priority (`critical` | `high` | `medium` | `low`). */
+  priority?: string;
+  /** Free text over title/description (server-side). */
+  q?: string;
+}
+
+/** `GET /projects/{id}/tasks/years`: creation years with data, newest first. */
+export interface TaskYearsResponse {
+  data: number[];
+  meta?: { total: number };
+}
+
+/**
+ * Thin HTTP client for the project workspace resources: members, tasks and
+ * sprints. All endpoints are tenant-scoped server-side via the bearer token.
+ *
+ * Every call opts out of the global error handler: the workspace, the task
+ * panel and the teams page already show their own inline error (or roll the
+ * optimistic change back).
+ */
+@Injectable({ providedIn: 'root' })
+export class WorkspaceService {
+  private readonly http = inject(HttpClient);
+
+  /* ---- Members ----------------------------------------------------------- */
+
+  members(projectId: string): Observable<MemberListResponse> {
+    return this.http.get<MemberListResponse>(
+      `${apiBase}/projects/${projectId}/members`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /* ---- Tasks ------------------------------------------------------------- */
+
+  tasks(projectId: string, query: TaskQuery = {}): Observable<TaskListResponse> {
+    let params = new HttpParams();
+    if (query.sprint_id) {
+      params = params.set('sprint_id', query.sprint_id);
+    }
+    if (query.status) {
+      params = params.set('status', query.status);
+    }
+    if (query.assignee_id) {
+      params = params.set('assignee_id', query.assignee_id);
+    }
+    if (query.task_type) {
+      params = params.set('task_type', query.task_type);
+    }
+    if (query.parent_task_id) {
+      params = params.set('parent_task_id', query.parent_task_id);
+    }
+    if (query.include_subtasks) {
+      params = params.set('include_subtasks', 'true');
+    }
+    if (query.year != null) {
+      params = params.set('year', String(query.year));
+    }
+    if (query.priority) {
+      params = params.set('priority', query.priority);
+    }
+    if (query.q) {
+      params = params.set('q', query.q);
+    }
+    return this.http.get<TaskListResponse>(
+      `${apiBase}/projects/${projectId}/tasks`,
+      { params, context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Creation years (Bogotá calendar) that have tasks in the project. */
+  taskYears(projectId: string): Observable<TaskYearsResponse> {
+    return this.http.get<TaskYearsResponse>(
+      `${apiBase}/projects/${projectId}/tasks/years`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  createTask(
+    projectId: string,
+    payload: CreateTaskPayload,
+  ): Observable<TaskItemResponse> {
+    return this.http.post<TaskItemResponse>(
+      `${apiBase}/projects/${projectId}/tasks`,
+      payload,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  getTask(taskId: string): Observable<TaskItemResponse> {
+    return this.http.get<TaskItemResponse>(`${apiBase}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
+  }
+
+  updateTask(
+    taskId: string,
+    payload: UpdateTaskPayload,
+  ): Observable<TaskItemResponse> {
+    return this.http.patch<TaskItemResponse>(
+      `${apiBase}/tasks/${taskId}`,
+      payload,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  deleteTask(taskId: string): Observable<void> {
+    return this.http.delete<void>(`${apiBase}/tasks/${taskId}`, {
+      context: skipGlobalErrorHandling(),
+    });
+  }
+
+  /** Moves a task to a sprint (or Backlog) and reindexes the destination
+   * container's order in one transaction (change 31-backlog-drag-drop:
+   * drag & drop drop handler and the "Mover a…" keyboard menu). */
+  reorderTasks(payload: TaskReorderPayload): Observable<TaskItemResponse> {
+    return this.http.post<TaskItemResponse>(`${apiBase}/tasks/reorder`, payload, {
+      context: skipGlobalErrorHandling(),
+    });
+  }
+
+  /* ---- Sprints ----------------------------------------------------------- */
+
+  /** Change 30-backlog-sprints-agrupados: no se agrega un endpoint dedicado
+   * de agregados (alternativa descartada en design.md D1) — este mismo
+   * envelope ya trae `data[].story_count/estimation_hours_sum` y
+   * `meta.backlog` gracias al tipo `SprintListResponse` actualizado. */
+  sprints(projectId: string): Observable<SprintListResponse> {
+    return this.http.get<SprintListResponse>(
+      `${apiBase}/projects/${projectId}/sprints`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  createSprint(
+    projectId: string,
+    payload: CreateSprintPayload,
+  ): Observable<SprintItemResponse> {
+    return this.http.post<SprintItemResponse>(
+      `${apiBase}/projects/${projectId}/sprints`,
+      payload,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  updateSprint(
+    sprintId: string,
+    payload: UpdateSprintPayload,
+  ): Observable<SprintItemResponse> {
+    return this.http.patch<SprintItemResponse>(
+      `${apiBase}/sprints/${sprintId}`,
+      payload,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Transition a `draft` sprint to `active`. Requires both dates already set. */
+  startSprint(sprintId: string): Observable<SprintItemResponse> {
+    return this.http.post<SprintItemResponse>(
+      `${apiBase}/sprints/${sprintId}/start`,
+      {},
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Suggested (non-persisted) name for the project's next sprint. */
+  suggestedSprintName(
+    projectId: string,
+  ): Observable<SprintSuggestedNameResponse> {
+    return this.http.get<SprintSuggestedNameResponse>(
+      `${apiBase}/projects/${projectId}/sprints/suggested-name`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Burndown series for a sprint (ideal vs actual remaining work). */
+  burndown(
+    projectId: string,
+    sprintId: string,
+  ): Observable<BurndownResponse> {
+    return this.http.get<BurndownResponse>(
+      `${apiBase}/projects/${projectId}/sprints/${sprintId}/burndown`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /**
+   * Close a sprint via the dedicated close endpoint. Computes completed_points
+   * and moves incomplete tasks to the backlog or a target sprint.
+   */
+  closeSprint(
+    sprintId: string,
+    payload: SprintClosePayload = {},
+  ): Observable<SprintCloseResponse> {
+    return this.http.post<SprintCloseResponse>(
+      `${apiBase}/sprints/${sprintId}/close`,
+      payload,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+
+  /** Velocity report: completed points per closed sprint + projections. */
+  velocity(projectId: string): Observable<VelocityResponse> {
+    return this.http.get<VelocityResponse>(
+      `${apiBase}/projects/${projectId}/velocity`,
+      { context: skipGlobalErrorHandling() },
+    );
+  }
+}

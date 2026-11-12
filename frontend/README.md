@@ -1,6 +1,6 @@
-# Solercia PM — Frontend
+# Solercia Command — Frontend
 
-Aplicación web del gestor de proyectos Solercia. Construida con **Angular 20**
+Aplicación web de Solercia Command para coordinar proyectos y trabajo multi-tenant. Construida con **Angular 20**
 (componentes standalone + signals) y **Tailwind CSS 3** con tema claro/oscuro.
 
 ## Tecnología
