@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 import { SolButtonComponent, SolSelectComponent, SolSpinnerComponent } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
 import { AlertService } from '@shared/lib/alerts';
@@ -72,6 +72,13 @@ import { Project } from '@entities/project/project.model';
             <sol-spinner size="sm" />
             <span>{{ text.loading() }}</span>
           </div>
+        } @else if (mappingError(); as message) {
+          <div class="gr__alert" role="alert">
+            <span>{{ message }}</span>
+            <sol-button type="button" variant="secondary" size="sm" (clicked)="selectProject(projectId())">
+              {{ text.retry() }}
+            </sol-button>
+          </div>
         } @else if (filtered().length === 0) {
           <p class="gr__muted">{{ text.noMatches() }}</p>
         } @else {
@@ -90,7 +97,9 @@ import { Project } from '@entities/project/project.model';
           </fieldset>
         }
 
-        <p class="gr__muted">{{ selectionSummary() }}</p>
+        @if (mappingReady()) {
+          <p class="gr__muted">{{ selectionSummary() }}</p>
+        }
         @if (saveError(); as message) {
           <div class="gr__alert" role="alert"><span>{{ message }}</span></div>
         }
@@ -100,7 +109,7 @@ import { Project } from '@entities/project/project.model';
             variant="primary"
             size="touch"
             [loading]="saving()"
-            [disabled]="!dirty() || mappingLoading()"
+            [disabled]="!canSave()"
             (clicked)="save()"
           >
             {{ saving() ? text.saving() : text.save() }}
@@ -164,6 +173,12 @@ export class GitlabRepositoriesComponent implements OnInit {
   protected readonly query = signal('');
 
   protected readonly mappingLoading = signal(false);
+  protected readonly mappingError = signal<string | null>(null);
+  /** Project whose saved mapping is loaded; Save stays off until it matches. */
+  private readonly mappingLoadedFor = signal<string | null>(null);
+  /** Only the latest mapping request may update the state (fast switching). */
+  private mappingRequest = 0;
+  private mappingSub: Subscription | null = null;
   protected readonly saved = signal<ReadonlySet<string>>(new Set());
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly saving = signal(false);
@@ -184,6 +199,16 @@ export class GitlabRepositoriesComponent implements OnInit {
     const b = this.selected();
     return a.size !== b.size || [...b].some((path) => !a.has(path));
   });
+
+  protected readonly mappingReady = computed(
+    () =>
+      !this.mappingLoading() &&
+      this.mappingLoadedFor() !== null &&
+      this.mappingLoadedFor() === this.projectId(),
+  );
+
+  /** Saving with an unloaded mapping would erase the project's existing links. */
+  protected readonly canSave = computed(() => this.mappingReady() && this.dirty() && !this.saving());
 
   protected readonly selectionSummary = computed(() => {
     this.i18n.activeLang();
@@ -217,21 +242,34 @@ export class GitlabRepositoriesComponent implements OnInit {
   }
 
   protected selectProject(projectId: string): void {
+    this.mappingSub?.unsubscribe();
+    const request = ++this.mappingRequest;
     this.projectId.set(projectId);
     this.saveError.set(null);
+    this.mappingError.set(null);
+    this.mappingLoadedFor.set(null);
+    this.saved.set(new Set());
+    this.selected.set(new Set());
     this.mappingLoading.set(true);
-    this.gitlab
+    this.mappingSub = this.gitlab
       .projectRepositories(projectId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
+          if (request !== this.mappingRequest) {
+            return;
+          }
           const current = new Set(res.data.repositories);
           this.saved.set(current);
           this.selected.set(new Set(current));
+          this.mappingLoadedFor.set(projectId);
           this.mappingLoading.set(false);
         },
         error: (err: unknown) => {
-          this.saveError.set(this.errorMessage(err, 'gitlab.repositories.loadError'));
+          if (request !== this.mappingRequest) {
+            return;
+          }
+          this.mappingError.set(this.errorMessage(err, 'gitlab.repositories.loadError'));
           this.mappingLoading.set(false);
         },
       });
@@ -249,7 +287,7 @@ export class GitlabRepositoriesComponent implements OnInit {
 
   protected save(): void {
     const projectId = this.projectId();
-    if (!projectId || this.saving()) {
+    if (!projectId || !this.canSave()) {
       return;
     }
     this.saving.set(true);
@@ -259,11 +297,14 @@ export class GitlabRepositoriesComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
+          this.saving.set(false);
+          this.alert.showSuccess(this.i18n.translate('gitlab.repositories.saved'));
+          if (projectId !== this.projectId()) {
+            return; // The person moved to another project while saving.
+          }
           const current = new Set(res.data.repositories);
           this.saved.set(current);
           this.selected.set(new Set(current));
-          this.saving.set(false);
-          this.alert.showSuccess(this.i18n.translate('gitlab.repositories.saved'));
         },
         error: (err: unknown) => {
           this.saving.set(false);
