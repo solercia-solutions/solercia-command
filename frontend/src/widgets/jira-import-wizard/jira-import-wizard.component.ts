@@ -36,7 +36,11 @@ type LoadState = 'idle' | 'loading' | 'error' | 'ready';
 const CODE_RE = /^[A-Z0-9]{2,10}$/;
 /** Above this many projects the list gets a search box (Hick). */
 const SEARCH_THRESHOLD = 7;
-/** Error codes with their own wizard message (others fall back to the API detail). */
+/**
+ * Error codes with their own wizard message (others fall back to the API detail).
+ * `jira_project_too_large` stays out on purpose: its detail names the limit and
+ * the JIRA_IMPORT_MAX_ISSUES setting, which a fixed message would lose.
+ */
 const KNOWN_ERRORS = new Set([
   'jira_credentials_missing',
   'jira_auth_error',

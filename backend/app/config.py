@@ -286,6 +286,11 @@ class Settings(BaseSettings):
     JIRA_TIMEOUT_SECONDS: float = 10.0
     JIRA_PAGE_SIZE: int = 100
     JIRA_MAX_PAGES: int = 20
+    # Techo de issues al traer un proyecto completo (vista previa e
+    # importación por proyecto). Si se alcanza y Jira reporta más páginas,
+    # la importación se rechaza (422 `jira_project_too_large`): nunca se
+    # trata un proyecto parcial como completo.
+    JIRA_IMPORT_MAX_ISSUES: int = 20_000
     JIRA_MAX_RETRIES: int = 3
     # Techo del backoff ante 429 — mismo criterio que
     # `GLPI_MAX_BACKOFF_SECONDS`/`M365_MAX_BACKOFF_SECONDS`.

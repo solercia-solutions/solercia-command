@@ -98,3 +98,4 @@ Puedes repetir la importación cuantas veces necesites; **nunca duplica**:
 | El proyecto ya no está disponible | Revisa que la cuenta conserve el permiso «Examinar proyectos» |
 | Jira está limitando las solicitudes | Espera unos minutos y reintenta |
 | El código ya está en uso | Cambia el código del proyecto en el paso «Revisar» |
+| El proyecto de Jira tiene más issues de los que admite la importación | Sube `JIRA_IMPORT_MAX_ISSUES` (por defecto 20000) en la configuración del backend y reintenta; no se guarda nada mientras tanto |

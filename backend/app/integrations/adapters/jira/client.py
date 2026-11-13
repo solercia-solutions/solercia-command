@@ -185,11 +185,22 @@ class JiraClient:
         return payload
 
     async def list_issues(
-        self, jql: str, fields: Sequence[str], *, since: Any = None
+        self,
+        jql: str,
+        fields: Sequence[str],
+        *,
+        since: Any = None,
+        max_issues: int | None = None,
     ) -> list[dict[str, Any]]:
         """Follow ``nextPageToken`` until ``isLast=true`` or
         ``JIRA_MAX_PAGES`` is reached, whichever comes first — a
         misbehaving server can never trap this in an unbounded loop.
+
+        ``max_issues`` switches to the whole-project contract: the page
+        bound becomes ``ceil(max_issues / JIRA_PAGE_SIZE)`` and, when it (or
+        ``max_issues`` itself) is reached while Jira still reports more
+        pages, :class:`~app.integrations.adapters.jira.errors.JiraProjectTooLarge`
+        is raised instead of returning a silently truncated list.
 
         specs/jira-import/spec.md "Reintentos agotados": a
         :class:`~app.integrations.adapters.jira.errors.JiraRateLimited`
@@ -206,8 +217,14 @@ class JiraClient:
         items: list[dict[str, Any]] = []
         next_token: str | None = None
         pages = 0
+        page_size = max(self._settings.JIRA_PAGE_SIZE, 1)
+        max_pages = (
+            self._settings.JIRA_MAX_PAGES
+            if max_issues is None
+            else max(-(-max_issues // page_size), 1)
+        )
 
-        while pages < self._settings.JIRA_MAX_PAGES:
+        while pages < max_pages:
             try:
                 page = await self.search_page(
                     effective_jql, fields, next_page_token=next_token
@@ -225,6 +242,12 @@ class JiraClient:
             next_token = page.get("nextPageToken")
             if next_token is None:
                 break
+            if max_issues is not None and len(items) >= max_issues:
+                raise errors.JiraProjectTooLarge(max_issues)
+        else:
+            if max_issues is not None:
+                # Page bound reached and the last page was not `isLast`.
+                raise errors.JiraProjectTooLarge(max_issues)
 
         return items
 

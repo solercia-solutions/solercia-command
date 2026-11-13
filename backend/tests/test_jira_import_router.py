@@ -878,3 +878,138 @@ class TestReadOnlyEndpointsUnchanged:
 
         assert response.status_code == 200, response.text
         assert await _counts(session) == before
+
+
+# ---------------------------------------------------------------------------
+# Whole-project fetch bound: preview/import-project never truncate silently
+# ---------------------------------------------------------------------------
+
+
+def _paged_project_handler(issues: list[dict], *, page_size: int):
+    """`/search/jql` served in pages of `page_size` via `nextPageToken`."""
+
+    fields = _load_fixture("fields.json")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/rest/api/3/myself":
+            return httpx.Response(200, json=_MYSELF_PAYLOAD)
+        if path == "/rest/api/3/field":
+            return httpx.Response(200, json=fields)
+        if path == "/rest/api/3/search/jql":
+            start = int(request.url.params.get("nextPageToken") or 0)
+            chunk = issues[start : start + page_size]
+            end = start + len(chunk)
+            if end >= len(issues):
+                return httpx.Response(200, json={"issues": chunk, "isLast": True})
+            return httpx.Response(
+                200, json={"issues": chunk, "isLast": False, "nextPageToken": str(end)}
+            )
+        return httpx.Response(404, json={"errorMessages": ["not mocked"]})
+
+    return handler
+
+
+def _bounded_settings():
+    from app.config import Settings
+
+    return Settings(JIRA_PAGE_SIZE=2, JIRA_MAX_PAGES=1, JIRA_IMPORT_MAX_ISSUES=4)  # type: ignore[call-arg]
+
+
+def _bugs(count: int) -> list[dict]:
+    return [_raw_issue(f"PROJ-{n}", "Bug") for n in range(1, count + 1)]
+
+
+async def _bounded_connector(client: AsyncClient, token: str, issues: list[dict]) -> str:
+    register_adapter(
+        JiraAdapter(
+            transport=httpx.MockTransport(_paged_project_handler(issues, page_size=2)),
+            settings=_bounded_settings(),
+        )
+    )
+    return await _create_connector_and_credentials(client, token)
+
+
+class TestJiraProjectSizeBound:
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_preview_of_a_project_over_the_bound_is_422_and_writes_nothing(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _bounded_connector(client, two_orgs.a.token, _bugs(5))
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/preview",
+            json={"project_key": "PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        body = response.json()
+        assert body["code"] == "jira_project_too_large"
+        assert "4" in body["detail"]
+        assert "JIRA_IMPORT_MAX_ISSUES" in body["detail"]
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_import_project_over_the_bound_is_422_and_persists_nothing(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _bounded_connector(client, two_orgs.a.token, _bugs(5))
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            json={"project_key": "PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "jira_project_too_large"
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_import_project_at_the_bound_imports_every_issue(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        # 4 issues in 2 pages: more pages than JIRA_MAX_PAGES would allow for the
+        # preview-only endpoint (1), still within JIRA_IMPORT_MAX_ISSUES (4).
+        connector_id = await _bounded_connector(client, two_orgs.a.token, _bugs(4))
+        before = await _counts(session)
+
+        preview = await client.post(
+            f"/connectors/{connector_id}/jira/preview",
+            json={"project_key": "PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            json={"project_key": "PROJ", "project_code": "BND"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert preview.status_code == 200, preview.text
+        assert preview.json()["data"]["total"] == 4
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["tasks"]["created"] == 4
+        assert await _counts(session) == (before[0] + 1, before[1], before[2] + 4)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_legacy_import_endpoint_keeps_its_page_bound_without_error(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        # The preview-only `import` endpoint keeps JIRA_MAX_PAGES (1 x 2) as before.
+        connector_id = await _bounded_connector(client, two_orgs.a.token, _bugs(6))
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import",
+            json={"jql": "project = PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 200, response.text
+        assert len(response.json()["data"]["issues"]) == 2

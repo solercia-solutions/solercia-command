@@ -90,6 +90,7 @@ class AdapterIssueSource:
             api_token=self._api_token,
             jql=jql,
             jira_settings=self._jira_settings,
+            whole_project=True,
         )
 
 
