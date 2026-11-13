@@ -100,9 +100,10 @@ export class TenantThemeService {
    * Studio never writes the filled values back.
    */
   private applyTenant(file: ThemeFile | null): void {
-    this.theme.setTenantTheme(
-      file && this.defaults ? fillContrastDefaults(file, this.defaults) : file,
-    );
+    const filled = file && this.defaults ? fillContrastDefaults(file, this.defaults) : file;
+    // The filled values are aliases ({color.white}); if the org theme lacks
+    // that primitive, keep the theme as saved rather than lose it entirely.
+    this.theme.setTenantTheme(filled && isRenderableTheme(filled) ? filled : file);
   }
 
   /** Reset the organization to the bundled default theme. */

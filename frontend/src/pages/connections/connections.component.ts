@@ -1115,7 +1115,9 @@ export class ConnectionsComponent implements OnInit {
 
   protected submitCredentials(): void {
     const target = this.credentialsFor();
-    if (!target) {
+    // While a GitLab create (or its rollback) is in flight, a retry would
+    // collide with the connector that is still active.
+    if (!target || this.gitlabCreating()) {
       return;
     }
 
