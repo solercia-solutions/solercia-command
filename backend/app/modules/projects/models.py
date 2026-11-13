@@ -20,6 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import text
 
 from app.database import Base
 from app.shared.base_model import (
@@ -57,6 +58,16 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
             "description",
             postgresql_using="gin",
             postgresql_ops={"description": "gin_trgm_ops"},
+        ),
+        # External origin anchor (Jira import): one project per
+        # (organization, source, external_key); rows without a key never collide.
+        Index(
+            "uq_projects_org_source_external_key",
+            "organization_id",
+            "source",
+            "external_key",
+            unique=True,
+            postgresql_where=text("external_key IS NOT NULL"),
         ),
     )
 
@@ -125,6 +136,10 @@ class Project(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixin,
     working_days: Mapped[list[int] | None] = mapped_column(
         ARRAY(Integer), nullable=True
     )
+    # Origin system and opaque key of an imported project (e.g. "jira" +
+    # the Jira project key). NULL on every project created in Command.
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    external_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     if TYPE_CHECKING:
         # Transient attribute attached by ProjectService for response
