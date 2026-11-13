@@ -1,8 +1,9 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
-import { ThemeService, isRenderableTheme, THEME_SOURCE } from '@shared/ui';
+import { ThemeService, isRenderableTheme, SOL_DEFAULT_THEME, THEME_SOURCE } from '@shared/ui';
 import type { ThemeFile } from '@shared/ui';
 import { OrgThemeApi } from '@entities/organization/org-theme.api';
+import { fillContrastDefaults } from './fill-contrast-defaults';
 
 /**
  * Session-level owner of the ORGANIZATION theme (multi-tenant branding).
@@ -25,6 +26,7 @@ export class TenantThemeService {
   private readonly source = inject(THEME_SOURCE);
   private readonly theme = inject(ThemeService);
   private readonly api = inject(OrgThemeApi);
+  private readonly defaults = inject(SOL_DEFAULT_THEME, { optional: true });
 
   private readonly _saved = signal<ThemeFile | null>(null);
   private readonly _loaded = signal(false);
@@ -50,7 +52,7 @@ export class TenantThemeService {
       .loadTheme('me')
       .then((file) => {
         this._saved.set(isRenderableTheme(file) ? file : null);
-        this.theme.setTenantTheme(this._saved());
+        this.applyTenant(this._saved());
       })
       .catch(() => {
         this._saved.set(null);
@@ -87,9 +89,21 @@ export class TenantThemeService {
           return;
         }
         this._saved.set(persisted);
-        this.theme.setTenantTheme(persisted);
+        this.applyTenant(persisted);
       }),
     );
+  }
+
+  /**
+   * Applies the org theme with the contrast colors it leaves out taken from
+   * the bundled default. `saved` keeps the theme as persisted, so the Theme
+   * Studio never writes the filled values back.
+   */
+  private applyTenant(file: ThemeFile | null): void {
+    const filled = file && this.defaults ? fillContrastDefaults(file, this.defaults) : file;
+    // The filled values are aliases ({color.white}); if the org theme lacks
+    // that primitive, keep the theme as saved rather than lose it entirely.
+    this.theme.setTenantTheme(filled && isRenderableTheme(filled) ? filled : file);
   }
 
   /** Reset the organization to the bundled default theme. */

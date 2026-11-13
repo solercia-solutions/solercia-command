@@ -51,9 +51,10 @@ Después de cambiar la variable, reinicia el backend para que la tome.
 
 Un administrador o gestor de la organización:
 
-1. Abre **Conexiones** y elige **GitLab**.
+1. Abre **Conexiones** y elige **Conectar GitLab**.
 2. Ingresa la dirección del servidor (por ejemplo, `https://gitlab.com`) y el token.
 3. Al guardar, Command valida el token contra GitLab (`GET /api/v4/user` y `GET /api/v4/personal_access_tokens/self`) y lo guarda cifrado. El token no vuelve a mostrarse ni se registra en los logs.
+4. Si GitLab rechaza el token, no queda ninguna conexión creada: corrige el token y vuelve a guardar.
 
 ## 4. Vincula los repositorios de cada proyecto
 

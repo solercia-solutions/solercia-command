@@ -54,7 +54,7 @@ El catálogo `menus` y las plantillas `system` de `org_role_templates` SON compa
 
 ### Requirement: Aislamiento de conectores por organización y por usuario
 
-El sistema DEBE mantener `Connector` único por organización (`UNIQUE(organization_id, provider)`) y `ConnectedAccount` único por usuario; las credenciales cifradas NO DEBEN cruzar organizaciones ni usuarios.
+El sistema DEBE mantener `Connector` único por organización (`UNIQUE(organization_id, provider)` entre los conectores activos; uno eliminado no impide volver a conectar el proveedor) y `ConnectedAccount` único por usuario; las credenciales cifradas NO DEBEN cruzar organizaciones ni usuarios.
 
 #### Scenario: Connector de una organización no es visible desde otra
 

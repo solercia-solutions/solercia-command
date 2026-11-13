@@ -57,6 +57,20 @@ const GITLAB = 'gitlab';
 const GITLAB_DEFAULT_BASE_URL = 'https://gitlab.com';
 
 /**
+ * Conector GitLab aún no creado: alimenta el drawer del token. El conector
+ * real se crea al guardar, solo si GitLab acepta el token.
+ */
+const GITLAB_DRAFT: Connector = {
+  id: '',
+  provider: GITLAB,
+  credential_kind: 'api_token',
+  status: 'inactive',
+  scopes: null,
+  settings: null,
+  created_at: '',
+};
+
+/**
  * Página "Conexiones": una sola opción creable — Solercia Connect · Microsoft
  * 365 — con su ciclo de vida completo en `sol-solercia-connect-card` (estado,
  * inicio de sesión supervisado, sincronización, eliminación). Los conectores de
@@ -1072,26 +1086,15 @@ export class ConnectionsComponent implements OnInit {
   // -- credenciales api_token (heredado) --------------------------------------------
 
   /**
-   * Crea el conector `gitlab` (api_token) y abre de una vez el drawer del
-   * token, con `https://gitlab.com` ya escrito como servidor probable.
+   * Abre el drawer del token de GitLab con `https://gitlab.com` ya escrito
+   * como servidor probable. No crea nada todavía: el conector nace en
+   * `submitCredentials`, solo si GitLab acepta el token.
    */
   protected connectGitlab(): void {
     if (this.gitlabCreating()) {
       return;
     }
-    this.gitlabCreating.set(true);
-    this.connectorsService.create({ provider: GITLAB, credential_kind: 'api_token' }).subscribe({
-      next: (res) => {
-        this.gitlabCreating.set(false);
-        this.connectors.update((list) => [...list, res.data]);
-        this.loadAccounts(res.data.id);
-        this.openCredentials(res.data);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.gitlabCreating.set(false);
-        this.alert.showError(this.apiErrorMessage(err, 'gitlab.connect.createError'));
-      },
-    });
+    this.openCredentials(GITLAB_DRAFT);
   }
 
   protected openCredentials(connector: Connector): void {
@@ -1112,7 +1115,9 @@ export class ConnectionsComponent implements OnInit {
 
   protected submitCredentials(): void {
     const target = this.credentialsFor();
-    if (!target) {
+    // While a GitLab create (or its rollback) is in flight, a retry would
+    // collide with the connector that is still active.
+    if (!target || this.gitlabCreating()) {
       return;
     }
 
@@ -1125,26 +1130,70 @@ export class ConnectionsComponent implements OnInit {
     this.credentialsError.set(null);
     this.credentialsSubmitting.set(true);
 
+    if (target === GITLAB_DRAFT) {
+      this.createGitlabWithCredentials(payload);
+      return;
+    }
+
     this.connectorsService.registerCredentials(target.id, payload).subscribe({
-      next: () => {
-        this.credentialsSubmitting.set(false);
-        this.credentialsFor.set(null);
-        // Los secretos no deben sobrevivir en memoria del formulario tras
-        // el envío exitoso (revisión 4R, S1) — no solo al reabrir el drawer.
-        this.glpiAppTokenControl.setValue('');
-        this.glpiUserTokenControl.setValue('');
-        this.jiraApiTokenControl.setValue('');
-        this.gitlabTokenControl.setValue('');
-        this.alert.showSuccess(this.i18n.translate('connectors.credentials.success'));
-        this.loadAccounts(target.id);
+      next: () => this.credentialsSucceeded(target.id),
+      error: (err: HttpErrorResponse) => this.credentialsFailed(err),
+    });
+  }
+
+  /**
+   * Alta de GitLab en un solo gesto: crea el conector y registra el token.
+   * Si GitLab rechaza el token, borra el conector recién creado para no
+   * dejar una tarjeta «Activo» sin cuenta.
+   */
+  private createGitlabWithCredentials(payload: Record<string, string>): void {
+    this.gitlabCreating.set(true);
+    this.connectorsService.create({ provider: GITLAB, credential_kind: 'api_token' }).subscribe({
+      next: (res) => {
+        const created = res.data;
+        this.connectorsService.registerCredentials(created.id, payload).subscribe({
+          next: () => {
+            this.gitlabCreating.set(false);
+            this.connectors.update((list) => [...list, created]);
+            this.credentialsSucceeded(created.id);
+          },
+          error: (err: HttpErrorResponse) => {
+            this.connectorsService.delete(created.id).subscribe({
+              next: () => this.gitlabCreating.set(false),
+              error: () => {
+                // No se pudo deshacer: la tarjeta queda visible para borrarla.
+                this.gitlabCreating.set(false);
+                this.connectors.update((list) => [...list, created]);
+              },
+            });
+            this.credentialsFailed(err);
+          },
+        });
       },
       error: (err: HttpErrorResponse) => {
+        this.gitlabCreating.set(false);
         this.credentialsSubmitting.set(false);
-        this.credentialsError.set(
-          this.apiErrorMessage(err, 'connectors.credentials.error'),
-        );
+        this.credentialsError.set(this.apiErrorMessage(err, 'gitlab.connect.createError'));
       },
     });
+  }
+
+  private credentialsSucceeded(connectorId: string): void {
+    this.credentialsSubmitting.set(false);
+    this.credentialsFor.set(null);
+    // Los secretos no deben sobrevivir en memoria del formulario tras
+    // el envío exitoso (revisión 4R, S1) — no solo al reabrir el drawer.
+    this.glpiAppTokenControl.setValue('');
+    this.glpiUserTokenControl.setValue('');
+    this.jiraApiTokenControl.setValue('');
+    this.gitlabTokenControl.setValue('');
+    this.alert.showSuccess(this.i18n.translate('connectors.credentials.success'));
+    this.loadAccounts(connectorId);
+  }
+
+  private credentialsFailed(err: HttpErrorResponse): void {
+    this.credentialsSubmitting.set(false);
+    this.credentialsError.set(this.apiErrorMessage(err, 'connectors.credentials.error'));
   }
 
   /**
