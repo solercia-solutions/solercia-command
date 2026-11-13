@@ -111,6 +111,51 @@ def _extract_sprint_from_api(value: Any) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _extract_sprint_dates_from_api(value: Any) -> tuple[datetime | None, datetime | None]:
+    """``startDate``/``endDate`` of the last sprint object, when present."""
+
+    if not value or not isinstance(value, Sequence) or isinstance(value, str):
+        return None, None
+    last = value[-1]
+    if not isinstance(last, Mapping):
+        return None, None
+    return (
+        _parse_jira_datetime(_utc_suffix(last.get("startDate"))),
+        _parse_jira_datetime(_utc_suffix(last.get("endDate"))),
+    )
+
+
+def _utc_suffix(value: Any) -> Any:
+    """Jira sprint dates end in ``Z``; ``fromisoformat`` wants an offset."""
+
+    if isinstance(value, str) and value.endswith("Z"):
+        return value[:-1] + "+00:00"
+    return value
+
+
+def _as_seconds(value: Any) -> int | None:
+    """A non-negative whole number of seconds, or ``None``."""
+
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return int(value) if value >= 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _email_or_none(value: Any) -> str | None:
+    """A file export's ``Assignee`` cell, only when it is an email address."""
+
+    cleaned = _clean_str(value)
+    return cleaned if cleaned and "@" in cleaned else None
+
+
+def _clean_str(value: Any) -> str | None:
+    return value.strip() or None if isinstance(value, str) else None
+
+
 def _canonical_from_api_issue(
     raw_issue: Mapping[str, Any],
     *,
@@ -123,9 +168,11 @@ def _canonical_from_api_issue(
     status_category = (status.get("statusCategory") or {}).get("key")
     priority = fields.get("priority") or {}
     story_points = fields.get(story_points_field) if story_points_field else None
-    sprint_name, sprint_state = _extract_sprint_from_api(
-        fields.get(sprint_field) if sprint_field else None
-    )
+    sprint_raw = fields.get(sprint_field) if sprint_field else None
+    sprint_name, sprint_state = _extract_sprint_from_api(sprint_raw)
+    sprint_start, sprint_end = _extract_sprint_dates_from_api(sprint_raw)
+    assignee = fields.get("assignee")
+    parent = fields.get("parent")
 
     return {
         "key": raw_issue.get("key", ""),
@@ -143,6 +190,13 @@ def _canonical_from_api_issue(
         "labels": list(fields.get("labels") or []),
         "created_at": _parse_jira_datetime(fields.get("created")),
         "source": "api",
+        "original_estimate_seconds": _as_seconds(fields.get("timeoriginalestimate")),
+        "assignee_email": (
+            _clean_str(assignee.get("emailAddress")) if isinstance(assignee, Mapping) else None
+        ),
+        "parent_key": _clean_str(parent.get("key")) if isinstance(parent, Mapping) else None,
+        "sprint_start_date": sprint_start,
+        "sprint_end_date": sprint_end,
     }
 
 
@@ -184,6 +238,11 @@ def _canonical_from_file_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "labels": labels,
         "created_at": _parse_jira_datetime(row.get("Created")),
         "source": "file",
+        "original_estimate_seconds": _as_seconds(row.get("Original Estimate")),
+        "assignee_email": _email_or_none(row.get("Assignee")),
+        "parent_key": _clean_str(row.get("Parent id")),
+        "sprint_start_date": None,
+        "sprint_end_date": None,
     }
 
 
@@ -217,6 +276,11 @@ def _build_issue(
         labels=tuple(canonical["labels"] or ()),
         created_at=canonical["created_at"],
         source=canonical["source"],
+        original_estimate_seconds=canonical.get("original_estimate_seconds"),
+        assignee_email=canonical.get("assignee_email"),
+        parent_key=canonical.get("parent_key"),
+        sprint_start_date=canonical.get("sprint_start_date"),
+        sprint_end_date=canonical.get("sprint_end_date"),
     )
     flags = _UnmappedFlags(
         type_raw=None if type_mapped else type_name,

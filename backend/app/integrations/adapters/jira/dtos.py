@@ -41,6 +41,16 @@ class NormalizedJiraIssue:
     labels: tuple[str, ...]
     created_at: datetime | None
     source: str
+    # Import fields (user-driven project import): all optional so every
+    # existing construction keeps working. ``original_estimate_seconds`` is
+    # Jira's ``timeoriginalestimate``; ``assignee_email`` keeps
+    # ``assignee.emailAddress`` (``assignee_raw`` prefers the accountId);
+    # ``parent_key`` is ``parent.key`` (epic -> story -> subtask hierarchy).
+    original_estimate_seconds: int | None = None
+    assignee_email: str | None = None
+    parent_key: str | None = None
+    sprint_start_date: datetime | None = None
+    sprint_end_date: datetime | None = None
 
 
 @dataclass(frozen=True)

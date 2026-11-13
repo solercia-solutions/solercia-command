@@ -43,6 +43,8 @@ import {
 } from '@entities/connector/connector.model';
 import { SolerciaConnectCardComponent } from '@widgets/solercia-connect-card/solercia-connect-card.component';
 import { GitlabRepositoriesComponent } from '@widgets/gitlab-repositories/gitlab-repositories.component';
+import { JiraImportWizardComponent } from '@widgets/jira-import-wizard/jira-import-wizard.component';
+import { ActiveRoleService } from '@features/organizations/active-role.service';
 
 /** Aviso superior tras volver del flujo OAuth (durable, no transitorio). */
 interface Banner {
@@ -88,6 +90,7 @@ const GITLAB_DEFAULT_BASE_URL = 'https://gitlab.com';
     SolToggleComponent,
     SolerciaConnectCardComponent,
     GitlabRepositoriesComponent,
+    JiraImportWizardComponent,
   ],
   styleUrl: '../page-layout.scss',
   styles: [
@@ -287,6 +290,17 @@ const GITLAB_DEFAULT_BASE_URL = 'https://gitlab.com';
                         (clicked)="openCredentials(connector)"
                       >
                         {{ text.credentialsOpen() }}
+                      </sol-button>
+                    }
+                    @if (canImportJiraProject(connector)) {
+                      <sol-button
+                        type="button"
+                        variant="primary"
+                        size="touch"
+                        [attr.aria-label]="jiraProjectImportAria(connector)"
+                        (clicked)="jiraWizardFor.set(connector)"
+                      >
+                        {{ text.jiraProjectImportOpen() }}
                       </sol-button>
                     }
                     @if (connector.provider === 'jira') {
@@ -517,6 +531,12 @@ const GITLAB_DEFAULT_BASE_URL = 'https://gitlab.com';
       </div>
     </sol-drawer>
 
+    <!-- Asistente: importar un proyecto de Jira (elegir → revisar → importar) -->
+    <sol-jira-import-wizard
+      [connector]="jiraWizardFor()"
+      (closed)="jiraWizardFor.set(null)"
+    />
+
     <!-- Diálogo: confirmar eliminación (nunca confirm() nativo) -->
     <sol-confirm-dialog
       [open]="deleting() !== null"
@@ -578,6 +598,7 @@ export class ConnectionsComponent implements OnInit {
     fieldGlpiUserToken: this.i18n.t('connectors.credentials.fields.glpiUserToken'),
     fieldJiraApiToken: this.i18n.t('connectors.credentials.fields.jiraApiToken'),
     jiraImportOpen: this.i18n.t('connectors.jiraImport.open'),
+    jiraProjectImportOpen: this.i18n.t('connectors.jiraProjectImport.open'),
     jiraImportTitle: this.i18n.t('connectors.jiraImport.title'),
     jiraImportFileLabel: this.i18n.t('connectors.jiraImport.fileLabel'),
     jiraImportFileHint: this.i18n.t('connectors.jiraImport.fileHint'),
@@ -668,6 +689,10 @@ export class ConnectionsComponent implements OnInit {
       : '';
   });
 
+  // -- importación de proyecto Jira (asistente) ---------------------------------------
+  private readonly activeRole = inject(ActiveRoleService);
+  protected readonly jiraWizardFor = signal<Connector | null>(null);
+
   // -- import de archivo Jira (heredado) -------------------------------------------
   protected readonly jiraImportFor = signal<Connector | null>(null);
   protected readonly jiraFile = signal<File | null>(null);
@@ -707,6 +732,7 @@ export class ConnectionsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.activeRole.ensureLoaded();
     this.consumeOAuthReturn();
     this.load();
   }
@@ -753,6 +779,21 @@ export class ConnectionsComponent implements OnInit {
   protected credentialsAria(connector: Connector): string {
     return this.i18n.translate('connectors.credentials.openAria', {
       provider: this.label(connector),
+    });
+  }
+
+  /** The wizard opens only for admin/manager on a Jira connector with an active account. */
+  protected canImportJiraProject(connector: Connector): boolean {
+    return (
+      connector.provider === 'jira' &&
+      this.activeRole.isAdminOrManager() &&
+      this.accountsOf(connector.id).some((account) => account.status === 'active')
+    );
+  }
+
+  protected jiraProjectImportAria(connector: Connector): string {
+    return this.i18n.translate('connectors.jiraProjectImport.openAria', {
+      provider: providerLabel(connector.provider),
     });
   }
 

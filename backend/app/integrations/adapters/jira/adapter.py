@@ -55,6 +55,8 @@ _BASE_SEARCH_FIELDS: tuple[str, ...] = (
     "labels",
     "description",
     "created",
+    "timeoriginalestimate",
+    "parent",
 )
 
 
@@ -299,6 +301,23 @@ class JiraAdapter:
             story_points_field=story_points_field,
             sprint_field=sprint_field,
         )
+
+    async def list_projects(
+        self, *, base_url: str, email: str, api_token: str
+    ) -> list[dict[str, str]]:
+        """Projects the account can browse (``[{key, name}]``, read-only)."""
+
+        client: JiraClient | None = None
+        try:
+            client = JiraClient(
+                base_url, email, api_token, transport=self._transport, settings=self._settings
+            )
+            return await client.list_projects()
+        except JiraConfigError as exc:
+            raise errors.JiraConfigInvalid(str(exc)) from exc
+        finally:
+            if client is not None:
+                await client.aclose()
 
     def parse_file(
         self,

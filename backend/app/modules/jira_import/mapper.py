@@ -52,7 +52,9 @@ _SPANISH_TYPES = {
     "epica": "epic",
 }
 _CATEGORY_ORDER = {"new": 0, "indeterminate": 1, "done": 2}
-_SPRINT_STATE = {"future": "draft", "active": "active", "closed": "closed"}
+# Jira sprint state -> Command sprint status (shared with the project import).
+SPRINT_STATUS_BY_JIRA_STATE = {"future": "draft", "active": "active", "closed": "closed"}
+_SPRINT_STATE = SPRINT_STATUS_BY_JIRA_STATE
 
 
 @dataclass

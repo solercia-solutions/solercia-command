@@ -305,6 +305,27 @@ class TaskRepository:
         )
         return result.scalar_one()
 
+    async def allocate_task_numbers(self, project_id: uuid.UUID, count: int) -> int:
+        """Reserve ``count`` consecutive task numbers with ONE ``UPDATE ... RETURNING``.
+
+        Returns the LAST reserved number; the block is ``last - count + 1``
+        through ``last``. Block form of :meth:`allocate_task_number` for bulk
+        imports. Participates in the caller's transaction; never commits.
+        """
+
+        if count < 1:
+            raise ValueError("count must be >= 1")
+        result = await self.db.execute(
+            text(
+                "UPDATE projects "
+                "SET task_counter = task_counter + :count "
+                "WHERE id = :project_id "
+                "RETURNING task_counter"
+            ),
+            {"project_id": str(project_id), "count": count},
+        )
+        return result.scalar_one()
+
     async def create(self, task: Task) -> Task:
         """Temporary legacy compatibility facade: commit, then refresh once.
 

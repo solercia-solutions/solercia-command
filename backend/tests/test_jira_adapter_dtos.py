@@ -140,3 +140,31 @@ class TestNormalizationReport:
 
         assert report.story_points_field is None
         assert report.sprint_field is None
+
+
+class TestImportFields:
+    def test_new_import_fields_default_to_none_for_existing_callers(self) -> None:
+        """Estimation, assignee email, parent key and sprint dates are
+        optional: every existing construction keeps working unchanged."""
+
+        issue = _issue()
+
+        assert issue.original_estimate_seconds is None
+        assert issue.assignee_email is None
+        assert issue.parent_key is None
+        assert issue.sprint_start_date is None
+        assert issue.sprint_end_date is None
+
+    def test_new_import_fields_are_carried_when_given(self) -> None:
+        start = datetime(2024, 2, 1, tzinfo=UTC)
+        issue = _issue(
+            original_estimate_seconds=14400,
+            assignee_email="mia@acme.com",
+            parent_key="PROJ-1",
+            sprint_start_date=start,
+        )
+
+        assert issue.original_estimate_seconds == 14400
+        assert issue.assignee_email == "mia@acme.com"
+        assert issue.parent_key == "PROJ-1"
+        assert issue.sprint_start_date == start

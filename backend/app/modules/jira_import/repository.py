@@ -8,7 +8,7 @@ transaction (solercia-persistence: repositories never complete transactions).
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import FederatedIdentity
@@ -202,3 +202,74 @@ class JiraFeedRepository:
     async def add_task(self, task: Task) -> Task:
         self.db.add(task)
         return task
+
+
+class JiraImportRepository(JiraFeedRepository):
+    """Reads/writes of the user-driven single-project import.
+
+    Extends :class:`JiraFeedRepository` (task anchors, sprint/board helpers)
+    with the anchor lookups the project import needs. Every query is scoped
+    by organization (or by a project already scoped by it); writes only
+    ``add`` + ``flush`` — the import service owns the single commit.
+    """
+
+    async def project_by_anchor(
+        self, organization_id: uuid.UUID, external_key: str
+    ) -> Project | None:
+        """The organization's project anchored to ``(jira, external_key)``,
+        active or not (the anchor index covers both)."""
+
+        result = await self.db.execute(
+            select(Project).where(
+                Project.organization_id == organization_id,
+                Project.source == JIRA_SOURCE,
+                Project.external_key == external_key,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def jira_projects_by_key(self, organization_id: uuid.UUID) -> dict[str, Project]:
+        """``{Jira project key: Project}`` of the organization's imported projects."""
+
+        result = await self.db.execute(
+            select(Project).where(
+                Project.organization_id == organization_id,
+                Project.source == JIRA_SOURCE,
+                Project.external_key.is_not(None),
+            )
+        )
+        return {
+            project.external_key: project for project in result.scalars() if project.external_key
+        }
+
+    async def jira_sprints(self, project_id: uuid.UUID) -> dict[str, Sprint]:
+        """``{external_key: Sprint}`` of the project's Jira-anchored sprints."""
+
+        result = await self.db.execute(
+            select(Sprint).where(
+                Sprint.project_id == project_id,
+                Sprint.source == JIRA_SOURCE,
+                Sprint.external_key.is_not(None),
+            )
+        )
+        return {sprint.external_key: sprint for sprint in result.scalars() if sprint.external_key}
+
+    async def member_user_ids_by_email(
+        self, organization_id: uuid.UUID, emails: Sequence[str]
+    ) -> dict[str, uuid.UUID]:
+        """``{lowercased email: user_id}`` among members (active users) of the
+        organization whose email matches one of ``emails`` (case-insensitive)."""
+
+        wanted = sorted({email.strip().lower() for email in emails if email and email.strip()})
+        if not wanted:
+            return {}
+        result = await self.db.execute(
+            select(func.lower(User.email), User.id)
+            .join(OrganizationMember, OrganizationMember.user_id == User.id)
+            .where(
+                OrganizationMember.organization_id == organization_id,
+                User.is_active.is_(True),
+                func.lower(User.email).in_(wanted),
+            )
+        )
+        return dict(result.tuples().all())

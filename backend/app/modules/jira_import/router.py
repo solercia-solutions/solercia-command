@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as default_settings
 from app.database import get_db
 from app.dependencies import require_role
-from app.modules.jira_import.schemas import JiraImportRequest
+from app.modules.jira_import.schemas import (
+    JiraImportProjectRequest,
+    JiraImportRequest,
+    JiraPreviewRequest,
+)
 from app.modules.jira_import.service import JiraImportService
 from app.modules.organizations.models import OrganizationMember
 from app.shared.enums import MemberRole
@@ -66,3 +70,58 @@ async def import_via_file(
         membership.organization_id, connector_id, file.filename or "", content
     )
     return {"data": result, "meta": {"total": result.report.total}}
+
+
+@router.get("/connectors/{connector_id}/jira/projects", status_code=status.HTTP_200_OK)
+async def list_jira_projects(
+    connector_id: uuid.UUID,
+    membership: OrganizationMember = Depends(require_jira_import_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List the Jira projects the connector's account can browse (admin or
+    manager only). Read-only; each project says whether it was already
+    imported. 404 if the connector is not a ``jira`` connector of the
+    caller's organization."""
+
+    service = JiraImportService(db)
+    projects = await service.list_projects(membership.organization_id, connector_id)
+    return {"data": projects, "meta": {"total": len(projects)}}
+
+
+@router.post("/connectors/{connector_id}/jira/preview", status_code=status.HTTP_200_OK)
+async def preview_jira_project(
+    connector_id: uuid.UUID,
+    payload: JiraPreviewRequest,
+    membership: OrganizationMember = Depends(require_jira_import_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Preview the import of one Jira project (admin or manager only):
+    counts per type, sprints and the proposed status mapping. Persists
+    nothing. 422 if the project key is not a valid Jira key."""
+
+    service = JiraImportService(db)
+    preview = await service.preview(membership.organization_id, connector_id, payload.project_key)
+    return {"data": preview}
+
+
+@router.post("/connectors/{connector_id}/jira/import-project", status_code=status.HTTP_200_OK)
+async def import_jira_project(
+    connector_id: uuid.UUID,
+    payload: JiraImportProjectRequest,
+    membership: OrganizationMember = Depends(require_jira_import_role),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Import one Jira project into the organization (admin or manager
+    only), in one transaction. Re-importing the same project reconciles
+    the anchored project, sprints and tasks instead of duplicating them."""
+
+    service = JiraImportService(db)
+    summary = await service.import_project(
+        membership.organization_id, connector_id, payload, actor_id=membership.user_id
+    )
+    message = (
+        "El proyecto de Jira se importó correctamente."
+        if summary.project_created
+        else "El proyecto de Jira se actualizó con los cambios de Jira."
+    )
+    return {"data": summary, "message": message}
