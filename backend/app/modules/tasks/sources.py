@@ -15,6 +15,7 @@ KNOWN_TASK_SOURCES: Final[frozenset[str]] = frozenset(
         "google",
         "jira",
         "glpi",
+        "gitlab",
         "mcp",
         "fake",
         "solercia_connect",
