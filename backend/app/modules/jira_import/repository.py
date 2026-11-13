@@ -228,6 +228,20 @@ class JiraImportRepository(JiraFeedRepository):
         )
         return result.scalar_one_or_none()
 
+    async def jira_projects_by_key(self, organization_id: uuid.UUID) -> dict[str, Project]:
+        """``{Jira project key: Project}`` of the organization's imported projects."""
+
+        result = await self.db.execute(
+            select(Project).where(
+                Project.organization_id == organization_id,
+                Project.source == JIRA_SOURCE,
+                Project.external_key.is_not(None),
+            )
+        )
+        return {
+            project.external_key: project for project in result.scalars() if project.external_key
+        }
+
     async def jira_sprints(self, project_id: uuid.UUID) -> dict[str, Sprint]:
         """``{external_key: Sprint}`` of the project's Jira-anchored sprints."""
 

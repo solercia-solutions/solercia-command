@@ -412,3 +412,469 @@ class TestReadOnlyBoundary:
         assert await _count(Task) == tasks_before
         assert await _count(Sprint) == sprints_before
         assert await _count(Label) == labels_before
+
+
+# ---------------------------------------------------------------------------
+# User-driven project import: projects -> preview -> import-project
+# ---------------------------------------------------------------------------
+
+
+def _raw_issue(key: str, type_name: str, *, subtask: bool = False, **fields: object) -> dict:
+    base: dict = {
+        "summary": f"Issue {key}",
+        "description": None,
+        "issuetype": {"name": type_name, "subtask": subtask},
+        "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+        "priority": {"name": "Medium"},
+        "assignee": None,
+        "labels": [],
+        "created": "2024-01-15T10:30:00.000+0000",
+    }
+    base.update(fields)
+    return {"id": key, "key": key, "fields": base}
+
+
+def _project_issues() -> list[dict]:
+    sprint = [{"id": 7, "name": "Sprint 1", "state": "active"}]
+    return [
+        _raw_issue("PROJ-1", "Epic"),
+        _raw_issue(
+            "PROJ-2",
+            "Story",
+            parent={"key": "PROJ-1"},
+            timeoriginalestimate=14400,
+            customfield_10032=5,
+            customfield_10020=sprint,
+            status={"name": "En curso", "statusCategory": {"key": "indeterminate"}},
+        ),
+        _raw_issue("PROJ-3", "Sub-task", subtask=True, parent={"key": "PROJ-2"}),
+        _raw_issue(
+            "PROJ-4",
+            "Bug",
+            customfield_10020=sprint,
+            status={"name": "Hecho", "statusCategory": {"key": "done"}},
+        ),
+    ]
+
+
+def _project_handler(
+    *,
+    issues: list[dict] | None = None,
+    projects: list[dict] | None = None,
+    calls: dict | None = None,
+    search_status: int = 200,
+    fail_on_page_two: bool = False,
+    jira_status: int | None = None,
+):
+    fields = _load_fixture("fields.json")
+    calls = calls if calls is not None else {}
+    calls.setdefault("search", 0)
+    calls.setdefault("jql", [])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if jira_status is not None and path != "/rest/api/3/myself":
+            return httpx.Response(jira_status, json={"errorMessages": ["x"]})
+        if path == "/rest/api/3/myself":
+            return httpx.Response(200, json=_MYSELF_PAYLOAD)
+        if path == "/rest/api/3/field":
+            return httpx.Response(200, json=fields)
+        if path == "/rest/api/3/project/search":
+            return httpx.Response(
+                200,
+                json={
+                    "values": projects
+                    if projects is not None
+                    else [{"key": "PROJ", "name": "Proyecto Jira"}],
+                    "isLast": True,
+                },
+            )
+        if path == "/rest/api/3/search/jql":
+            calls["search"] += 1
+            calls["jql"].append(request.url.params.get("jql"))
+            if search_status != 200:
+                return httpx.Response(search_status, json={"errorMessages": ["no existe"]})
+            all_issues = issues if issues is not None else _project_issues()
+            if fail_on_page_two:
+                if request.url.params.get("nextPageToken"):
+                    return httpx.Response(500, json={"errorMessages": ["boom"]})
+                return httpx.Response(
+                    200, json={"issues": all_issues[:2], "isLast": False, "nextPageToken": "N2"}
+                )
+            return httpx.Response(200, json={"issues": all_issues, "isLast": True})
+        return httpx.Response(404, json={"errorMessages": ["not mocked"]})
+
+    return handler
+
+
+async def _project_connector(client: AsyncClient, token: str, **handler_kwargs) -> str:
+    register_adapter(JiraAdapter(transport=httpx.MockTransport(_project_handler(**handler_kwargs))))
+    return await _create_connector_and_credentials(client, token)
+
+
+async def _counts(session: AsyncSession) -> tuple[int, int, int]:
+    from app.modules.projects.models import Project
+    from app.modules.sprints.models import Sprint
+    from app.modules.tasks.models import Task
+
+    values = []
+    for model in (Project, Sprint, Task):
+        result = await session.execute(select(func.count()).select_from(model))
+        values.append(int(result.scalar_one()))
+    return tuple(values)  # type: ignore[return-value]
+
+
+class TestJiraProjectsEndpoint:
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_projects_endpoint_lists_accessible_projects(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _project_connector(client, two_orgs.a.token)
+
+        response = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(two_orgs.a.token)
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["data"] == [
+            {"key": "PROJ", "name": "Proyecto Jira", "imported_project": None}
+        ]
+        assert "JIRA-SECRET-TOKEN" not in response.text
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_projects_endpoint_without_credentials_is_a_controlled_error(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        register_adapter(JiraAdapter(transport=httpx.MockTransport(_project_handler())))
+        created = await client.post(
+            "/connectors",
+            json={"provider": "jira", "credential_kind": "api_token"},
+            headers=_auth(two_orgs.a.token),
+        )
+        connector_id = created.json()["data"]["id"]
+
+        response = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(two_orgs.a.token)
+        )
+
+        assert response.status_code == 400, response.text
+        assert response.json()["code"] == "jira_credentials_missing"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_projects_endpoint_revoked_token_is_400_without_secret(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _project_connector(client, two_orgs.a.token, jira_status=401)
+
+        response = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(two_orgs.a.token)
+        )
+
+        # 400, not 401: a 401 would be read by the web client as an expired session.
+        assert response.status_code == 400, response.text
+        assert response.json()["code"] == "jira_auth_error"
+        assert "JIRA-SECRET-TOKEN" not in response.text
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_projects_endpoint_foreign_org_is_404_and_member_is_403(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
+    ) -> None:
+        from app.shared.enums import MemberRole
+
+        connector_id = await _project_connector(client, two_orgs.a.token)
+        _, member_token = await make_member(session, two_orgs.a.organization, MemberRole.member)
+
+        foreign = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(two_orgs.b.token)
+        )
+        member = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(member_token)
+        )
+
+        assert foreign.status_code == 404, foreign.text
+        assert member.status_code == 403, member.text
+
+
+class TestJiraPreviewEndpoint:
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_preview_endpoint_counts_and_mapping_without_writing(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        calls: dict = {}
+        connector_id = await _project_connector(client, two_orgs.a.token, calls=calls)
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/preview",
+            json={"project_key": "PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert data["total"] == 4
+        assert data["counts_by_type"] == {"epic": 1, "story": 1, "subtask": 1, "bug": 1}
+        assert data["suggested_code"] == "PROJ"
+        assert data["methodology"] == "scrum"
+        assert data["existing_project"] is None
+        assert [s["name"] for s in data["sprints"]] == ["Sprint 1"]
+        assert {m["jira_status"]: m["target_status"] for m in data["status_mapping"]} == {
+            "En curso": "In Progress",
+            "Hecho": "Done",
+            "To Do": "To Do",
+        }
+        assert float(data["estimated_hours"]) == 4.0
+        assert calls["jql"] == ['project = "PROJ" ORDER BY key ASC']
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_preview_endpoint_unavailable_project_is_controlled(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _project_connector(client, two_orgs.a.token, search_status=400)
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/preview",
+            json={"project_key": "GONE"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "jira_project_unavailable"
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_preview_endpoint_rejects_unsafe_key_without_calling_jira(
+        self, client: AsyncClient, two_orgs: TwoOrgs
+    ) -> None:
+        calls: dict = {}
+        connector_id = await _project_connector(client, two_orgs.a.token, calls=calls)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/preview",
+            json={"project_key": 'PROJ" OR project = "SECRET'},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "jira_project_key_invalid"
+        assert calls["search"] == 0
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_preview_endpoint_foreign_org_is_404_and_member_is_403(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
+    ) -> None:
+        from app.shared.enums import MemberRole
+
+        connector_id = await _project_connector(client, two_orgs.a.token)
+        _, member_token = await make_member(session, two_orgs.a.organization, MemberRole.member)
+        body = {"project_key": "PROJ"}
+
+        foreign = await client.post(
+            f"/connectors/{connector_id}/jira/preview", json=body, headers=_auth(two_orgs.b.token)
+        )
+        member = await client.post(
+            f"/connectors/{connector_id}/jira/preview", json=body, headers=_auth(member_token)
+        )
+
+        assert foreign.status_code == 404, foreign.text
+        assert member.status_code == 403, member.text
+
+
+class TestJiraImportProjectEndpoint:
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_import_project_endpoint_creates_then_reconciles(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, caplog
+    ) -> None:
+        from app.modules.tasks.models import Task
+
+        connector_id = await _project_connector(client, two_orgs.a.token)
+        before = await _counts(session)
+        body = {"project_key": "PROJ", "project_name": "Proyecto importado", "project_code": "PRJ"}
+
+        with caplog.at_level(logging.DEBUG):
+            first = await client.post(
+                f"/connectors/{connector_id}/jira/import-project",
+                json=body,
+                headers=_auth(two_orgs.a.token),
+            )
+
+        assert first.status_code == 200, first.text
+        data = first.json()["data"]
+        assert data["project_created"] is True
+        assert data["project_code"] == "PRJ"
+        assert data["project_name"] == "Proyecto importado"
+        assert data["tasks"] == {"created": 4, "updated": 0, "unchanged": 0}
+        assert data["sprints"]["created"] == 1
+        assert data["parents_linked"] == 2
+        assert await _counts(session) == (before[0] + 1, before[1] + 1, before[2] + 4)
+        assert "JIRA-SECRET-TOKEN" not in first.text
+        assert all("JIRA-SECRET-TOKEN" not in r.getMessage() for r in caplog.records)
+        story = (
+            await session.execute(select(Task).where(Task.external_key == "PROJ-2"))
+        ).scalar_one()
+        assert float(story.estimation_hours) == 4.0
+        assert story.estimation_points == 5
+
+        listed = await client.get(
+            f"/connectors/{connector_id}/jira/projects", headers=_auth(two_orgs.a.token)
+        )
+        assert listed.json()["data"][0]["imported_project"]["code"] == "PRJ"
+
+        second = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            json=body,
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert second.status_code == 200, second.text
+        again = second.json()["data"]
+        assert again["project_created"] is False
+        assert again["project_id"] == data["project_id"]
+        assert again["tasks"] == {"created": 0, "updated": 0, "unchanged": 4}
+        assert await _counts(session) == (before[0] + 1, before[1] + 1, before[2] + 4)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_import_project_endpoint_rejects_unsafe_key_without_calling_jira(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        calls: dict = {}
+        connector_id = await _project_connector(client, two_orgs.a.token, calls=calls)
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            json={"project_key": "proj OR 1=1"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 422, response.text
+        assert calls["search"] == 0
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_import_project_endpoint_failure_mid_import_persists_nothing(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _project_connector(client, two_orgs.a.token, fail_on_page_two=True)
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            json={"project_key": "PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 503, response.text
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_import_project_endpoint_taken_code_is_409_and_persists_nothing(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _project_connector(client, two_orgs.a.token)
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-project",
+            # Org A's seeded project already uses code "ORGA".
+            json={"project_key": "PROJ", "project_code": two_orgs.a.project.code},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "project_code_taken"
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_jira_import_project_endpoint_foreign_org_is_404_and_member_is_403(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs, make_member
+    ) -> None:
+        from app.shared.enums import MemberRole
+
+        connector_id = await _project_connector(client, two_orgs.a.token)
+        _, member_token = await make_member(session, two_orgs.a.organization, MemberRole.member)
+        before = await _counts(session)
+        body = {"project_key": "PROJ"}
+        url = f"/connectors/{connector_id}/jira/import-project"
+
+        foreign = await client.post(url, json=body, headers=_auth(two_orgs.b.token))
+        member = await client.post(url, json=body, headers=_auth(member_token))
+
+        assert foreign.status_code == 404, foreign.text
+        assert member.status_code == 403, member.text
+        assert await _counts(session) == before
+
+
+class TestReadOnlyEndpointsUnchanged:
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_import_keeps_its_contract_and_creates_no_project(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        """`import` stays read-only and its issue shape gains no field."""
+
+        page1 = _load_fixture("search_page1.json")
+        page2 = _load_fixture("search_page2.json")
+        connector_id = await _create_jira_connector_with_credentials(
+            client, two_orgs.a.token, search_pages=[page1, page2]
+        )
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import",
+            json={"jql": "project = PROJ"},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 200, response.text
+        assert set(response.json()["data"]["issues"][0]) == {
+            "key",
+            "title",
+            "description",
+            "issue_type",
+            "status_raw",
+            "status_bucket",
+            "priority",
+            "assignee_raw",
+            "sprint_name",
+            "sprint_state",
+            "story_points",
+            "labels",
+            "created_at",
+            "source",
+        }
+        assert await _counts(session) == before
+
+    @pytest.mark.asyncio(loop_scope="session")
+    @skip_no_db
+    async def test_import_file_creates_no_project_sprint_or_task(
+        self, client: AsyncClient, session: AsyncSession, two_orgs: TwoOrgs
+    ) -> None:
+        connector_id = await _create_jira_connector_with_credentials(
+            client, two_orgs.a.token, search_pages=[_load_fixture("search_page1.json")]
+        )
+        before = await _counts(session)
+
+        response = await client.post(
+            f"/connectors/{connector_id}/jira/import-file",
+            files={"file": ("export.csv", _read_fixture_bytes("export.csv"), "text/csv")},
+            headers=_auth(two_orgs.a.token),
+        )
+
+        assert response.status_code == 200, response.text
+        assert await _counts(session) == before
