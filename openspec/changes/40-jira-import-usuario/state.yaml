@@ -8,7 +8,7 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
+  apply: done
   verify: pending
   archive: pending
 artifacts:
@@ -69,7 +69,7 @@ dependency_gating:
   - "El apply del 40 NO arranca hasta que 34 exponga seconds_to_hours (work_calendar/estimation.py) y 39 provea el punto de entrada del asistente; ambos declarados en depends_on"
   - "34 depende a su vez del 28 (work_calendar) para ResolvedCalendar; seconds_to_hours es puro y no usa calendario, pero el modulo debe existir en disco"
   - "Hallazgo de la fase tasks (verificado en disco): 28, 29, 34 y 39 tienen apply:pending -- backend/app/modules/work_calendar/ no existe, sprints/service.py no reconoce 'draft', connectors/jira_import no exponen ningun endpoint de acciones nuevo; tasks.md Fase 0 (0.1-0.5) es el gate real que debe re-verificarse en apply antes de tocar cualquier archivo de este cambio"
-last_updated: 2026-08-26
+last_updated: 2026-11-13
 spec_notes:
   - "Capability NUEVA: jira-import-wizard (spec completo) — asistente frontend de 3 pasos elegir/previsualizar/importar desde la tarjeta del conector"
   - "Delta MODIFIED jira-import: de extraccion solo-lectura a flujo de importacion (listar proyectos, previsualizar, persistir idempotente, mapeo a metodologia destino, conversion de estimacion)"
