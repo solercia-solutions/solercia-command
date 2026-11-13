@@ -55,6 +55,8 @@ _BASE_SEARCH_FIELDS: tuple[str, ...] = (
     "labels",
     "description",
     "created",
+    "timeoriginalestimate",
+    "parent",
 )
 
 
