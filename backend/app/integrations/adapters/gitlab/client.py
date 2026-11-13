@@ -49,9 +49,7 @@ def normalize_base_url(base_url: str, settings: Settings) -> str:
 
     parts = urlsplit(base_url.strip())
     if parts.scheme != "https":
-        raise errors.GitlabConfigInvalid(
-            "La dirección de GitLab debe usar https."
-        )
+        raise errors.GitlabConfigInvalid("La dirección de GitLab debe usar https.")
     host = (parts.hostname or "").lower()
     if parts.username or parts.password or not host or host not in allowed_hosts(settings):
         raise errors.GitlabConfigInvalid()
@@ -100,9 +98,7 @@ class GitlabClient:
     async def get_project(self, path_with_namespace: str) -> dict[str, Any]:
         """``GET /projects/:id`` for a ``group/repo`` path."""
 
-        return await self._get_json_object(
-            f"/projects/{encode_project_path(path_with_namespace)}"
-        )
+        return await self._get_json_object(f"/projects/{encode_project_path(path_with_namespace)}")
 
     async def list_member_projects(self) -> list[dict[str, Any]]:
         """``GET /projects?membership=true&simple=true`` (bounded pages)."""
@@ -134,9 +130,7 @@ class GitlabClient:
             {"all": "true"},
         )
 
-    async def _paginate(
-        self, path: str, params: Mapping[str, str]
-    ) -> list[dict[str, Any]]:
+    async def _paginate(self, path: str, params: Mapping[str, str]) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         page = 1
         for _ in range(self._settings.GITLAB_MAX_PAGES):

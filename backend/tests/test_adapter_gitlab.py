@@ -89,9 +89,7 @@ class TestGitlabHandshake:
         recorder = _Recorder(_read_only_routes())
         adapter = _adapter(recorder)
 
-        account = await adapter.api_token.connect(
-            {"base_url": _BASE_URL, "access_token": _TOKEN}
-        )
+        account = await adapter.api_token.connect({"base_url": _BASE_URL, "access_token": _TOKEN})
 
         assert account.external_account_id == "gitlab-4242"
         assert account.display_name == "Equipo de desarrollo (@equipo-desarrollo)"
@@ -187,9 +185,7 @@ class TestGitlabHandshake:
     @pytest.mark.asyncio
     async def test_self_managed_host_in_allowlist_is_accepted(self) -> None:
         recorder = _Recorder(_read_only_routes())
-        adapter = _adapter(
-            recorder, GITLAB_BASE_URL_ALLOWLIST="gitlab.com, gitlab.entidad.gov.co"
-        )
+        adapter = _adapter(recorder, GITLAB_BASE_URL_ALLOWLIST="gitlab.com, gitlab.entidad.gov.co")
 
         account = await adapter.api_token.connect(
             {"base_url": "https://gitlab.entidad.gov.co/", "access_token": _TOKEN}

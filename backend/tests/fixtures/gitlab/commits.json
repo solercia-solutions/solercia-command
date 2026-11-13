@@ -1,0 +1,5 @@
+[
+  {"short_id": "a1b2c3d4", "title": "ORGA-12 corrige la validación", "message": "ORGA-12 corrige la validación\n\nDetalle.", "author_name": "Ana Pérez", "authored_date": "2026-11-09T10:00:00.000-05:00", "web_url": "https://gitlab.com/grupo/api/-/commit/a1b2c3d4"},
+  {"short_id": "e5f6a7b8", "title": "XORGA-12 no es la tarea", "message": "XORGA-12 no es la tarea", "author_name": "Luis Gómez", "authored_date": "2026-11-09T11:00:00.000-05:00", "web_url": "https://gitlab.com/grupo/api/-/commit/e5f6a7b8"},
+  {"short_id": "c9d0e1f2", "title": "ORGA-120 tampoco", "message": "ORGA-120 tampoco", "author_name": "Luis Gómez", "authored_date": "2026-11-09T12:00:00.000-05:00", "web_url": "https://gitlab.com/grupo/api/-/commit/c9d0e1f2"}
+]
