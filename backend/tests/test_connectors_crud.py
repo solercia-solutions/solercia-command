@@ -169,6 +169,35 @@ async def test_delete_connector_is_soft_delete_and_disappears_from_list(
     assert list_response.json()["meta"]["total"] == 0
 
 
+@pytest.mark.asyncio(loop_scope="session")
+@skip_no_db
+async def test_provider_can_be_connected_again_after_soft_delete(
+    client: AsyncClient, two_orgs: TwoOrgs
+) -> None:
+    """A soft-deleted connector does not block a new one for the same provider."""
+
+    first = await client.post(
+        "/connectors",
+        json={"provider": "gitlab", "credential_kind": "api_token"},
+        headers=_auth(two_orgs.a.token),
+    )
+    assert first.status_code == 201, first.text
+    first_id = first.json()["data"]["id"]
+    deleted = await client.delete(f"/connectors/{first_id}", headers=_auth(two_orgs.a.token))
+    assert deleted.status_code == 204
+
+    again = await client.post(
+        "/connectors",
+        json={"provider": "gitlab", "credential_kind": "api_token"},
+        headers=_auth(two_orgs.a.token),
+    )
+
+    assert again.status_code == 201, again.text
+    assert again.json()["data"]["id"] != first_id
+    listed = await client.get("/connectors", headers=_auth(two_orgs.a.token))
+    assert [c["id"] for c in listed.json()["data"]] == [again.json()["data"]["id"]]
+
+
 # ---------------------------------------------------------------------------
 # C-R1 — Aislamiento multi-tenant
 # ---------------------------------------------------------------------------

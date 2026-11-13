@@ -20,7 +20,7 @@ columna nueva.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -42,8 +42,14 @@ class Connector(PkMixin, TimestampMixin, SoftDeleteMixin, AuditMixin, TenantMixi
 
     __tablename__ = "connectors"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "provider", name="uq_connectors_organization_provider"
+        # One ACTIVE connector per (organization, provider); soft-deleted rows
+        # never block connecting the provider again (revision 0034).
+        Index(
+            "uq_connectors_organization_provider",
+            "organization_id",
+            "provider",
+            unique=True,
+            postgresql_where=text("is_active"),
         ),
     )
 
