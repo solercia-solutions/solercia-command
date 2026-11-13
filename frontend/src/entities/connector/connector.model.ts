@@ -5,6 +5,7 @@ export type ConnectorProvider =
   | 'google'
   | 'jira'
   | 'glpi'
+  | 'gitlab'
   | 'mcp'
   | 'fake';
 
@@ -256,6 +257,7 @@ const PROVIDER_PRESENTATION: Readonly<
   google: { label: 'Google', icon: 'envelope' },
   jira: { label: 'Jira', icon: 'clipboard' },
   glpi: { label: 'GLPI', icon: 'cpu-chip' },
+  gitlab: { label: 'GitLab', icon: 'git-branch' },
   mcp: { label: 'MCP', icon: 'bolt' },
   fake: { label: 'Demo (fake)', icon: 'beaker' },
 };

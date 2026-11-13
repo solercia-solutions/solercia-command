@@ -1543,6 +1543,55 @@
     "riskDefault": "Tarea en riesgo",
     "unassigned": "Sin responsable"
   },
+  "gitlab": {
+    "connect": {
+      "open": "Conectar GitLab",
+      "tokenLabel": "Token de acceso de GitLab",
+      "tokenHint": "Usa un token de solo lectura con el alcance read_api. Los tokens con alcances de escritura se rechazan.",
+      "createError": "No fue posible crear la conexión con GitLab."
+    },
+    "repositories": {
+      "title": "Repositorios por proyecto",
+      "loading": "Cargando repositorios…",
+      "retry": "Reintentar",
+      "noProjects": "Aún no hay proyectos en la organización. Crea uno para vincular repositorios.",
+      "noRepositories": "El token no tiene acceso a ningún repositorio de GitLab. Revisa sus permisos en GitLab.",
+      "noMatches": "Ningún repositorio coincide con la búsqueda.",
+      "projectLabel": "Proyecto",
+      "searchPlaceholder": "Buscar repositorio",
+      "legend": "Repositorios de GitLab",
+      "selected": "{{ count }} repositorio(s) vinculado(s) al proyecto.",
+      "save": "Guardar vinculación",
+      "saving": "Guardando…",
+      "saved": "Repositorios vinculados.",
+      "loadError": "No fue posible cargar los repositorios de GitLab.",
+      "saveError": "No fue posible guardar la vinculación.",
+      "network": "No hay conexión con el servidor. Verifica tu red e inténtalo de nuevo."
+    },
+    "development": {
+      "title": "Desarrollo en GitLab",
+      "loading": "Consultando GitLab…",
+      "retry": "Reintentar",
+      "refresh": "Actualizar",
+      "notConnected": "La organización no tiene GitLab conectado. Un administrador puede conectarlo desde Conexiones.",
+      "noRepositories": "El proyecto de esta tarea no tiene repositorios de GitLab vinculados. Un administrador puede vincularlos desde Conexiones.",
+      "noKey": "La tarea no tiene clave asignada, por eso no se puede buscar su actividad.",
+      "noResults": "Ningún merge request ni commit menciona {{ key }}. Incluye la clave en el título del merge request o en el mensaje del commit.",
+      "repositories": "Repositorios consultados: {{ list }}",
+      "mergeRequests": "Merge requests",
+      "commits": "Commits",
+      "noMergeRequests": "Ningún merge request menciona la tarea.",
+      "noCommits": "Ningún commit menciona la tarea.",
+      "error": "No fue posible consultar la actividad en GitLab.",
+      "errorNetwork": "No hay conexión con el servidor. Verifica tu red e inténtalo de nuevo.",
+      "states": {
+        "opened": "Abierto",
+        "merged": "Integrado",
+        "closed": "Cerrado",
+        "locked": "Bloqueado"
+      }
+    }
+  },
   "taskDetail": {
     "attachments": {
       "download": "Descargar",
@@ -1635,7 +1684,8 @@
       "detail": "Detalle",
       "subtasks": "Subtareas ({{ count }})",
       "comments": "Comentarios ({{ count }})",
-      "attachments": "Adjuntos ({{ count }})"
+      "attachments": "Adjuntos ({{ count }})",
+      "development": "Desarrollo"
     },
     "meta": {
       "project": "Proyecto",
