@@ -750,6 +750,84 @@
       "search": "Buscar en la vista previa…",
       "noMatches": "Ningún issue coincide con la búsqueda."
     },
+    "jiraProjectImport": {
+      "alreadyImported": "Ya importado",
+      "back": "Atrás",
+      "chooseAnother": "Elegir otro proyecto",
+      "chooseHint": "Elige el proyecto de Jira que quieres traer. Antes de importar verás qué se va a crear.",
+      "clearSearch": "Limpiar búsqueda",
+      "close": "Cerrar",
+      "codeInvalid": "El código debe tener entre 2 y 10 letras mayúsculas o números, por ejemplo PROJ.",
+      "codeLabel": "Código del proyecto en Command",
+      "empty": {
+        "title": "No hay proyectos de Jira disponibles",
+        "description": "La cuenta del conector no puede ver ningún proyecto. Pide en Jira el permiso «Examinar proyectos» para esa cuenta y vuelve a intentarlo."
+      },
+      "errors": {
+        "forbidden": "Solo un administrador o gerente de la organización puede importar proyectos de Jira.",
+        "generic": "No se pudo completar la operación con Jira. Inténtalo de nuevo.",
+        "jira_auth_error": "Jira rechazó el correo o el API token del conector. Registra de nuevo las credenciales y vuelve a intentarlo.",
+        "jira_config_invalid": "La URL del conector no es un sitio de Jira Cloud válido (https://<sitio>.atlassian.net).",
+        "jira_credentials_missing": "Este conector aún no tiene credenciales. Regístralas con «Registrar credenciales» y vuelve a abrir el asistente.",
+        "jira_project_unavailable": "Este proyecto ya no está disponible para la cuenta del conector. Elige otro proyecto.",
+        "jira_rate_limited": "Jira está limitando las solicitudes en este momento. Espera unos minutos y vuelve a intentarlo.",
+        "jira_unavailable": "Jira no responde en este momento. Inténtalo de nuevo en unos minutos.",
+        "network": "No fue posible conectar con el servidor. Revisa tu conexión e inténtalo de nuevo."
+      },
+      "estimation": "Estimación original: {{ hours }} h en {{ withEstimate }} tareas · {{ points }} puntos de historia en {{ withPoints }} tareas.",
+      "existing": "Ya importaste este proyecto como «{{ name }}» ({{ code }}). Al continuar se actualizan sus tareas y sprints sin duplicarlos.",
+      "fixFields": "Revisa el nombre y el código para continuar.",
+      "importing": "Importando el proyecto. Esto puede tardar unos segundos…",
+      "loading": "Cargando…",
+      "nameLabel": "Nombre del proyecto en Command",
+      "nameRequired": "Escribe un nombre para el proyecto.",
+      "noResults": "Ningún proyecto coincide con la búsqueda.",
+      "noSprints": "El proyecto no tiene tareas en sprints.",
+      "nothingSaved": "No se guardó ningún cambio; puedes intentarlo de nuevo con seguridad.",
+      "open": "Importar proyecto",
+      "openAria": "Importar un proyecto desde {{ provider }}",
+      "openProject": "Ver el proyecto",
+      "previewEmpty": "Este proyecto de Jira no tiene tareas; se creará vacío en Command.",
+      "previewNote": "Vista previa: todavía no se guarda nada.",
+      "retry": "Reintentar",
+      "searchLabel": "Buscar proyecto",
+      "searchPlaceholder": "Nombre o clave del proyecto",
+      "sprintStatus": {
+        "active": "Activo",
+        "closed": "Cerrado",
+        "draft": "Borrador"
+      },
+      "sprintsHeading": "Sprints",
+      "statusHeading": "Estados de Jira → estados en Command",
+      "stepAria": "Paso {{ step }} de 3",
+      "steps": {
+        "choose": "Elegir proyecto",
+        "import": "Importar",
+        "preview": "Revisar"
+      },
+      "submit": "Importar proyecto",
+      "submitUpdate": "Actualizar desde Jira",
+      "successCreated": "El proyecto se importó correctamente.",
+      "successUpdated": "El proyecto se actualizó con los cambios de Jira, sin duplicar tareas.",
+      "summary": {
+        "created": "Tareas creadas",
+        "errors": "No se pudieron leer {{ count }} tareas de Jira: {{ items }}.",
+        "orphans": "{{ count }} subtareas quedaron sin tarea padre porque su padre no está en el proyecto: {{ items }}.",
+        "sprints": "Sprints: {{ created }} creados y {{ updated }} actualizados.",
+        "unassigned": "{{ count }} tareas quedaron sin asignar porque su responsable de Jira no es miembro de la organización: {{ items }}.",
+        "unchanged": "Sin cambios",
+        "unmapped": "Estados de Jira sin equivalencia exacta, ubicados por su categoría: {{ items }}.",
+        "updated": "Tareas actualizadas"
+      },
+      "title": "Importar proyecto de Jira",
+      "types": {
+        "bug": "Errores",
+        "epic": "Épicas",
+        "story": "Historias",
+        "subtask": "Subtareas",
+        "task": "Tareas"
+      }
+    },
     "kind": {
       "api_token": "Token de API",
       "none": "Sin credenciales",
@@ -1543,6 +1621,55 @@
     "riskDefault": "Tarea en riesgo",
     "unassigned": "Sin responsable"
   },
+  "gitlab": {
+    "connect": {
+      "open": "Conectar GitLab",
+      "tokenLabel": "Token de acceso de GitLab",
+      "tokenHint": "Usa un token de solo lectura con el alcance read_api. Los tokens con alcances que no son de solo lectura se rechazan.",
+      "createError": "No fue posible crear la conexión con GitLab."
+    },
+    "repositories": {
+      "title": "Repositorios por proyecto",
+      "loading": "Cargando repositorios…",
+      "retry": "Reintentar",
+      "noProjects": "Aún no hay proyectos en la organización. Crea uno para vincular repositorios.",
+      "noRepositories": "El token no tiene acceso a ningún repositorio de GitLab. Revisa sus permisos en GitLab.",
+      "noMatches": "Ningún repositorio coincide con la búsqueda.",
+      "projectLabel": "Proyecto",
+      "searchPlaceholder": "Buscar repositorio",
+      "legend": "Repositorios de GitLab",
+      "selected": "{{ count }} repositorio(s) vinculado(s) al proyecto.",
+      "save": "Guardar vinculación",
+      "saving": "Guardando…",
+      "saved": "Repositorios vinculados.",
+      "loadError": "No fue posible cargar los repositorios de GitLab.",
+      "saveError": "No fue posible guardar la vinculación.",
+      "network": "No hay conexión con el servidor. Verifica tu red e inténtalo de nuevo."
+    },
+    "development": {
+      "title": "Desarrollo en GitLab",
+      "loading": "Consultando GitLab…",
+      "retry": "Reintentar",
+      "refresh": "Actualizar",
+      "notConnected": "La organización no tiene GitLab conectado. Un administrador puede conectarlo desde Conexiones.",
+      "noRepositories": "El proyecto de esta tarea no tiene repositorios de GitLab vinculados. Un administrador puede vincularlos desde Conexiones.",
+      "noKey": "La tarea no tiene clave asignada, por eso no se puede buscar su actividad.",
+      "noResults": "Ningún merge request ni commit menciona {{ key }}. Incluye la clave en el título del merge request o en el mensaje del commit.",
+      "repositories": "Repositorios consultados: {{ list }}",
+      "mergeRequests": "Merge requests",
+      "commits": "Commits",
+      "noMergeRequests": "Ningún merge request menciona la tarea.",
+      "noCommits": "Ningún commit menciona la tarea.",
+      "error": "No fue posible consultar la actividad en GitLab.",
+      "errorNetwork": "No hay conexión con el servidor. Verifica tu red e inténtalo de nuevo.",
+      "states": {
+        "opened": "Abierto",
+        "merged": "Integrado",
+        "closed": "Cerrado",
+        "locked": "Bloqueado"
+      }
+    }
+  },
   "taskDetail": {
     "attachments": {
       "download": "Descargar",
@@ -1635,7 +1762,8 @@
       "detail": "Detalle",
       "subtasks": "Subtareas ({{ count }})",
       "comments": "Comentarios ({{ count }})",
-      "attachments": "Adjuntos ({{ count }})"
+      "attachments": "Adjuntos ({{ count }})",
+      "development": "Desarrollo"
     },
     "meta": {
       "project": "Proyecto",

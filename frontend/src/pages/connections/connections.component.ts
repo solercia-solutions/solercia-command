@@ -42,6 +42,9 @@ import {
   solerciaConnectSettingsOf,
 } from '@entities/connector/connector.model';
 import { SolerciaConnectCardComponent } from '@widgets/solercia-connect-card/solercia-connect-card.component';
+import { GitlabRepositoriesComponent } from '@widgets/gitlab-repositories/gitlab-repositories.component';
+import { JiraImportWizardComponent } from '@widgets/jira-import-wizard/jira-import-wizard.component';
+import { ActiveRoleService } from '@features/organizations/active-role.service';
 
 /** Aviso superior tras volver del flujo OAuth (durable, no transitorio). */
 interface Banner {
@@ -50,6 +53,8 @@ interface Banner {
 }
 
 const SOLERCIA_CONNECT = 'solercia_connect';
+const GITLAB = 'gitlab';
+const GITLAB_DEFAULT_BASE_URL = 'https://gitlab.com';
 
 /**
  * Página "Conexiones": una sola opción creable — Solercia Connect · Microsoft
@@ -84,6 +89,8 @@ const SOLERCIA_CONNECT = 'solercia_connect';
     SolSkeletonComponent,
     SolToggleComponent,
     SolerciaConnectCardComponent,
+    GitlabRepositoriesComponent,
+    JiraImportWizardComponent,
   ],
   styleUrl: '../page-layout.scss',
   styles: [
@@ -112,9 +119,22 @@ const SOLERCIA_CONNECT = 'solercia_connect';
           <h1 class="pg-title sol-display">{{ text.title() }}</h1>
           <p class="pg-muted">{{ text.subtitle() }}</p>
         </div>
-        <sol-button type="button" variant="primary" size="touch" (clicked)="openCreate()">
-          {{ text.createOpen() }}
-        </sol-button>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          @if (!loading() && !loadError() && !hasGitlab()) {
+            <sol-button
+              type="button"
+              variant="secondary"
+              size="touch"
+              [loading]="gitlabCreating()"
+              (clicked)="connectGitlab()"
+            >
+              {{ text.gitlabConnect() }}
+            </sol-button>
+          }
+          <sol-button type="button" variant="primary" size="touch" (clicked)="openCreate()">
+            {{ text.createOpen() }}
+          </sol-button>
+        </div>
       </header>
 
       @if (banner(); as note) {
@@ -245,6 +265,10 @@ const SOLERCIA_CONNECT = 'solercia_connect';
                     }
                   </div>
 
+                  @if (connector.provider === 'gitlab' && accountsOf(connector.id).length > 0) {
+                    <sol-gitlab-repositories />
+                  }
+
                   <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     @if (connector.credential_kind === 'oauth') {
                       <sol-button
@@ -266,6 +290,17 @@ const SOLERCIA_CONNECT = 'solercia_connect';
                         (clicked)="openCredentials(connector)"
                       >
                         {{ text.credentialsOpen() }}
+                      </sol-button>
+                    }
+                    @if (canImportJiraProject(connector)) {
+                      <sol-button
+                        type="button"
+                        variant="primary"
+                        size="touch"
+                        [attr.aria-label]="jiraProjectImportAria(connector)"
+                        (clicked)="jiraWizardFor.set(connector)"
+                      >
+                        {{ text.jiraProjectImportOpen() }}
                       </sol-button>
                     }
                     @if (connector.provider === 'jira') {
@@ -395,6 +430,16 @@ const SOLERCIA_CONNECT = 'solercia_connect';
           ></sol-input>
         }
 
+        @if (credentialsFor()?.provider === 'gitlab') {
+          <sol-input
+            [label]="text.fieldGitlabToken()"
+            type="password"
+            autocomplete="off"
+            [formControl]="gitlabTokenControl"
+          ></sol-input>
+          <p class="text-xs text-muted">{{ text.fieldGitlabTokenHint() }}</p>
+        }
+
         @if (credentialsRequired()) {
           <p class="text-xs text-danger">{{ text.credentialsRequired() }}</p>
         }
@@ -486,6 +531,12 @@ const SOLERCIA_CONNECT = 'solercia_connect';
       </div>
     </sol-drawer>
 
+    <!-- Asistente: importar un proyecto de Jira (elegir → revisar → importar) -->
+    <sol-jira-import-wizard
+      [connector]="jiraWizardFor()"
+      (closed)="jiraWizardFor.set(null)"
+    />
+
     <!-- Diálogo: confirmar eliminación (nunca confirm() nativo) -->
     <sol-confirm-dialog
       [open]="deleting() !== null"
@@ -547,6 +598,7 @@ export class ConnectionsComponent implements OnInit {
     fieldGlpiUserToken: this.i18n.t('connectors.credentials.fields.glpiUserToken'),
     fieldJiraApiToken: this.i18n.t('connectors.credentials.fields.jiraApiToken'),
     jiraImportOpen: this.i18n.t('connectors.jiraImport.open'),
+    jiraProjectImportOpen: this.i18n.t('connectors.jiraProjectImport.open'),
     jiraImportTitle: this.i18n.t('connectors.jiraImport.title'),
     jiraImportFileLabel: this.i18n.t('connectors.jiraImport.fileLabel'),
     jiraImportFileHint: this.i18n.t('connectors.jiraImport.fileHint'),
@@ -562,6 +614,9 @@ export class ConnectionsComponent implements OnInit {
     jiraSearch: this.i18n.t('connectors.jiraImport.search'),
     jiraNoMatches: this.i18n.t('connectors.jiraImport.noMatches'),
     loading: this.i18n.t('connectors.loading'),
+    gitlabConnect: this.i18n.t('gitlab.connect.open'),
+    fieldGitlabToken: this.i18n.t('gitlab.connect.tokenLabel'),
+    fieldGitlabTokenHint: this.i18n.t('gitlab.connect.tokenHint'),
   } as const;
 
   // -- listado -------------------------------------------------------------
@@ -616,6 +671,13 @@ export class ConnectionsComponent implements OnInit {
   protected readonly glpiUserTokenControl = new FormControl<string>('', { nonNullable: true });
   protected readonly jiraEmailControl = new FormControl<string>('', { nonNullable: true });
   protected readonly jiraApiTokenControl = new FormControl<string>('', { nonNullable: true });
+  protected readonly gitlabTokenControl = new FormControl<string>('', { nonNullable: true });
+
+  // -- GitLab: alta del conector + credenciales en un solo gesto --------------------
+  protected readonly gitlabCreating = signal(false);
+  protected readonly hasGitlab = computed(() =>
+    this.connectors().some((c) => c.provider === GITLAB),
+  );
 
   protected readonly credentialsTitle = computed(() => {
     this.i18n.activeLang();
@@ -626,6 +688,10 @@ export class ConnectionsComponent implements OnInit {
         })
       : '';
   });
+
+  // -- importación de proyecto Jira (asistente) ---------------------------------------
+  private readonly activeRole = inject(ActiveRoleService);
+  protected readonly jiraWizardFor = signal<Connector | null>(null);
 
   // -- import de archivo Jira (heredado) -------------------------------------------
   protected readonly jiraImportFor = signal<Connector | null>(null);
@@ -666,6 +732,7 @@ export class ConnectionsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.activeRole.ensureLoaded();
     this.consumeOAuthReturn();
     this.load();
   }
@@ -712,6 +779,21 @@ export class ConnectionsComponent implements OnInit {
   protected credentialsAria(connector: Connector): string {
     return this.i18n.translate('connectors.credentials.openAria', {
       provider: this.label(connector),
+    });
+  }
+
+  /** The wizard opens only for admin/manager on a Jira connector with an active account. */
+  protected canImportJiraProject(connector: Connector): boolean {
+    return (
+      connector.provider === 'jira' &&
+      this.activeRole.isAdminOrManager() &&
+      this.accountsOf(connector.id).some((account) => account.status === 'active')
+    );
+  }
+
+  protected jiraProjectImportAria(connector: Connector): string {
+    return this.i18n.translate('connectors.jiraProjectImport.openAria', {
+      provider: providerLabel(connector.provider),
     });
   }
 
@@ -989,12 +1071,36 @@ export class ConnectionsComponent implements OnInit {
 
   // -- credenciales api_token (heredado) --------------------------------------------
 
+  /**
+   * Crea el conector `gitlab` (api_token) y abre de una vez el drawer del
+   * token, con `https://gitlab.com` ya escrito como servidor probable.
+   */
+  protected connectGitlab(): void {
+    if (this.gitlabCreating()) {
+      return;
+    }
+    this.gitlabCreating.set(true);
+    this.connectorsService.create({ provider: GITLAB, credential_kind: 'api_token' }).subscribe({
+      next: (res) => {
+        this.gitlabCreating.set(false);
+        this.connectors.update((list) => [...list, res.data]);
+        this.loadAccounts(res.data.id);
+        this.openCredentials(res.data);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.gitlabCreating.set(false);
+        this.alert.showError(this.apiErrorMessage(err, 'gitlab.connect.createError'));
+      },
+    });
+  }
+
   protected openCredentials(connector: Connector): void {
-    this.baseUrlControl.setValue('');
+    this.baseUrlControl.setValue(connector.provider === GITLAB ? GITLAB_DEFAULT_BASE_URL : '');
     this.glpiAppTokenControl.setValue('');
     this.glpiUserTokenControl.setValue('');
     this.jiraEmailControl.setValue('');
     this.jiraApiTokenControl.setValue('');
+    this.gitlabTokenControl.setValue('');
     this.credentialsError.set(null);
     this.credentialsRequired.set(false);
     this.credentialsFor.set(connector);
@@ -1028,6 +1134,7 @@ export class ConnectionsComponent implements OnInit {
         this.glpiAppTokenControl.setValue('');
         this.glpiUserTokenControl.setValue('');
         this.jiraApiTokenControl.setValue('');
+        this.gitlabTokenControl.setValue('');
         this.alert.showSuccess(this.i18n.translate('connectors.credentials.success'));
         this.loadAccounts(target.id);
       },
@@ -1065,6 +1172,13 @@ export class ConnectionsComponent implements OnInit {
         return null;
       }
       return { base_url: baseUrl, email, api_token: apiToken };
+    }
+    if (provider === GITLAB) {
+      const accessToken = this.gitlabTokenControl.value.trim();
+      if (!accessToken) {
+        return null;
+      }
+      return { base_url: baseUrl, access_token: accessToken };
     }
     return null;
   }

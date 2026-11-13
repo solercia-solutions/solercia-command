@@ -49,13 +49,14 @@ import {
   LinkableTask,
 } from '@shared/ui';
 import { I18nService } from '@shared/i18n';
+import { GitlabDevelopmentComponent } from '@widgets/gitlab-development/gitlab-development.component';
 import {
   formatOriginalEstimate,
   parseOriginalEstimate,
 } from '@shared/lib/estimation';
 
 type LoadState = 'loading' | 'ready' | 'notFound' | 'forbidden' | 'error';
-type TabId = 'detail' | 'subtasks' | 'comments' | 'attachments';
+type TabId = 'detail' | 'subtasks' | 'comments' | 'attachments' | 'development';
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 /** Variante de `sol-badge` por prioridad (mismo criterio que la cuadrícula del workspace). */
@@ -107,6 +108,7 @@ const SOURCE_KEYS: Record<string, string> = {
     SolSelectComponent,
     SolSpinnerComponent,
     SolTabsComponent,
+    GitlabDevelopmentComponent,
   ],
   template: `
   @switch (state()) {
@@ -544,6 +546,10 @@ const SOURCE_KEYS: Record<string, string> = {
                   </ul>
                   </div>
                 </sol-card>
+              }
+
+              @case ('development') {
+                <sol-gitlab-development [taskId]="t.id" />
               }
             }
           </div>
@@ -1018,6 +1024,7 @@ export class TaskDetailPanelComponent {
       { id: 'subtasks', label: label('subtasks', this.subtasks().length) },
       { id: 'comments', label: label('comments', this.comments().length) },
       { id: 'attachments', label: label('attachments', this.taskAttachments().length) },
+      { id: 'development', label: this.i18n.translate('taskDetail.tabs.development') },
     ];
   });
 

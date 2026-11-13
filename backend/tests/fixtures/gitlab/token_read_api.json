@@ -1,0 +1,9 @@
+{
+  "id": 77,
+  "name": "solercia-command",
+  "revoked": false,
+  "active": true,
+  "scopes": ["read_api", "read_repository"],
+  "user_id": 4242,
+  "expires_at": "2027-06-30"
+}

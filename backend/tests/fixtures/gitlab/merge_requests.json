@@ -1,0 +1,5 @@
+[
+  {"iid": 7, "title": "ORGA-12: agrega el inicio de sesión", "state": "merged", "source_branch": "feature/ORGA-12-login", "updated_at": "2026-11-10T15:00:00.000Z", "web_url": "https://gitlab.com/grupo/api/-/merge_requests/7", "author": {"name": "Ana Pérez"}},
+  {"iid": 8, "title": "ORGA-123 otra tarea", "state": "opened", "source_branch": "feature/ORGA-123", "updated_at": "2026-11-11T15:00:00.000Z", "web_url": "https://gitlab.com/grupo/api/-/merge_requests/8", "author": {"name": "Luis Gómez"}},
+  {"iid": 9, "title": "Refactor del token [orga-12]", "state": "opened", "source_branch": "refactor", "updated_at": "2026-11-12T09:30:00.000Z", "web_url": "https://gitlab.com/grupo/api/-/merge_requests/9", "author": {"name": "Ana Pérez"}}
+]

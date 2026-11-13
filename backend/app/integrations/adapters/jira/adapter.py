@@ -55,6 +55,8 @@ _BASE_SEARCH_FIELDS: tuple[str, ...] = (
     "labels",
     "description",
     "created",
+    "timeoriginalestimate",
+    "parent",
 )
 
 
@@ -250,10 +252,13 @@ class JiraAdapter:
         jql: str,
         jira_settings: Mapping[str, Any] | None = None,
         since: Any = None,
+        whole_project: bool = False,
     ) -> tuple[list[NormalizedJiraIssue], NormalizationReport]:
         """Extract issues via the API vía: resolve custom fields, paginate
         ``/search/jql`` and normalize every issue (design.md Data Flow,
-        "Vía API")."""
+        "Vía API"). ``whole_project=True`` bounds the fetch by
+        ``JIRA_IMPORT_MAX_ISSUES`` and raises ``JiraProjectTooLarge`` rather
+        than truncating."""
 
         jira_settings = jira_settings or {}
         mappings = build_mappings(jira_settings)
@@ -272,7 +277,10 @@ class JiraAdapter:
                 sprint_field_override=jira_settings.get("sprint_field"),
             )
             raw_issues = await client.list_issues(
-                jql, _search_fields(story_points_field, sprint_field), since=since
+                jql,
+                _search_fields(story_points_field, sprint_field),
+                since=since,
+                max_issues=self._settings.JIRA_IMPORT_MAX_ISSUES if whole_project else None,
             )
         except JiraConfigError as exc:
             raise errors.JiraConfigInvalid(str(exc)) from exc
@@ -299,6 +307,23 @@ class JiraAdapter:
             story_points_field=story_points_field,
             sprint_field=sprint_field,
         )
+
+    async def list_projects(
+        self, *, base_url: str, email: str, api_token: str
+    ) -> list[dict[str, str]]:
+        """Projects the account can browse (``[{key, name}]``, read-only)."""
+
+        client: JiraClient | None = None
+        try:
+            client = JiraClient(
+                base_url, email, api_token, transport=self._transport, settings=self._settings
+            )
+            return await client.list_projects()
+        except JiraConfigError as exc:
+            raise errors.JiraConfigInvalid(str(exc)) from exc
+        finally:
+            if client is not None:
+                await client.aclose()
 
     def parse_file(
         self,

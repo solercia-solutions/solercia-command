@@ -437,3 +437,93 @@ class TestJiraClientAuthError:
             assert api_token not in record.getMessage()
             assert email not in record.getMessage()
         await client.aclose()
+
+
+# ---------------------------------------------------------------------------
+# `list_projects` -> `GET /rest/api/3/project/search` (startAt/isLast)
+# ---------------------------------------------------------------------------
+
+
+class TestJiraClientListProjects:
+    @pytest.mark.asyncio
+    async def test_list_projects_pages_with_start_at_until_is_last(self) -> None:
+        pages = {
+            0: {
+                "values": [{"key": "PROJ", "name": "Proyecto", "id": "1"}],
+                "isLast": False,
+                "total": 2,
+            },
+            1: {"values": [{"key": "OPS", "name": "Operaciones", "id": "2"}], "isLast": True},
+        }
+        seen: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/project/search"
+            start_at = int(request.url.params.get("startAt", "0"))
+            seen.append(start_at)
+            return httpx.Response(200, json=pages[start_at])
+
+        from app.integrations.adapters.jira.client import JiraClient
+
+        client = JiraClient(
+            _ALLOWED_BASE_URL,
+            "user@acme.com",
+            "secret-token",
+            transport=httpx.MockTransport(handler),
+            settings=_settings(),
+        )
+
+        projects = await client.list_projects()
+
+        assert projects == [
+            {"key": "PROJ", "name": "Proyecto"},
+            {"key": "OPS", "name": "Operaciones"},
+        ]
+        assert seen == [0, 1]
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_list_projects_is_bounded_by_jira_max_pages(self) -> None:
+        """A server that never says ``isLast`` cannot trap the loop."""
+
+        calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(
+                200, json={"values": [{"key": f"P{calls}", "name": "x"}], "isLast": False}
+            )
+
+        from app.integrations.adapters.jira.client import JiraClient
+
+        client = JiraClient(
+            _ALLOWED_BASE_URL,
+            "user@acme.com",
+            "secret-token",
+            transport=httpx.MockTransport(handler),
+            settings=_settings(JIRA_MAX_PAGES=3),
+        )
+
+        projects = await client.list_projects()
+
+        assert calls == 3
+        assert len(projects) == 3
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_list_projects_maps_401_to_the_controlled_auth_error(self) -> None:
+        from app.integrations.adapters.jira import errors
+        from app.integrations.adapters.jira.client import JiraClient
+
+        client = JiraClient(
+            _ALLOWED_BASE_URL,
+            "user@acme.com",
+            "secret-token",
+            transport=httpx.MockTransport(lambda request: httpx.Response(401)),
+            settings=_settings(),
+        )
+
+        with pytest.raises(errors.JiraAuthError):
+            await client.list_projects()
+        await client.aclose()

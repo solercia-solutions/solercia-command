@@ -66,6 +66,7 @@ TENANT_SCOPED: frozenset[str] = frozenset(
         "assets",
         "alert_rules",
         "intake",
+        "gitlab_integration",
         "glpi_sync",
         "jira_import",
         "organizations",

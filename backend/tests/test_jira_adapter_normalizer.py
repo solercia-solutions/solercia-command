@@ -319,8 +319,10 @@ class TestNormalizeBatchConvergence:
         )
         file_issue, _ = normalize_file_row(file_row, mappings=_mappings())
 
-        assert dataclasses.replace(api_issue, source="") == dataclasses.replace(
-            file_issue, source=""
+        # A file export carries no assignee email (the API vía does): the
+        # import-only `assignee_email` is the other field allowed to differ.
+        assert dataclasses.replace(api_issue, source="", assignee_email=None) == (
+            dataclasses.replace(file_issue, source="")
         )
         assert api_issue.source == "api"
         assert file_issue.source == "file"
@@ -397,3 +399,94 @@ class TestNormalizeBatchIsolation:
         assert len(report.skipped_malformed) == 1
         assert report.skipped_malformed[0]["index"] == 1
         assert report.skipped_malformed[0]["key"] == "PROJ-2"
+
+
+class TestImportFieldsExtraction:
+    def _raw(self, **fields: object) -> dict:
+        base: dict[str, object] = {
+            "summary": "Historia con estimación",
+            "issuetype": {"name": "Story", "subtask": False},
+            "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+            "priority": {"name": "Medium"},
+        }
+        base.update(fields)
+        return {"key": "PROJ-7", "fields": base}
+
+    def test_estimate_seconds_assignee_email_and_parent_key_are_extracted(self) -> None:
+        from app.integrations.adapters.jira.normalizer import normalize_api_issue
+
+        raw_issue = self._raw(
+            timeoriginalestimate=14400,
+            assignee={"accountId": "acc-1", "emailAddress": "mia@acme.com"},
+            parent={"key": "PROJ-1"},
+        )
+
+        issue, _flags = normalize_api_issue(
+            raw_issue, mappings=_mappings(), story_points_field=None, sprint_field=None
+        )
+
+        assert issue.original_estimate_seconds == 14400
+        assert issue.assignee_email == "mia@acme.com"
+        assert issue.parent_key == "PROJ-1"
+        # The raw assignee keeps its accountId priority (unchanged contract).
+        assert issue.assignee_raw == "acc-1"
+
+    def test_missing_estimate_assignee_email_and_parent_key_are_none(self) -> None:
+        from app.integrations.adapters.jira.normalizer import normalize_api_issue
+
+        issue, _flags = normalize_api_issue(
+            self._raw(), mappings=_mappings(), story_points_field=None, sprint_field=None
+        )
+
+        assert issue.original_estimate_seconds is None
+        assert issue.assignee_email is None
+        assert issue.parent_key is None
+
+    def test_sprint_object_dates_are_extracted(self) -> None:
+        from app.integrations.adapters.jira.normalizer import normalize_api_issue
+
+        raw_issue = self._raw(
+            customfield_10020=[
+                {
+                    "id": 9,
+                    "name": "Sprint 5",
+                    "state": "future",
+                    "startDate": "2024-03-01T08:00:00.000Z",
+                    "endDate": "2024-03-15T17:00:00.000Z",
+                }
+            ]
+        )
+
+        issue, _flags = normalize_api_issue(
+            raw_issue,
+            mappings=_mappings(),
+            story_points_field=None,
+            sprint_field="customfield_10020",
+        )
+
+        assert issue.sprint_name == "Sprint 5"
+        assert issue.sprint_state == "future"
+        assert issue.sprint_start_date == datetime(2024, 3, 1, 8, 0, tzinfo=UTC)
+        assert issue.sprint_end_date == datetime(2024, 3, 15, 17, 0, tzinfo=UTC)
+
+    def test_file_row_estimate_is_read_and_bad_values_fall_back_to_none(self) -> None:
+        from app.integrations.adapters.jira.normalizer import normalize_file_row
+
+        row = {
+            "Issue key": "PROJ-8",
+            "Summary": "Fila del export",
+            "Issue Type": "Story",
+            "Status": "To Do",
+            "Priority": "Medium",
+            "Original Estimate": "7200",
+            "Parent id": "PROJ-1",
+        }
+
+        issue, _flags = normalize_file_row(row, mappings=_mappings())
+        assert issue.original_estimate_seconds == 7200
+        assert issue.parent_key == "PROJ-1"
+
+        broken, _flags = normalize_file_row(
+            {**row, "Original Estimate": "dos horas"}, mappings=_mappings()
+        )
+        assert broken.original_estimate_seconds is None

@@ -133,3 +133,19 @@ class JiraRequestFailed(AppException):
 
     def __init__(self, detail: str = _REQUEST_FAILED_MESSAGE) -> None:
         super().__init__(detail, code="jira_request_failed", status_code=502)
+
+
+class JiraProjectTooLarge(AppException):
+    """A whole-project fetch (preview / import-project) reached
+    ``JIRA_IMPORT_MAX_ISSUES`` while Jira still reported more pages — the
+    import is refused instead of treating a partial project as complete."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            f"El proyecto de Jira tiene más de {limit} issues, el máximo que admite "
+            "la importación. Ajusta la variable JIRA_IMPORT_MAX_ISSUES para "
+            "importarlo completo.",
+            code="jira_project_too_large",
+            status_code=422,
+        )
+        self.limit = limit
