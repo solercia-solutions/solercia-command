@@ -35,6 +35,12 @@ _REQUEST_FAILED_MESSAGE = (
     "GitLab rechazó la solicitud. Verifica que el token tenga acceso al repositorio."
 )
 _NOT_FOUND_MESSAGE = "El repositorio de GitLab no existe o el token no tiene acceso a él."
+_NOT_INSPECTABLE_MESSAGE = (
+    "GitLab no permitió consultar los alcances del token (GET "
+    "/personal_access_tokens/self). Puede deberse a una versión antigua de GitLab "
+    "o a un tipo de token que no admite esa consulta. Usa un token personal, de "
+    "grupo o de proyecto con el alcance read_api en una versión reciente de GitLab."
+)
 
 
 class GitlabAuthError(AppException):
@@ -67,13 +73,13 @@ class GitlabTokenScopeMissing(AppException):
 
 
 class GitlabTokenScopeNotAllowed(AppException):
-    """The token carries at least one write scope — only read-only tokens
-    are accepted, so it is never persisted."""
+    """The token carries at least one scope outside the read-only allowlist
+    — only read-only tokens are accepted, so it is never persisted."""
 
     def __init__(self, scopes: Iterable[str]) -> None:
         listed = ", ".join(sorted(scopes))
         super().__init__(
-            "El token de GitLab tiene alcances de escritura "
+            "El token de GitLab tiene alcances que no son de solo lectura "
             f"({listed}). Crea un token de solo lectura con el alcance read_api.",
             code="gitlab_token_scope_not_allowed",
             status_code=422,
@@ -106,3 +112,11 @@ class GitlabNotFound(AppException):
 
     def __init__(self, detail: str = _NOT_FOUND_MESSAGE) -> None:
         super().__init__(detail, code="gitlab_repository_not_found", status_code=422)
+
+
+class GitlabTokenNotInspectable(AppException):
+    """``GET /personal_access_tokens/self`` answered ``404``: the token's
+    scopes cannot be read, so it cannot be accepted as read-only."""
+
+    def __init__(self, detail: str = _NOT_INSPECTABLE_MESSAGE) -> None:
+        super().__init__(detail, code="gitlab_token_not_inspectable", status_code=422)

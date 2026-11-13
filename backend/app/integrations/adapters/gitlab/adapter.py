@@ -2,8 +2,8 @@
 
 The handshake validates ``base_url`` + ``access_token`` against
 ``GET /api/v4/user`` and ``GET /api/v4/personal_access_tokens/self`` and
-only accepts read-only tokens: ``read_api`` is required and any write scope
-(:data:`WRITE_SCOPES`) is rejected, so such a token is never persisted (the
+only accepts read-only tokens: ``read_api`` is required and any scope outside
+:data:`ALLOWED_SCOPES` is rejected, so such a token is never persisted (the
 connectors service encrypts only after ``connect`` returns).
 
 Beyond the generic handshake the adapter exposes GitLab-specific read
@@ -39,8 +39,20 @@ from app.integrations.ports import (
 )
 
 REQUIRED_SCOPE = "read_api"
-WRITE_SCOPES: frozenset[str] = frozenset(
-    {"api", "write_repository", "write_registry", "sudo", "admin_mode"}
+# Allowlist, never a denylist: any scope GitLab adds later is rejected until it
+# is reviewed and listed here as read-only.
+ALLOWED_SCOPES: frozenset[str] = frozenset(
+    {
+        REQUIRED_SCOPE,
+        "read_user",
+        "read_repository",
+        "read_registry",
+        "read_virtual_registry",
+        "read_observability",
+        "openid",
+        "profile",
+        "email",
+    }
 )
 
 _EPOCH = datetime.min.replace(tzinfo=UTC)
@@ -88,12 +100,17 @@ class _GitlabApiTokenHandshake:
         base_url, access_token = _credentials(raw)
         async with self._adapter.client(base_url, access_token) as client:
             user = await client.get_user()
-            token = await client.get_token_self()
+            try:
+                token = await client.get_token_self()
+            except errors.GitlabNotFound as exc:
+                # Old GitLab versions and some token types cannot describe
+                # themselves: without the scopes the token cannot be vetted.
+                raise errors.GitlabTokenNotInspectable() from exc
 
         if token.get("active") is False or token.get("revoked") is True:
             raise errors.GitlabAuthError()
         scopes = {str(scope) for scope in token.get("scopes") or []}
-        forbidden = scopes & WRITE_SCOPES
+        forbidden = scopes - ALLOWED_SCOPES
         if forbidden:
             raise errors.GitlabTokenScopeNotAllowed(forbidden)
         if REQUIRED_SCOPE not in scopes:
@@ -241,4 +258,4 @@ class GitlabAdapter:
         return merge_requests, commits
 
 
-__all__ = ["GitlabAdapter", "REQUIRED_SCOPE", "WRITE_SCOPES", "mentions_task_key"]
+__all__ = ["GitlabAdapter", "ALLOWED_SCOPES", "REQUIRED_SCOPE", "mentions_task_key"]

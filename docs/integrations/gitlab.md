@@ -23,8 +23,11 @@ Al crearlo:
 Command rechaza el token, sin guardarlo, cuando:
 
 - no tiene el alcance `read_api`;
-- tiene cualquier alcance de escritura: `api`, `write_repository`, `write_registry`, `sudo` o `admin_mode`;
+- tiene cualquier alcance fuera de esta lista de solo lectura: `read_api`, `read_user`, `read_repository`, `read_registry`, `read_virtual_registry`, `read_observability`, `openid`, `profile` y `email`. Por ejemplo, se rechazan `api`, `write_*`, `sudo`, `admin_mode`, `create_runner`, `manage_runner`, `k8s_proxy`, `self_rotate` y `ai_features`, y también cualquier alcance nuevo que GitLab agregue hasta que se revise;
+- GitLab no permite consultar sus alcances (`GET /api/v4/personal_access_tokens/self` responde 404, por ejemplo en versiones antiguas de GitLab);
 - GitLab lo reporta como vencido, revocado o inválido.
+
+La dirección del servidor también se rechaza si contiene espacios o caracteres de control.
 
 ## 2. Permite el servidor de GitLab
 

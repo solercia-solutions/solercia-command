@@ -1625,7 +1625,7 @@
     "connect": {
       "open": "Conectar GitLab",
       "tokenLabel": "Token de acceso de GitLab",
-      "tokenHint": "Usa un token de solo lectura con el alcance read_api. Los tokens con alcances de escritura se rechazan.",
+      "tokenHint": "Usa un token de solo lectura con el alcance read_api. Los tokens con alcances que no son de solo lectura se rechazan.",
       "createError": "No fue posible crear la conexión con GitLab."
     },
     "repositories": {

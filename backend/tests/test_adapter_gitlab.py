@@ -101,9 +101,25 @@ class TestGitlabHandshake:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "scope", ["api", "write_repository", "write_registry", "sudo", "admin_mode"]
+        "scope",
+        [
+            "api",
+            "write_repository",
+            "write_registry",
+            "write_virtual_registry",
+            "sudo",
+            "admin_mode",
+            "create_runner",
+            "manage_runner",
+            "k8s_proxy",
+            "self_rotate",
+            "ai_features",
+            "alcance_futuro_desconocido",
+        ],
     )
-    async def test_token_with_write_scope_is_rejected(self, scope: str) -> None:
+    async def test_token_with_a_scope_outside_the_read_only_allowlist_is_rejected(
+        self, scope: str
+    ) -> None:
         payload = _fixture("token_read_api.json") | {"scopes": ["read_api", scope]}
         routes = _read_only_routes() | {
             "/api/v4/personal_access_tokens/self": lambda: httpx.Response(200, json=payload)
@@ -116,6 +132,63 @@ class TestGitlabHandshake:
         assert scope in exc_info.value.detail
         assert "solo lectura" in exc_info.value.detail
         assert _TOKEN not in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_token_with_every_allowed_read_only_scope_connects(self) -> None:
+        scopes = [
+            "read_api",
+            "read_user",
+            "read_repository",
+            "read_registry",
+            "read_virtual_registry",
+            "read_observability",
+            "openid",
+            "profile",
+            "email",
+        ]
+        payload = _fixture("token_read_api.json") | {"scopes": scopes}
+        routes = _read_only_routes() | {
+            "/api/v4/personal_access_tokens/self": lambda: httpx.Response(200, json=payload)
+        }
+        adapter = _adapter(_Recorder(routes))
+
+        account = await adapter.api_token.connect({"base_url": _BASE_URL, "access_token": _TOKEN})
+
+        assert account.external_account_id == "gitlab-4242"
+
+    @pytest.mark.asyncio
+    async def test_token_that_cannot_be_inspected_gets_its_own_message(self) -> None:
+        routes = _read_only_routes() | {
+            "/api/v4/personal_access_tokens/self": lambda: httpx.Response(
+                404, json={"message": "404 Not Found"}
+            )
+        }
+        adapter = _adapter(_Recorder(routes))
+
+        with pytest.raises(errors.GitlabTokenNotInspectable) as exc_info:
+            await adapter.api_token.connect({"base_url": _BASE_URL, "access_token": _TOKEN})
+
+        assert exc_info.value.status_code == 422
+        assert exc_info.value.code == "gitlab_token_not_inspectable"
+        assert "repositorio" not in exc_info.value.detail
+        assert _TOKEN not in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "base_url",
+        ["https://gitl\tab.com", "https://gitlab.com/ruta con espacio", "https://gitlab\x00.com"],
+    )
+    async def test_base_url_with_whitespace_or_control_chars_is_rejected_before_any_call(
+        self, base_url: str
+    ) -> None:
+        recorder = _Recorder(_read_only_routes())
+        adapter = _adapter(recorder)
+
+        with pytest.raises(errors.GitlabConfigInvalid) as exc_info:
+            await adapter.api_token.connect({"base_url": base_url, "access_token": _TOKEN})
+
+        assert exc_info.value.status_code == 422
+        assert recorder.requests == []
 
     @pytest.mark.asyncio
     async def test_token_without_read_api_is_rejected(self) -> None:

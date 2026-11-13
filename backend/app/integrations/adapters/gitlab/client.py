@@ -47,7 +47,12 @@ def normalize_base_url(base_url: str, settings: Settings) -> str:
     """Validate ``base_url`` (https + allowlisted host, no user info) and
     return it without a trailing slash. Raises ``GitlabConfigInvalid``."""
 
-    parts = urlsplit(base_url.strip())
+    candidate = base_url.strip()
+    # httpx rejects these later with InvalidURL (an unhandled 500); refuse them
+    # here, before any request, with the same controlled error.
+    if any(char.isspace() or not char.isprintable() for char in candidate):
+        raise errors.GitlabConfigInvalid()
+    parts = urlsplit(candidate)
     if parts.scheme != "https":
         raise errors.GitlabConfigInvalid("La dirección de GitLab debe usar https.")
     host = (parts.hostname or "").lower()
