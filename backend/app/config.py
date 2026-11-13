@@ -291,6 +291,18 @@ class Settings(BaseSettings):
     # `GLPI_MAX_BACKOFF_SECONDS`/`M365_MAX_BACKOFF_SECONDS`.
     JIRA_MAX_BACKOFF_SECONDS: float = 30.0
 
+    # GitLab adapter — read-only REST v4 client, `credential_kind=api_token`
+    # (`base_url` + personal/group/project access token with `read_api`).
+    # Anti-SSRF: `base_url` must be `https` and its HOST must be one of the
+    # comma-separated hosts below (exact match, never a suffix), checked
+    # before any request is attempted. Self-managed instances are added here.
+    GITLAB_BASE_URL_ALLOWLIST: str = "gitlab.com"
+    GITLAB_TIMEOUT_SECONDS: float = 10.0
+    GITLAB_PAGE_SIZE: int = 100
+    GITLAB_MAX_PAGES: int = 5
+    GITLAB_MAX_RETRIES: int = 3
+    GITLAB_MAX_BACKOFF_SECONDS: float = 30.0
+
     # MCP adapter (change 19-mcp-connector) — read-only client over the
     # Model Context Protocol's Streamable HTTP transport, `credential_kind
     # ∈ {api_token, none}` (a per-CONNECTOR choice, not fixed per-adapter

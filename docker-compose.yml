@@ -51,6 +51,9 @@ services:
       # the shell/.env and is never written here; empty means "not configured".
       SOLERCIA_CONNECT_BASE_URL: http://host.docker.internal:8765
       SOLERCIA_CONNECT_API_KEY: ${SOLERCIA_CONNECT_API_KEY:-}
+      # GitLab hosts a connector may point to (comma-separated, exact host,
+      # https only); see docs/integrations/gitlab.md.
+      GITLAB_BASE_URL_ALLOWLIST: ${GITLAB_BASE_URL_ALLOWLIST:-gitlab.com}
       # SSO (OIDC, Keycloak) — off unless .env turns it on. A provider is
       # configured only when its four OIDC_KEYCLOAK_* values are present;
       # see docs/AUTH.md, section "Keycloak".

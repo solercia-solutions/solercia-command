@@ -1,0 +1,9 @@
+{
+  "id": 78,
+  "name": "token-amplio",
+  "revoked": false,
+  "active": true,
+  "scopes": ["api", "read_api"],
+  "user_id": 4242,
+  "expires_at": "2027-06-30"
+}

@@ -28,6 +28,7 @@ import app.email.outbox  # noqa: F401,E402
 # alongside real providers; `microsoft365` (change 15) and `google`
 # (change 16) are the first two real ones, changes 17-19 add the rest.
 import app.integrations.adapters.fake  # noqa: F401,E402
+import app.integrations.adapters.gitlab  # noqa: F401,E402
 import app.integrations.adapters.glpi  # noqa: F401,E402
 import app.integrations.adapters.google  # noqa: F401,E402
 import app.integrations.adapters.jira  # noqa: F401,E402
